@@ -48,7 +48,12 @@ assert.strictEqual(facade.getProjectionPlanes(undefined, portrait).viewport, por
 assert.equal(Object.isFrozen(planes.columnLayout), false);
 assert.equal(Object.isFrozen(planes.columnLayout[0]), true);
 assert.strictEqual(planes.columnLayout[0].weights, portrait.columnLayout[0].weights);
-assert.ok(Math.abs((facade.getProjectionPlanes({ corridorWidth: 0.2 }, portrait).xr[0] - facade.getProjectionPlanes({ corridorWidth: 0.2 }, portrait).xl[0]) - (portrait.base.xr[0] - portrait.base.xl[0]) * 0.94) < 1e-9);
+const narrowPlanes = facade.getProjectionPlanes({ corridorWidth: 0.2, ceilingHeight: 0.5 }, portrait);
+// The camera plane is the screen frame; biome width and ceiling shape only the planes ahead.
+assert.ok(Math.abs((narrowPlanes.xr[0] - narrowPlanes.xl[0]) - (portrait.base.xr[0] - portrait.base.xl[0])) < 1e-9);
+assert.equal(narrowPlanes.yt[0], portrait.base.yt[0]);
+assert.equal(narrowPlanes.yb[0], portrait.base.yb[0]);
+assert.ok(Math.abs((narrowPlanes.xr[1] - narrowPlanes.xl[1]) - (portrait.base.xr[1] - portrait.base.xl[1]) * 0.94) < 1e-9);
 assert.equal(facade.getProjectionPlanes({ ceilingStyle: "invalid" }).ceilingStyle, "flat");
 assert.equal(facade.getProjectionPlanes({ ceilingStyle: "arch" }).ceilingStyle, "arch");
 const finiteOrInput = { [Symbol.toPrimitive]() { conversions += 1; return "0.8"; } };

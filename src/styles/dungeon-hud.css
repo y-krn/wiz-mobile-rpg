@@ -246,3 +246,22 @@
 #game-container.dungeon-first-mode #dungeon-minimap-overlay {
   z-index: 4;
 }
+
+/* ---------- The world fills the screen above the dock ----------
+   The dock is opaque stone, so the renderer is sized to the visible region
+   only: the corridor's horizon centres in what the player can see instead of
+   sinking its near floor behind the controls. The height is the same in
+   every dungeon state, so entering combat or an event never re-frames it. */
+#game-container.dungeon-first-mode {
+  --world-bottom: calc(var(--safe-area-bottom) + 76px + 196px);
+}
+
+#game-container.dungeon-first-mode #viewport-panel {
+  bottom: var(--world-bottom);
+}
+
+@media (max-height: 600px) {
+  #game-container.dungeon-first-mode {
+    --world-bottom: calc(var(--safe-area-bottom) + 70px + 128px);
+  }
+}
