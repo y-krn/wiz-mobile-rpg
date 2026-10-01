@@ -1,0 +1,248 @@
+/* ==========================================================================
+   Dungeon HUD skin — the rest of the screen joins the dungeon
+   Companion to explore-dock.css (which owns the stone/leather/torch tokens).
+   Top chips become a carved wooden sign, a parchment quest note and log, and
+   a brass compass; the view gets torchlit darkness at its edges; the combat
+   dock is cut from the same stone as the explore dock.
+   ========================================================================== */
+
+#game-container.dungeon-first-mode {
+  --hud-wood: #5d3f27;
+  --hud-wood-light: #7a5636;
+  --hud-wood-edge: #2c1d12;
+  --hud-parchment: #f3e7c9;
+  --hud-parchment-low: #e6d3a8;
+  --hud-parchment-edge: #8a6b3e;
+  --hud-ink: #3b2a16;
+  --hud-brass: #d9b066;
+  --hud-brass-low: #a87b35;
+  --hud-brass-edge: #5e4219;
+}
+
+/* ---------- Torchlit darkness around the view ---------- */
+#game-container.dungeon-first-mode #viewport-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background:
+    radial-gradient(ellipse 90% 62% at 50% 56%, rgba(20, 12, 4, 0) 36%, rgba(20, 12, 4, 0.4) 70%, rgba(10, 6, 2, 0.78) 100%),
+    linear-gradient(180deg, rgba(10, 6, 2, 0.5), rgba(10, 6, 2, 0) 26%, rgba(255, 160, 60, 0) 62%, rgba(255, 140, 50, 0.16) 100%);
+  pointer-events: none;
+}
+
+/* ---------- Floor sign: a wooden plank nailed above the corridor ---------- */
+#game-container.dungeon-first-mode[data-dungeon-first-state] #location-label {
+  border: 2px solid var(--hud-wood-edge);
+  border-radius: 4px;
+  background:
+    radial-gradient(circle at 7px 50%, #c9a36b 0 1.5px, transparent 2px),
+    radial-gradient(circle at calc(100% - 7px) 50%, #c9a36b 0 1.5px, transparent 2px),
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0) 0 5px, rgba(0, 0, 0, 0.08) 5px 6px),
+    linear-gradient(180deg, var(--hud-wood-light), var(--hud-wood));
+  box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.25), 0 3px 0 rgba(0, 0, 0, 0.45);
+  color: var(--dock-parchment);
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  backdrop-filter: none;
+  padding-inline: 16px;
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state] #location-label::before {
+  box-shadow: 0 0 0 1.5px var(--hud-wood-edge), 0 0 6px var(--dock-vein);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state] #btn-mute {
+  --btn-edge: rgba(0, 0, 0, 0.45);
+  border: 2px solid var(--hud-wood-edge);
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--hud-wood-light), var(--hud-wood));
+  box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.25), 0 3px 0 var(--btn-edge);
+  color: var(--dock-parchment);
+  font-family: var(--font-display);
+  font-weight: 400;
+  backdrop-filter: none;
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state] #btn-mute.sound-on {
+  color: var(--dock-torch);
+}
+
+/* ---------- Quest note and event log: parchment pinned over the world ---------- */
+#game-container.dungeon-first-mode[data-dungeon-first-state] #goal-banner,
+#game-container.dungeon-first-mode[data-dungeon-first-state] #log-panel:not(:has(#log-content:empty)) {
+  border: 2px solid var(--hud-parchment-edge);
+  border-radius: 3px;
+  background:
+    radial-gradient(140% 120% at 0% 0%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, var(--hud-parchment), var(--hud-parchment-low));
+  box-shadow: inset 0 0 0 1px rgba(255, 248, 228, 0.55), inset 0 -2px 0 rgba(138, 107, 62, 0.22), 0 4px 0 rgba(0, 0, 0, 0.32);
+  color: var(--hud-ink);
+  backdrop-filter: none;
+}
+
+/* Folded goal: the parchment strip is drawn by the ::before layer. */
+#game-container.dungeon-first-mode[data-goal-expanded="false"][data-dungeon-first-state] #goal-banner {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="false"][data-dungeon-first-state] #goal-banner::before {
+  border: 2px solid var(--hud-parchment-edge);
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--hud-parchment), var(--hud-parchment-low));
+  box-shadow: inset 0 0 0 1px rgba(255, 248, 228, 0.55), 0 3px 0 rgba(0, 0, 0, 0.32);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state] #log-content {
+  color: var(--hud-ink);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state] #log-content .event-strip-item-label {
+  border-color: var(--hud-parchment-edge);
+  border-radius: 2px;
+  color: #6b4f2a;
+  font-family: var(--font-display);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state] #log-content .event-strip-item--unresolved {
+  border-left-color: #a8352b;
+  background: rgba(168, 53, 43, 0.08);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state] #log-content .event-strip-item--unresolved .event-strip-item-label {
+  border-color: #a8352b;
+  color: #a8352b;
+}
+
+/* Log expand: a wax seal on the note's corner. */
+#game-container.dungeon-first-mode[data-explore-hud][data-dungeon-first-state] #btn-log-expand,
+#game-container.dungeon-first-mode[data-dungeon-first-state] #btn-log-expand {
+  border: 0;
+  color: #f6d9c8;
+  background:
+    radial-gradient(circle, #a8352b 0 11px, #7c2219 11px 13px, rgba(124, 34, 25, 0.35) 13px 14px, transparent 14.5px);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Brass compass plate ---------- */
+#game-container.dungeon-first-mode[data-dungeon-first-state] #viewport-hud:has(> :not(.sr-only)) {
+  border: 2px solid var(--hud-brass-edge);
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--hud-brass), var(--hud-brass-low));
+  box-shadow: inset 0 1px 0 rgba(255, 244, 210, 0.6), inset 0 -2px 0 rgba(94, 66, 25, 0.35), 0 3px 0 rgba(0, 0, 0, 0.4);
+  color: #2e1d08;
+  font-family: var(--font-display);
+  text-shadow: 0 1px 0 rgba(255, 236, 190, 0.6);
+}
+
+#game-container.dungeon-first-mode[data-dungeon-first-state] #viewport-hud * {
+  color: inherit;
+}
+
+/* ---------- Minimap: a parchment chart in a wooden frame ---------- */
+#game-container.dungeon-first-mode[data-explore-hud] #dungeon-minimap-overlay:not([data-minimap-visible="false"]) {
+  outline: 3px solid var(--hud-wood);
+  outline-offset: 0;
+  box-shadow: 0 0 0 5px var(--hud-wood-edge), 0 6px 0 2px rgba(0, 0, 0, 0.35);
+  filter: sepia(0.35) saturate(0.9);
+}
+
+/* ---------- Combat: the same stone, iron and blood ---------- */
+#game-container.dungeon-first-mode #controls-panel.combat-mode {
+  border-radius: 0;
+  background-color: var(--dock-stone);
+  background-color: color-mix(in srgb, var(--dock-stone) 78%, var(--biome-background, #07141b));
+  background-image:
+    linear-gradient(180deg, rgba(255, 240, 210, 0.07), rgba(0, 0, 0, 0) 28px),
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0) 0 39px, rgba(0, 0, 0, 0.22) 39px 41px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0) 0 71px, rgba(0, 0, 0, 0.14) 71px 73px);
+  box-shadow:
+    inset 0 2px 0 rgba(168, 53, 43, 0.85),
+    inset 0 3px 0 rgba(0, 0, 0, 0.45),
+    0 -22px 26px -6px color-mix(in srgb, var(--dock-stone) 70%, transparent),
+    0 -1px 12px rgba(217, 72, 59, 0.35);
+  backdrop-filter: none;
+}
+
+#game-container.dungeon-first-mode[data-combat-context="active"] #character-panel {
+  background: color-mix(in srgb, var(--dock-stone) 78%, var(--biome-background, #07141b));
+  box-shadow:
+    0 0 0 12px color-mix(in srgb, var(--dock-stone) 78%, var(--biome-background, #07141b)),
+    0 -24px 0 12px color-mix(in srgb, var(--dock-stone) 78%, var(--biome-background, #07141b)),
+    0 48px 0 12px color-mix(in srgb, var(--dock-stone) 78%, var(--biome-background, #07141b));
+}
+
+#game-container.dungeon-first-mode[data-combat-context="active"] #character-panel .character-card {
+  border: 2px solid var(--hud-parchment-edge);
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--hud-parchment), var(--hud-parchment-low));
+  color: var(--hud-ink);
+}
+
+#game-container.dungeon-first-mode #controls-panel.combat-mode #combat-prompt {
+  border-left: 3px solid var(--dock-torch);
+  border-radius: 0 3px 3px 0;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--dock-parchment);
+}
+
+#game-container.dungeon-first-mode[data-combat-context="active"] #combat-controls .btn-combat {
+  --btn-edge: var(--dock-stone-edge);
+  border: 2px solid var(--dock-stone-edge) !important;
+  border-radius: 6px;
+  color: var(--dock-parchment) !important;
+  background: linear-gradient(180deg, var(--dock-stone-face), var(--dock-stone-face-low));
+  box-shadow: inset 0 2px 0 rgba(255, 240, 210, 0.16), inset 0 -3px 0 rgba(0, 0, 0, 0.28), 0 3px 0 var(--btn-edge);
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.6);
+}
+
+#game-container.dungeon-first-mode[data-combat-context="active"] #combat-controls .btn-combat:active {
+  transform: translateY(2px);
+  color: var(--dock-torch) !important;
+  background: var(--dock-stone-face-low);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45), 0 1px 0 var(--btn-edge);
+}
+
+#game-container.dungeon-first-mode[data-combat-context="active"] #combat-controls #btn-combat-repeat:not(:disabled) {
+  color: var(--dock-torch) !important;
+}
+
+#game-container.dungeon-first-mode[data-combat-context="active"] #combat-controls #btn-combat-defend {
+  color: #9fe0e8 !important;
+}
+
+#game-container.dungeon-first-mode[data-combat-context="active"] #combat-controls .btn-combat:disabled {
+  opacity: 0.4;
+  background: rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Attack: a blood-red iron plate, the single warm call to act. */
+#game-container.dungeon-first-mode[data-combat-context="active"] #combat-controls #btn-combat-fight {
+  --btn-edge: #4e120c;
+  border-color: #4e120c !important;
+  color: #fff1e6 !important;
+  background: linear-gradient(180deg, #e0685a 0%, #b8382c 45%, #7e1f16 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 210, 190, 0.45),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.3),
+    0 3px 0 var(--btn-edge),
+    0 0 16px rgba(217, 72, 59, 0.45);
+  letter-spacing: 0.16em;
+  text-shadow: 0 2px 0 rgba(60, 10, 6, 0.8);
+}
+
+/* The renderer's daylight palette is graded toward torchlight: a little
+   darker, warmer, and with more contrast between near and far stone. */
+#game-container.dungeon-first-mode #dungeon-canvas {
+  filter: brightness(0.8) contrast(1.15) saturate(0.85) sepia(0.18);
+}
+
+/* Map and HUD stay above the darkness. */
+#game-container.dungeon-first-mode #dungeon-minimap-overlay {
+  z-index: 4;
+}
