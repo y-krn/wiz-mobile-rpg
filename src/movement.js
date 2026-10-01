@@ -818,32 +818,31 @@ export function triggerFlameTrap() {
     x: state.x,
     y: state.y
   });
+  // The game is solo; the flame burns the run's one character.
+  const character = state.party[0] ?? null;
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
-    party: state.party,
+    character,
     weakened: resolution.partialSuccess,
     rng: Math.random
   }), {
-    trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
+    trapGuard: getCharAffixSum(character, "trapGuard")
   });
-  state.party.forEach((c, index) => {
-    const dmg = effect.partyDamage[index];
-    if (dmg > 0) {
-      c.hp = Math.max(0, c.hp - dmg);
-      clearCharIncapacitationOnDamage(c);
-      addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
-      if (c.hp === 0) {
-        c.status = "dead";
-        const deathLog = recordCharDeath(state, c, "火炎の罠", { type: "trap", source: "火炎の罠" });
-        if (deathLog) addLog(formatCharDeathLog(deathLog));
-        addLog(`[!] ${c.name}は炎に焼かれて力尽きた！`);
-      }
+  const dmg = effect.damage;
+  if (character && dmg > 0) {
+    character.hp = Math.max(0, character.hp - dmg);
+    clearCharIncapacitationOnDamage(character);
+    addLog(`${character.name}は${dmg}の炎ダメージを受けた。`);
+    if (character.hp === 0) {
+      character.status = "dead";
+      const deathLog = recordCharDeath(state, character, "火炎の罠", { type: "trap", source: "火炎の罠" });
+      if (deathLog) addLog(formatCharDeathLog(deathLog));
+      addLog(`[!] ${character.name}は炎に焼かれて力尽きた！`);
     }
-  });
+  }
 
-  const allPartyDead = state.party.every(c => c.status === "dead");
-  if (allPartyDead) {
+  if (!character || character.status === "dead") {
     triggerGameOver();
   } else {
     saveAutosave();

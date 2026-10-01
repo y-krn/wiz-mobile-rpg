@@ -79,7 +79,8 @@ export interface ChestCharacterLike {
   readonly [key: string]: unknown;
 }
 
-export type ChestParty = readonly ChestCharacterLike[];
+// Equipment generation still takes a party array at its own boundary.
+type ChestRewardParty = readonly ChestCharacterLike[];
 
 export interface ChestAffixLike {
   readonly type?: string;
@@ -135,7 +136,7 @@ export interface ChestTrapSignResult extends ChestTrapSignAccuracyResult {
 export interface ChestLootHintInput {
   readonly item?: ChestLootItem | null;
   readonly accessoryItem?: ChestLootItem | null;
-  readonly party?: ChestParty;
+  readonly character?: ChestCharacterLike | null;
   readonly rng?: ChestRng;
 }
 
@@ -150,7 +151,7 @@ export interface ChestEncounterInput {
   readonly x?: number;
   readonly y?: number;
   readonly seed?: string | number | null;
-  readonly party?: ChestParty;
+  readonly character?: ChestCharacterLike | null;
   readonly currentRun?: ChestRunLike | null;
   readonly firstChestGuaranteed?: boolean;
   readonly forcedTrap?: string | null;
@@ -179,7 +180,7 @@ interface ChestMaterialPoolOptions {
 interface ChestRewardRollInput {
   readonly floor?: number;
   readonly rng: ChestRng;
-  readonly party: ChestParty;
+  readonly party: ChestRewardParty;
   readonly currentRun: ChestRunLike | null;
   readonly trap: string;
   readonly firstChestGuaranteed: boolean;
@@ -228,16 +229,13 @@ export function isChestActionAllowed(
   return phases.includes(getChestPhase(chest));
 }
 
-export function isEligibleChestCharacter(
-  char: ChestCharacterLike | null | undefined,
-  party: ChestParty = []
-): boolean {
-  if (!char) return false;
-  return party.includes(char) && ELIGIBLE_STATUSES.has(char.status ?? "");
+// The game is solo: the one character opens chests while it can act.
+export function isEligibleChestCharacter(char: ChestCharacterLike | null | undefined): boolean {
+  return Boolean(char) && ELIGIBLE_STATUSES.has(char?.status ?? "");
 }
 
-export function getActiveChestCharacter(party: ChestParty = []): ChestCharacterLike | null {
-  return party.find(char => isEligibleChestCharacter(char, party)) || null;
+export function getChestOpener(character: ChestCharacterLike | null | undefined): ChestCharacterLike | null {
+  return character && isEligibleChestCharacter(character) ? character : null;
 }
 
 export function getChestRewardEntries(
@@ -306,7 +304,7 @@ function getChestAffixHints(item: ChestLootItem | null | undefined): readonly Ch
 export function createChestLootHint({
   item,
   accessoryItem,
-  party = [],
+  character = null,
   rng = Math.random
 }: ChestLootHintInput = {}): ChestLootHintResult {
   let aura: ChestLootHintResult["aura"] = "weak";
@@ -324,9 +322,9 @@ export function createChestLootHint({
 
   let label = hasEquipmentSignal ? "装備品の反応あり" : "消耗品または反応なし";
   if (hasEquipmentSignal) {
-    const senseSum = party.reduce((sum, char) => (
-      char.status === "dead" ? sum : sum + getCharAffixSumAtBoundary(char, "treasureSense")
-    ), 0);
+    const senseSum = character && character.status !== "dead"
+      ? getCharAffixSumAtBoundary(character, "treasureSense")
+      : 0;
     const shouldRevealTag = senseSum >= 5 || rng() < 0.20;
     const hintedAffix = getChestAffixHints(item)?.find(affix => Boolean(affix.type && CHEST_TAG_LABELS[affix.type]));
     const hintedAccessoryAffix = getChestAffixHints(accessoryItem)?.find(affix => Boolean(affix.type && CHEST_TAG_LABELS[affix.type]));
@@ -343,7 +341,7 @@ export function rollChestEncounter({
   x,
   y,
   seed,
-  party = [],
+  character = null,
   currentRun = null,
   firstChestGuaranteed = false,
   forcedTrap = null,
@@ -354,6 +352,7 @@ export function rollChestEncounter({
   const chestSeed = `${seed}:chest:B${floor}:${x},${y}`;
   const rng: ChestRng = customRng || (seed ? createRng(chestSeed) : Math.random);
   const trap: string = forcedTrap !== null ? forcedTrap : rollChestTrap(floor, rng);
+  const rewardParty: ChestRewardParty = character ? [character] : [];
   let item: ChestLootItem | null;
   let consumedFirstChestGuarantee = false;
   if (forcedItem !== null) {
@@ -366,7 +365,7 @@ export function rollChestEncounter({
     const reward: ChestRewardRollResult = rollChestRewardAtBoundary({
       floor,
       rng,
-      party,
+      party: rewardParty,
       currentRun,
       trap,
       firstChestGuaranteed,
@@ -384,7 +383,7 @@ export function rollChestEncounter({
     ? rollChestAccessory(
       floor,
       rng,
-      party,
+      rewardParty,
       undefined,
       typeof currentRun?.trialProfile === "string" ? currentRun.trialProfile : "normal"
     )
@@ -395,7 +394,7 @@ export function rollChestEncounter({
     specialItem,
     accessoryItem,
     consumedFirstChestGuarantee,
-    lootHint: createChestLootHint({ item, accessoryItem, party, rng })
+    lootHint: createChestLootHint({ item, accessoryItem, character, rng })
   };
 }
 

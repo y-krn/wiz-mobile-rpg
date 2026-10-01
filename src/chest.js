@@ -25,7 +25,7 @@ import {
   CHEST_PHASE_TRANSITIONS,
   canTransitionChestPhase,
   generateChestMaterials,
-  getActiveChestCharacter,
+  getChestOpener,
   getChestRewardEntries,
   isChestActionAllowed,
   resolveChestTrapSign,
@@ -54,6 +54,11 @@ function finishChest(chest) {
   state.chestState = null;
 }
 
+// The game is solo; the run keeps its one character at state.party[0].
+function getSoloCharacter() {
+  return state.party?.[0] ?? null;
+}
+
 function translateTrap(trap) {
   if (trap === "poison needle") return "毒針";
   if (trap === "gas bomb") return "ガス爆弾";
@@ -72,7 +77,7 @@ function ensureChestTrapSign(chest) {
   if (chest.trapSign) return;
   const trapSign = resolveChestTrapSign({
     trap: chest.trap,
-    character: getActiveChestCharacter(state.party),
+    character: getChestOpener(getSoloCharacter()),
     lightPower: state.lightPower,
     lightTurns: state.lightTurns,
     rng: state.seed
@@ -108,7 +113,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
     x: state.x,
     y: state.y,
     seed: state.seed,
-    party: state.party,
+    character: getSoloCharacter(),
     currentRun: state.currentRun,
     firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
     forcedTrap,
@@ -151,7 +156,7 @@ export function openChestMenu() {
   state.gameState = "submenu";
   menuContext.type = "chest_menu";
 
-  const opener = getActiveChestCharacter(state.party);
+  const opener = getChestOpener(getSoloCharacter());
   renderChestMenu({
     chest: state.chestState,
     inventory: state.inventory,
@@ -173,7 +178,7 @@ export function leaveChest() {
   if (chest.trap && chest.trap !== "none") {
     trackTrapResolution("avoided", {
       state,
-      character: getActiveChestCharacter(state.party),
+      character: getChestOpener(getSoloCharacter()),
       source: "chest",
       trap: chest.trap,
       action: "leave",
@@ -234,7 +239,7 @@ function trackChestChoice(chest, action) {
     .map(reward => getChestRewardCategory(reward.item, reward.role));
   trackChestAction(chest, action, {
     state,
-    character: state.party[0],
+    character: getSoloCharacter(),
     combat: state.combatState,
     floor: state.floor,
     trap: chest?.trap || "none",
@@ -310,7 +315,7 @@ function consumeTrapKit() {
 export function openChest(rng = Math.random, { useKit = false } = {}) {
   if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
   const chest = state.chestState;
-  const opener = getActiveChestCharacter(state.party);
+  const opener = getChestOpener(getSoloCharacter());
   if (!opener) return false;
   if (useKit && !state.inventory.includes("TRAP_KIT")) return false;
 
@@ -379,24 +384,21 @@ export function triggerChestTrap(char, rng = Math.random, action = "open", extra
   state.chestState.trap = "none";
   playSound("chest_trap");
 
-  const targetIndex = Math.max(0, state.party.indexOf(char));
   const effect = applyTrapGuardToEffect(resolveChestTrapEffect({
     trap,
-    party: state.party,
-    targetIndex,
+    character: char,
     poisonWard: getCharAffixSum(char, "poisonWard"),
     rng
   }), {
-    trapGuardByParty: state.party.map(member => getCharAffixSum(member, "trapGuard")),
-    targetIndex
+    trapGuard: getCharAffixSum(char, "trapGuard")
   });
 
   if (trap === "poison needle") {
-    const damage = effect.targetDamage;
+    const damage = effect.damage;
     char.hp = Math.max(0, char.hp - damage);
     clearCharIncapacitationOnDamage(char);
-    const poisonTriggered = effect.targetPoisonTriggered;
-    const resisted = effect.targetPoisonResisted;
+    const poisonTriggered = effect.poisonTriggered;
+    const resisted = effect.poisonResisted;
     let deathLog = null;
     if (char.hp === 0) {
       char.status = "dead";
@@ -419,20 +421,18 @@ export function triggerChestTrap(char, rng = Math.random, action = "open", extra
     if (renderer) renderer.addDamageText(String(damage), "#ff3b30");
   } else if (trap === "gas bomb") {
     addLog("ガス爆弾が作動！冒険者はガスに包まれた！");
-    state.party.forEach((c, index) => {
-      const dmg = effect.partyDamage[index];
-      if (dmg > 0) {
-        c.hp = Math.max(0, c.hp - dmg);
-        clearCharIncapacitationOnDamage(c);
-        let deathLog = null;
-        if (c.hp === 0) {
-          c.status = "dead";
-          deathLog = recordCharDeath(state, c, "宝箱の罠「ガス爆弾」", { type: "trap", source: "宝箱のガス爆弾" });
-        }
-        addLog(`${c.name}は${dmg}のガスダメージを受けた。`);
-        if (deathLog) addLog(formatCharDeathLog(deathLog));
+    const dmg = effect.damage;
+    if (dmg > 0) {
+      char.hp = Math.max(0, char.hp - dmg);
+      clearCharIncapacitationOnDamage(char);
+      let deathLog = null;
+      if (char.hp === 0) {
+        char.status = "dead";
+        deathLog = recordCharDeath(state, char, "宝箱の罠「ガス爆弾」", { type: "trap", source: "宝箱のガス爆弾" });
       }
-    });
+      addLog(`${char.name}は${dmg}のガスダメージを受けた。`);
+      if (deathLog) addLog(formatCharDeathLog(deathLog));
+    }
   } else if (trap === "teleporter") {
     // Teleport to random coordinates inside map paths
     // Find empty spots (must not be isolated "stone/wall" cells - i.e. must have at least one open wall)
@@ -477,12 +477,10 @@ export function triggerChestTrap(char, rng = Math.random, action = "open", extra
     if (renderer && typeof renderer.triggerFlash === "function") {
       renderer.triggerFlash(400);
     }
-    state.party.forEach((c, index) => {
-      if (effect.partyBlind[index]) {
-        c.status = "blind";
-        addLog(`${c.name}は光に目がくらみ、盲目状態になった！`);
-      }
-    });
+    if (effect.blinded) {
+      char.status = "blind";
+      addLog(`${char.name}は光に目がくらみ、盲目状態になった！`);
+    }
   }
 }
 
@@ -572,12 +570,12 @@ function resolveChestRewards(opener, rng = Math.random) {
       addLog(`戦果 ${pendingBundle.entries.length}件をまとめて解決する。`);
     }
 
-    // Clear the original chest cell even if a trap moved the party.
+    // Clear the original chest cell even if a trap moved the character.
     markChestProcessed(chest);
 
     // Check game over
-    const partyAlive = state.party.some(c => c.status !== "dead");
-    if (partyAlive) {
+    const character = getSoloCharacter();
+    if (character && character.status !== "dead") {
       resetSubmenuBackButton();
       state.transitioning = false;
       finishChest(chest);

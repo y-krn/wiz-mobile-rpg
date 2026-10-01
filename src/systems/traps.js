@@ -5,7 +5,7 @@ import { triggerGameOver } from "../combat.js";
 import { dungeonRenderer as renderer } from "../renderer_runtime.js";
 import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
-import { DX, DY, getPartyMaxAffix, getCharAffixSum, getCharTrapBonus } from "../data.js";
+import { DX, DY, getCharAffixSum, getCharTrapBonus } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 import {
@@ -31,10 +31,46 @@ export function increaseChestTrapTier(trap, levels = 1) {
   return CHEST_TRAP_TIERS[Math.min(CHEST_TRAP_TIERS.length - 1, index + levels)];
 }
 
+// The game is solo; the run keeps its one character at state.party[0].
+function getSoloCharacter() {
+  return state.party?.[0] ?? null;
+}
+
 function getActiveCharacter() {
-  return (state.party || []).find(
-    char => char?.hp > 0 && !["dead", "ash"].includes(char.status)
-  ) || null;
+  const character = getSoloCharacter();
+  return character?.hp > 0 && !["dead", "ash"].includes(character.status) ? character : null;
+}
+
+// Apply a floor trap's HP damage to the solo character. Returns true when the
+// character is dead afterwards.
+function applyFloorTrapDamage(effect, { cause, source, deathMessage, damageMessage }) {
+  const character = getSoloCharacter();
+  const dmg = effect.damage;
+  if (character && dmg > 0) {
+    character.hp = Math.max(0, character.hp - dmg);
+    clearCharIncapacitationOnDamage(character);
+    addLog(damageMessage(character, dmg));
+    if (character.hp === 0) {
+      character.status = "dead";
+      const deathLog = recordCharDeath(state, character, cause, { type: "trap", source });
+      if (deathLog) addLog(formatCharDeathLog(deathLog));
+      addLog(deathMessage(character));
+    }
+  }
+  return !character || character.status === "dead";
+}
+
+function resolveSoloFloorTrapEffect(trap, weakened) {
+  const character = getSoloCharacter();
+  return applyTrapGuardToEffect(resolveFloorTrapEffect({
+    trap,
+    floor: state.floor,
+    character,
+    weakened,
+    rng: Math.random
+  }), {
+    trapGuard: getCharAffixSum(character, "trapGuard")
+  });
 }
 
 function recordTrapCodex(type, field) {
@@ -99,7 +135,10 @@ export function startTrapEncounter(trap, pendingMove) {
 // 1つの罠につき判定は生涯1回（引き直せると判定が作業に化けるため）。
 export function detectAdjacentTraps() {
   const rate = calculateDetectRate();
-  const traceRead = getPartyMaxAffix(state.party, "traceRead");
+  const reader = getSoloCharacter();
+  const traceRead = reader && reader.hp > 0 && reader.status !== "dead"
+    ? Math.max(0, getCharAffixSum(reader, "traceRead"))
+    : 0;
   const found = [];
 
   for (let dir = 0; dir < 4; dir++) {
@@ -211,29 +250,12 @@ export function triggerPitfall(trap, isPartialSuccess = false, action = "trigger
   }
 
   const onLanding = () => {
-    const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
-      trap,
-      floor: state.floor,
-      party: state.party,
-      weakened: isPartialSuccess,
-      rng: Math.random
-    }), {
-      trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
-    });
-    state.party.forEach((c, index) => {
-      const dmg = effect.partyDamage[index];
-      if (dmg > 0) {
-        c.hp = Math.max(0, c.hp - dmg);
-        clearCharIncapacitationOnDamage(c);
-        addLog(`[!] ${c.name}は落下で${dmg}のダメージを受けた。`);
-        
-        if (c.hp === 0) {
-          c.status = "dead";
-          const deathLog = recordCharDeath(state, c, "落とし穴トラップ", { type: "trap", source: "落とし穴" });
-          if (deathLog) addLog(formatCharDeathLog(deathLog));
-          addLog(`[!] ${c.name}は力尽きた！`);
-        }
-      }
+    const effect = resolveSoloFloorTrapEffect(trap, isPartialSuccess);
+    const characterDead = applyFloorTrapDamage(effect, {
+      cause: "落とし穴トラップ",
+      source: "落とし穴",
+      damageMessage: (c, dmg) => `[!] ${c.name}は落下で${dmg}のダメージを受けた。`,
+      deathMessage: c => `[!] ${c.name}は力尽きた！`
     });
 
     if (state.currentRun) {
@@ -243,8 +265,7 @@ export function triggerPitfall(trap, isPartialSuccess = false, action = "trigger
 
     recordTrapCodex("pitfall", "triggered");
 
-    const allPartyDead = state.party.every(c => c.status === "dead");
-    if (allPartyDead) {
+    if (characterDead) {
       triggerGameOver();
       return;
     }
@@ -268,15 +289,7 @@ export function triggerTrap(trap, isPartialSuccess = false, action = "trigger") 
     x: trap?.position?.x,
     y: trap?.position?.y
   });
-  const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
-    trap,
-    floor: state.floor,
-    party: state.party,
-    weakened: isPartialSuccess,
-    rng: Math.random
-  }), {
-    trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
-  });
+  const effect = resolveSoloFloorTrapEffect(trap, isPartialSuccess);
 
   playSound("chest_trap");
   
@@ -287,34 +300,23 @@ export function triggerTrap(trap, isPartialSuccess = false, action = "trigger") 
   }
 
   if (trap.type === "damage") {
-    state.party.forEach((c, index) => {
-      const dmg = effect.partyDamage[index];
-      if (dmg > 0) {
-        c.hp = Math.max(0, c.hp - dmg);
-        clearCharIncapacitationOnDamage(c);
-        addLog(`[!] ${c.name}は${dmg}のダメージを受けた。`);
-        if (c.hp === 0) {
-          c.status = "dead";
-          const deathLog = recordCharDeath(state, c, "仕掛けられた罠", { type: "trap", source: "床のダメージ罠" });
-          if (deathLog) addLog(formatCharDeathLog(deathLog));
-          addLog(`[!] ${c.name}は力尽きた！`);
-        }
-      }
+    const characterDead = applyFloorTrapDamage(effect, {
+      cause: "仕掛けられた罠",
+      source: "床のダメージ罠",
+      damageMessage: (c, dmg) => `[!] ${c.name}は${dmg}のダメージを受けた。`,
+      deathMessage: c => `[!] ${c.name}は力尽きた！`
     });
-
-    const allPartyDead = state.party.every(c => c.status === "dead");
-    if (allPartyDead) {
+    if (characterDead) {
       triggerGameOver();
       return true;
     }
   } else if (trap.type === "mpDrain") {
-    state.party.forEach((c, index) => {
-      const drain = effect.partyMpDrain[index];
-      if (drain > 0) {
-        c.mp = Math.max(0, c.mp - drain);
-        addLog(`[!] ${c.name}のMPが${drain}減少した。`);
-      }
-    });
+    const character = getSoloCharacter();
+    const drain = effect.mpDrain;
+    if (character && drain > 0) {
+      character.mp = Math.max(0, character.mp - drain);
+      addLog(`[!] ${character.name}のMPが${drain}減少した。`);
+    }
   } else if (trap.type === "alarm") {
     state.alarmActive = true;
     state.alarmWeakened = effect.alarmWeakened;
