@@ -101,6 +101,13 @@ const run = {
 check("telemetry without a client is a complete no-op", () => {
   __resetTelemetryForTests();
   let guardedCombatReads = 0;
+  let guardedRunStartReads = 0;
+  const guardedRunStartValue = new Proxy({}, {
+    get() {
+      guardedRunStartReads += 1;
+      throw new Error("guarded run_start input must not be read");
+    }
+  });
   const guardedCombat = new Proxy({}, {
     get() {
       guardedCombatReads += 1;
@@ -109,6 +116,7 @@ check("telemetry without a client is a complete no-op", () => {
   });
   assert.doesNotThrow(() => {
     trackEvent("run_start", { value: undefined });
+    trackRunStart(guardedRunStartValue, guardedRunStartValue, guardedRunStartValue);
     trackRunStart(run, { level: 1, maxHp: 14, maxMp: 12, equipment: {} });
     trackUxDecisionOpened("equipment");
     trackUxDecisionResolved("equipment", "cancel");
@@ -117,6 +125,7 @@ check("telemetry without a client is a complete no-op", () => {
     trackCombatEnd("endCombat", guardedCombat);
     trackRunEnd(run, "death");
   });
+  assert.equal(guardedRunStartReads, 0);
   assert.equal(guardedCombatReads, 0);
 });
 
@@ -245,6 +254,22 @@ const decisionCombat = {
   monsters: [{ name: "ゴブリンの呪術師 A", hp: 10, isBoss: false }, { name: "いにしえの竜 B", hp: 20, isBoss: true }],
   isBoss: true
 };
+
+check("run_start resets combat correlation before the next capture", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
+  trackCombatEnd("endCombat", { ...decisionCombat, player: decisionPlayer }, decisionState);
+  const firstRunId = events.find(event => event.name === "run_start").properties.runId;
+
+  trackRunStart(run, decisionPlayer, decisionState);
+  const secondRunId = events.filter(event => event.name === "run_start")[1].properties.runId;
+  trackCombatEnd("endCombat", { ...decisionCombat, player: decisionPlayer }, decisionState);
+
+  assert.notEqual(secondRunId, firstRunId);
+  assert.deepEqual(events.map(event => event.name), ["run_start", "combat_start", "combat_end", "run_start"]);
+});
 
 check("shared snapshots use bounded production-derived values", () => {
   const playerSnapshot = buildPlayerSnapshot(decisionPlayer, { floor: 2 });
