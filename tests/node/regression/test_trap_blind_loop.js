@@ -29,31 +29,27 @@ check("blind halves each class chest disarm chance", () => {
 });
 
 check("trapGuard is wired through flash effect without changing blind", () => {
-  const party = [{ status: "ok", hp: 100, maxHp: 100 }];
+  const character = { status: "ok", hp: 100, maxHp: 100 };
   const effect = resolveChestTrapEffect({
     trap: "flash bomb",
-    party,
+    character,
     rng: () => 0.1
   });
-  const guarded = applyTrapGuardToEffect(effect, {
-    trapGuardByParty: [40],
-    targetIndex: 0
-  });
+  const guarded = applyTrapGuardToEffect(effect, { trapGuard: 40 });
 
-  assert.equal(effect.partyBlind[0], true);
-  assert.deepEqual(guarded.partyBlind, effect.partyBlind);
-  assert.equal(guarded.targetDamage, 0);
-  assert.deepEqual(guarded.partyDamage, [0]);
+  assert.equal(effect.blinded, true);
+  assert.equal(guarded.blinded, effect.blinded);
+  assert.equal(guarded.damage, 0);
 });
 
 check("current floor traps have no blind effect", () => {
   const effect = resolveFloorTrapEffect({
     trap: { type: "damage" },
     floor: 3,
-    party: [{ status: "ok", hp: 100, maxHp: 100 }],
+    character: { status: "ok", hp: 100, maxHp: 100 },
     rng: () => 0.1
   });
-  assert.equal("partyBlind" in effect, false);
+  assert.equal("blinded" in effect, false);
 });
 
 if (failures.length > 0) {

@@ -209,12 +209,12 @@ const hintedEquipment = {
 };
 const sensedLootHint = createChestLootHint({
   item: hintedEquipment,
-  party: buildA,
+  character: buildA[0],
   rng: () => 0.99
 });
 const baselineLootHint = createChestLootHint({
   item: hintedEquipment,
-  party: buildB,
+  character: buildB[0],
   rng: () => 0.99
 });
 assert.match(sensedLootHint.label, /気配:技巧/);

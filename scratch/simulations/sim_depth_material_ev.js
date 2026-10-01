@@ -1927,9 +1927,9 @@ function getFloorTrapExpectedDamageForAction(state, trap, floor, weakened) {
   return calculateFloorTrapExpectedDamage({
     trap,
     floor: effectFloor,
-    party: state.party,
+    character: state.party[0],
     weakened
-  }).reduce((sum, damage) => sum + damage, 0);
+  });
 }
 
 function getFloorTrapActionPlan(state, trap, floor) {
@@ -11245,21 +11245,15 @@ function useTrapRecoveryIfNeeded(state, metrics) {
 function applyChestTrapEffect(state, trap, metrics) {
   const character = state.party[0];
   const blindStatus = character.status === "blind" ? "blind" : "clear";
-  const targetIndex = Math.max(0, state.party.indexOf(character));
-  const trapGuardByParty = getSimulationTrapGuardByParty(state);
+  const trapGuard = getSimulationTrapGuardByParty(state)[0] || 0;
   const effect = resolveChestTrapEffect({
     trap,
-    party: state.party,
-    targetIndex,
+    character,
     poisonWard: getCharAffixSum(character, "poisonWard"),
     rng: Math.random
   });
-  const guardedEffect = applyTrapGuardToEffect(effect, {
-    trapGuardByParty,
-    targetIndex
-  });
-  effect.targetDamage = guardedEffect.targetDamage;
-  effect.partyDamage = guardedEffect.partyDamage;
+  const guardedEffect = applyTrapGuardToEffect(effect, { trapGuard });
+  effect.damage = guardedEffect.damage;
   recordTrapActivation(metrics, "chest", trap);
   const suppressCost = state.simPolicy.chestTrapCostSuppressionFloor === state.floor;
   const costAudit = {
@@ -11267,14 +11261,12 @@ function applyChestTrapEffect(state, trap, metrics) {
     floor: state.floor,
     trap,
     suppressed: suppressCost,
-    generatedDamageHp: trap === "poison needle"
-      ? effect.targetDamage
-      : (effect.partyDamage || []).reduce((total, damage) => total + damage, 0),
+    generatedDamageHp: effect.damage,
     appliedDamageHp: 0,
     generatedStatusApplications: trap === "poison needle"
-      ? Number(effect.targetPoisonTriggered && !effect.targetPoisonResisted)
+      ? Number(effect.poisonTriggered && !effect.poisonResisted)
       : trap === "flash bomb"
-        ? effect.partyBlind.filter(Boolean).length
+        ? Number(effect.blinded)
         : 0,
     appliedStatusApplications: 0
   };
@@ -11282,24 +11274,20 @@ function applyChestTrapEffect(state, trap, metrics) {
   if (trap === "flash bomb") {
     metrics.chestFlashTrapActivationsByBlindStatus[blindStatus]++;
     metrics.trapGuardFlashCoverage.effects++;
-    metrics.trapGuardFlashCoverage.effectsWithGuard += Number(
-      trapGuardByParty.some(value => Number(value) > 0)
-    );
+    metrics.trapGuardFlashCoverage.effectsWithGuard += Number(Number(trapGuard) > 0);
     metrics.trapGuardFlashCoverage.blindEffectUnchanged += Number(
-      (effect.partyBlind || []).every((blinded, index) =>
-        blinded === guardedEffect.partyBlind?.[index]
-      )
+      effect.blinded === guardedEffect.blinded
     );
   }
 
   if (trap === "poison needle") {
     const hpBefore = character.hp;
     if (!suppressCost) {
-      character.hp = Math.max(0, character.hp - effect.targetDamage);
+      character.hp = Math.max(0, character.hp - effect.damage);
       clearCharIncapacitationOnDamage(character);
       if (character.hp === 0) {
         character.status = "dead";
-      } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
+      } else if (effect.poisonTriggered && !effect.poisonResisted) {
         const poisonConfig = getSimulationExplorationPoisonConfig();
         applyStatusEffect(character, STATUS_EFFECT_IDS.POISONED, {
           remainingTurns: poisonConfig.durationSteps,
@@ -11308,45 +11296,40 @@ function applyChestTrapEffect(state, trap, metrics) {
         costAudit.appliedStatusApplications++;
         recordStatusObservationApplication(metrics.statusObservations, "poisoned", "chest");
       }
-      costAudit.appliedDamageHp = effect.targetDamage;
+      costAudit.appliedDamageHp = effect.damage;
     }
     if (!suppressCost) {
-      recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor, state, {
+      recordTrapDamage(metrics, "chest", trap, effect.damage, state.floor, state, {
         hpBefore,
         hpAfter: character.hp,
         maxHp: getCharMaxHp(character)
       });
-      metrics.chestTrapDamageHpByBlindStatus[blindStatus] += effect.targetDamage;
+      metrics.chestTrapDamageHpByBlindStatus[blindStatus] += effect.damage;
     }
   } else if (trap === "gas bomb") {
-    effect.partyDamage.forEach((damage, index) => {
-      const target = state.party[index];
-      if (damage <= 0) return;
-      const hpBefore = target.hp;
-      if (!suppressCost) {
-        target.hp = Math.max(0, target.hp - damage);
-        clearCharIncapacitationOnDamage(target);
-        if (target.hp === 0) target.status = "dead";
-        costAudit.appliedDamageHp += damage;
-        recordTrapDamage(metrics, "chest", trap, damage, state.floor, state, {
-          hpBefore,
-          hpAfter: target.hp,
-          maxHp: getCharMaxHp(target)
-        });
-        metrics.chestTrapDamageHpByBlindStatus[blindStatus] += damage;
-      }
-    });
+    const damage = effect.damage;
+    if (damage > 0 && !suppressCost) {
+      const hpBefore = character.hp;
+      character.hp = Math.max(0, character.hp - damage);
+      clearCharIncapacitationOnDamage(character);
+      if (character.hp === 0) character.status = "dead";
+      costAudit.appliedDamageHp += damage;
+      recordTrapDamage(metrics, "chest", trap, damage, state.floor, state, {
+        hpBefore,
+        hpAfter: character.hp,
+        maxHp: getCharMaxHp(character)
+      });
+      metrics.chestTrapDamageHpByBlindStatus[blindStatus] += damage;
+    }
   } else if (trap === "teleporter") {
     metrics.trapTeleports += Number(effect.teleported);
   } else if (trap === "flash bomb") {
-    effect.partyBlind.forEach((blinded, index) => {
-      if (blinded && !suppressCost) {
-        state.party[index].status = "blind";
-        costAudit.appliedStatusApplications++;
-        recordStatusObservationApplication(metrics.statusObservations, "blind", "chest");
-        recordBlindApplications(metrics, "chest", 1);
-      }
-    });
+    if (effect.blinded && !suppressCost) {
+      character.status = "blind";
+      costAudit.appliedStatusApplications++;
+      recordStatusObservationApplication(metrics.statusObservations, "blind", "chest");
+      recordBlindApplications(metrics, "chest", 1);
+    }
   }
 
   if (metrics.chestTrapCostAudit) metrics.chestTrapCostAudit.push(costAudit);
@@ -11355,35 +11338,32 @@ function applyChestTrapEffect(state, trap, metrics) {
 }
 
 function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
+  const character = state.party[0];
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor,
-    party: state.party,
+    character,
     weakened,
     rng: Math.random
-  }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
+  }), { trapGuard: getSimulationTrapGuardByParty(state)[0] || 0 });
   recordTrapActivation(metrics, "floor", trap.type);
 
-  effect.partyDamage.forEach((damage, index) => {
-    const target = state.party[index];
-    if (damage <= 0) return;
-    const appliedDamage = Math.max(1, Math.round(damage * TRAP_DAMAGE_MULTIPLIER));
-    const hpBefore = target.hp;
-    target.hp = Math.max(0, target.hp - appliedDamage);
-    clearCharIncapacitationOnDamage(target);
-    if (target.hp === 0) target.status = "dead";
+  if (character && effect.damage > 0) {
+    const appliedDamage = Math.max(1, Math.round(effect.damage * TRAP_DAMAGE_MULTIPLIER));
+    const hpBefore = character.hp;
+    character.hp = Math.max(0, character.hp - appliedDamage);
+    clearCharIncapacitationOnDamage(character);
+    if (character.hp === 0) character.status = "dead";
     recordTrapDamage(metrics, "floor", trap.type, appliedDamage, state.floor, state, {
       hpBefore,
-      hpAfter: target.hp,
-      maxHp: getCharMaxHp(target)
+      hpAfter: character.hp,
+      maxHp: getCharMaxHp(character)
     });
-  });
-  effect.partyMpDrain.forEach((drain, index) => {
-    if (drain > 0) {
-      state.party[index].mp = Math.max(0, state.party[index].mp - drain);
-      metrics.trapMpDrain += drain;
-    }
-  });
+  }
+  if (character && effect.mpDrain > 0) {
+    character.mp = Math.max(0, character.mp - effect.mpDrain);
+    metrics.trapMpDrain += effect.mpDrain;
+  }
   if (effect.alarm) {
     state.alarmActive = true;
     state.alarmWeakened = effect.alarmWeakened;
@@ -14062,17 +14042,16 @@ function resolveFlameTrapAtStep({
     x: state.x,
     y: state.y
   });
+  const character = state.party[0];
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
-    party: state.party,
+    character,
     weakened: resolution.partialSuccess,
     rng: Math.random
-  }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
-  effect.partyDamage.forEach((damage, index) => {
-    const appliedDamage = damage;
-    if (appliedDamage <= 0) return;
-    const character = state.party[index];
+  }), { trapGuard: getSimulationTrapGuardByParty(state)[0] || 0 });
+  const appliedDamage = effect.damage;
+  if (character && appliedDamage > 0) {
     const hpBefore = character.hp;
     character.hp = Math.max(0, character.hp - appliedDamage);
     clearCharIncapacitationOnDamage(character);
@@ -14102,7 +14081,7 @@ function resolveFlameTrapAtStep({
         };
       }
     }
-  });
+  }
   recordB5HpSnapshot(state, metrics, step);
   return true;
 }
@@ -14795,8 +14774,7 @@ function resolveChestTrapForSimulation(
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
   const expectedRisk = calculateChestTrapExpectedRisk({
     trap,
-    party: state.party,
-    targetIndex: Math.max(0, state.party.indexOf(character)),
+    character,
     poisonWard: getCharAffixSum(character, "poisonWard")
   });
   const fullRisk = expectedRisk.risk;

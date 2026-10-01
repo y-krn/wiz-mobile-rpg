@@ -177,33 +177,30 @@ console.log("PASS: Success rate calculations verified.");
 // 3. Verify Trap Triggers and Damage/Effect Reduction
 console.log("\n[3] Verifying trap effects and damage scaling:");
 state.party = [
-  { name: "Arthur", level: 1, hp: 20, maxHp: 20, status: "ok" },
-  { name: "Maria", level: 1, hp: 12, maxHp: 12, status: "ok", maxMp: 5, mp: 5 }
+  { name: "Robin", level: 1, hp: 20, maxHp: 20, status: "ok", maxMp: 5, mp: 5 }
 ];
 state.floor = 1;
 
 // Test Damage trap: class does not change damage.
 const dmgTrap = { type: "damage", state: "discovered" };
 triggerTrap(dmgTrap, false);
-let arthurDmg = 20 - state.party[0].hp;
-console.log(`- Frontliner HP after trap: ${state.party[0].hp}/20 (Took ${arthurDmg} damage)`);
-if (arthurDmg <= 0) {
-  console.error("FAIL: frontliner took no damage.");
+let soloDmg = 20 - state.party[0].hp;
+console.log(`- Solo HP after trap: ${state.party[0].hp}/20 (Took ${soloDmg} damage)`);
+if (soloDmg <= 0) {
+  console.error("FAIL: the solo character took no damage.");
   process.exit(1);
 }
 
-// Restore party health and status before testing MP Drain
-state.party.forEach(c => {
-  c.hp = c.maxHp;
-  c.status = "ok";
-});
+// Restore health and status before testing MP Drain
+state.party[0].hp = state.party[0].maxHp;
+state.party[0].status = "ok";
 
 // Test MP Drain trap
 const mpTrap = { type: "mpDrain", state: "discovered" };
 triggerTrap(mpTrap, false);
-console.log(`- Support caster MP after drain: ${state.party[1].mp}/5`);
-if (state.party[1].mp >= 5) {
-  console.error("FAIL: support caster MP was not drained.");
+console.log(`- Solo MP after drain: ${state.party[0].mp}/5`);
+if (state.party[0].mp >= 5) {
+  console.error("FAIL: the solo character's MP was not drained.");
   process.exit(1);
 }
 

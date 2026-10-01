@@ -5,7 +5,7 @@ import {
   canTransitionChestPhase,
   createChestLootHint,
   generateChestMaterials,
-  getActiveChestCharacter,
+  getChestOpener,
   getChestRewardEntries,
   getChestPhase,
   isChestActionAllowed,
@@ -87,10 +87,13 @@ assert.equal(isChestActionAllowed({ phase: CHEST_PHASES.MENU }, [CHEST_PHASES.ME
 
 const eligible = { status: "poisoned" };
 const dead = { status: "dead" };
-const party = [dead, eligible];
-assert.equal(isEligibleChestCharacter(eligible, party), true);
-assert.equal(isEligibleChestCharacter({ status: "ok" }, party), false);
-assert.equal(getActiveChestCharacter(party), eligible);
+assert.equal(isEligibleChestCharacter(eligible), true);
+assert.equal(isEligibleChestCharacter({ status: "blind" }), true);
+assert.equal(isEligibleChestCharacter(dead), false);
+assert.equal(isEligibleChestCharacter(null), false);
+assert.equal(getChestOpener(eligible), eligible);
+assert.equal(getChestOpener(dead), null);
+assert.equal(getChestOpener(null), null);
 
 assert.deepEqual(
   getChestRewardEntries({ item: "main", specialItem: "special", accessoryItem: "accessory" }),
@@ -113,7 +116,6 @@ const ordinaryEncounter = rollChestEncounter({
   x: 3,
   y: 4,
   seed: "domain-test",
-  party: [],
   customRng: () => ordinaryRolls.shift() ?? 1
 });
 assert.deepEqual(ordinaryEncounter, {
@@ -131,7 +133,6 @@ const dropEncounter = rollChestEncounter({
   floor: 6,
   x: 3,
   y: 4,
-  party: [],
   fromDrop: true,
   customRng: () => dropRolls.shift() ?? 1
 });
@@ -153,7 +154,7 @@ const forcedEncounter = rollChestEncounter({
 assert.equal(forcedEncounter.item, "HEAL_POTION");
 assert.equal(forcedRolls.length, 0, "forced trap/item do not add RNG draws");
 
-const firstChest = rollChestEncounter({ floor: 1, x: 0, y: 0, party: [], customRng: () => 0 });
+const firstChest = rollChestEncounter({ floor: 1, x: 0, y: 0, customRng: () => 0 });
 assert.equal(firstChest.consumedFirstChestGuarantee, true);
 
 // Trap sign: a tier, never a trap kind. Dangerous traps read as "danger".
@@ -224,7 +225,6 @@ for (const [trap, roll, expected] of [
 
 const lootHint = createChestLootHint({
   item: { kind: "equipment", rarity: "rare", affixes: [{ type: "arcane" }] },
-  party: [],
   rng: () => 0
 });
 assert.deepEqual(lootHint, {
