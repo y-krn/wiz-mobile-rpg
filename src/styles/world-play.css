@@ -548,36 +548,9 @@
   opacity: 0.62;
 }
 
-/* What the player knows of each enemy rides above the hand as small chips. */
-#game-container.dungeon-first-mode #combat-overlay .combat-enemy-info {
-  align-self: center;
-  max-width: 100%;
-  margin: 0;
-  padding: 4px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--panel-bg);
-}
 
-#game-container.dungeon-first-mode #combat-overlay .combat-enemy-info-title {
-  display: none;
-}
 
-#game-container.dungeon-first-mode #combat-overlay .combat-enemy-info-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-}
 
-#game-container.dungeon-first-mode #combat-overlay .combat-enemy-info-card {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: var(--fs-xs);
-}
 
 /* Items: a small pouch of vials, one per kind, with how many are left. */
 #game-container.dungeon-first-mode #combat-overlay[data-overlay-type="combat_item"] .combat-selection-grid {

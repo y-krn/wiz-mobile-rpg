@@ -1,7 +1,6 @@
 import { state } from "../state.js";
-import { getMonsterResistanceStatus, SPELLS, getCharMaxHp, getCharMaxMp, getSpellPayment } from "../data.js";
+import { SPELLS, getCharMaxHp, getCharMaxMp, getSpellPayment } from "../data.js";
 import { menuContext, goBackSubmenu } from "../navigation.js";
-import { getMonsterCodexKey } from "../state.js";
 import { combatCallbacks } from "./combat_state.js";
 import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
 import { getUsableInventoryItems, INVENTORY_CAPACITY } from "../rules/item_inventory.js";
@@ -26,62 +25,6 @@ export function commitCombatTarget(targetIdx) {
   trackUxDecisionResolved("combat_target", "commit");
   combatCallbacks.activeTargetCallback(targetIdx);
   return true;
-}
-
-function getEnemyResistanceStatus(monster) {
-  const record = state.codex?.monsters?.[getMonsterCodexKey(monster)];
-  return getMonsterResistanceStatus(monster, record);
-}
-
-function createEnemyResistanceRows(monster) {
-  const rows = typeof document.createDocumentFragment === "function"
-    ? document.createDocumentFragment()
-    : document.createElement("span");
-  getEnemyResistanceStatus(monster).forEach(({ type, label, known, description }) => {
-    const row = document.createElement("div");
-    row.className = `enemy-resistance-row ${known ? "known" : "unknown"}`;
-    if (typeof row.setAttribute === "function") row.setAttribute("data-resistance-type", type);
-    const labelElement = document.createElement("span");
-    labelElement.className = "enemy-resistance-label";
-    labelElement.textContent = `${label}：`;
-    const value = document.createElement("span");
-    value.className = "enemy-resistance-value";
-    value.textContent = description;
-    row.appendChild(labelElement);
-    row.appendChild(value);
-    rows.appendChild(row);
-  });
-  return rows;
-}
-
-function createCombatEnemyInfoPanel() {
-  const livingMonsters = state.combatState?.monsters?.filter(monster => monster.hp > 0) || [];
-  if (livingMonsters.length === 0) return null;
-
-  const panel = document.createElement("section");
-  panel.className = "combat-enemy-info";
-  panel.setAttribute("aria-label", "敵の耐性情報");
-  const title = document.createElement("div");
-  title.className = "combat-enemy-info-title";
-  title.textContent = "敵の耐性情報";
-  const grid = document.createElement("div");
-  grid.className = "combat-enemy-info-grid";
-  livingMonsters.forEach(monster => {
-    const card = document.createElement("div");
-    card.className = "combat-enemy-info-card";
-    const name = document.createElement("div");
-    name.className = "combat-enemy-info-name";
-    name.textContent = monster.name;
-    const resistanceInfo = document.createElement("div");
-    resistanceInfo.className = "enemy-resistance-info";
-    resistanceInfo.appendChild(createEnemyResistanceRows(monster));
-    card.appendChild(name);
-    card.appendChild(resistanceInfo);
-    grid.appendChild(card);
-  });
-  panel.appendChild(title);
-  panel.appendChild(grid);
-  return panel;
 }
 
 // Hand-of-cards presentation: who a spell reaches and the glyph its card
@@ -265,9 +208,6 @@ export function renderCombatOverlay() {
       body.appendChild(targetGrid);
     }
   } else if (type === "combat_spell") {
-    const enemyInfoPanel = createCombatEnemyInfoPanel();
-    if (enemyInfoPanel) body.appendChild(enemyInfoPanel);
-
     // Spells grid
     const spellGrid = document.createElement("div");
     spellGrid.className = "combat-selection-grid spell-grid";

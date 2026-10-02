@@ -40,12 +40,13 @@ test('combat and solo UI render hostile character, monster, and item text litera
     };
 
     menuContext.prevGameState = 'combat';
-    menuContext.type = 'combat_spell';
+    menuContext.type = 'combat_target';
+    menuContext.targetType = 'enemy';
     menuContext.actorIdx = 0;
     renderCombatOverlay();
-    const monsterCard = document.querySelector('.combat-enemy-info-name');
+    const monsterCard = document.querySelector('.combat-target-a11y');
     const monsterEvidence = {
-      text: monsterCard?.textContent,
+      text: monsterCard?.textContent.split('、')[0],
       image: Boolean(monsterCard?.querySelector('img')),
       bold: Boolean(monsterCard?.querySelector('b')),
     };
