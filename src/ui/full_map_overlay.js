@@ -1,6 +1,10 @@
-import { drawFullMap, drawFullMapIcon, getFullMapModel, FULL_MAP_LEGEND } from "./full_map.js";
+import { drawFullMap, getFullMapModel } from "./full_map.js";
 import { getRendererInput } from "../state/renderer_view.js";
 import { releaseFocusSurface, syncFocusSurface } from "./focus_manager.js";
+import { createElement } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { FullMapOverlayView } from "./full_map_overlay_view.js";
 
 // Full-screen floor map opened from the explore minimap (#1833).
 // Pinch/drag/wheel and the +/- buttons change a CSS transform on one
@@ -22,6 +26,28 @@ let fitRect = null;
 let pointers = new Map();
 let gesture = null;
 let bound = false;
+let overlayRoot = null;
+let overlayProjection = { title: "全体地図", markerKinds: [] };
+
+function renderOverlay(visible, projection = overlayProjection) {
+  const host = document.getElementById("full-map-overlay-root");
+  if (!host) return false;
+  if (!overlayRoot) overlayRoot = createRoot(host);
+  overlayProjection = projection;
+  flushSync(() => overlayRoot.render(createElement(FullMapOverlayView, {
+    visible,
+    projection,
+    onPointerDown,
+    onPointerMove,
+    onPointerEnd,
+    onWheel,
+    onZoomIn: () => zoomBy(BUTTON_ZOOM_STEP),
+    onZoomOut: () => zoomBy(1 / BUTTON_ZOOM_STEP),
+    onFit: () => renderMap(),
+    onClose: () => closeFullMap(),
+  })));
+  return true;
+}
 
 /** Clamp a view so some of the content always stays inside the viewport. */
 export function clampFullMapView(next, contentSize, viewportSize, zoomLimits) {
@@ -125,33 +151,8 @@ function zoomBy(factor, anchor = null) {
   applyView();
 }
 
-function renderLegend(legend) {
-  if (!legend || legend.dataset.rendered === "true") return;
-  const dpr = Math.min(3, window.devicePixelRatio || 1);
-  FULL_MAP_LEGEND.forEach(({ kind, label }) => {
-    const item = document.createElement("li");
-    item.className = "full-map-legend-item";
-    item.dataset.kind = kind;
-    const icon = document.createElement("canvas");
-    icon.className = "full-map-legend-icon";
-    icon.width = 20 * dpr;
-    icon.height = 20 * dpr;
-    icon.setAttribute("aria-hidden", "true");
-    const ctx = icon.getContext?.("2d");
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-      drawFullMapIcon(ctx, kind, 1, 1, 18);
-    }
-    const text = document.createElement("span");
-    text.textContent = label;
-    item.append(icon, text);
-    legend.appendChild(item);
-  });
-  legend.dataset.rendered = "true";
-}
-
 function renderMap() {
-  const { overlay, viewport, canvas, title } = getElements();
+  const { overlay, viewport, canvas } = getElements();
   if (!overlay || !viewport || !canvas) return false;
   const renderInput = getRendererInput();
   const model = getFullMapModel(renderInput);
@@ -177,8 +178,10 @@ function renderMap() {
   ctx.clearRect(0, 0, content.width, content.height);
   drawFullMap(ctx, model, { cellSize: CELL_SIZE, padding: PADDING });
 
-  if (title) title.textContent = `B${renderInput.floor}F 全体地図`;
-  overlay.dataset.markers = [...new Set(model.markers.map((marker) => marker.kind))].sort().join(" ");
+  renderOverlay(isOpen, {
+    title: `B${renderInput.floor}F 全体地図`,
+    markerKinds: [...new Set(model.markers.map((marker) => marker.kind))].sort(),
+  });
   view = initial.view;
   applyView();
   return true;
@@ -277,20 +280,9 @@ function onResize() {
 
 function bindOnce() {
   if (bound) return;
-  const { viewport, zoomIn, zoomOut, fit, close, back } = getElements();
+  const { viewport } = getElements();
   if (!viewport) return;
   bound = true;
-  viewport.addEventListener("pointerdown", onPointerDown);
-  viewport.addEventListener("pointermove", onPointerMove);
-  viewport.addEventListener("pointerup", onPointerEnd);
-  viewport.addEventListener("pointercancel", onPointerEnd);
-  viewport.addEventListener("lostpointercapture", onPointerEnd);
-  viewport.addEventListener("wheel", onWheel, { passive: false });
-  zoomIn?.addEventListener("click", () => zoomBy(BUTTON_ZOOM_STEP));
-  zoomOut?.addEventListener("click", () => zoomBy(1 / BUTTON_ZOOM_STEP));
-  fit?.addEventListener("click", () => renderMap());
-  close?.addEventListener("click", () => closeFullMap());
-  back?.addEventListener("click", () => closeFullMap());
   window.addEventListener("keydown", onKeyDown, true);
   window.addEventListener("resize", onResize);
 }
@@ -300,12 +292,11 @@ export function isFullMapOpen() {
 }
 
 export function openFullMap() {
-  const { overlay, legend } = getElements();
-  if (!overlay || isOpen) return false;
+  if (isOpen || !renderOverlay(true, { title: "全体地図", markerKinds: [] })) return false;
+  const { overlay } = getElements();
+  if (!overlay) return false;
   bindOnce();
-  overlay.hidden = false;
   isOpen = true;
-  renderLegend(legend);
   if (!renderMap()) {
     closeFullMap();
     return false;
@@ -322,6 +313,6 @@ export function closeFullMap() {
   isOpen = false;
   pointers = new Map();
   gesture = null;
-  if (overlay) overlay.hidden = true;
+  if (overlay) renderOverlay(false);
   releaseFocusSurface(SURFACE_ID, "#btn-minimap-toggle");
 }
