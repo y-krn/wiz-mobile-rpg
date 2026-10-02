@@ -142,17 +142,17 @@ export const BASE_GEOMETRY = Object.freeze({
   ceilingStyle: "flat"
 });
 
-const PORTRAIT_COLUMN_LAYOUT = Object.freeze([
-  // Total spans and centre weights intentionally diverge: the near plane
-  // expands across the camera while depth still contracts quickly.
-  // The cell you stand in spans the whole screen: its walls run off both
-  // edges, like the canonical wide view, so no pale band frames the world.
-  Object.freeze({ span: 1.17, weights: Object.freeze([0.07, 0.86, 0.07]) }),
-  Object.freeze({ span: 0.92, weights: Object.freeze([0.12, 0.76, 0.12]) }),
-  Object.freeze({ span: 0.78, weights: Object.freeze([0.10, 0.15, 0.64, 0.15, 0.10]) }),
-  Object.freeze({ span: 0.72, weights: Object.freeze([0.11, 0.19, 0.40, 0.19, 0.11]) }),
-  Object.freeze({ span: 0.45, weights: Object.freeze([0.13, 0.17, 0.40, 0.17, 0.13]) })
-]);
+// Portrait depth uses one perspective: every plane is the camera plane scaled
+// toward a single vanishing point, so floor seams, wall edges, and side cells
+// stay straight lines. Side cells are as wide as the centre cell at the same
+// depth (the world grid is uniform); whatever falls outside the screen is
+// clipped, as in the wide view.
+const PORTRAIT_DEPTH_SCALE = Object.freeze([1, 0.40, 0.22, 0.12, 0.07]);
+// The horizon sits above the screen centre so more floor than ceiling shows.
+const PORTRAIT_HORIZON = 0.44;
+// Screen share of the corridor one step ahead; this fixes the corridor's
+// cross-section aspect for the given viewport.
+const PORTRAIT_FIRST_STEP_COVERAGE = 0.70;
 
 const PORTRAIT_EDGE_BLEND = Object.freeze({
   sideFadeStart: 0.01,
@@ -190,18 +190,19 @@ export function getProjectionProfile(width: unknown = CANONICAL_VIEW.width, heig
   const portrait = aspect < 1;
   const yScale = viewportHeight / CANONICAL_VIEW.height;
   const xScale = viewportWidth / CANONICAL_VIEW.width;
-  // Keep the near corridor broad enough to read as the world, while reserving
-  // bounded side columns for openings without horizontal crop.
-  const portraitWidths = PORTRAIT_COLUMN_LAYOUT.map(({ span, weights }) => (
-    span * weights[Math.floor(weights.length / 2)] * viewportWidth
+  // The camera plane covers the whole screen; the corridor ahead converges on
+  // one vanishing point at a fixed cross-section aspect.
+  const horizonY = PORTRAIT_HORIZON * viewportHeight;
+  const portraitHalfWidths = PORTRAIT_DEPTH_SCALE.map(scale => (
+    (scale / PORTRAIT_DEPTH_SCALE[1]) * PORTRAIT_FIRST_STEP_COVERAGE * viewportWidth / 2
   ));
-  const portraitXl = portraitWidths.map(value => (viewportWidth - value) / 2);
-  const portraitXr = portraitWidths.map((value, index) => portraitXl[index] + value);
+  const portraitXl = portraitHalfWidths.map(value => viewportWidth / 2 - value);
+  const portraitXr = portraitHalfWidths.map(value => viewportWidth / 2 + value);
   const yt = portrait
-    ? [0, 0.23, 0.34, 0.395, 0.425].map(value => value * viewportHeight)
+    ? PORTRAIT_DEPTH_SCALE.map(scale => horizonY - scale * horizonY)
     : BASE_PROJECTION.yt.map(value => value * yScale);
   const yb = portrait
-    ? [1, 0.77, 0.61, 0.505, 0.455].map(value => value * viewportHeight)
+    ? PORTRAIT_DEPTH_SCALE.map(scale => horizonY + scale * (viewportHeight - horizonY))
     : BASE_PROJECTION.yb.map(value => value * yScale);
 
   return Object.freeze({
@@ -213,10 +214,10 @@ export function getProjectionProfile(width: unknown = CANONICAL_VIEW.width, heig
     yScale,
     vanishingPoint: Object.freeze({
       x: viewportWidth / 2,
-      y: (yt[4] + yb[4]) / 2
+      y: portrait ? horizonY : (yt[4] + yb[4]) / 2
     }),
     coverage: Object.freeze(portrait
-      ? PORTRAIT_COLUMN_LAYOUT.map(({ span, weights }) => span * weights[Math.floor(weights.length / 2)])
+      ? portraitHalfWidths.map(value => (value * 2) / viewportWidth)
       : BASE_PROJECTION.xr.map((right, index) => (right - BASE_PROJECTION.xl[index]) / CANONICAL_VIEW.width)),
     edgeBlend: portrait ? PORTRAIT_EDGE_BLEND : null,
     base: Object.freeze({
@@ -225,7 +226,7 @@ export function getProjectionProfile(width: unknown = CANONICAL_VIEW.width, heig
       yt: freezeArray(yt),
       yb: freezeArray(yb)
     }),
-    columnLayout: portrait ? PORTRAIT_COLUMN_LAYOUT : null
+    columnLayout: null
   });
 }
 
@@ -250,39 +251,72 @@ export function getProjectionPlanes(geometry: unknown = BASE_GEOMETRY, profile: 
   const ceilingStyle = GEOMETRY_STYLES.has(geometryInput?.ceilingStyle as string)
     ? geometryInput!.ceilingStyle as string
     : BASE_GEOMETRY.ceilingStyle;
-  const xl = [];
-  const xr = [];
-  const yt = [];
-  const yb = [];
-  const leftTop = [];
-  const leftBottom = [];
-  const rightTop = [];
-  const rightBottom = [];
+  const xl: number[] = [];
+  const xr: number[] = [];
+  const yt: number[] = [];
+  const yb: number[] = [];
+  const leftTop: number[] = [];
+  const leftBottom: number[] = [];
+  const rightTop: number[] = [];
+  const rightBottom: number[] = [];
 
-  for (let z = 0; z < viewport.base.xl.length; z++) {
-    // The plane at the camera is the screen frame itself. Biome width and
-    // ceiling shape the corridor ahead, but never pull the near walls, floor,
-    // or ceiling in from the screen edge.
-    const nearFrame = z === 0;
-    const baseWidth = viewport.base.xr[z] - viewport.base.xl[z];
-    const width = baseWidth * (nearFrame ? 1 : horizontalCorridorWidth);
-    const center = (viewport.base.xr[z] + viewport.base.xl[z]) / 2;
-    const projectedLeft = center - width / 2;
-    const projectedRight = center + width / 2;
-    const horizon = (viewport.base.yb[z] + viewport.base.yt[z]) / 2;
-    const verticalScale = nearFrame ? 1 : ceilingHeight;
-    const projectedTop = horizon - (horizon - viewport.base.yt[z]) * verticalScale;
-    const projectedBottom = horizon + (viewport.base.yb[z] - horizon) * verticalScale;
-    const lean = width * wallLean * 0.5;
+  const push = (left: number, right: number, top: number, bottom: number) => {
+    const lean = (right - left) * wallLean * 0.5;
+    xl.push(left);
+    xr.push(right);
+    yt.push(top);
+    yb.push(bottom);
+    leftTop.push(left + lean);
+    leftBottom.push(left - lean);
+    rightTop.push(right - lean);
+    rightBottom.push(right + lean);
+  };
 
-    xl.push(projectedLeft);
-    xr.push(projectedRight);
-    yt.push(projectedTop);
-    yb.push(projectedBottom);
-    leftTop.push(projectedLeft + lean);
-    leftBottom.push(projectedLeft - lean);
-    rightTop.push(projectedRight - lean);
-    rightBottom.push(projectedRight + lean);
+  if (viewport.orientation === "portrait") {
+    // Biome width and ceiling scale every plane ahead about the one vanishing
+    // point. The camera plane then extends the same rays until it covers the
+    // screen, so no edge bends between the camera cell and the corridor.
+    const vanishing = viewport.vanishingPoint;
+    const ahead: Array<{ halfWidth: number; top: number; bottom: number }> = [];
+    for (let z = 1; z < viewport.base.xl.length; z++) {
+      const halfWidth = ((viewport.base.xr[z] - viewport.base.xl[z]) / 2) * horizontalCorridorWidth;
+      ahead.push({
+        halfWidth,
+        top: vanishing.y - (vanishing.y - viewport.base.yt[z]) * ceilingHeight,
+        bottom: vanishing.y + (viewport.base.yb[z] - vanishing.y) * ceilingHeight
+      });
+    }
+    const first = ahead[0];
+    const firstReach = first.halfWidth * (1 - Math.abs(wallLean));
+    const verticalExtent = Math.max(vanishing.y / (vanishing.y - first.top), (viewport.height - vanishing.y) / (first.bottom - vanishing.y));
+    const extent = Math.max(verticalExtent, (viewport.width / 2) / firstReach);
+    const snap = (value: number, edge: number) => (extent === verticalExtent && Math.abs(value - edge) < 1e-6 ? edge : value);
+    const nearHalfWidth = first.halfWidth * extent;
+    push(
+      vanishing.x - nearHalfWidth,
+      vanishing.x + nearHalfWidth,
+      snap(vanishing.y - (vanishing.y - first.top) * extent, 0),
+      snap(vanishing.y + (first.bottom - vanishing.y) * extent, viewport.height)
+    );
+    ahead.forEach(({ halfWidth, top, bottom }) => push(vanishing.x - halfWidth, vanishing.x + halfWidth, top, bottom));
+  } else {
+    for (let z = 0; z < viewport.base.xl.length; z++) {
+      // The plane at the camera is the screen frame itself. Biome width and
+      // ceiling shape the corridor ahead, but never pull the near walls,
+      // floor, or ceiling in from the screen edge.
+      const nearFrame = z === 0;
+      const baseWidth = viewport.base.xr[z] - viewport.base.xl[z];
+      const width = baseWidth * (nearFrame ? 1 : horizontalCorridorWidth);
+      const center = (viewport.base.xr[z] + viewport.base.xl[z]) / 2;
+      const horizon = (viewport.base.yb[z] + viewport.base.yt[z]) / 2;
+      const verticalScale = nearFrame ? 1 : ceilingHeight;
+      push(
+        center - width / 2,
+        center + width / 2,
+        horizon - (horizon - viewport.base.yt[z]) * verticalScale,
+        horizon + (viewport.base.yb[z] - horizon) * verticalScale
+      );
+    }
   }
 
   return Object.freeze({
@@ -296,9 +330,7 @@ export function getProjectionPlanes(geometry: unknown = BASE_GEOMETRY, profile: 
     rightBottom: freezeArray(rightBottom),
     ceilingStyle,
     viewport: viewport,
-    columnLayout: viewport.columnLayout
-      ? viewport.columnLayout.map(({ span, weights }) => Object.freeze({ span: span * horizontalCorridorWidth, weights }))
-      : null
+    columnLayout: null
   });
 }
 
@@ -306,28 +338,6 @@ export function getProjectionColumn(projection: unknown, z: unknown, column: unk
   const input = projection as ProjectionInput;
   const depth = z as number;
   const lane = column as number;
-  const layout = input.columnLayout?.[depth];
-  if (layout) {
-    const index = lane + Math.floor(layout.weights.length / 2);
-    if (index >= 0 && index < layout.weights.length) {
-      const centerTop = (input.leftTop[depth] + input.rightTop[depth]) / 2;
-      const centerBottom = (input.leftBottom[depth] + input.rightBottom[depth]) / 2;
-      const centerIndex = Math.floor(layout.weights.length / 2);
-      const totalTop = (input.rightTop[depth] - input.leftTop[depth]) / layout.weights[centerIndex];
-      const totalBottom = (input.rightBottom[depth] - input.leftBottom[depth]) / layout.weights[centerIndex];
-      const topStart = layout.weights.slice(0, index).reduce((sum, value) => sum + value, 0);
-      const topEnd = topStart + layout.weights[index];
-      return {
-        leftTop: centerTop - totalTop / 2 + totalTop * topStart,
-        leftBottom: centerBottom - totalBottom / 2 + totalBottom * topStart,
-        rightTop: centerTop - totalTop / 2 + totalTop * topEnd,
-        rightBottom: centerBottom - totalBottom / 2 + totalBottom * topEnd,
-        top: input.yt[depth],
-        bottom: input.yb[depth],
-        viewport: input.viewport
-      };
-    }
-  }
   const topWidth = input.rightTop[depth] - input.leftTop[depth];
   const bottomWidth = input.rightBottom[depth] - input.leftBottom[depth];
   return {
