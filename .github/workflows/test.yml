@@ -109,11 +109,13 @@ jobs:
           - suite: smoke-2
             command: npm run test:browser:smoke -- --shard=2/2
           - suite: untagged-1
-            command: npm run test:browser:untagged -- --shard=1/3
+            command: npm run test:browser:untagged -- --shard=1/4
           - suite: untagged-2
-            command: npm run test:browser:untagged -- --shard=2/3
+            command: npm run test:browser:untagged -- --shard=2/4
           - suite: untagged-3
-            command: npm run test:browser:untagged -- --shard=3/3
+            command: npm run test:browser:untagged -- --shard=3/4
+          - suite: untagged-4
+            command: npm run test:browser:untagged -- --shard=4/4
     steps:
       - uses: actions/checkout@v4
       - name: Detect browser changes
