@@ -130,7 +130,7 @@ test('Combat target Back cancels without committing and permits reselect @e2e @s
   expect(evidence.steps.map(step => step.name)).toEqual(['combat', 'target-selection', 'target-reselected']);
 });
 
-test('Critical commit ignores repeated activation and applies one exploration cost @e2e @smoke', async ({ page }) => {
+test('Critical equip ignores repeated activation and applies one exploration cost @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await installJourneyRecorder(page);
   await page.goto('/');
@@ -149,9 +149,13 @@ test('Critical commit ignores repeated activation and applies one exploration co
     await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
-  await page.getByRole('button', { name: '装備する' }).click();
-  const commit = page.locator('#btn-equip-commit');
-  await commit.evaluate(button => {
+  const equip = page.getByRole('button', { name: '装備する' });
+  await equip.evaluate(button => {
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  const close = page.locator('#btn-equip-close');
+  await close.evaluate(button => {
     button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });

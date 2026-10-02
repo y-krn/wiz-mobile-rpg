@@ -65,10 +65,7 @@ import {
 import { consumeExplorationTurn } from "./movement.js";
 import {
   createLoadoutDraft,
-  getLoadoutDraftChanges,
   getLoadoutEquipAvailability,
-  getLoadoutValidationSummary,
-  isLoadoutDraftDirty,
   stageDiscardInventoryItem,
   stageEquip,
   stageTrialEquip,
@@ -102,6 +99,9 @@ export function openEquipOverlay(actorIdx = 0) {
   if (!alreadyOpen) {
     equipState.prevGameState = state.gameState;
     equipState.draft = createLoadoutDraft(state);
+    equipState.sessionChanged = false;
+    equipState.sessionTurnPaid = false;
+    equipState.pendingTurns = 0;
   }
   state.gameState = "equip_overlay";
   equipState.mode = "equip";
@@ -128,35 +128,49 @@ function getDraftInventory() {
   return equipState.draft?.inventory || state.inventory;
 }
 
-function cancelEquipDraft() {
-  equipState.draft = null;
-  closeEquipOverlay({ resolution: "cancel" });
-}
-
-function commitEquipDraft() {
-  const consumesExplorationTurn = equipState.prevGameState === "explore";
-  const turnCost = consumesExplorationTurn ? 1 : 0;
-  const result = commitLoadoutDraft(equipState.draft, {
+// Each validated edit applies immediately; there is no separate confirm step.
+// The dungeon world cost is still grouped: ordinary edits in one overlay
+// session share a single exploration turn, while every trial pays its own.
+// Turns are settled when the overlay closes so an encounter never starts
+// underneath the open equipment screen.
+function applyDraft(nextDraft) {
+  const trial = Boolean(nextDraft?.trialAction);
+  const exploring = equipState.prevGameState === "explore";
+  const turnCost = exploring && (trial || !equipState.sessionTurnPaid) ? 1 : 0;
+  const result = commitLoadoutDraft(nextDraft, {
     stateLike: state,
     turnCost,
-    worldAction: equipState.draft?.trialAction ? "explore" : null
+    worldAction: trial ? "explore" : null
   });
+  equipState.draft = createLoadoutDraft(state);
   if (!result.ok) {
-    addLog(result.errors?.join(" ") || "装備変更を確定できません。");
+    addLog(result.errors?.join(" ") || result.reason || "装備を変更できません。");
     updateUI();
     return false;
   }
-  if (!result.changed) return cancelEquipDraft();
-  equipState.draft = null;
-  closeEquipOverlay({ resolution: "commit" });
-  if (turnCost === 1) consumeExplorationTurn();
-  saveAutosave();
+  if (result.changed) {
+    equipState.sessionChanged = true;
+    equipState.pendingTurns += result.turnCost;
+    if (result.turnCost > 0) equipState.sessionTurnPaid = true;
+    saveAutosave();
+  }
   updateUI();
   return true;
 }
 
-export function closeEquipOverlay({ resolution = "back" } = {}) {
-  trackUxDecisionResolved("equipment", resolution);
+function settleSessionTurns(turns) {
+  for (let turn = 0; turn < turns; turn += 1) {
+    const result = consumeExplorationTurn();
+    if (!result.ok || result.encounter || result.wiped || state.gameState !== "explore") break;
+  }
+}
+
+export function closeEquipOverlay() {
+  // A repeated close (double tap, stale handler) must not settle turns twice.
+  if (state.gameState !== "equip_overlay" && !equipState.prevGameState) return;
+  const changed = equipState.sessionChanged;
+  const turns = equipState.prevGameState === "explore" ? equipState.pendingTurns : 0;
+  trackUxDecisionResolved("equipment", changed ? "commit" : "back");
   const overlay = document.getElementById("equip-overlay");
   if (overlay) {
     overlay.style.display = "none";
@@ -168,6 +182,11 @@ export function closeEquipOverlay({ resolution = "back" } = {}) {
     state.gameState = "explore";
   }
   equipState.draft = null;
+  equipState.sessionChanged = false;
+  equipState.sessionTurnPaid = false;
+  equipState.pendingTurns = 0;
+  settleSessionTurns(turns);
+  if (changed) saveAutosave();
   updateUI();
 }
 
@@ -250,6 +269,8 @@ function createRunePanel(char) {
   heading.className = "equip-section-heading";
   const medium = getEquippedMedium(char);
   const activeRunes = getActiveRuneSpellKeys(char);
+  // Edits replace the draft, so a tap on a control from an older render is ignored.
+  const renderedDraft = equipState.draft;
   heading.textContent = medium
     ? `ルーン（${activeRunes.length}/${medium.runeSlots}）`
     : "ルーン（媒体なし）";
@@ -280,10 +301,10 @@ function createRunePanel(char) {
       button.className = "btn equip-rune-action";
       button.textContent = "外す";
       button.addEventListener("click", () => {
+        if (equipState.draft !== renderedDraft) return;
         const result = stageUnsocketRune(equipState.draft, { actorIdx: equipState.actorIdx, spellKey });
         if (!result.ok) return;
-        equipState.draft = result.draft;
-        renderEquip();
+        applyDraft(result.draft);
       });
       row.appendChild(button);
       activeList.appendChild(row);
@@ -313,10 +334,10 @@ function createRunePanel(char) {
       button.disabled = !medium || activeRunes.length >= medium.runeSlots;
       button.textContent = "装着";
       button.addEventListener("click", () => {
+        if (equipState.draft !== renderedDraft) return;
         const result = stageSocketRune(equipState.draft, { actorIdx: equipState.actorIdx, inventoryIndex: idx });
         if (!result.ok) return;
-        equipState.draft = result.draft;
-        renderEquip();
+        applyDraft(result.draft);
       });
       row.appendChild(button);
       spareList.appendChild(row);
@@ -355,14 +376,12 @@ async function discardEquipment(itemIdx, expectedItemKey) {
   const draft = equipState.draft;
   if (draft) {
     const itemName = getItemData(expectedItemKey)?.name || "装備品";
-    if (!await confirmDiscard(`この${itemName}を破棄しますか？この変更は確定時に反映されます。`)) return false;
+    if (!await confirmDiscard(`この${itemName}を破棄しますか？`)) return false;
     if (equipState.draft !== draft) return false;
     const staged = stageDiscardInventoryItem(draft, itemIdx);
     if (!staged.ok) return false;
-    equipState.draft = staged.draft;
     clearSelection();
-    renderEquip();
-    return true;
+    return applyDraft(staged.draft);
   }
   const actorIdx = equipState.actorIdx;
   const requestedSlot = equipState.selectedSlot;
@@ -397,7 +416,7 @@ async function discardSelectedEquipment() {
     const warning = Object.entries(riskCounts).length > 0
       ? ` 注意: ${Object.entries(riskCounts).map(([risk, count]) => `${risk} ${count}件`).join("、")}`
       : "";
-    if (!await confirmDiscard(`選択した${selectedIndices.length}件の装備を破棄しますか？${warning}この変更は確定時に反映されます。`)) return false;
+    if (!await confirmDiscard(`選択した${selectedIndices.length}件の装備を破棄しますか？${warning}`)) return false;
     // The overlay may have been closed or re-drafted while the dialog was open.
     if (equipState.draft !== draftBefore || equipState.pendingUnequip !== pendingUnequip) return false;
     let draft = draftBefore;
@@ -414,7 +433,8 @@ async function discardSelectedEquipment() {
       equipState.pendingUnequip = null;
       equipState.mode = "equip";
     }
-    equipState.draft = draft;
+    clearDiscardSelection();
+    return applyDraft(draft);
   } else {
     const actorIdx = equipState.actorIdx;
     const result = await confirmSystemDiscard(confirm => discardEquipmentSelection(selectedIndices, {
@@ -423,7 +443,7 @@ async function discardSelectedEquipment() {
     }));
     if (!result.ok) return false;
   }
-  if (pendingUnequip && !equipState.draft) {
+  if (pendingUnequip) {
     const unequipResult = unequipEquipment(pendingUnequip);
     if (!unequipResult.ok) {
       addLog("バッグを整理しましたが、装備を外せませんでした。");
@@ -433,8 +453,7 @@ async function discardSelectedEquipment() {
     equipState.mode = "equip";
   }
   clearDiscardSelection();
-  if (equipState.draft) renderEquip();
-  else updateUI();
+  updateUI();
   return true;
 }
 
@@ -488,18 +507,16 @@ function createHeader(overlay, char) {
   title.className = "equip-title";
   title.textContent = "装備";
   titleRow.appendChild(title);
-  header.appendChild(titleRow);
 
-  const statusBar = document.createElement("div");
-  statusBar.className = "equip-status-bar";
-  const materials = document.createElement("span");
-  materials.textContent = `素材 ${Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0)}`;
-  statusBar.appendChild(materials);
-  statusBar.appendChild(createBagCapacitySummary(getDraftInventory(), {
-    className: "equip-bag-summary",
-    showNote: false
-  }));
-  header.appendChild(statusBar);
+  const actor = document.createElement("span");
+  actor.className = "equip-header-actor";
+  const actorName = document.createElement("strong");
+  actorName.textContent = char.name;
+  const actorDetails = document.createElement("small");
+  actorDetails.textContent = `Lv.${char.level} / HP ${char.hp}/${getCharMaxHp(char)}`;
+  actor.append(actorName, actorDetails);
+  titleRow.appendChild(actor);
+  header.appendChild(titleRow);
 
   const attack = getCharAttackBreakdown(char);
   const attackBreakdown = document.createElement("div");
@@ -507,10 +524,10 @@ function createHeader(overlay, char) {
   attackBreakdown.dataset.testid = "attack-breakdown";
   attackBreakdown.setAttribute("aria-label", "攻撃力の内訳");
   [
+    ["攻撃", attack.total, "data-attack-total", "total"],
     ["基礎", attack.base, "data-attack-base"],
     ["装備", attack.equipment, "data-attack-equipment"],
-    ["罠喰い", `+${attack.trapEaterBonus}`, "data-attack-trap-eater"],
-    ["合計", attack.total, "data-attack-total", "total"]
+    ["罠喰い", `+${attack.trapEaterBonus}`, "data-attack-trap-eater"]
   ].forEach(([labelText, valueText, dataAttribute, className]) => {
     const item = document.createElement("span");
     if (className) item.className = className;
@@ -524,30 +541,24 @@ function createHeader(overlay, char) {
     attackBreakdown.appendChild(item);
   });
   header.appendChild(attackBreakdown);
-  overlay.appendChild(header);
-}
 
-function createTransactionStatus() {
-  const status = document.createElement("div");
-  status.className = "equip-transaction-status";
-  const summary = getLoadoutDraftChanges(equipState.draft);
-  const validation = getLoadoutValidationSummary(equipState.draft);
-  const changed = summary.equipment.length + summary.runes.length + summary.discarded.length;
-  const trial = Boolean(equipState.draft?.trialAction);
-  status.textContent = trial
-    ? `試用予定 1件。${validation.message}`
-    : changed > 0
-    ? `変更予定 ${summary.equipment.length}枠 / ルーン ${summary.runes.length}件${summary.discarded.length ? ` / 破棄 ${summary.discarded.length}件` : ""}。${validation.message}`
-    : "装備変更は未確定です。編集は無料です。";
-  status.setAttribute("role", "status");
-  status.dataset.valid = validation.ok ? "true" : "false";
-  return status;
+  const statusBar = document.createElement("div");
+  statusBar.className = "equip-status-bar";
+  statusBar.appendChild(createBagCapacitySummary(getDraftInventory(), {
+    className: "equip-bag-summary",
+    showNote: false
+  }));
+  const materials = document.createElement("span");
+  materials.className = "equip-material-total";
+  materials.textContent = `素材 ${Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0)}`;
+  statusBar.appendChild(materials);
+  header.appendChild(statusBar);
+  overlay.appendChild(header);
 }
 
 function createFooter(overlay, { organizing = false } = {}) {
   const footer = document.createElement("div");
   footer.className = "bottom-actions-container";
-  const draftDirty = Boolean(equipState.draft && isLoadoutDraftDirty(equipState.draft));
 
   if (organizing) {
     const discardRow = document.createElement("div");
@@ -567,52 +578,35 @@ function createFooter(overlay, { organizing = false } = {}) {
     footer.appendChild(discardRow);
   }
 
-  const filterRow = document.createElement("div");
-  filterRow.className = "bottom-actions-row equip-filters";
-  EQUIP_FILTERS.forEach((filter) => {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = `equip-filter-chip ${equipState.filter === filter.id ? "active" : ""}`;
-    chip.textContent = filter.label;
-    chip.addEventListener("click", () => {
-      equipState.filter = filter.id;
-      clearSelection();
-      clearDiscardSelection();
-      renderEquip();
+  const party = getDraftParty();
+  if (party.length > 1) {
+    const actorRow = document.createElement("div");
+    actorRow.className = "bottom-actions-row equip-actor-row";
+    party.forEach((liveChar, idx) => {
+      const char = createEquipmentPreviewChar(liveChar);
+      if (!char) return;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `equip-actor-chip ${idx === equipState.actorIdx ? "active" : ""}`;
+      btn.setAttribute("aria-pressed", idx === equipState.actorIdx ? "true" : "false");
+      const name = document.createElement("span");
+      name.textContent = char.name;
+      const details = document.createElement("small");
+      details.textContent = `Lv.${char.level} / HP ${char.hp}/${getCharMaxHp(char)}`;
+      btn.appendChild(name);
+      btn.appendChild(details);
+      btn.addEventListener("click", () => {
+        equipState.actorIdx = idx;
+        clearDiscardSelection();
+        renderEquip();
+      });
+      actorRow.appendChild(btn);
     });
-    filterRow.appendChild(chip);
-  });
-  footer.appendChild(filterRow);
-
-  const actorRow = document.createElement("div");
-  actorRow.className = "bottom-actions-row equip-actor-row";
-  getDraftParty().forEach((liveChar, idx) => {
-    const char = createEquipmentPreviewChar(liveChar);
-    if (!char) return;
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = `equip-actor-chip ${idx === equipState.actorIdx ? "active" : ""}`;
-    btn.setAttribute("aria-pressed", idx === equipState.actorIdx ? "true" : "false");
-    const name = document.createElement("span");
-    name.textContent = char.name;
-    const details = document.createElement("small");
-    details.textContent = `Lv.${char.level} / HP ${char.hp}/${getCharMaxHp(char)}`;
-    btn.appendChild(name);
-    btn.appendChild(details);
-    btn.addEventListener("click", () => {
-      equipState.actorIdx = idx;
-      clearDiscardSelection();
-      renderEquip();
-    });
-    actorRow.appendChild(btn);
-  });
-  footer.appendChild(actorRow);
+    footer.appendChild(actorRow);
+  }
 
   const closeRow = document.createElement("div");
-  closeRow.className = `bottom-actions-row ${draftDirty ? "equip-transaction-actions" : ""}`.trim();
-  if (draftDirty) {
-    closeRow.appendChild(createTransactionStatus());
-  }
+  closeRow.className = "bottom-actions-row equip-close-row";
   if (!organizing) {
     const organizeEntry = document.createElement("button");
     organizeEntry.type = "button";
@@ -626,28 +620,16 @@ function createFooter(overlay, { organizing = false } = {}) {
   btnClose.id = "btn-equip-close";
   btnClose.className = "btn btn-danger";
   setDockActionRole(btnClose, "back");
-  btnClose.textContent = draftDirty ? "キャンセル" : "閉じる";
-  btnClose.addEventListener("click", () => {
-    if (draftDirty) cancelEquipDraft();
-    else closeEquipOverlay();
-  });
-  if (draftDirty) {
-    // Keep the destructive exit action on the left and the world-affecting
-    // commit action on the right in the DOM and visual order.
-    closeRow.appendChild(btnClose);
-    const commit = document.createElement("button");
-    commit.type = "button";
-    commit.id = "btn-equip-commit";
-    commit.className = "btn btn-neon btn-block equip-action-btn";
-    commit.textContent = equipState.draft?.trialAction
-      ? "試す内容を確定する（探索時間が進む）"
-      : "確定する（探索時間が進む）";
-    commit.disabled = !isLoadoutDraftDirty(equipState.draft) || !getLoadoutValidationSummary(equipState.draft).ok;
-    setDockActionRole(commit, "confirm");
-    commit.addEventListener("click", commitEquipDraft);
-    closeRow.appendChild(commit);
-  } else {
-    closeRow.appendChild(btnClose);
+  btnClose.textContent = "閉じる";
+  btnClose.addEventListener("click", () => closeEquipOverlay());
+  closeRow.appendChild(btnClose);
+
+  if (equipState.pendingTurns > 0) {
+    const turnNote = document.createElement("p");
+    turnNote.className = "equip-turn-note";
+    turnNote.setAttribute("role", "status");
+    turnNote.textContent = `変更済み。閉じると探索時間が${equipState.pendingTurns}ターン進みます`;
+    footer.appendChild(turnNote);
   }
   footer.appendChild(closeRow);
 
@@ -721,124 +703,133 @@ function createOrganizeControls() {
   return controls;
 }
 
+function selectEquippedSlot(itemKey, slotId) {
+  const alreadySelected = equipState.selectedIsEquipped && equipState.selectedSlot === slotId;
+  if (alreadySelected) {
+    clearSelection();
+    return;
+  }
+  equipState.selectedIdx = -1;
+  equipState.selectedKey = itemKey;
+  equipState.selectedSlot = slotId;
+  equipState.selectedActorIdx = equipState.actorIdx;
+  equipState.selectedIsEquipped = true;
+}
+
+function getEquippedSlotSummary(itemKey, item) {
+  if (isCurseLocked(itemKey)) return "🔒 呪い・外せない";
+  if (!isIdentified(itemKey)) return getKnowledgeSummary(itemKey);
+  if (item.type === "weapon") {
+    return `攻撃 +${item.atk || 0} / ${item.hands === 2 ? "両手" : "片手"}`;
+  }
+  return getItemSummary(item);
+}
+
+// Every slot keeps a fixed place in the grid so the loadout reads at a glance.
+// Filled slots open their detail; empty slots narrow the bag to candidates.
+function createEquippedSection(char) {
+  const section = document.createElement("section");
+  section.className = "equip-list-section equip-equipped-section";
+
+  const filledCount = EQUIPMENT_SLOTS.filter(({ id }) => char.equipment[id] && getItemData(char.equipment[id])).length;
+  const heading = document.createElement("h2");
+  heading.className = "equip-section-heading";
+  heading.textContent = `装備中 ${filledCount}/${EQUIPMENT_SLOTS.length}`;
+  section.appendChild(heading);
+
+  const grid = document.createElement("div");
+  grid.className = "equip-equipped-rows";
+  EQUIPMENT_SLOTS.forEach(({ id, label, itemType }) => {
+    const itemKey = char.equipment[id];
+    const item = itemKey ? getItemData(itemKey) : null;
+    const slotLabel = document.createElement("span");
+    slotLabel.className = "equip-slot-label";
+    slotLabel.textContent = label;
+
+    if (!item) {
+      const emptySlot = document.createElement("button");
+      emptySlot.type = "button";
+      const filterMatch = equipState.filter === itemType;
+      emptySlot.className = `equip-empty-slot ${filterMatch ? "is-filter-match" : ""}`.trim();
+      emptySlot.dataset.slotId = id;
+      emptySlot.setAttribute("aria-label", `${label}: 空き。バッグの${EQUIPMENT_TYPE_LABELS[itemType]}を表示`);
+      const emptyText = document.createElement("span");
+      emptyText.className = "equip-item-row-name";
+      emptyText.textContent = "空き";
+      emptySlot.append(slotLabel, emptyText);
+      emptySlot.addEventListener("click", () => {
+        equipState.filter = itemType;
+        clearSelection();
+        clearDiscardSelection();
+        renderEquip();
+      });
+      grid.appendChild(emptySlot);
+      return;
+    }
+
+    const selected = equipState.selectedIsEquipped && equipState.selectedSlot === id;
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `equip-item-row equip-equipped-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${isCurseLocked(itemKey) ? "is-cursed" : ""}`.replace(/\s+/g, " ").trim();
+    row.dataset.slotId = id;
+    row.setAttribute("aria-selected", selected ? "true" : "false");
+    const ownership = getItemOwnership(itemKey, { state });
+    row.dataset.ownership = ownership;
+
+    const main = document.createElement("div");
+    main.className = "equip-item-row-main";
+    const head = document.createElement("span");
+    head.className = "equip-slot-head";
+    head.appendChild(slotLabel);
+    appendOwnershipBadge(head, ownership);
+    const name = document.createElement("span");
+    name.className = "equip-item-row-name";
+    name.textContent = `${isIdentified(itemKey) ? "" : "? "}${item.name}`;
+    const summary = document.createElement("span");
+    summary.className = "equip-item-row-tag";
+    summary.textContent = getEquippedSlotSummary(itemKey, item);
+    main.append(head, name, summary);
+    row.appendChild(main);
+
+    row.addEventListener("click", () => {
+      selectEquippedSlot(itemKey, id);
+      renderEquip();
+    });
+    grid.appendChild(row);
+  });
+  section.appendChild(grid);
+  return section;
+}
+
+function createFilterChips() {
+  const filterRow = document.createElement("div");
+  filterRow.className = "equip-filters";
+  filterRow.setAttribute("role", "group");
+  filterRow.setAttribute("aria-label", "装備の種類で絞り込み");
+  EQUIP_FILTERS.forEach((filter) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    const active = equipState.filter === filter.id;
+    chip.className = `equip-filter-chip ${active ? "active" : ""}`.trim();
+    chip.setAttribute("aria-pressed", active ? "true" : "false");
+    chip.textContent = filter.label;
+    chip.addEventListener("click", () => {
+      equipState.filter = filter.id;
+      clearSelection();
+      clearDiscardSelection();
+      renderEquip();
+    });
+    filterRow.appendChild(chip);
+  });
+  return filterRow;
+}
+
 function createEquipmentList(char, savedScrollTop) {
   const listContainer = document.createElement("div");
   listContainer.className = "equip-list-container";
 
-  const filteredSlots = EQUIPMENT_SLOTS.filter(s => equipState.filter === "all" || equipState.filter === s.itemType);
   if (equipState.mode !== "organize") {
-    const equippedCount = filteredSlots.filter(({ id }) => char.equipment[id] && getItemData(char.equipment[id])).length;
-
-    const equippedSection = document.createElement("section");
-    equippedSection.className = "equip-list-section equip-equipped-section";
-
-  const headingEquipped = document.createElement("h2");
-  headingEquipped.className = "equip-section-heading";
-  headingEquipped.textContent = `装備中（${equippedCount}枠）`;
-  equippedSection.appendChild(headingEquipped);
-
-  const equippedRows = document.createElement("div");
-  equippedRows.className = "equip-equipped-rows";
-
-  const emptySlots = [];
-  const comparisonRows = [];
-  const condensedRows = [];
-  filteredSlots.forEach(({ id, label }) => {
-    const itemKey = char.equipment[id];
-    const item = itemKey ? getItemData(itemKey) : null;
-    const selected = equipState.selectedIsEquipped && equipState.selectedSlot === id;
-
-    if (!item) {
-      emptySlots.push({ id, label });
-      return;
-    }
-
-    const comparisonTarget = equipState.selectedSlot === id;
-    
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = `equip-item-row equip-equipped-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${comparisonTarget ? "is-comparison-target" : "is-condensed"}`.trim();
-    row.dataset.slotId = id;
-    row.setAttribute("aria-selected", selected ? "true" : "false");
-    if (comparisonTarget) row.setAttribute("aria-current", "location");
-
-    const left = document.createElement("div");
-    left.className = "equip-item-row-main";
-    const name = document.createElement("span");
-    name.className = "equip-item-row-name";
-    name.textContent = item ? `${isIdentified(itemKey) ? "" : "? "}${item.name}` : "（なし）";
-    if (!item) {
-      name.style.color = "var(--text-muted)";
-    }
-    left.appendChild(name);
-
-    const summary = document.createElement("span");
-    summary.className = "equip-item-row-tag";
-    summary.textContent = comparisonTarget
-      ? `${label} ${item ? `/ ${isCurseLocked(itemKey) ? "🔒 呪い・外せない" : (isIdentified(itemKey) ? getItemSummary(item) : getKnowledgeSummary(itemKey))}` : ""}`
-      : `${label}${isCurseLocked(itemKey) ? " / 🔒 呪い・外せない" : ""}`;
-    left.appendChild(summary);
-    row.appendChild(left);
-
-    const badges = document.createElement("span");
-    badges.className = "equip-item-row-badges";
-    const ownership = getItemOwnership(itemKey, { state });
-    row.dataset.ownership = ownership;
-    appendOwnershipBadge(badges, ownership);
-    const stateBadge = document.createElement("span");
-    stateBadge.className = "equip-row-badge equipped";
-    stateBadge.textContent = "装備中";
-    badges.appendChild(stateBadge);
-    const rarityBadge = createRarityBadge(itemKey);
-    if (rarityBadge) badges.appendChild(rarityBadge);
-    row.appendChild(badges);
-
-    row.addEventListener("click", () => {
-      if (!itemKey) {
-        clearSelection();
-      } else {
-        if (selected) {
-          clearSelection();
-        } else {
-          equipState.selectedIdx = -1;
-          equipState.selectedKey = itemKey;
-          equipState.selectedSlot = id;
-          equipState.selectedActorIdx = equipState.actorIdx;
-          equipState.selectedIsEquipped = true;
-        }
-      }
-      renderEquip();
-    });
-
-    if (comparisonTarget) {
-      comparisonRows.push(row);
-    } else {
-      condensedRows.push(row);
-    }
-  });
-
-  comparisonRows.forEach(row => equippedRows.appendChild(row));
-  condensedRows.forEach(row => equippedRows.appendChild(row));
-
-  equippedSection.appendChild(equippedRows);
-
-  if (emptySlots.length > 0) {
-    const emptySlotSummary = document.createElement("div");
-    emptySlotSummary.className = "equip-empty-slots";
-    emptySlotSummary.setAttribute("aria-label", "空いている装備スロット");
-    emptySlots.forEach(({ id, label }) => {
-      const comparisonTarget = equipState.selectedSlot === id;
-      const emptySlot = document.createElement("span");
-      emptySlot.className = `equip-empty-slot ${comparisonTarget ? "is-comparison-target" : ""}`.trim();
-      emptySlot.dataset.slotId = id;
-      emptySlot.textContent = `${label}: 空き`;
-      if (comparisonTarget) emptySlot.setAttribute("aria-current", "location");
-      emptySlotSummary.appendChild(emptySlot);
-    });
-    equippedSection.appendChild(emptySlotSummary);
-  }
-
-    listContainer.appendChild(equippedSection);
+    listContainer.appendChild(createEquippedSection(char));
   }
 
   const bagSection = document.createElement("section");
@@ -848,6 +839,7 @@ function createEquipmentList(char, savedScrollTop) {
   headingBag.className = "equip-section-heading";
   headingBag.textContent = "バッグの装備品";
   bagSection.appendChild(headingBag);
+  bagSection.appendChild(createFilterChips());
   const runePanel = createRunePanel(char);
   if (equipState.mode === "organize") {
     bagSection.appendChild(createOrganizeControls());
@@ -863,7 +855,9 @@ function createEquipmentList(char, savedScrollTop) {
   if (equipmentItems.length === 0) {
     const placeholder = document.createElement("div");
     placeholder.className = "equip-detail-placeholder";
-    placeholder.textContent = "装備品がバッグにありません。";
+    placeholder.textContent = equipState.filter === "all"
+      ? "装備品がバッグにありません。"
+      : `バッグに${EQUIPMENT_TYPE_LABELS[equipState.filter] || "該当する装備"}がありません。`;
     itemList.appendChild(placeholder);
   } else {
     let currentType = "";
@@ -902,31 +896,34 @@ function createEquipmentList(char, savedScrollTop) {
 
       const left = document.createElement("div");
       left.className = "equip-item-row-main";
+      const nameLine = document.createElement("span");
+      nameLine.className = "equip-item-row-title";
       const name = document.createElement("span");
       name.className = "equip-item-row-name";
       name.textContent = `${isIdentified(itemKey) ? "" : "? "}${item.name}`;
-      left.appendChild(name);
+      nameLine.appendChild(name);
+      const rarityBadge = createRarityBadge(itemKey);
+      if (rarityBadge) nameLine.appendChild(rarityBadge);
+      left.appendChild(nameLine);
 
+      const meta = document.createElement("span");
+      meta.className = "equip-item-row-meta";
+      const ownership = getItemOwnership(itemKey, { state });
+      row.dataset.ownership = ownership;
+      appendOwnershipBadge(meta, ownership);
       const summary = document.createElement("span");
       summary.className = "equip-item-row-tag";
-      summary.textContent = `${EQUIPMENT_TYPE_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : getKnowledgeSummary(itemKey)}`;
-      left.appendChild(summary);
+      summary.textContent = isIdentified(itemKey) ? getItemSummary(item) : getKnowledgeSummary(itemKey);
+      meta.appendChild(summary);
+      left.appendChild(meta);
       row.appendChild(left);
 
       const badges = document.createElement("span");
       badges.className = "equip-item-row-badges";
-      const ownership = getItemOwnership(itemKey, { state });
-      row.dataset.ownership = ownership;
-      appendOwnershipBadge(badges, ownership);
-      const rarityBadge = createRarityBadge(itemKey);
-      if (rarityBadge) badges.appendChild(rarityBadge);
-
       const badge = document.createElement("span");
       if (!isIdentified(itemKey)) {
         badge.className = "equip-row-badge unident";
         badge.textContent = `? ${getKnowledgeStageLabel(itemKey)}`;
-        badge.style.background = "rgba(255, 170, 0, 0.2)";
-        badge.style.color = "rgb(255, 170, 0)";
       } else if (!availability.ok) {
         badge.className = "equip-row-badge cant";
         badge.textContent = "不可";
@@ -1126,7 +1123,6 @@ function createWorkshopPanel(itemKey) {
   }
 
   const enhanceCost = getEnhanceCost(itemKey);
-  const loadoutPending = isLoadoutDraftDirty(equipState.draft);
   if (!enhanceCost) {
     const unavailable = document.createElement("span");
     unavailable.className = "equip-workshop-unavailable";
@@ -1144,10 +1140,8 @@ function createWorkshopPanel(itemKey) {
     const enhanceButton = document.createElement("button");
     enhanceButton.type = "button";
     enhanceButton.className = "btn btn-neon btn-block equip-workshop-action";
-    enhanceButton.disabled = !canAfford || loadoutPending;
-    enhanceButton.textContent = loadoutPending
-      ? "確定後に工房を利用できます"
-      : canAfford ? "強化する" : "強化素材が不足しています";
+    enhanceButton.disabled = !canAfford;
+    enhanceButton.textContent = canAfford ? "強化する" : "強化素材が不足しています";
     enhanceButton.addEventListener("click", () => {
       if (!enhanceEquipment(target)) return;
       refreshDraftAfterLiveMutation();
@@ -1183,10 +1177,8 @@ function createWorkshopPanel(itemKey) {
       const polishButton = document.createElement("button");
       polishButton.type = "button";
       polishButton.className = "btn btn-neon equip-workshop-action";
-      polishButton.disabled = !canAfford || loadoutPending;
-      polishButton.textContent = loadoutPending
-        ? "確定後に工房を利用できます"
-        : canAfford ? "研磨する" : "研磨素材が不足しています";
+      polishButton.disabled = !canAfford;
+      polishButton.textContent = canAfford ? "研磨する" : "研磨素材が不足しています";
       polishButton.addEventListener("click", () => {
         if (!polishEquipment(target, index)) return;
         refreshDraftAfterLiveMutation();
@@ -1254,17 +1246,11 @@ function createDetailPanel(char) {
   const detailCol = document.createElement("div");
   detailCol.className = "equip-detail-col";
 
-  if (equipState.selectedKey === null) {
-    const placeholder = document.createElement("div");
-    placeholder.className = "equip-detail-placeholder";
-    placeholder.textContent = "装備品を選択してください。";
-    detailCol.appendChild(placeholder);
-    return detailCol;
-  }
-
   const itemKey = getSelectedItemKey() || equipState.selectedKey;
   const item = getItemData(itemKey);
   const hidden = !isIdentified(itemKey);
+  // Edits replace the draft, so a repeated tap on a stale action is ignored.
+  const renderedDraft = equipState.draft;
   const knowledgeStage = getKnowledgeStage(itemKey);
   const trialRequired = knowledgeStage === KNOWLEDGE_STAGES.DISCOVERY
     || knowledgeStage === KNOWLEDGE_STAGES.OBSERVATION;
@@ -1325,13 +1311,6 @@ function createDetailPanel(char) {
     desc.appendChild(behaviorNote);
   }
   heading.appendChild(titleBlock);
-
-  const targetSummary = document.createElement("div");
-  targetSummary.className = "equip-target-summary";
-  targetSummary.textContent = char.name;
-  const targetLevel = document.createElement("small");
-  targetLevel.textContent = `Lv.${char.level}`;
-  targetSummary.appendChild(targetLevel);
   content.appendChild(heading);
 
   const exchange = document.createElement("div");
@@ -1372,8 +1351,15 @@ function createDetailPanel(char) {
   const context = document.createElement("div");
   context.className = "equip-detail-context";
   context.appendChild(desc);
-  context.appendChild(targetSummary);
   content.appendChild(context);
+
+  const knowledge = document.createElement("div");
+  knowledge.className = "equip-knowledge-status";
+  knowledge.textContent = `知識段階: ${getKnowledgeStageLabel(knowledgeStage)}`;
+  content.appendChild(knowledge);
+
+  const affixDetails = createAffixDetails(itemKey);
+  if (affixDetails) content.appendChild(affixDetails);
 
   let proposedChar = null;
   let proposedDraft = null;
@@ -1393,31 +1379,29 @@ function createDetailPanel(char) {
       proposedChar = createEquipmentPreviewChar(proposedDraft.party[equipState.actorIdx]);
     }
   }
-  content.appendChild(createBuildCommitmentPanel(char, {
+  // The full build sheet is long; keep it one tap away so the item, its
+  // comparison, and the actions stay in the first screen.
+  const buildDetails = document.createElement("details");
+  buildDetails.className = "equip-more-details";
+  const buildSummary = document.createElement("summary");
+  buildSummary.textContent = proposedDraft ? "構成の詳細と変化" : "構成の詳細";
+  buildDetails.appendChild(buildSummary);
+  buildDetails.appendChild(createBuildCommitmentPanel(char, {
     proposedChar,
     currentDraft: equipState.draft,
     proposedDraft
   }));
-
-  const knowledge = document.createElement("div");
-  knowledge.className = "equip-knowledge-status";
-  knowledge.textContent = `知識段階: ${getKnowledgeStageLabel(knowledgeStage)}`;
-  content.appendChild(knowledge);
-
-  const affixDetails = createAffixDetails(itemKey);
-  if (affixDetails) content.appendChild(affixDetails);
+  content.appendChild(buildDetails);
 
   content.appendChild(createWorkshopPanel(itemKey));
 
-  const compat = document.createElement("div");
-  if (isEquipped) {
-    compat.className = `equip-detail-compat ${isCurseLocked(itemKey) ? "no" : "yes"}`;
-    compat.textContent = isCurseLocked(itemKey) ? "🔒 呪いで固定中：通常は外せません" : "現在装備しています";
-  } else {
-    compat.className = `equip-detail-compat ${availability.ok ? "yes" : "no"}`;
-    compat.textContent = availability.ok ? "装備できます" : availability.reason;
+  const compatBlocked = isEquipped ? isCurseLocked(itemKey) : !availability.ok;
+  if (compatBlocked) {
+    const compat = document.createElement("div");
+    compat.className = "equip-detail-compat no";
+    compat.textContent = isEquipped ? "🔒 呪いで固定中：通常は外せません" : availability.reason;
+    content.insertBefore(compat, exchange.nextSibling);
   }
-  content.appendChild(compat);
 
   detailCol.appendChild(content);
 
@@ -1453,6 +1437,7 @@ function createDetailPanel(char) {
     actionBtn.textContent = bagFull ? "整理してから外す" : "外す";
     setDockActionRole(actionBtn, "confirm");
     actionBtn.addEventListener("click", () => {
+      if (equipState.draft !== renderedDraft) return;
       if (bagFull) {
         requestUnequipAfterDiscard();
         return;
@@ -1462,9 +1447,8 @@ function createDetailPanel(char) {
         slot: equipState.selectedSlot
       });
       if (!result.ok) return;
-      equipState.draft = result.draft;
       clearSelection();
-      renderEquip();
+      applyDraft(result.draft);
     });
     actions.appendChild(actionBtn);
   } else {
@@ -1472,12 +1456,9 @@ function createDetailPanel(char) {
       const identifyBtn = document.createElement("button");
       identifyBtn.type = "button";
       const canIdentify = (state.identifyTickets || 0) >= IDENTIFICATION_BALANCE.identifyCost;
-      const loadoutPending = isLoadoutDraftDirty(equipState.draft);
-      identifyBtn.className = canIdentify && !loadoutPending ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
-      identifyBtn.disabled = !canIdentify || loadoutPending;
-      identifyBtn.textContent = loadoutPending
-        ? "確定後に鑑定できます"
-        : canIdentify
+      identifyBtn.className = canIdentify ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
+      identifyBtn.disabled = !canIdentify;
+      identifyBtn.textContent = canIdentify
         ? `鑑定する（鑑定粉1 / 所持${state.identifyTickets || 0}）`
         : "鑑定粉がありません";
       setDockActionRole(identifyBtn, "confirm");
@@ -1517,7 +1498,7 @@ function createDetailPanel(char) {
     }
     setDockActionRole(actionBtn, "confirm");
     actionBtn.addEventListener("click", () => {
-      if (!availability.ok) return;
+      if (!availability.ok || equipState.draft !== renderedDraft) return;
       const result = trialRequired
         ? stageTrialEquip(equipState.draft, {
           inventoryIndex: equipState.selectedIdx,
@@ -1530,16 +1511,15 @@ function createDetailPanel(char) {
           requestedSlot: equipState.selectedSlot
         });
       if (!result.ok) return;
-      equipState.draft = result.draft;
       clearSelection();
-      renderEquip();
+      applyDraft(result.draft);
     });
     actions.appendChild(actionBtn);
 
     if (!isItemEquipped(itemKey)) {
       const discardBtn = document.createElement("button");
       discardBtn.type = "button";
-      discardBtn.className = "btn btn-danger btn-block equip-action-btn";
+      discardBtn.className = "btn btn-danger btn-block equip-action-btn equip-action-pair";
       discardBtn.textContent = "破棄する";
       setDockActionRole(discardBtn, "confirm");
       discardBtn.addEventListener("click", () => {
@@ -1548,6 +1528,8 @@ function createDetailPanel(char) {
       actions.appendChild(discardBtn);
     }
   }
+  // Discard and back share one row so the primary action keeps the full width.
+  if (actions.querySelector(".equip-action-pair")) backToListBtn.classList.add("equip-action-pair");
   actions.appendChild(backToListBtn);
   detailCol.appendChild(actions);
   return detailCol;
@@ -1583,7 +1565,6 @@ export function renderEquip() {
     body.appendChild(createDetailPanel(char));
   } else {
     body.appendChild(createEquipmentList(char, savedScrollTop));
-    if (!organizing) body.appendChild(createDetailPanel(char));
   }
   overlay.appendChild(body);
   if (!detailMode) createFooter(overlay, { organizing });

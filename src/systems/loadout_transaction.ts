@@ -173,8 +173,8 @@ export function commitLoadoutDraft(
     .join(" / ");
   const runeCount = changes.runes.reduce((sum, change) => sum + Math.max(change.from.length, change.to.length), 0);
   addLog(isTrial
-    ? `試用を確定した。${equipmentText}（探索時間が進む）`
-    : `装備変更を確定した。${equipmentText}${runeCount ? ` / ルーン変更 ${runeCount}件` : ""}`);
+    ? `試しに装備した。${equipmentText}（探索時間が進む）`
+    : `装備を変更した。${equipmentText}${runeCount ? ` / ルーン変更 ${runeCount}件` : ""}`);
   trackLoadoutTransaction("commit", {
     state: stateLike,
     equipmentChanges: changes.equipment.length,

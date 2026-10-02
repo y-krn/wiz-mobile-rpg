@@ -83,8 +83,9 @@ for (const vp of VIEWPORTS) {
 
     const equippedWeapon = page.locator('.equip-equipped-row[data-slot-id="weapon"]');
     await expect(equippedWeapon).toHaveClass(/equip-equipped-row/);
-    await expect(equippedWeapon).toContainText('装備中');
-    await expect(equippedWeapon).not.toHaveClass(/is-comparison-target/);
+    await expect(equippedWeapon).toContainText('武器');
+    await expect(equippedWeapon).toContainText('ダガー');
+    await expect(page.locator('.equip-empty-slot[data-slot-id="shield"]')).toContainText('空き');
 
     await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
     await expect(page.locator('.equip-body.is-detail')).toBeVisible();
@@ -222,12 +223,9 @@ for (const vp of VIEWPORTS) {
     await page.locator('.equip-item-row', { hasText: 'ショートソード' }).click();
     await assertPreviewStateUnchanged();
     await page.getByRole('button', { name: '装備する' }).click();
-    await page.locator('#btn-equip-commit').click();
-    await page.evaluate(async () => (await import('/src/equip.js')).openEquipOverlay(0));
     await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toContainText('ショートソード');
     await page.locator('.equip-equipped-row[data-slot-id="weapon"]').click();
     await page.getByRole('button', { name: '外す' }).click();
-    await page.locator('#btn-equip-commit').click();
     await expect(page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' })).toHaveCount(1);
     expect(await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -372,7 +370,6 @@ for (const vp of VIEWPORTS) {
     });
     await discardButton.click();
     await discardDialog.getByRole('button', { name: '破棄する' }).click();
-    await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return state.inventory.map((item) => item.instanceId);
@@ -463,7 +460,6 @@ for (const vp of VIEWPORTS) {
       await expect(discardDialog).toContainText(text);
     }
     await discardDialog.getByRole('button', { name: '破棄する' }).click();
-    await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
 
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -474,6 +470,7 @@ for (const vp of VIEWPORTS) {
       event.name === 'equipment_decision' && event.properties.action === 'discard'
     )).length)).toBe(3);
 
+    await page.locator('#btn-equip-close').click();
     await expect(page.locator('#equip-overlay')).toBeHidden();
   });
 
@@ -527,7 +524,7 @@ for (const vp of VIEWPORTS) {
     expect((await backButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
 
     await backButton.click();
-    await expect(page.locator('.equip-detail-placeholder')).toContainText('装備品を選択してください');
+    await expect(page.locator('.equip-body.is-detail')).toHaveCount(0);
     await expect(page.getByRole('button', { name: '一覧へ戻る' })).toHaveCount(0);
     await expect(page.locator('.equip-item-row.rarity-common', { hasText: 'ショートソード' })).toHaveCount(1);
     expect(await page.evaluate(async () => (await import('/src/state.js')).state.inventory)).toHaveLength(1);
@@ -770,12 +767,10 @@ for (const vp of VIEWPORTS) {
     }
     await page.getByRole('button', { name: '装飾2: なし' }).click();
     await page.getByRole('button', { name: '装備する' }).click();
-    await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return state.party[0].equipment.accessory2?.instanceId || null;
     })).toBe('ui_accessory');
-    await page.evaluate(async () => (await import('/src/equip.js')).openEquipOverlay(0));
 
     await page.locator('.equip-item-row', { hasText: 'レザーアーマー（未鑑定）' }).click();
     await expect(page.locator('.equip-affix-details')).toHaveCount(0);
@@ -784,8 +779,6 @@ for (const vp of VIEWPORTS) {
     await gambleButton.scrollIntoViewIfNeeded();
     expect((await gambleButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await gambleButton.click();
-    await page.getByRole('button', { name: /確定する（探索時間が進む）/ }).click();
-    await page.evaluate(async () => (await import('/src/equip.js')).openEquipOverlay(0));
     await expect.poll(() => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const item = state.party[0].equipment.armor;
@@ -849,11 +842,9 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     const bagBox = await bagSection.boundingBox();
     const itemList = overlay.locator('.equip-bag-section .equip-item-list');
     const itemListBox = await itemList.boundingBox();
-    const detail = overlay.locator('.equip-detail-col');
-    const detailBox = await detail.boundingBox();
     expect(bagBox?.height, `bag section should reserve two tap rows on ${vp.name}`).toBeGreaterThanOrEqual(154);
-    expect(detailBox?.height, `detail panel should retain a measurable region on ${vp.name}`).toBeGreaterThan(0);
-    expect(detailBox?.y, `detail must not overlap the bag list on ${vp.name}`).toBeGreaterThanOrEqual((itemListBox?.y || 0) + (itemListBox?.height || 0) - 0.5);
+    // The list screen has no idle detail placeholder; the bag owns the remaining space.
+    await expect(overlay.locator('.equip-detail-col')).toHaveCount(0);
 
     const bagRows = overlay.locator('.equip-bag-section .equip-item-row');
     expect(await bagRows.count()).toBeGreaterThanOrEqual(2);
@@ -1025,7 +1016,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     await expect(backButton).toBeVisible();
     expect((await backButton.boundingBox()).height, `back button should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
     await backButton.click();
-    await expect(overlay.locator('.equip-detail-placeholder')).toContainText('装備品を選択してください');
+    await expect(overlay.locator('.equip-body.is-detail')).toHaveCount(0);
     await expect(overlay.locator('.equip-bag-section .equip-item-row')).toHaveCount(2);
     await expect(overlay.locator('.equip-equipped-row')).toHaveCount(5);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
@@ -1106,9 +1097,14 @@ for (const vp of VIEWPORTS) {
       expect(box.x + box.width, `${await control.textContent()} should not overflow right on ${vp.name}`).toBeLessThanOrEqual(vp.width);
     }
 
-    for (const control of await footer.locator('.equip-filter-chip, #btn-equip-close').all()) {
+    for (const control of await footer.locator('.equip-organize-entry, #btn-equip-close').all()) {
       const box = await control.boundingBox();
       expect(vp.height - box.y, `${await control.textContent()} should start within 200px of the bottom on ${vp.name}`).toBeLessThanOrEqual(200);
+    }
+    for (const chip of await overlay.locator('.equip-filter-chip').all()) {
+      const box = await chip.boundingBox();
+      expect(box.height, `${await chip.textContent()} filter should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(box.x + box.width, `${await chip.textContent()} filter should not overflow on ${vp.name}`).toBeLessThanOrEqual(vp.width);
     }
 
     const itemList = overlay.locator('.equip-item-list');
@@ -1121,8 +1117,8 @@ for (const vp of VIEWPORTS) {
     const expectedScrollTop = await itemList.evaluate((element, targetScrollTop) => Math.min(targetScrollTop, element.scrollHeight - element.clientHeight), savedScrollTop);
     await expect.poll(() => itemList.evaluate((element) => element.scrollTop)).toBe(expectedScrollTop);
 
-    await footer.getByRole('button', { name: '鎧' }).click();
-    await expect(footer.getByRole('button', { name: '鎧' })).toHaveClass(/active/);
+    await overlay.locator('.equip-filter-chip', { hasText: '鎧' }).click();
+    await expect(overlay.locator('.equip-filter-chip', { hasText: '鎧' })).toHaveClass(/active/);
     await expect(overlay.locator('.equip-item-row-name', { hasText: 'ショートソード' })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
 

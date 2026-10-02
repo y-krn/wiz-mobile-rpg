@@ -242,9 +242,12 @@ remove a rule-changing Core as a hidden way to target a build. Any refinement
 must preserve the identify state, bag capacity, hands validity, curse risk, and
 the opportunity cost that made the equipment meaningful.
 
-Dungeon loadout edits are staged and committed atomically. A no-op, cancelled,
-or invalid edit does not consume a dungeon opportunity. A successful non-empty
-edit pays its world cost once. An opened chest resolves its object rewards as a
+Each dungeon loadout edit is validated against a side-effect-free projection
+and applied atomically when the player chooses it; there is no separate confirm
+step. An invalid edit leaves live state unchanged. One equipment-screen visit
+is one world-time boundary: a visit with any successful edit pays one
+exploration turn when the screen closes, a visit without an edit pays nothing,
+and each Trial pays its own turn because it is a committed world action. An opened chest resolves its object rewards as a
 single pending choice against the final bag: take, leave, or explicitly discard
 something. A reward must never be inserted briefly into a hidden twenty-first
 slot.

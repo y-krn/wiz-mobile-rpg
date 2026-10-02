@@ -121,6 +121,38 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--sp-sm);
+  min-width: 0;
+}
+
+.equip-header-actor {
+  align-items: baseline;
+  display: flex;
+  gap: var(--sp-xs);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.equip-header-actor strong {
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.equip-header-actor small {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.equip-material-total {
+  color: var(--text-muted);
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  margin-left: var(--sp-sm);
 }
 
 .equip-body {
@@ -171,7 +203,7 @@
   flex: 0 1 auto;
   flex-direction: column;
   gap: var(--sp-xs);
-  /* Reserve the heading plus one full comparison row before the rest shrinks. */
+  /* Reserve the heading plus one full slot row before the rest shrinks. */
   min-height: calc(
     var(--equip-section-heading-min) +
     var(--sp-xs) +
@@ -181,13 +213,50 @@
   overflow-y: auto;
 }
 
+/* Weapon spans the first row; shield/armor and both accessories pair below. */
+.equip-equipped-rows {
+  display: grid;
+  gap: var(--sp-xs);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.equip-equipped-rows > [data-slot-id="weapon"] {
+  grid-column: 1 / -1;
+}
+
+.equip-slot-head {
+  align-items: center;
+  display: flex;
+  gap: var(--sp-xs);
+  min-width: 0;
+}
+
+.equip-slot-head .ownership-badge {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.equip-slot-label {
+  color: var(--neon-cyan);
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 1.2;
+}
+
 .equip-bag-section {
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
-  /* Heading + type heading + two shared tap-min rows and their gaps. */
+  /* Heading + filters + type heading + two shared tap-min rows and their gaps. */
   min-height: calc(
     var(--equip-section-heading-min) +
+    var(--sp-xs) +
+    var(--tap-min) +
     var(--sp-sm) +
     var(--equip-type-heading-min) +
     var(--sp-sm) +
@@ -311,7 +380,10 @@
 }
 
 .equip-filters {
+  display: flex;
   flex-shrink: 0;
+  gap: var(--sp-xs);
+  margin-top: var(--sp-xs);
 }
 
 .equip-filter-chip,
@@ -332,9 +404,18 @@
   --sel-bg: rgba(13, 219, 242, 0.05);
   --sel-color: var(--neon-cyan);
 
-  flex-grow: 1;
-  padding: 10px 0;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 2px;
   text-align: center;
+  white-space: nowrap;
+}
+
+.equip-filter-chip.active {
+  background-color: rgba(47, 106, 101, 0.12);
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  font-weight: bold;
 }
 
 .equip-status-bar {
@@ -532,9 +613,31 @@
 }
 
 .equip-item-row.equip-equipped-row {
-  background-color: rgba(47, 106, 101, 0.09);
-  border-right-color: var(--neon-cyan);
-  border-right-width: 3px;
+  align-items: stretch;
+  background-color: rgba(47, 106, 101, 0.07);
+  min-height: var(--equip-comparison-row-min);
+  padding: 4px 8px;
+}
+
+.equip-item-row.equip-equipped-row .equip-item-row-main {
+  gap: 1px;
+  justify-content: center;
+  width: 100%;
+}
+
+.equip-item-row.equip-equipped-row .equip-item-row-name {
+  font-size: var(--fs-md);
+  font-weight: bold;
+  line-height: 1.25;
+}
+
+.equip-item-row.equip-equipped-row .equip-item-row-tag {
+  line-height: 1.2;
+  margin-top: 0;
+}
+
+.equip-item-row.equip-equipped-row.is-cursed {
+  border-color: var(--neon-red);
 }
 
 .equip-item-row-main {
@@ -555,46 +658,6 @@
   box-shadow: 0 0 6px rgba(138, 96, 35, 0.55);
 }
 
-.equip-item-row.equip-equipped-row.is-comparison-target {
-  border-color: var(--neon-cyan);
-  box-shadow: var(--neon-glow-cyan);
-  min-height: var(--equip-comparison-row-min);
-  padding: 2px 8px;
-}
-
-.equip-item-row.equip-equipped-row.is-condensed {
-  min-height: var(--tap-min);
-  padding: 6px 8px;
-}
-
-.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-main {
-  align-items: baseline;
-  flex-direction: row;
-  gap: var(--sp-xs);
-  min-width: 0;
-  width: 100%;
-}
-
-.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-name,
-.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-tag {
-  font-size: var(--fs-xs);
-  line-height: 1.2;
-  margin-top: 0;
-}
-
-.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-name {
-  flex: 1 1 auto;
-}
-
-.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-tag {
-  flex: 0 0 auto;
-  max-width: 35%;
-}
-
-.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-badges {
-  display: none;
-}
-
 .equip-item-row-name {
   font-size: var(--fs-base);
   color: var(--text-primary);
@@ -612,6 +675,31 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.equip-item-row-title,
+.equip-item-row-meta {
+  align-items: center;
+  display: flex;
+  gap: var(--sp-xs);
+  min-width: 0;
+}
+
+.equip-item-row-title .equip-item-row-name {
+  flex: 0 1 auto;
+}
+
+.equip-item-row-meta {
+  margin-top: 2px;
+}
+
+.equip-item-row-meta .equip-item-row-tag {
+  flex: 1 1 auto;
+  margin-top: 0;
+}
+
+.equip-item-row-meta .ownership-badge {
+  flex: 0 0 auto;
 }
 
 .equip-item-row-badges {
@@ -657,13 +745,23 @@
 
 /* Badge rules for list checking */
 .equip-row-badge {
-  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   font-weight: bold;
   border-radius: 3px;
-  padding: 2px 6px;
+  padding: 3px 7px;
   margin-left: 8px;
+  min-width: 2.5em;
   flex-shrink: 0;
+  text-align: center;
   text-transform: uppercase;
+}
+.equip-row-badge.unident {
+  background-color: rgba(138, 96, 35, 0.14);
+  border: 1px solid rgba(138, 96, 35, 0.45);
+  color: var(--neon-amber);
+  font-family: inherit;
+  font-size: var(--fs-xs);
 }
 .equip-row-badge.cant {
   background-color: rgba(197, 20, 10, 0.15);
@@ -695,7 +793,7 @@
   color: var(--neon-cyan);
 }
 
-/* Detail panel: split below the list until an item is selected, then full screen. */
+/* Detail panel: a focused inspection screen for the selected item. */
 .equip-detail-col {
   width: 100%;
   background-color: var(--surface-deep);
@@ -705,7 +803,7 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  flex: 0 1 35%;
+  flex: 1 1 0;
   min-height: 0;
   overflow-x: hidden;
   overflow: hidden;
@@ -734,6 +832,11 @@
   overflow-y: auto;
 }
 
+/* The content column scrolls; its blocks must keep their natural height. */
+.equip-detail-content > * {
+  flex-shrink: 0;
+}
+
 .equip-detail-name {
   font-size: var(--fs-base);
   font-weight: bold;
@@ -751,10 +854,37 @@
 }
 
 .equip-detail-context {
-  align-items: start;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: block;
+}
+
+.equip-more-details {
+  border: 1px solid rgba(47, 106, 101, 0.22);
+  border-radius: var(--radius-sm);
+}
+
+.equip-more-details > summary {
+  align-items: center;
+  color: var(--neon-cyan);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--fs-sm);
+  font-weight: bold;
+  min-height: var(--tap-min);
+  padding: 0 var(--sp-sm);
+}
+
+.equip-more-details > summary:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 2px;
+}
+
+.equip-more-details[open] > summary {
+  border-bottom: 1px solid rgba(47, 106, 101, 0.18);
+}
+
+.equip-more-details > .equip-build-commitment {
+  background: transparent;
+  border: 0;
 }
 
 .equip-knowledge-status,
@@ -931,26 +1061,6 @@
   padding-left: 6px;
 }
 
-.equip-target-summary {
-  border: 1px solid var(--neon-cyan);
-  border-radius: 4px;
-  color: var(--neon-cyan);
-  display: flex;
-  flex-direction: column;
-  font-size: var(--fs-sm);
-  font-weight: bold;
-  min-width: 84px;
-  padding: 4px 6px;
-  text-align: right;
-}
-
-.equip-target-summary small {
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-  font-weight: normal;
-  margin-top: 1px;
-}
-
 .equip-exchange-line {
   background-color: rgba(13, 219, 242, 0.05);
   border: 1px solid var(--border-control);
@@ -1106,16 +1216,15 @@
 }
 
 @media (max-height: 600px) {
-  /* Preserve the bag's two-row minimum and the selected comparison row first. */
+  /* Preserve the bag's two-row minimum first; slot cards drop their stat line. */
+  .equip-item-row.equip-equipped-row .equip-item-row-tag {
+    display: none;
+  }
+
   .equip-header-area {
     gap: 3px;
     margin-bottom: 4px;
     padding-bottom: 3px;
-  }
-
-  .equip-detail-col {
-    /* Leave enough room for the bag's two tap rows at 320x568. */
-    flex-basis: 15%;
   }
 }
 
@@ -1129,39 +1238,33 @@
   display: grid;
   flex: 0 0 auto;
   gap: var(--sp-sm);
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.bottom-actions-row.equip-transaction-actions {
-  align-items: stretch;
-  display: grid;
-  gap: var(--sp-lg);
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.equip-transaction-actions > .equip-organize-entry {
+.equip-detail-actions > .equip-action-btn {
   grid-column: 1 / -1;
-}
-
-.equip-transaction-actions > .equip-action-btn,
-.equip-transaction-actions > #btn-equip-close {
   min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 
-.equip-transaction-status {
-  border: 1px solid rgba(13, 219, 242, 0.25);
-  border-radius: var(--radius-xs);
-  color: var(--text-muted);
+.equip-detail-actions > .equip-action-btn.equip-action-pair {
+  grid-column: auto;
+}
+
+.bottom-actions-row.equip-close-row {
+  display: grid;
+  gap: var(--sp-sm);
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+}
+
+.equip-close-row > .btn {
+  min-width: 0;
+}
+
+.equip-turn-note {
+  color: var(--neon-amber);
   font-size: var(--fs-xs);
-  grid-column: 1 / -1;
-  padding: 6px 8px;
-}
-
-.equip-transaction-status[data-valid="false"] {
-  border-color: rgba(197, 20, 10, 0.55);
-  color: var(--neon-red);
+  margin: 0;
+  text-align: center;
 }
 
 /* Equipment list hierarchy: section headings stay visible while bag types scroll. */
@@ -1255,31 +1358,42 @@
   padding: 2px 6px;
 }
 
-.equip-empty-slots {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-xs);
-  padding: 0 2px;
-}
-
 .equip-empty-slot {
-  background-color: rgba(255, 255, 255, 0.035);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-xs);
+  align-items: flex-start;
+  background-color: transparent;
+  border: 1px dashed var(--border-control);
+  border-radius: 6px;
   color: var(--text-muted);
-  display: inline-flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  line-height: 1.2;
-  padding: 3px 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-family: inherit;
+  gap: 1px;
+  justify-content: center;
+  min-height: var(--equip-comparison-row-min);
+  min-width: 0;
+  padding: 4px 8px;
+  text-align: left;
 }
 
-.equip-empty-slot.is-comparison-target {
-  background-color: rgba(13, 219, 242, 0.08);
+.equip-empty-slot .equip-slot-label {
+  color: var(--text-muted);
+}
+
+.equip-empty-slot .equip-item-row-name {
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+}
+
+.equip-empty-slot.is-filter-match {
+  background-color: rgba(13, 219, 242, 0.06);
   border-color: var(--neon-cyan);
-  color: var(--text-primary);
-  box-shadow: var(--neon-glow-cyan);
+  border-style: solid;
+}
+
+.equip-empty-slot:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 2px;
 }
 
 .equip-build-commitment {

@@ -209,7 +209,7 @@ export function createBuildCommitmentPanel(
 
     const note = document.createElement("p");
     note.className = "equip-build-comparison-note";
-    note.textContent = "比較は確定前の見込みです。交換を確定するまで探索時間は進みません。";
+    note.textContent = "比較は装備する前の見込みです。装備するとすぐに反映されます。";
     panel.appendChild(note);
   }
   return panel;
