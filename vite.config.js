@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 
 // git short hash をリリース識別子にする。SDK側(Sentry.init)と揃えて
@@ -42,5 +43,5 @@ export default defineConfig({
   },
   // Source map upload is opt-in so local and verification builds do not need
   // access to Sentry. Keep the upload plugin last when it is enabled.
-  plugins: sentryUploadPlugin ? [sentryUploadPlugin] : [],
+  plugins: [react(), ...(sentryUploadPlugin ? [sentryUploadPlugin] : [])],
 });

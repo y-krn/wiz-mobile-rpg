@@ -1,30 +1,34 @@
 import { state } from "../state.js";
 import { getScreenViewState } from "../state/view_state.js";
+import { createElement } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { createRecordsStripViewModel, RecordsStrip } from "./records_strip.js";
 
-function floorText(value) {
-  return value > 0 ? `B${value}F` : "未記録";
+let recordsStripHost = null;
+let recordsStripRoot = null;
+
+function getRecordsStripRoot(host) {
+  if (recordsStripHost === host && recordsStripRoot) return recordsStripRoot;
+  recordsStripRoot?.unmount();
+  recordsStripHost = host;
+  recordsStripRoot = createRoot(host);
+  return recordsStripRoot;
 }
 
 export function updateRecordsStrip() {
   const strip = document.getElementById("records-strip");
-  if (!strip) return;
+  if (!strip) {
+    recordsStripRoot?.unmount();
+    recordsStripRoot = null;
+    recordsStripHost = null;
+    return;
+  }
   const visible = getScreenViewState(state, null).gameState === "town";
   strip.hidden = !visible;
-  if (!visible) return;
+  if (!visible || strip.nodeType !== 1 || !strip.ownerDocument) return;
   const records = state.records || { deepestRetreat: 0, deepestDeath: 0, totalRuns: 0 };
-  const createRecord = (labelText, valueText) => {
-    const item = document.createElement("span");
-    const label = document.createElement("small");
-    label.textContent = labelText;
-    const value = document.createElement("strong");
-    value.textContent = valueText;
-    item.appendChild(label);
-    item.appendChild(value);
-    return item;
-  };
-  strip.replaceChildren(
-    createRecord("帰還最深", floorText(records.deepestRetreat)),
-    createRecord("死亡最深", floorText(records.deepestDeath)),
-    createRecord("総潜行", String(records.totalRuns))
-  );
+  const viewModel = createRecordsStripViewModel(records);
+  const root = getRecordsStripRoot(strip);
+  flushSync(() => root.render(createElement(RecordsStrip, { viewModel })));
 }
