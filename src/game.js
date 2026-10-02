@@ -316,6 +316,13 @@ function bindCanvasTargeting(canvas) {
   if (!canvas) return;
   canvas.addEventListener("pointerdown", (event) => {
     const view = getScreenViewState(state, menuContext);
+    // With the spell hand or the item pouch open, touching the world puts
+    // it away again.
+    if (view.isUsableCombatOverlaySubmenu && (menuContext.type === "combat_spell" || menuContext.type === "combat_item")) {
+      event.preventDefault();
+      goBackSubmenu();
+      return;
+    }
     // Combat is played on the world too: touching an enemy while choosing an
     // action attacks it, without opening a command first.
     if (isActionableCombatScreen(state, menuContext) && state.combatState?.phase === "choose_actions" && !state.transitioning) {

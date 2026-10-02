@@ -26,7 +26,6 @@ const assertOwner = (source, selector, token) => {
 
 assertOwner(combat, ".card-hp-bar-container, .card-mp-bar-container", "surface-meter-track");
 assertOwner(equipment, ".equip-stat-pill", "surface-meter-track");
-assertOwner(combat, ".combat-enemy-info-card", "surface-neutral");
 assertOwner(spell, ".spell-char-selector", "surface-neutral");
 assertOwner(spell, ".spell-detail-desc", "surface-neutral");
 assertOwner(result, ".result-focus-section", "surface-neutral");

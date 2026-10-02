@@ -1,3 +1,4 @@
+import { syncAimRings } from "./aim_rings.js";
 import { state, getLogEntries } from "../state.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 import { getIsMuted } from "../audio.js";
@@ -786,6 +787,7 @@ export function updateUI() {
     } else {
       combatOverlay.style.display = "none";
     }
+    syncAimRings(view.isUsableCombatOverlaySubmenu && menuContext.type === "combat_target" && menuContext.targetType === "enemy");
   }
 
   const canvas = document.getElementById("dungeon-canvas");

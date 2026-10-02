@@ -115,7 +115,8 @@ for (const viewport of VIEWPORTS) {
       'NOISE_BALL',
       'MANA_POTION',
     ]);
-    expect(result.combatLabels).toEqual(result.labels);
+    // Combat shows one vial per kind (with its count) in the same order.
+    expect(result.combatLabels).toEqual([...new Set(result.labels)]);
     expect(result.combatSelection).toEqual(['GREATER_HEAL', 7]);
     expect(result.visibility.showItemMenu).toBe(true);
     expect(result.visibility.showEventScene).toBe(false);
@@ -140,8 +141,11 @@ test('combat item cards keep long descriptions visible and scroll the list on sh
       phase: 'choose_actions',
       monsters: [{ name: '検証用モンスター', hp: 10, maxHp: 10 }],
     };
-    state.inventory = Array.from({ length: 8 }, () => 'HEAL_POTION');
-    ITEMS.HEAL_POTION.desc = '使用するとHPを15回復し、毒状態も治療する。戦闘中に何度でも使える長い説明文です。';
+    // Distinct kinds: the combat pouch shows one vial per kind.
+    state.inventory = ['HEAL_POTION', 'GREATER_HEAL', 'MANA_POTION', 'ANTIDOTE', 'STR_POTION', 'NOISE_BALL', 'TOWN_PORTAL', 'HEAL_POTION'];
+    for (const key of new Set(state.inventory)) {
+      ITEMS[key].desc = '使用するとHPを15回復し、毒状態も治療する。戦闘中に何度でも使える長い説明文です。';
+    }
     menuContext.type = 'combat_item';
     menuContext.prevGameState = 'combat';
 

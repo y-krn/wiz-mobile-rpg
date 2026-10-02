@@ -317,6 +317,336 @@
   animation: world-touch-tap 360ms ease-out forwards;
 }
 
+/* ---------- Combat choices: a hand of spells, a pouch of items ----------
+   Choosing a spell or an item stays over the world instead of covering it
+   with a sheet: spells fan up as cards, items sit in a small pouch, and
+   aiming happens on the enemies themselves. Touching the world or the small
+   close mark puts the hand away. */
+#game-container.dungeon-first-mode #controls-panel.combat-overlay-mode {
+  max-height: none;
+  padding: 0 12px 8px;
+  overflow: visible;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+#game-container.dungeon-first-mode #combat-overlay {
+  position: relative;
+  gap: var(--sp-md);
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-overlay-header {
+  align-self: center;
+  max-width: 100%;
+  margin: 0;
+  padding: 6px 14px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-soft);
+  white-space: nowrap;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-overlay-title {
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-overlay-hint {
+  margin-left: 6px;
+  color: var(--neon-red);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-overlay-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-md);
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+  background: none;
+}
+
+/* Close: a small round mark instead of a full-width bar. */
+/* Anchored to the overlay's bottom edge, beside the hint, so nothing that
+   opens above it (the keyboard enemy list) can move it under a pointer. */
+#game-container.dungeon-first-mode #combat-overlay {
+  padding-bottom: 0;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-overlay-header {
+  order: 2;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-overlay-body {
+  order: 1;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .bottom-actions-container {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .bottom-actions-row {
+  display: block;
+  width: auto;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .bottom-actions-row .btn-combat-back {
+  flex: none;
+  width: var(--tap-min);
+  min-width: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--panel-bg);
+  color: transparent;
+  font-size: 0;
+  box-shadow: var(--shadow-press);
+}
+
+#game-container.dungeon-first-mode #combat-overlay .btn-combat-back::before {
+  content: "✕";
+  color: var(--text-tertiary);
+  font-size: 16px;
+}
+
+/* Spells: a fanned hand of cards that scrolls sideways when it is full. */
+#game-container.dungeon-first-mode #combat-overlay .combat-selection-grid.spell-grid {
+  display: flex;
+  gap: 8px;
+  max-height: none;
+  margin: 0 -12px;
+  padding: 14px 16px 10px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scroll-snap-type: x proximity;
+  pointer-events: auto;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell {
+  position: relative;
+  flex: 0 0 116px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 4px;
+  min-height: 168px;
+  padding: 10px 10px 12px;
+  border: 2px solid var(--border-strong);
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--surface-raised), var(--surface-control));
+  box-shadow: 0 3px 0 rgba(46, 38, 64, 0.18), 0 10px 22px rgba(46, 38, 64, 0.16);
+  text-align: left;
+  white-space: normal;
+  scroll-snap-align: center;
+  transform-origin: 50% 140%;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell:nth-child(4n + 1) { transform: rotate(-4deg) translateY(6px); }
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell:nth-child(4n + 2) { transform: rotate(-1.5deg); }
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell:nth-child(4n + 3) { transform: rotate(1.5deg); }
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell:nth-child(4n + 4) { transform: rotate(4deg) translateY(6px); }
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell:not(:disabled):active {
+  transform: translateY(-10px) scale(1.03);
+}
+
+#game-container.dungeon-first-mode #combat-overlay .spell-glyph {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--tint-cyan);
+  color: var(--neon-cyan);
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell[data-reach="foe"] .spell-glyph { background: var(--tint-red); color: var(--neon-red); }
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell[data-reach="ally"] .spell-glyph { background: var(--tint-green); color: var(--neon-green); }
+
+#game-container.dungeon-first-mode #combat-overlay .spell-card-top {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .spell-card-top .spell-name {
+  max-width: 100%;
+  overflow: visible;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 15px;
+  white-space: normal;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .spell-card-top .cost-tag {
+  position: absolute;
+  top: 10px;
+  right: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--tint-purple);
+  color: var(--neon-purple);
+  font-family: var(--font-display);
+}
+
+#game-container.dungeon-first-mode #combat-overlay .spell-reach {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--tint-cyan);
+  color: var(--neon-cyan);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell[data-reach="foe"] .spell-reach { background: var(--tint-red); color: var(--neon-red); }
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell[data-reach="ally"] .spell-reach { background: var(--tint-green); color: var(--neon-green); }
+
+#game-container.dungeon-first-mode #combat-overlay .spell-card-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .spell-card-bottom .spell-tag {
+  display: none;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .spell-card-bottom .spell-effect {
+  overflow: visible;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.spell:disabled {
+  filter: grayscale(0.8);
+  opacity: 0.62;
+}
+
+
+
+
+
+/* Items: a small pouch of vials, one per kind, with how many are left. */
+#game-container.dungeon-first-mode #combat-overlay[data-overlay-type="combat_item"] .combat-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  max-height: min(40svh, 320px);
+  padding: 12px;
+  overflow-y: auto;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 22px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
+}
+
+#game-container.dungeon-first-mode #combat-overlay[data-overlay-type="combat_item"] .inventory-capacity-status,
+#game-container.dungeon-first-mode #combat-overlay[data-overlay-type="combat_item"] .detail-placeholder {
+  grid-column: 1 / -1;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.item {
+  position: relative;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 104px;
+  padding: 10px 6px 8px;
+  border-radius: 16px;
+  text-align: center;
+  white-space: normal;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.item::before {
+  content: "";
+  width: calc(var(--tap-min) * 0.6);
+  height: calc(var(--tap-min) * 0.6);
+  background-color: var(--neon-green);
+  -webkit-mask: var(--combat-icon-item) center / contain no-repeat;
+  mask: var(--combat-icon-item) center / contain no-repeat;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.item .item-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface-raised);
+  font-family: var(--font-display);
+  font-size: var(--fs-xs);
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.item .item-card-title {
+  font-size: var(--fs-sm);
+}
+
+/* Descriptions are never cut: the pouch scrolls instead (combat items). */
+#game-container.dungeon-first-mode #combat-overlay .combat-item-card.item .item-card-desc {
+  color: var(--text-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+}
+
+/* Aiming: the chosen spell stays in hand while the enemies are touched. */
+#game-container.dungeon-first-mode #combat-overlay .combat-aim-card {
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+  min-width: 132px;
+  padding: 6px 10px;
+  border: 2px solid var(--neon-amber);
+  border-radius: 12px;
+  background: var(--tint-amber);
+  box-shadow: 0 0 0 4px rgba(199, 119, 26, 0.16);
+  font-family: var(--font-display);
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-aim-card small {
+  color: var(--neon-purple);
+  font-size: var(--fs-xs);
+}
+
+/* Allies to choose stand as their own cards in a row. */
+#game-container.dungeon-first-mode #combat-overlay .combat-target-grid {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  pointer-events: auto;
+}
+
+#game-container.dungeon-first-mode #combat-overlay .combat-target-card.ally:not(:disabled) {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 0 3px rgba(47, 158, 98, 0.2), var(--shadow-press);
+}
+
 /* ---------- Touch answers from the world ---------- */
 .world-touch {
   position: absolute;
@@ -473,6 +803,49 @@
   .world-touch--strike,
   .world-coach,
   #game-container.dungeon-first-mode[data-satchel="open"] #explore-controls #explore-satchel {
+    animation: none;
+  }
+}
+
+/* The pouch names its bag capacity in one quiet line. */
+#game-container.dungeon-first-mode #combat-overlay[data-overlay-type="combat_item"] .bag-capacity-summary {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--fs-xs);
+}
+
+#game-container.dungeon-first-mode #combat-overlay[data-overlay-type="combat_item"] .bag-slot-grid,
+#game-container.dungeon-first-mode #combat-overlay[data-overlay-type="combat_item"] .bag-capacity-note {
+  display: none;
+}
+
+/* Aim rings sit over each enemy that can be touched. */
+.combat-aim-ring {
+  position: absolute;
+  z-index: 5;
+  border: 3px solid var(--neon-red);
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px rgba(217, 72, 59, 0.18), inset 0 0 0 2px rgba(255, 253, 248, 0.7);
+  pointer-events: none;
+  animation: aim-ring-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes aim-ring-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.06); }
+}
+
+/* Short screens keep the pouch low enough to leave the enemies in view;
+   it scrolls rather than hiding anything. */
+@media (max-height: 600px) {
+  #game-container.dungeon-first-mode #combat-overlay[data-overlay-type="combat_item"] .combat-selection-grid {
+    max-height: 34svh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .combat-aim-ring {
     animation: none;
   }
 }
