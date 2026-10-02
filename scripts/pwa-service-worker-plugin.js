@@ -46,7 +46,10 @@ export function pwaServiceWorkerPlugin() {
       const precachePaths = ["/", ...files.slice(0, MAX_PRECACHE_FILES - 1).map(encodePath)];
       let totalBytes = 0;
       const boundedPaths = precachePaths.filter((url, index) => {
-        if (index === 0) return true;
+        if (index === 0) {
+          totalBytes += statSync(path.join(outputDirectory, "index.html")).size;
+          return true;
+        }
         const relativePath = decodeURIComponent(url.slice(1));
         const size = statSync(path.join(outputDirectory, relativePath)).size;
         if (size > MAX_SINGLE_FILE_BYTES || totalBytes + size > MAX_PRECACHE_BYTES) return false;
