@@ -25,6 +25,7 @@ import { handleExploreAction, handleTownOption } from "./menu.js";
 import { initWorldGestures, markWorldTouch } from "./ui/world_gestures.js";
 import { selectCombatAction, cancelCombatAction, toggleCombatAuto, repeatLastCombatAction, resumeCombat } from "./combat.js";
 import { commitCombatTarget } from "./combat_ui/combat_overlay.js";
+import { registerPwaServiceWorker } from "./ui/pwa_update_manager.js";
 
 // Re-exports for external use and backward compatibility
 export { updateUI } from "./ui.js";
@@ -140,6 +141,7 @@ export function initGame() {
   setUiUpdateCallback(updateUI);
   lockViewportScale();
   loadGame();
+  void registerPwaServiceWorker();
   if (state.chestState?.fromDrop) openChestMenu();
   else if (hasPendingRewardBundle()) openPendingRewardMenu();
 
