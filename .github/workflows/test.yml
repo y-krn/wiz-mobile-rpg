@@ -114,6 +114,10 @@ jobs:
             command: npm run test:browser:untagged -- --shard=2/3
           - suite: untagged-3
             command: npm run test:browser:untagged -- --shard=3/3
+          - suite: untagged-4
+            command: npm run test:browser:untagged -- --shard=4/4
+          - suite: untagged-4
+            command: npm run test:browser:untagged -- --shard=4/4
     steps:
       - uses: actions/checkout@v4
       - name: Detect browser changes
