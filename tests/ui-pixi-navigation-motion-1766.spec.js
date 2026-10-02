@@ -71,6 +71,7 @@ test('forward, turns, and backward play a short single-scene motion at 390x844 @
       offsetX: scene.position.x - scene.pivot.x,
       offsetY: scene.position.y - scene.pivot.y,
       scale: scene.scale.x,
+      scaleY: scene.scale.y,
       alpha: scene.alpha,
       rotation: scene.rotation,
       stageChildren: dungeonRenderer.app.stage.children.length,
@@ -113,13 +114,14 @@ test('forward, turns, and backward play a short single-scene motion at 390x844 @
   expect(forward.started.duration).toBeGreaterThanOrEqual(250);
   expect(forward.started.duration).toBeLessThanOrEqual(400);
   expect(forward.animating).toBe(true);
-  // Dollies toward the next cell's frame with a footfall dip of a few percent
-  // of the view height.
+  // Pushes in evenly toward the vanishing point with one soft footfall: a
+  // dip of a few pixels and no sideways sway.
   expect(forward.samples[0].scale).toBeGreaterThan(1);
   expect(forward.samples[2].scale).toBeGreaterThan(forward.samples[0].scale);
   const bob = Math.max(...forward.samples.map((sample) => Math.abs(sample.offsetY)));
   expect(bob).toBeGreaterThan(0.5);
-  expect(bob).toBeLessThanOrEqual(VIEWPORT.height * 0.025);
+  expect(bob).toBeLessThanOrEqual(VIEWPORT.height * 0.008);
+  expect(Math.max(...forward.samples.map((sample) => Math.abs(sample.offsetX)))).toBeLessThan(0.5);
 
   expect(turnLeft.resolved.dir).toBe(3);
   expect(turnLeft.started.action).toBe('turn-left');
@@ -143,8 +145,10 @@ test('forward, turns, and backward play a short single-scene motion at 390x844 @
       expect(sample.alpha).toBe(1);
       expect(sample.structuralWallsAlpha).toBe(1);
       expect(sample.rotation).toBe(0);
+      // Uniform zoom: the corridor never stretches on one axis.
+      expect(Math.abs(sample.scaleY - sample.scale)).toBeLessThan(1e-9);
       expect(sample.scale).toBeGreaterThanOrEqual(1);
-      expect(sample.scale).toBeLessThanOrEqual(3);
+      expect(sample.scale).toBeLessThanOrEqual(1.8);
     }
   }
   for (const result of [turnLeft, turnRight]) {
