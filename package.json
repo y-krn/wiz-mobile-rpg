@@ -44,6 +44,9 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.0",
     "@sentry/vite-plugin": "^5.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "eslint": "^10.6.0",
     "globals": "^17.7.0",
     "stylelint": "^17.14.0",
@@ -57,6 +60,8 @@
   "dependencies": {
     "@sentry/browser": "^10.63.0",
     "pixi.js": "8.19.0",
-    "posthog-js": "^1.418.10"
+    "posthog-js": "^1.418.10",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   }
 }
