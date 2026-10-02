@@ -1325,6 +1325,8 @@
   display: none;
 }
 
+.minimap-toggle-root { display: contents; }
+
 #game-container.dungeon-first-mode[data-explore-hud] #btn-minimap-toggle:not([hidden]) {
   position: absolute;
   top: calc(var(--event-strip-bottom) + 42px);
@@ -1344,7 +1346,7 @@
   transition: top 160ms ease-out;
 }
 
-#game-container.dungeon-first-mode #dungeon-minimap-overlay[data-minimap-visible="false"] ~ #btn-minimap-toggle {
+#game-container.dungeon-first-mode #dungeon-minimap-overlay[data-minimap-visible="false"] ~ #minimap-toggle-root #btn-minimap-toggle {
   display: none;
 }
 
