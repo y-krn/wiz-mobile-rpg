@@ -67,10 +67,9 @@ const PARTY_HIT_MS = 420;
 // Navigation motion is display-only: movement rules resolve synchronously and
 // the view follows. The motion only transforms one scene root and never
 // layers two corridors, which caused the #1251 double-contour flicker.
-// Forward is a walk: the outgoing view dollies in until the next cell's frame
-// fills the screen exactly where the new view's camera cell will be, with a
-// footfall dip and sway, so the cut lands on a matching picture. Backward is
-// the same dolly in reverse on the incoming view. Turns swing the head: the
+// Forward is a walk: the outgoing view pushes in evenly toward the vanishing
+// point, most of the way to the next cell's frame, with one soft footfall
+// dip, then cuts. Backward is the same push in reverse on the incoming view. Turns swing the head: the
 // outgoing view sweeps off toward the turn and the new facing swings in from
 // the other side.
 export const NAVIGATION_MOTION = Object.freeze({
@@ -78,13 +77,12 @@ export const NAVIGATION_MOTION = Object.freeze({
   turnScale: 0.08,
   turnSweep: 0.62,
   turnDim: 0.35,
-  bobRatio: 0.018,
-  swayRatio: 0.006
+  // A step is a calm, uniform push toward the vanishing point: one scale for
+  // both axes (no stretching), most of the way to the next cell, then a cut.
+  stepReach: 0.7,
+  bobRatio: 0.005
 });
 
-function easeInOut(value) {
-  return value < 0.5 ? 2 * value * value : 1 - ((-2 * value + 2) ** 2) / 2;
-}
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
@@ -578,18 +576,13 @@ export class PixiDungeonRenderer {
     return progress < 0.5 ? transition.source : renderInput;
   }
 
-  // Scale and pivot that carry the camera cell's far frame (plane 1) onto the
-  // screen frame (plane 0): the picture one step further down the corridor.
+  // How much the camera cell's far frame (plane 1) must grow, horizontally
+  // and vertically, to fill the screen frame (plane 0): one step's zoom.
   getStepDolly(renderInput) {
     const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
-    const kx = (projection.xr[0] - projection.xl[0]) / Math.max(1, projection.xr[1] - projection.xl[1]);
-    const ky = (projection.yb[0] - projection.yt[0]) / Math.max(1, projection.yb[1] - projection.yt[1]);
-    const pivot = (near, far, k) => (Math.abs(1 - k) < 1e-6 ? near : (near - k * far) / (1 - k));
     return {
-      kx,
-      ky,
-      pivotX: pivot(projection.xl[0], projection.xl[1], kx),
-      pivotY: pivot(projection.yt[0], projection.yt[1], ky)
+      kx: (projection.xr[0] - projection.xl[0]) / Math.max(1, projection.xr[1] - projection.xl[1]),
+      ky: (projection.yb[0] - projection.yt[0]) / Math.max(1, projection.yb[1] - projection.yt[1])
     };
   }
 
@@ -599,20 +592,22 @@ export class PixiDungeonRenderer {
     const { width, height } = this.viewport;
     const progress = clamp01(transition.elapsed / transition.duration);
     if (transition.action === "forward" || transition.action === "backward") {
-      const { kx, ky, pivotX, pivotY } = this.getStepDolly(renderInput);
-      const walked = transition.action === "forward" ? easeInOut(progress) : 1 - easeInOut(progress);
-      const scaleX = 1 + (kx - 1) * walked;
-      const scaleY = 1 + (ky - 1) * walked;
-      const footfall = Math.sin(Math.PI * progress);
-      // The dip and sway stay inside the margin the dolly adds, so the canvas
-      // edge is never exposed mid-step.
-      const marginX = Math.min(pivotX, width - pivotX) * (scaleX - 1);
-      const marginY = Math.min(pivotY, height - pivotY) * (scaleY - 1);
-      const offsetX = Math.max(-marginX, Math.min(marginX, NAVIGATION_MOTION.swayRatio * width * footfall));
-      const offsetY = Math.max(-marginY, Math.min(marginY, NAVIGATION_MOTION.bobRatio * height * footfall));
+      const { kx, ky } = this.getStepDolly(renderInput);
+      // Uniform scale about the vanishing point keeps every line straight and
+      // in proportion; travelling in log space keeps the apparent speed even.
+      const stepScale = Math.max(1, Math.sqrt(kx * ky)) ** NAVIGATION_MOTION.stepReach;
+      const eased = 1 - (1 - progress) ** 3;
+      const walked = transition.action === "forward" ? eased : 1 - eased;
+      const scale = stepScale ** walked;
+      const pivotX = width / 2;
+      const pivotY = this.getHorizonY(renderInput);
+      // One soft footfall, kept inside the margin the zoom adds so the canvas
+      // edge is never exposed.
+      const marginY = Math.min(pivotY, height - pivotY) * (scale - 1);
+      const offsetY = Math.min(marginY, NAVIGATION_MOTION.bobRatio * height * Math.sin(Math.PI * progress));
       root.pivot.set(pivotX, pivotY);
-      root.position.set(pivotX + offsetX, pivotY + offsetY);
-      root.scale.set(scaleX, scaleY);
+      root.position.set(pivotX, pivotY + offsetY);
+      root.scale.set(scale, scale);
       return;
     }
     // Turning left sweeps the view to the right, and the new facing arrives
