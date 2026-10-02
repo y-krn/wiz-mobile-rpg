@@ -55,32 +55,20 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
   await expect(page.getByText('宝箱を開けるキャラクターを選択：')).toHaveCount(0);
   await expect(page.locator('#loot-toast')).toBeVisible();
 
-  // 3. A trapped chest enters disarm resolution directly from the chest menu.
+  // 3. A trapped chest disarms automatically on opening and returns to exploration.
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    const { setupChestState, openChestMenu } = await import('/src/chest.js');
-    const { menuContext } = await import('/src/navigation.js');
+    const { setupChestState } = await import('/src/chest.js');
+    state.floor = 2;
+    state.inventory = [];
     setupChestState('poison needle', null, 'HEAL_POTION');
-    state.chestState.inspected = true;
-    state.chestState.identifiedTrap = 'poison needle';
-    openChestMenu();
-    // The resolving phase lasts only until a 1.5s timer; record each phase
-    // change so slow runners cannot miss it between polls.
-    window.__chestPhases = [];
-    let phase = state.chestState.phase;
-    Object.defineProperty(state.chestState, 'phase', {
-      configurable: true,
-      enumerable: true,
-      get: () => phase,
-      set: (next) => {
-        phase = next;
-        window.__chestPhases.push({ phase: next, menuType: menuContext.type });
-      },
-    });
   });
-  await page.locator('#btn-chest-disarm').click();
-  await expect.poll(() => page.evaluate(() => window.__chestPhases[0])).toEqual({ phase: 'resolving', menuType: 'chest_menu' });
-  await expect(page.getByText('罠を解除するキャラクターを選択：')).toHaveCount(0);
+  await expect(page.locator('#btn-chest-inspect')).toHaveCount(0);
+  await expect(page.locator('#btn-chest-disarm')).toHaveCount(0);
+  await expect(page.locator('#btn-chest-smash')).toHaveCount(0);
+  await expect(page.locator('.chest-trap-sign')).toContainText('罠の気配:');
+  await expect(page.locator('.chest-disarm-chance')).toHaveText('開けるときの自動解除: 約25%');
+  await page.locator('#btn-chest-open').click();
   await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
@@ -101,8 +89,8 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
 
 });
 
-test('Chest inspection reports when no trap needs disarming @e2e', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); // iPhone 13 width
+test('A trap kit opens a trapped chest without firing the trap @e2e', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(() => {
     localStorage.clear();
@@ -110,62 +98,33 @@ test('Chest inspection reports when no trap needs disarming @e2e', async ({ page
   await page.goto('/');
   await expect(page.locator('#btn-town-dungeon')).toBeVisible();
 
-  // 1. Initial State Setup (No trap: none)
   await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
+    const { state, createDefaultCurrentRun } = await import('/src/state.js');
     const { setupChestState } = await import('/src/chest.js');
-    
-    state.party = [
-      {
-        name: "Robin",
-        level: 1,
-        hp: 15,
-        maxHp: 15,
-        status: "ok",
-        equipment: { weapon: null, shield: null, armor: null }
-      }
-    ];
-    // Force transition to chest menu
-    setupChestState("none", 100, null);
+    state.party = [{
+      name: 'Robin',
+      level: 1,
+      hp: 15,
+      maxHp: 15,
+      status: 'ok',
+      equipment: { weapon: null, shield: null, armor: null },
+    }];
+    state.currentRun = createDefaultCurrentRun();
+    state.floor = 2;
+    state.inventory = ['TRAP_KIT'];
+    setupChestState('poison needle', null, 'HEAL_POTION');
   });
 
-  // 2. Before Inspection UI verification
-  const btnInspect = page.locator('#btn-chest-inspect');
-  const btnDisarm = page.locator('#btn-chest-disarm');
-
-  await expect(btnInspect).toBeVisible();
-  await expect(btnInspect).toBeEnabled();
-
-  await expect(btnDisarm).toBeVisible();
-  await expect(btnDisarm).toHaveText("解除（要調査）");
-  await expect(btnDisarm).toBeDisabled();
-
-  // 3. Perform inspection
-  await btnInspect.click();
-
-  // 4. After Inspection UI verification
-  const btnInspectAfter = page.locator('#btn-chest-inspect');
-  await expect(btnInspectAfter).toBeVisible();
-  await expect(btnInspectAfter).toBeDisabled();
-
-  const identifiedTrap = await page.evaluate(async () => {
+  await page.getByRole('button', { name: 'キットを使って開ける' }).click();
+  await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    return state.chestState.identifiedTrap;
-  });
-
-  // Find the disarm button again
-  const btnDisarmAfter = page.locator('#btn-chest-disarm');
-  const disarmText = await btnDisarmAfter.textContent();
-  console.log(`Disarm button text after inspection (no trap case): ${disarmText}`);
-
-  if (identifiedTrap === "none") {
-    await expect(btnDisarmAfter).toHaveText("解除不要");
-    await expect(btnDisarmAfter).toBeDisabled();
-  } else {
-    await expect(btnDisarmAfter).toHaveText("解除する");
-    await expect(btnDisarmAfter).toBeEnabled();
-  }
-
+    return {
+      hasChest: Boolean(state.chestState),
+      hp: state.party[0].hp,
+      kits: state.inventory.filter(item => item === 'TRAP_KIT').length,
+      potions: state.inventory.filter(item => item === 'HEAL_POTION').length,
+    };
+  })).toEqual({ hasChest: false, hp: 15, kits: 0, potions: 1 });
 });
 
 test('Opening a chest with stale state leaves the chest menu usable @e2e', async ({ page }) => {

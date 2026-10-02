@@ -130,21 +130,32 @@ test('PixiJS navigation motion stays short, low-amplitude, and screen-stable @sm
   }
 
   for (const [action, result] of Object.entries(results)) {
-    // #1766: a short, low-amplitude transform of the one scene root.
+    // #1766: one transform of the one scene root, short enough to chain.
     expect(result.mid.action).toBe(action);
-    expect(result.mid.duration).toBeGreaterThanOrEqual(150);
-    expect(result.mid.duration).toBeLessThanOrEqual(220);
+    expect(result.mid.duration).toBeGreaterThanOrEqual(250);
+    expect(result.mid.duration).toBeLessThanOrEqual(450);
     expect(result.mid.progress).toBeGreaterThan(0);
     expect(result.mid.progress).toBeLessThan(1);
     expect(result.mid.transitionVisible).toBe(false);
     const root = result.mid.incomingRoot;
-    expect(Math.abs(root.x)).toBeLessThanOrEqual(VIEWPORT.width * 0.05);
-    expect(Math.abs(root.y)).toBeLessThanOrEqual(3);
     expect(root.rotation).toBe(0);
+    // Comfort: the view never stretches on one axis.
     expect(root.scaleX).toBe(root.scaleY);
     expect(root.scaleX).toBeGreaterThan(1);
-    expect(root.scaleX).toBeLessThanOrEqual(1.1);
-    expect(root.alpha).toBe(1);
+    if (action === 'forward' || action === 'backward') {
+      // A step pushes straight toward the vanishing point: no sway, a dip of
+      // a few pixels, and a bounded zoom.
+      expect(Math.abs(root.x)).toBeLessThan(0.5);
+      expect(Math.abs(root.y)).toBeLessThanOrEqual(VIEWPORT.height * 0.008);
+      expect(root.scaleX).toBeLessThanOrEqual(1.8);
+      expect(root.alpha).toBe(1);
+    } else {
+      // A turn swings the view aside and dips it, without zooming far.
+      expect(Math.abs(root.x)).toBeLessThanOrEqual(VIEWPORT.width * 0.85);
+      expect(Math.abs(root.y)).toBeLessThanOrEqual(3);
+      expect(root.scaleX).toBeLessThanOrEqual(1.1);
+      expect(root.alpha).toBeGreaterThanOrEqual(0.6);
+    }
     expect(result.mid.structuralWallsAlpha).toBe(1);
     expect(result.mid.floorAlpha).toBe(1);
     for (const name of ['far-environment', 'floor', 'structural-walls', 'environment-fx', 'actors', 'combat-fx', 'overlays']) {
@@ -223,23 +234,24 @@ test('PixiJS navigation replacement, repeated input, resize, combat feedback, an
       scaleX: dungeonRenderer.scene.scale.x,
       scaleY: dungeonRenderer.scene.scale.y
     });
+    // Each sample is taken after its motion has fully played out.
     const forwardRenderMs = [];
     for (let index = 0; index < 20; index += 1) {
       dungeonRenderer.beginNavigationTransition('forward', input);
-      dungeonRenderer.update(250); dungeonRenderer.draw(input);
+      dungeonRenderer.update(1000); dungeonRenderer.draw(input);
       recordRootTransform();
       forwardRenderMs.push(dungeonRenderer.lastRenderMs);
     }
     const turnRenderMs = [];
     for (let index = 0; index < 20; index += 1) {
       dungeonRenderer.beginNavigationTransition('turn-left', input);
-      dungeonRenderer.update(250); dungeonRenderer.draw(input);
+      dungeonRenderer.update(1000); dungeonRenderer.draw(input);
       recordRootTransform();
       turnRenderMs.push(dungeonRenderer.lastRenderMs);
     }
     for (let index = 0; index < 20; index += 1) {
       dungeonRenderer.beginNavigationTransition('turn-right', input);
-      dungeonRenderer.update(250); dungeonRenderer.draw(input);
+      dungeonRenderer.update(1000); dungeonRenderer.draw(input);
       recordRootTransform();
     }
     dungeonRenderer.beginNavigationTransition('turn-left', input);

@@ -71,12 +71,21 @@ test('forward, turns, and backward play a short single-scene motion at 390x844 @
       offsetX: scene.position.x - scene.pivot.x,
       offsetY: scene.position.y - scene.pivot.y,
       scale: scene.scale.x,
+      scaleY: scene.scale.y,
       alpha: scene.alpha,
       rotation: scene.rotation,
       stageChildren: dungeonRenderer.app.stage.children.length,
       structuralWallsAlpha: scene.layers['structural-walls'].alpha,
     });
-    const step = (ms) => { dungeonRenderer.update(ms); dungeonRenderer.draw(); return snapshot(); };
+    // Sample at fixed fractions of each motion so the contract does not
+    // depend on the exact duration.
+    const stepTo = (started, fraction, elapsed) => {
+      const target = started.duration * fraction;
+      dungeonRenderer.update(target - elapsed.value);
+      elapsed.value = target;
+      dungeonRenderer.draw();
+      return snapshot();
+    };
     const settle = () => { dungeonRenderer.update(1000); dungeonRenderer.draw(); };
     const run = (id) => {
       const pose = { x: state.x, y: state.y, dir: state.dir };
@@ -84,7 +93,8 @@ test('forward, turns, and backward play a short single-scene motion at 390x844 @
       // Rules resolve on the press; only the view is still moving.
       const resolved = { x: state.x, y: state.y, dir: state.dir };
       const started = snapshot();
-      const samples = [step(45), step(45), step(45)];
+      const elapsed = { value: 0 };
+      const samples = [stepTo(started, 0.2, elapsed), stepTo(started, 0.45, elapsed), stepTo(started, 0.75, elapsed)];
       const animating = dungeonRenderer.isAnimating();
       settle();
       return { pose, resolved, started, samples, animating, end: snapshot() };
@@ -100,14 +110,18 @@ test('forward, turns, and backward play a short single-scene motion at 390x844 @
   const { forward, turnLeft, turnRight, backward } = evidence;
   expect(forward.resolved).toEqual({ x: 4, y: 3, dir: 0 });
   expect(forward.started.action).toBe('forward');
-  expect(forward.started.duration).toBeGreaterThanOrEqual(150);
-  expect(forward.started.duration).toBeLessThanOrEqual(220);
+  // A walk, not a blink: long enough to read as a step, short enough to chain.
+  expect(forward.started.duration).toBeGreaterThanOrEqual(250);
+  expect(forward.started.duration).toBeLessThanOrEqual(400);
   expect(forward.animating).toBe(true);
-  // Pushes in toward the vanishing point and bobs a few pixels.
+  // Pushes in evenly toward the vanishing point with one soft footfall: a
+  // dip of a few pixels and no sideways sway.
   expect(forward.samples[0].scale).toBeGreaterThan(1);
   expect(forward.samples[2].scale).toBeGreaterThan(forward.samples[0].scale);
-  expect(Math.max(...forward.samples.map((sample) => Math.abs(sample.offsetY)))).toBeGreaterThan(0.5);
-  expect(Math.max(...forward.samples.map((sample) => Math.abs(sample.offsetY)))).toBeLessThanOrEqual(3);
+  const bob = Math.max(...forward.samples.map((sample) => Math.abs(sample.offsetY)));
+  expect(bob).toBeGreaterThan(0.5);
+  expect(bob).toBeLessThanOrEqual(VIEWPORT.height * 0.008);
+  expect(Math.max(...forward.samples.map((sample) => Math.abs(sample.offsetX)))).toBeLessThan(0.5);
 
   expect(turnLeft.resolved.dir).toBe(3);
   expect(turnLeft.started.action).toBe('turn-left');
@@ -123,17 +137,33 @@ test('forward, turns, and backward play a short single-scene motion at 390x844 @
   expect(backward.samples[0].scale).toBeGreaterThan(1);
   expect(backward.samples[2].scale).toBeLessThan(backward.samples[0].scale);
 
-  for (const result of [forward, turnLeft, turnRight, backward]) {
+  for (const result of [forward, backward]) {
     for (const sample of result.samples) {
-      // One scene, never faded, never rotated, and zoomed only enough to
-      // keep the canvas covered.
+      // One scene, never faded or rotated; the dolly only ever zooms in, so
+      // the canvas stays covered.
       expect(sample.stageChildren).toBe(1);
       expect(sample.alpha).toBe(1);
       expect(sample.structuralWallsAlpha).toBe(1);
       expect(sample.rotation).toBe(0);
+      // Uniform zoom: the corridor never stretches on one axis.
+      expect(Math.abs(sample.scaleY - sample.scale)).toBeLessThan(1e-9);
+      expect(sample.scale).toBeGreaterThanOrEqual(1);
+      expect(sample.scale).toBeLessThanOrEqual(1.8);
+    }
+  }
+  for (const result of [turnLeft, turnRight]) {
+    for (const sample of result.samples) {
+      // One scene swung aside and dipped, never layered with a second view.
+      expect(sample.stageChildren).toBe(1);
+      expect(sample.structuralWallsAlpha).toBe(1);
+      expect(sample.rotation).toBe(0);
+      expect(sample.alpha).toBeGreaterThanOrEqual(0.6);
+      expect(sample.alpha).toBeLessThanOrEqual(1);
       expect(sample.scale).toBeGreaterThanOrEqual(1);
       expect(sample.scale).toBeLessThanOrEqual(1.1);
     }
+  }
+  for (const result of [forward, turnLeft, turnRight, backward]) {
     expect(result.end).toMatchObject({ action: null, offsetX: 0, offsetY: 0, scale: 1, alpha: 1 });
   }
 });

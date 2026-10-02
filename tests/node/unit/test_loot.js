@@ -242,13 +242,12 @@ import assert from "assert";
 
     // Delayed dynamic imports to ensure global mocks are set up first
     const { state, initNewGame } = await import("../../../src/state.js");
-    const { setupChestState, openChestDirectly } = await import("../../../src/chest.js");
+    const { setupChestState, openChest } = await import("../../../src/chest.js");
 
-    console.log("Starting Chest Trap Inspect Verification Tests...");
+    console.log("Starting Chest Open/Leave Menu Verification Tests...");
 
     // Initialize game state (creates party, map, etc.)
     initNewGame();
-    // Add dummy party members to enable active character check
     state.party = [
       { name: "Robin", status: "ok" }
     ];
@@ -257,77 +256,60 @@ import assert from "assert";
     state.lightTurns = 0;
     state.lightPower = "";
 
-    // Test 1: Setup chest and verify initial state
+    // Test 1: Setup chest and verify the trap sign is read on arrival
     createdElements.length = 0;
+    state.floor = 2;
+    state.inventory = [];
     setupChestState("poison needle", 100, null);
 
     assert.ok(state.chestState, "chestState should be created");
     assert.strictEqual(state.chestState.trap, "poison needle", "Trap should be poison needle");
-    assert.strictEqual(state.chestState.inspected, false, "Should not be inspected initially");
-    assert.strictEqual(state.chestState.identifiedTrap, "", "Identified trap should be empty");
+    assert.ok(["none", "trap", "danger"].includes(state.chestState.trapSign), "Trap sign should be a tier");
+    assert.strictEqual(state.chestState.trapSignAccuracy, 0.7, "Base trap sign accuracy should be 70%");
+    assert.strictEqual("inspected" in state.chestState, false, "Inspection state should not exist");
 
     console.log("[PASS] Initial chest state verified.");
 
-    // Test 2: Verify UI button configuration before inspection
-    // Find inspect and disarm buttons in created elements
+    // Test 2: Only open and leave are offered; open is the primary action
     const getButtons = () => createdElements.filter(el => el.tagName === "BUTTON");
-
     let buttons = getButtons();
-    const btnInspect = buttons.find(b => b.textContent === "調べる");
-    const btnDisarmBefore = buttons.find(b => b.textContent.includes("解除"));
-
-    assert.ok(btnInspect, "Inspect button should exist");
-    assert.strictEqual(btnInspect.disabled, false, "Inspect button should be enabled initially");
-
-    assert.ok(btnDisarmBefore, "Disarm button should exist");
-    assert.strictEqual(btnDisarmBefore.textContent, "解除（要調査）", "Disarm button should say '解除（要調査）' before inspection");
-    assert.strictEqual(btnDisarmBefore.disabled, true, "Disarm button should be disabled before inspection");
-    const recommendedBefore = buttons.filter(b => b.className.includes("chest-action-recommended"));
-    assert.deepStrictEqual(recommendedBefore.map(b => b.textContent), ["調べる"], "Only inspect should be recommended before inspection");
-
-    console.log("[PASS] Initial UI button states verified.");
-
-    // Test 3: Trigger inspection
-    createdElements.length = 0; // Clear elements log for redraw
-    assert.ok(btnInspect.events["click"], "Inspect button should have click listener");
-
-    // Trigger inspect
-    btnInspect.events["click"]();
-
-    assert.strictEqual(state.chestState.inspected, true, "Chest should be marked as inspected");
-    assert.ok(["poison needle", "gas bomb", "teleporter", "flash bomb", "none"].includes(state.chestState.identifiedTrap), "Identified trap should be populated");
-
-    console.log("[PASS] Inspection execution verified.");
-
-    // Test 4: Verify UI button configuration after inspection
-    buttons = getButtons();
-    const btnInspectAfter = buttons.find(b => b.textContent === "調査済み");
-    const btnDisarmAfter = buttons.find(b => b.textContent.includes("解除") || b.textContent === "解除する" || b.textContent === "解除不要");
-
-    assert.ok(btnInspectAfter, "Inspect button should change text to '調査済み'");
-    assert.strictEqual(btnInspectAfter.disabled, true, "Inspect button should be disabled after inspection");
-
-    assert.ok(btnDisarmAfter, "Disarm button should exist after inspection");
-    if (state.chestState.identifiedTrap === "none") {
-      assert.strictEqual(btnDisarmAfter.textContent, "解除不要", "Disarm button should say '解除不要' if no trap identified");
-      assert.strictEqual(btnDisarmAfter.disabled, true, "Disarm button should be disabled if no trap identified");
-    } else {
-      assert.strictEqual(btnDisarmAfter.textContent, "解除する", "Disarm button should say '解除する' if trap identified");
-      assert.strictEqual(btnDisarmAfter.disabled, false, "Disarm button should be enabled if trap identified");
-    }
-    const recommendedAfter = buttons.filter(b => b.className.includes("chest-action-recommended"));
-    assert.deepStrictEqual(
-      recommendedAfter.map(b => b.textContent),
-      [state.chestState.identifiedTrap === "none" ? "宝箱を開ける" : "解除する"],
-      "Exactly one next action should be recommended after inspection"
+    assert.deepStrictEqual(buttons.map(b => b.textContent), ["開ける", "立ち去る"], "Only open and leave should be offered");
+    const recommended = buttons.filter(b => b.className.includes("chest-action-recommended"));
+    assert.deepStrictEqual(recommended.map(b => b.textContent), ["開ける"], "Open should be the primary action");
+    assert.ok(
+      createdElements.some(el => el.textContent === "開けるときの自動解除: 約25%"),
+      "The automatic disarm chance should be shown"
+    );
+    assert.ok(
+      createdElements.some(el => ["気配なし", "何か仕掛けがある", "危険な気配"].includes(el.textContent)),
+      "The trap sign should be shown"
     );
 
-    console.log("[PASS] Post-inspection UI button states verified.");
+    console.log("[PASS] Open/leave menu verified.");
 
-    // Test 5: Verify selected opener takes single-target trap risk
+    // Test 3: A kit adds the kit-open action only where a trap is possible
+    createdElements.length = 0;
+    state.inventory = ["TRAP_KIT"];
+    setupChestState("none", 100, null);
+    buttons = getButtons();
+    assert.deepStrictEqual(
+      buttons.map(b => b.textContent),
+      ["開ける", "キットを使って開ける", "立ち去る"],
+      "A kit should add the kit-open action on B2"
+    );
+
+    createdElements.length = 0;
+    state.floor = 1;
+    setupChestState("none", 100, null);
+    buttons = getButtons();
+    assert.deepStrictEqual(buttons.map(b => b.textContent), ["開ける", "立ち去る"], "B1 chests never have traps");
+    state.inventory = [];
+
+    console.log("[PASS] Kit action availability verified.");
+
+    // Test 4: A failed automatic disarm fires the trap on the opener
     initNewGame();
     state.party = [
-      { name: "Arthur", status: "ok", hp: 20, maxHp: 20, equipment: {} },
       { name: "Robin", status: "ok", hp: 15, maxHp: 15, equipment: {} }
     ];
     state.floor = 1;
@@ -342,9 +324,8 @@ import assert from "assert";
       x: state.x,
       y: state.y,
       trap: "poison needle",
-      identifiedTrap: "poison needle",
-      inspected: true,
-      inspectChance: 0.85,
+      trapSign: "danger",
+      trapSignAccuracy: 0.7,
       gold: 0,
       item: null,
       accessoryItem: null,
@@ -361,16 +342,14 @@ import assert from "assert";
     };
     Math.random = () => 0.99;
     try {
-      openChestDirectly(state.party[1]);
+      openChest();
     } finally {
       global.setTimeout = originalSetTimeout;
       Math.random = originalRandom;
     }
 
-    assert.strictEqual(state.party[0].status, "ok", "Default front character should not take selected opener trap");
-    assert.strictEqual(state.party[0].hp, 20, "Default front character HP should remain unchanged");
-    assert.strictEqual(state.party[1].status, "poisoned", "Selected opener should take poison needle");
-    assert.ok(state.party[1].hp < 15 && state.party[1].hp >= 0, "Selected opener should take positive poison needle damage");
+    assert.strictEqual(state.party[0].status, "poisoned", "The opener should take poison needle");
+    assert.ok(state.party[0].hp < 15 && state.party[0].hp >= 0, "The opener should take positive poison needle damage");
     assert.strictEqual(state.currentRun.trapsTriggered, 1, "Trap trigger count should increment");
     // The explore HUD's newest-log linger timer (#1832) is not a result delay.
     const { EXPLORE_HUD_LOG_LINGER_MS } = await import("../../../src/ui/explore_hud_focus.js");
@@ -381,9 +360,9 @@ import assert from "assert";
     assert.strictEqual(state.transitioning, false, "Successful chest opening should end the transition immediately");
     assert.ok(global.localStorage.getItem("mobile_wiz_rpg_autosave"), "Successful chest opening should autosave");
 
-    console.log("[PASS] Selected chest opener trap target verified.");
+    console.log("[PASS] Failed automatic disarm trap target verified.");
 
-    // Test 6: A lethal trap keeps the existing delayed game-over path
+    // Test 5: A lethal trap keeps the existing delayed game-over path
     initNewGame();
     state.party = [
       { name: "Robin", status: "ok", hp: 10, maxHp: 10, equipment: {} }
@@ -400,9 +379,8 @@ import assert from "assert";
       x: state.x,
       y: state.y,
       trap: "poison needle",
-      identifiedTrap: "poison needle",
-      inspected: true,
-      inspectChance: 0.85,
+      trapSign: "danger",
+      trapSignAccuracy: 0.7,
       gold: 0,
       item: null,
       accessoryItem: null,
@@ -417,7 +395,7 @@ import assert from "assert";
     };
     Math.random = () => 0.99;
     try {
-      openChestDirectly(state.party[0]);
+      openChest();
       assert.strictEqual(gameOverTimeouts.length, 1, "Party wipe should retain the result delay");
       assert.strictEqual(gameOverTimeouts[0].delay, 1800, "Party wipe delay should remain 1800ms");
       assert.strictEqual(state.transitioning, true, "Party wipe should remain transitioning during the delay");
@@ -436,7 +414,7 @@ import assert from "assert";
 
     console.log("[PASS] Delayed chest trap game-over path verified.");
 
-    console.log("All chest trap inspect tests passed successfully!");
+    console.log("All chest open/leave tests passed successfully!");
   })();
 
   // ========================================================================
@@ -557,7 +535,7 @@ import assert from "assert";
       state.firstChestUnidentifiedGuaranteed = true;
 
       // Setup chest state with no item or usable item
-      setupChestState("gas bomb", 100, "HEAL_POTION", Math.random);
+      setupChestState("corrosion", 100, "HEAL_POTION", Math.random);
       assert.strictEqual(state.chestState.lootHint.hasEquipmentSignal, false, "HEAL_POTION should not signal equipment");
       assert.strictEqual(state.chestState.lootHint.aura, "weak", "HEAL_POTION should have weak aura");
 

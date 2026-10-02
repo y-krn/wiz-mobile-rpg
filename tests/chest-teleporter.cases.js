@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { exploreMove } from './explore-input-helpers.js';
 
 async function prepareTeleporterChest(page) {
   return page.evaluate(async () => {
@@ -44,7 +45,9 @@ async function expectExplorationReady(page, origin) {
       gameState: state.gameState,
       transitioning: state.transitioning,
       hasChest: Boolean(state.chestState),
-      pointerEvents: getComputedStyle(document.querySelector('#controls-panel')).pointerEvents,
+      // Exploration input lives on the world; it must take touches again.
+      pointerEvents: getComputedStyle(document.querySelector('#dungeon-canvas')).pointerEvents,
+      exploring: document.querySelector('#game-container').dataset.exploreHud !== undefined,
       originEvent: state.map[window.__chestOrigin.y][window.__chestOrigin.x].event,
     };
   }), { timeout: 5000 }).toEqual({
@@ -52,10 +55,11 @@ async function expectExplorationReady(page, origin) {
     transitioning: false,
     hasChest: false,
     pointerEvents: 'auto',
+    exploring: true,
     originEvent: null,
   });
 
-  await page.getByRole('button', { name: '左を向く' }).click();
+  await exploreMove(page, 'turn-left');
   await expect.poll(async () => page.evaluate(() => window.__stateModule.state.dir)).toBe(3);
   void origin;
 }
@@ -75,20 +79,22 @@ test.afterEach(async ({ page }) => {
   await restoreRandom(page);
 });
 
-test('smashing a teleporter chest returns to usable exploration controls', async ({ page }) => {
+test('a failed automatic disarm on a teleporter chest returns to usable exploration controls', async ({ page }) => {
   const origin = await prepareTeleporterChest(page);
   await page.evaluate((chestOrigin) => { window.__chestOrigin = chestOrigin; }, origin);
-  await forceRandomSequence(page, [0.50, 0.10, 0, 0, 0, 0.99]);
+  await forceRandomSequence(page, [0.99, 0.10, 0, 0, 0, 0.99]);
 
-  await page.getByRole('button', { name: '叩き壊す' }).click();
+  await page.getByRole('button', { name: '開ける', exact: true }).click();
   await expectExplorationReady(page, origin);
+  expect(await page.evaluate(() => window.__stateModule.state.currentRun.trapsTriggered)).toBe(1);
 });
 
-test('smashing an interrupted teleporter chest still returns to usable exploration controls', async ({ page }) => {
+test('a successful automatic disarm on a teleporter chest returns to usable exploration controls', async ({ page }) => {
   const origin = await prepareTeleporterChest(page);
   await page.evaluate((chestOrigin) => { window.__chestOrigin = chestOrigin; }, origin);
-  await forceRandomSequence(page, [0.49, 0, 0, 0.99]);
+  await forceRandomSequence(page, [0, 0, 0, 0.99]);
 
-  await page.getByRole('button', { name: '叩き壊す' }).click();
+  await page.getByRole('button', { name: '開ける', exact: true }).click();
   await expectExplorationReady(page, origin);
+  expect(await page.evaluate(() => window.__stateModule.state.currentRun.trapsDisarmed)).toBe(1);
 });

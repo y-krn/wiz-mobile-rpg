@@ -38,10 +38,9 @@ for (const viewport of [
       renderItemInventory(itemGrid);
       const chestGrid = document.querySelector('#submenu-options');
       renderChestMenu({
-        chest: { trap: 'none', inspected: false, identifiedTrap: '', lootHint: null },
-        floor: 1,
+        chest: { trap: 'none', trapSign: 'none', trapSignAccuracy: 0.7, lootHint: null },
         inventory: state.inventory,
-        onInspect() {}, onDisarm() {}, onTrapKit() {}, onOpen() {}, onSmash() {}, onLeave() {},
+        onOpen() {}, onOpenWithKit() {}, onLeave() {},
       });
       await openEquipOverlay(0);
 

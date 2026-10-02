@@ -30,6 +30,11 @@
         <button id="btn-mute" class="btn btn-mute sound-on" title="ミュート切替" aria-label="音声設定">🎵 ON</button>
       </header>
 
+      <section id="pwa-update-banner" class="pwa-update-banner" role="status" aria-live="polite" hidden>
+        <span>更新を適用できます。</span>
+        <button id="btn-pwa-apply-update" class="btn btn-neon" type="button">更新して再読み込み</button>
+      </section>
+
       <!-- Goal HUD -->
       <div id="goal-banner">
         <!-- Will be populated dynamically in ui.js -->
@@ -40,7 +45,7 @@
       <div id="viewport-panel" class="dungeon-view" data-shell-region="dungeon-view" aria-label="迷宮の視界">
         <canvas id="dungeon-canvas"></canvas>
         <canvas id="dungeon-minimap-overlay" aria-hidden="true"></canvas>
-        <button id="btn-minimap-toggle" type="button" aria-haspopup="dialog" aria-controls="full-map-overlay" aria-label="全体地図を開く" title="全体地図を開く" hidden></button>
+        <div id="minimap-toggle-root" class="minimap-toggle-root"></div>
         <div id="records-strip" class="records-strip" aria-label="潜行記録"></div>
         <!-- Text HUD representation of surrounding walls for accessibility & navigation -->
         <div id="viewport-hud" aria-live="polite"></div>
@@ -72,36 +77,21 @@
       </div>
 
       <!-- Full-floor map (opened from #btn-minimap-toggle, #1833) -->
-      <div id="full-map-overlay" class="full-map-overlay" role="dialog" aria-modal="true" aria-labelledby="full-map-title" hidden>
-        <div class="full-map-header">
-          <h2 id="full-map-title" class="full-map-title">全体地図</h2>
-          <button id="btn-full-map-close" type="button" class="btn full-map-close" aria-label="地図を閉じる" title="地図を閉じる">✕</button>
-        </div>
-        <div id="full-map-viewport" class="full-map-viewport" aria-label="ピンチで拡大、ドラッグで移動">
-          <canvas id="full-map-canvas" class="full-map-canvas" role="img" aria-label="現在の階の地図"></canvas>
-          <div class="full-map-zoom" role="group" aria-label="地図の表示">
-            <button id="btn-full-map-zoom-in" type="button" class="btn full-map-zoom-btn" aria-label="拡大">＋</button>
-            <button id="btn-full-map-zoom-out" type="button" class="btn full-map-zoom-btn" aria-label="縮小">－</button>
-            <button id="btn-full-map-fit" type="button" class="btn full-map-zoom-btn" aria-label="初期表示に戻す" title="初期表示に戻す">⤢</button>
-          </div>
-        </div>
-        <ul id="full-map-legend" class="full-map-legend" aria-label="凡例"></ul>
-        <button id="btn-full-map-back" type="button" class="btn btn-neon full-map-back">探索に戻る</button>
-      </div>
+      <div id="full-map-overlay-root"></div>
 
       <!-- Controls Panel (Grid) -->
       <div id="controls-panel" class="action-dock" data-shell-region="action-dock" data-dock-state="compact" aria-label="操作">
         <!-- Explortaion D-pad controls (shown in explore mode) -->
         <div id="explore-controls" class="controls-group active">
-          <div class="dpad">
+          <div class="dpad" data-assistive-pad aria-label="移動（キーボード・支援技術用）">
             <button id="btn-turn-around" class="btn btn-neon btn-dpad" title="後ろを向く (Q)" aria-label="後ろを向く">反転</button>
             <button id="btn-move-forward" class="btn btn-neon btn-dpad" title="前進" aria-label="前進" data-primary-action="forward">進む</button>
-            <button id="btn-search" class="btn btn-neon btn-dpad" title="調べる" aria-label="調べる">調べる</button>
             <button id="btn-turn-left" class="btn btn-neon btn-dpad" title="左を向く" aria-label="左を向く">◀</button>
             <button id="btn-move-backward" class="btn btn-neon btn-dpad" title="後退" aria-label="後退">▼</button>
             <button id="btn-turn-right" class="btn btn-neon btn-dpad" title="右を向く" aria-label="右を向く">▶</button>
           </div>
-          <div class="action-grid">
+          <div id="explore-satchel" class="action-grid" aria-label="持ち物袋">
+            <button id="btn-search" class="btn btn-neon btn-action" title="調べる" aria-label="調べる">調べる</button>
             <button id="btn-inspect" class="btn btn-neon btn-action" aria-label="バッグ">バッグ</button>
             <button id="btn-cast" class="btn btn-neon btn-action" aria-label="魔法">魔法</button>
             <button id="btn-item" class="btn btn-neon btn-action">装備</button>
@@ -118,7 +108,7 @@
             <button id="btn-combat-technique" class="btn btn-neon btn-combat" data-command-tier="secondary" hidden>技</button>
             <button id="btn-combat-spell" class="btn btn-neon btn-combat" data-command-tier="secondary">魔法</button>
             <button id="btn-combat-item" class="btn btn-neon btn-combat" data-command-tier="secondary">道具</button>
-            <button id="btn-combat-repeat" class="btn btn-neon btn-combat" disabled>↻ 前回の行動</button>
+            <button id="btn-combat-repeat" class="btn btn-neon btn-combat" aria-label="前回の行動を1ターン再実行" disabled>くり返す</button>
             <!-- Kept as a compatibility hook for saved/test state; Auto is not a visible combat action. -->
             <button id="btn-combat-auto" class="btn btn-neon btn-combat" hidden aria-hidden="true">オート</button>
             <button id="btn-combat-defend" class="btn btn-neon btn-combat" data-command-tier="secondary">防御</button>

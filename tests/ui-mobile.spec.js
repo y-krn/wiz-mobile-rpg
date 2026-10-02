@@ -158,12 +158,12 @@ for (const vp of VIEWPORTS) {
       await page.getByRole('button', { name: '迷宮へ向かう' }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
 
-      // #1826 stacks a menu strip above the movement pad (176px on tall screens).
-      const panelBox = await page.locator('#controls-panel').boundingBox();
-      expect(panelBox.height, `Explore controls panel should stay compact on ${vp.name}`).toBeLessThanOrEqual(180);
-
-      const exploreButtons = await page.locator('#explore-controls button:visible').all();
-      expect(exploreButtons.length).toBe(10);
+      // Exploring is touch on the world; every other action is in the satchel
+      // opened from the adventurer's card.
+      await expect(page.locator('#explore-satchel button:visible')).toHaveCount(0);
+      await page.locator('#character-panel').click();
+      const exploreButtons = await page.locator('#explore-satchel button:visible').all();
+      expect(exploreButtons.length).toBe(5);
       for (const btn of exploreButtons) {
         const box = await btn.boundingBox();
         const text = (await btn.textContent()).trim();
@@ -255,9 +255,8 @@ for (const vp of VIEWPORTS) {
           x: state.x,
           y: state.y,
           trap: 'poison needle',
-          identifiedTrap: 'poison needle',
-          inspected: true,
-          inspectChance: 0.30,
+          trapSign: 'danger',
+          trapSignAccuracy: 0.70,
           item: 'HEAL_POTION',
           lootHint: { label: '古い魔力', aura: 'medium' },
         };
@@ -265,13 +264,11 @@ for (const vp of VIEWPORTS) {
       });
 
       await expect(page.locator('#submenu-controls')).toBeVisible();
-      await expect(page.locator('#btn-chest-inspect')).toBeVisible();
-      await expect(page.locator('.chest-info-panel')).toContainText('信頼度 低');
-      await expect(page.locator('.chest-info-panel')).toContainText('[!] 外れる可能性あり');
-      await expect(page.getByRole('button', { name: '解除する' })).toBeVisible();
-      await expect(page.getByRole('button', { name: '宝箱を開ける' })).toBeVisible();
-      await expect(page.getByRole('button', { name: '叩き壊す' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'キットで解除' })).toHaveCount(0);
+      await expect(page.locator('.chest-info-panel')).toContainText('罠の気配: 危険な気配');
+      await expect(page.locator('.chest-info-panel')).toContainText('見立て: 怪しい');
+      await expect(page.locator('.chest-info-panel')).toContainText('開けるときの自動解除: 約25%');
+      await expect(page.getByRole('button', { name: '開ける', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'キットを使って開ける' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '立ち去る' })).toBeVisible();
 
       await page.evaluate(async () => {
@@ -280,7 +277,7 @@ for (const vp of VIEWPORTS) {
         state.inventory.push('TRAP_KIT');
         openChestMenu();
       });
-      await expect(page.getByRole('button', { name: 'キットで解除' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'キットを使って開ける' })).toBeVisible();
 
       const layout = await page.evaluate(async () => {
         const { menuContext } = await import('/src/navigation.js');
@@ -336,19 +333,16 @@ for (const vp of VIEWPORTS) {
       expect(layout.goal.top, `Goal overlay should stay inside the dungeon stage on ${vp.name}`).toBeGreaterThanOrEqual(layout.viewport.top);
       expect(layout.goal.right, `Goal overlay should stay inside the viewport width on ${vp.name}`).toBeLessThanOrEqual(layout.width || vp.width);
       expect(layout.party.bottom, `Solo HUD should clear standalone bottom safe area on ${vp.name}`).toBeLessThanOrEqual(layout.height - 34);
-      expect(layout.buttons).toHaveLength(6);
+      expect(layout.buttons).toHaveLength(3);
       expect(layout.buttons.map(button => button.text)).toEqual([
-        '調査済み', '解除する', 'キットで解除', '宝箱を開ける', '叩き壊す', '立ち去る',
+        '開ける', 'キットを使って開ける', '立ち去る',
       ]);
       expect(layout.hasHorizontalOverflow, `Chest menu should not create horizontal overflow on ${vp.name}`).toBe(false);
       for (const button of layout.buttons.filter(button => !button.disabled)) {
         expect(button.rect.width, `Chest action buttons should remain wide enough to tap on ${vp.name}`).toBeGreaterThanOrEqual(44);
         expect(button.rect.height, `Chest action buttons should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
       }
-      const inspected = layout.buttons.find(button => button.text === '調査済み');
-      expect(inspected.disabled).toBe(true);
-      expect(inspected.rect.height, `Unavailable chest steps should not take a full action row on ${vp.name}`).toBeLessThan(44);
-      expect(layout.buttons.filter(button => button.recommended).map(button => button.text)).toEqual(['解除する']);
+      expect(layout.buttons.filter(button => button.recommended).map(button => button.text)).toEqual(['開ける']);
       expect(layout.detailsOpen, `Trap details should start collapsed on ${vp.name}`).toBe(false);
       expect(layout.options.bottom, `Scrollable chest actions should stay within controls on ${vp.name}`).toBeLessThanOrEqual(layout.controls.bottom);
       const recommended = layout.buttons.find(button => button.recommended);
@@ -373,9 +367,10 @@ for (const vp of VIEWPORTS) {
         const { state } = await import('/src/state.js');
         return state.party[0].hp;
       });
-      // A sole eligible opener now opens the chest directly. Object rewards
-      // continue through the shared pending-reward resolution surface.
-      await page.getByRole('button', { name: '宝箱を開ける' }).click();
+      // Force the automatic disarm to fail so the trap fires deterministically.
+      // Object rewards continue through the shared pending-reward resolution surface.
+      await page.evaluate(() => { Math.random = () => 0.99; });
+      await page.getByRole('button', { name: '開ける', exact: true }).click();
       await expect(page.locator('#submenu-title')).toContainText('発見した戦果を解決');
       await expect(page.locator('.pending-reward-card')).toHaveCount(1);
       await expect(page.locator('#log-panel')).toBeVisible();

@@ -1,3 +1,8 @@
+import { syncAimRings } from "./aim_rings.js";
+import { createElement } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { syncPwaUpdateAvailability } from "./pwa_update_manager.js";
 import { state, getLogEntries } from "../state.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 import { getIsMuted } from "../audio.js";
@@ -31,6 +36,7 @@ import {
 import { releaseFocusSurface, syncFocusSurface } from "./focus_manager.js";
 import { lockShellScroll, unlockShellScroll } from "./shell_scroll_lock.js";
 import { closeFullMap, isFullMapOpen, openFullMap } from "./full_map_overlay.js";
+import { MinimapToggle } from "./minimap_toggle.js";
 import {
   EXPLORE_HUD_LOG_LINGER_MS,
   isExploreHudGoalExpanded,
@@ -43,6 +49,9 @@ let floorStingerTimer = null;
 let combatEntryCueTimer = null;
 let wasCombatContext = false;
 let exploreHudFocus = null;
+let minimapToggleHost = null;
+let minimapToggleRoot = null;
+let minimapToggleVisible = null;
 // The newest log line lingers on the explore HUD, then clears (#1832).
 let exploreLogLingerTimer = null;
 let exploreLogLingerSignature = null;
@@ -283,20 +292,36 @@ function getExploreGoalSignature() {
 // The minimap opens the full-floor map (#1833); it closes when explore ends.
 function updateMinimapToggle(isExploreHud) {
   if (!isExploreHud && isFullMapOpen()) closeFullMap();
-  const toggle = document.getElementById("btn-minimap-toggle");
-  if (!toggle) return;
-  toggle.hidden = !isExploreHud;
-  if (!isExploreHud) return;
-  if (!toggle.dataset?.bound && typeof toggle.addEventListener === "function") {
-    toggle.addEventListener("click", () => openFullMap());
-    if (toggle.dataset) toggle.dataset.bound = "true";
+  const host = document.getElementById("minimap-toggle-root");
+  if (!host) {
+    minimapToggleRoot?.unmount();
+    minimapToggleHost = null;
+    minimapToggleRoot = null;
+    minimapToggleVisible = null;
+    return;
   }
+  if (host.nodeType !== 1 || !host.ownerDocument) return;
+  if (minimapToggleHost !== host || !minimapToggleRoot) {
+    minimapToggleRoot?.unmount();
+    minimapToggleHost = host;
+    minimapToggleRoot = createRoot(host);
+    minimapToggleVisible = null;
+  }
+  if (minimapToggleVisible === isExploreHud) return;
+  minimapToggleVisible = isExploreHud;
+  flushSync(() => minimapToggleRoot.render(createElement(MinimapToggle, {
+    visible: isExploreHud,
+    onCommand: command => {
+      if (command.type === "open-full-map") openFullMap();
+    },
+  })));
 }
 
 export function updateUI() {
   resetViewportZoom();
   updateRecordsStrip();
   const view = getScreenViewState(state, menuContext);
+  syncPwaUpdateAvailability(view);
   const { gameState } = view;
   const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
   const hasUsableCombat = view.hasCombat && view.hasUsableCombatActor;
@@ -786,6 +811,7 @@ export function updateUI() {
     } else {
       combatOverlay.style.display = "none";
     }
+    syncAimRings(view.isUsableCombatOverlaySubmenu && menuContext.type === "combat_target" && menuContext.targetType === "enemy");
   }
 
   const canvas = document.getElementById("dungeon-canvas");

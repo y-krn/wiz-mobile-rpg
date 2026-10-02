@@ -188,7 +188,7 @@ for (const renderer of ['pixi']) {
     await page.setViewportSize(VIEWPORT);
     await seedDungeon(page, { renderer, gameState: 'combat' });
     await addSecondEnemy(page);
-    await page.locator('#btn-combat-fight').click();
+    await page.locator('#btn-combat-fight').press('Enter');
     await expect(page.locator('#combat-overlay')).toBeVisible();
     await selectCanvasEnemy(page);
     await expect(page.locator('#combat-overlay')).toBeHidden();
@@ -303,7 +303,7 @@ test('Dungeon First evidence captures Explore Combat Loot and Portal at 390x844 
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { openChestMenu } = await import('/src/chest.js');
-    state.chestState = { x: state.x, y: state.y, trap: 'none', identifiedTrap: 'none', inspected: true, inspectChance: 1, item: 'HEAL_POTION', lootHint: { label: '古い魔力', aura: 'medium' } };
+    state.chestState = { x: state.x, y: state.y, trap: 'none', trapSign: 'none', trapSignAccuracy: 0.95, item: 'HEAL_POTION', lootHint: { label: '古い魔力', aura: 'medium' } };
     openChestMenu();
   });
   captures.push(['loot', testInfo.outputPath('issue-1349-after-loot-390.png'), await page.screenshot({ path: testInfo.outputPath('issue-1349-after-loot-390.png'), fullPage: true })]);
@@ -323,7 +323,7 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 430, height: 932 }
       const container = document.querySelector('#game-container');
       const canvas = document.querySelector('#dungeon-canvas').getBoundingClientRect();
       const character = document.querySelector('#character-panel').getBoundingClientRect();
-    const buttons = [...document.querySelectorAll('#controls-panel button')].filter(button => getComputedStyle(button).display !== 'none').map(button => button.getBoundingClientRect().toJSON()).filter(button => button.width > 0 && button.height > 0);
+    const buttons = [...document.querySelectorAll('#controls-panel button')].filter(button => getComputedStyle(button).display !== 'none' && !button.closest('[data-assistive-pad]')).map(button => button.getBoundingClientRect().toJSON()).filter(button => button.width > 0 && button.height > 0);
       return {
         canvas, character,
         safeTop: getComputedStyle(container, '::before').backgroundColor,

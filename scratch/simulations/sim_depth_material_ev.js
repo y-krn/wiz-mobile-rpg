@@ -169,18 +169,15 @@ const {
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
   getChestItemWeightsBySource,
   CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
-  calculateChestMainItemExpectedValue,
-  calculateChestMainItemForcedLossRate,
-  resolveChestSmashRewardLosses,
   rollChestAccessory,
   rollChestReward,
   rollChestTrap,
-  rollChestSpecialReward
+  rollChestSpecialReward,
+  upgradeMimicChestReward
 } = await import("../../src/rules/chest_rules.js");
 const {
   calculateChestDisarmChance,
-  calculateChestDisarmActionEv,
-  calculateChestDisarmEvThreshold,
+  calculateChestOpenActionEv,
   calculateDetectRate,
   calculateFloorDisarmEvThreshold,
   calculateFloorTrapActionExpectedDamage,
@@ -197,7 +194,7 @@ const {
   resolveChestTrapEffect,
   resolveFloorTrapEffect
 } = await import("../../src/rules/trap_effect_rules.js");
-const { calculateChestInspectionChance } = await import("../../src/chest/chest_domain.js");
+const { resolveChestTrapSign } = await import("../../src/chest/chest_domain.js");
 const {
   AFFIX_BALANCE,
   CORE_AFFIXES,
@@ -1249,7 +1246,6 @@ const ISSUE646_EXTRA_CAMP_FLOORS = ISSUE646_CAMP_LEVEL
   : null;
 const DEFAULT_ELITE_POLICY = SIM_ENV.ELITE_POLICY === "engage" ? "engage" : "avoid";
 const LEGACY_FLOOR_DISARM_MIN_RATE = 50;
-const LEGACY_CHEST_DISARM_MIN_CHANCE = 0.50;
 const TRAP_POLICY_DEFINITIONS = Object.freeze({
   disabled: Object.freeze({
     id: "disabled",
@@ -1257,12 +1253,12 @@ const TRAP_POLICY_DEFINITIONS = Object.freeze({
   }),
   legacy: Object.freeze({
     id: "legacy",
-    label: "旧解除方針（罠効果あり・50%）",
+    label: "旧解除方針（罠効果あり・床50%、宝箱はキット優先）",
     floorDisarmMinRate: LEGACY_FLOOR_DISARM_MIN_RATE
   }),
   conservative: Object.freeze({
     id: "conservative",
-    label: "EV分岐（床罠・宝箱、キット温存価値を含む）"
+    label: "EV分岐（床罠・宝箱の開封/キット、キット温存価値を含む）"
   })
 });
 // 未指定時は宝箱だけ旧50%へ戻し、床罠は#341のEV既定を維持する。
@@ -1296,7 +1292,6 @@ if (!Number.isFinite(TRAP_DAMAGE_MULTIPLIER) || TRAP_DAMAGE_MULTIPLIER < 0) {
     `TRAP_DAMAGE_MULTIPLIER must be a non-negative number: ${trapDamageMultiplierInput}`
   );
 }
-const CHEST_DISARM_REPRESENTATIVE_THRESHOLD = calculateChestDisarmEvThreshold();
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
 const PORTAL_HP_THRESHOLD = Number(SIM_ENV.PORTAL_HP_THRESHOLD || 0.35);
 const PORTAL_MAX_HEAL_POTIONS = Math.max(
@@ -1933,9 +1928,9 @@ function getFloorTrapExpectedDamageForAction(state, trap, floor, weakened) {
   return calculateFloorTrapExpectedDamage({
     trap,
     floor: effectFloor,
-    party: state.party,
+    character: state.party[0],
     weakened
-  }).reduce((sum, damage) => sum + damage, 0);
+  });
 }
 
 function getFloorTrapActionPlan(state, trap, floor) {
@@ -9304,6 +9299,7 @@ function runEncounterCore(
     isBoss = false,
     isMidboss = false,
     isElite = false,
+    isMimic = false,
     roamingMonster = null,
     fixedMonsterNames = null,
     scalingPolicy = "production",
@@ -9601,7 +9597,8 @@ function runEncounterCore(
     initialLivingMonsterCount: monsters.filter(monster => monster.hp > 0).length,
     isBoss,
     isMidboss,
-    isRoamingFlack: isElite,
+    isRoamingFlack: isElite && !isMimic,
+    isMimic,
     enemyActionScheduling: state.simPolicy.productionSharedNormalEnemyActionSlot === true &&
       !isBoss && !isMidboss && !isElite
       ? "shared-normal-slot"
@@ -11163,8 +11160,7 @@ function createChestDisarmBlindStatusMetric() {
     successes: 0,
     failures: 0,
     kit: 0,
-    direct: 0,
-    forced: 0
+    open: 0
   };
 }
 
@@ -11249,41 +11245,32 @@ function useTrapRecoveryIfNeeded(state, metrics) {
   return needsPotion;
 }
 
-function applyChestTrapEffect(state, trap, weakened, metrics) {
+function applyChestTrapEffect(state, trap, metrics) {
   const character = state.party[0];
   const blindStatus = character.status === "blind" ? "blind" : "clear";
-  const targetIndex = Math.max(0, state.party.indexOf(character));
-  const trapGuardByParty = getSimulationTrapGuardByParty(state);
+  const trapGuard = getSimulationTrapGuardByParty(state)[0] || 0;
   const effect = resolveChestTrapEffect({
     trap,
-    weakened,
-    party: state.party,
-    targetIndex,
+    character,
+    inventory: state.inventory,
     poisonWard: getCharAffixSum(character, "poisonWard"),
     rng: Math.random
   });
-  const guardedEffect = applyTrapGuardToEffect(effect, {
-    trapGuardByParty,
-    targetIndex
-  });
-  effect.targetDamage = guardedEffect.targetDamage;
-  effect.partyDamage = guardedEffect.partyDamage;
+  const guardedEffect = applyTrapGuardToEffect(effect, { trapGuard });
+  effect.damage = guardedEffect.damage;
   recordTrapActivation(metrics, "chest", trap);
   const suppressCost = state.simPolicy.chestTrapCostSuppressionFloor === state.floor;
   const costAudit = {
     ordinal: metrics.chestsOpened,
     floor: state.floor,
     trap,
-    weakened: Boolean(weakened),
     suppressed: suppressCost,
-    generatedDamageHp: trap === "poison needle"
-      ? effect.targetDamage
-      : (effect.partyDamage || []).reduce((total, damage) => total + damage, 0),
+    generatedDamageHp: effect.damage,
     appliedDamageHp: 0,
     generatedStatusApplications: trap === "poison needle"
-      ? Number(effect.targetPoisonTriggered && !effect.targetPoisonResisted)
+      ? Number(effect.poisonTriggered && !effect.poisonResisted)
       : trap === "flash bomb"
-        ? effect.partyBlind.filter(Boolean).length
+        ? Number(effect.blinded)
         : 0,
     appliedStatusApplications: 0
   };
@@ -11291,24 +11278,20 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
   if (trap === "flash bomb") {
     metrics.chestFlashTrapActivationsByBlindStatus[blindStatus]++;
     metrics.trapGuardFlashCoverage.effects++;
-    metrics.trapGuardFlashCoverage.effectsWithGuard += Number(
-      trapGuardByParty.some(value => Number(value) > 0)
-    );
+    metrics.trapGuardFlashCoverage.effectsWithGuard += Number(Number(trapGuard) > 0);
     metrics.trapGuardFlashCoverage.blindEffectUnchanged += Number(
-      (effect.partyBlind || []).every((blinded, index) =>
-        blinded === guardedEffect.partyBlind?.[index]
-      )
+      effect.blinded === guardedEffect.blinded
     );
   }
 
   if (trap === "poison needle") {
     const hpBefore = character.hp;
     if (!suppressCost) {
-      character.hp = Math.max(0, character.hp - effect.targetDamage);
+      character.hp = Math.max(0, character.hp - effect.damage);
       clearCharIncapacitationOnDamage(character);
       if (character.hp === 0) {
         character.status = "dead";
-      } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
+      } else if (effect.poisonTriggered && !effect.poisonResisted) {
         const poisonConfig = getSimulationExplorationPoisonConfig();
         applyStatusEffect(character, STATUS_EFFECT_IDS.POISONED, {
           remainingTurns: poisonConfig.durationSteps,
@@ -11317,45 +11300,36 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
         costAudit.appliedStatusApplications++;
         recordStatusObservationApplication(metrics.statusObservations, "poisoned", "chest");
       }
-      costAudit.appliedDamageHp = effect.targetDamage;
+      costAudit.appliedDamageHp = effect.damage;
     }
     if (!suppressCost) {
-      recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor, state, {
+      recordTrapDamage(metrics, "chest", trap, effect.damage, state.floor, state, {
         hpBefore,
         hpAfter: character.hp,
         maxHp: getCharMaxHp(character)
       });
-      metrics.chestTrapDamageHpByBlindStatus[blindStatus] += effect.targetDamage;
+      metrics.chestTrapDamageHpByBlindStatus[blindStatus] += effect.damage;
     }
-  } else if (trap === "gas bomb") {
-    effect.partyDamage.forEach((damage, index) => {
-      const target = state.party[index];
-      if (damage <= 0) return;
-      const hpBefore = target.hp;
-      if (!suppressCost) {
-        target.hp = Math.max(0, target.hp - damage);
-        clearCharIncapacitationOnDamage(target);
-        if (target.hp === 0) target.status = "dead";
-        costAudit.appliedDamageHp += damage;
-        recordTrapDamage(metrics, "chest", trap, damage, state.floor, state, {
-          hpBefore,
-          hpAfter: target.hp,
-          maxHp: getCharMaxHp(target)
-        });
-        metrics.chestTrapDamageHpByBlindStatus[blindStatus] += damage;
-      }
-    });
+  } else if (trap === "corrosion") {
+    if (effect.corrodedIndex >= 0 && !suppressCost) {
+      const item = effect.corrodedItem;
+      state.inventory.splice(effect.corrodedIndex, 1);
+      consumeSimulationObjectLoot(state, metrics, item);
+      dropCorrodedItemProvenance(state, metrics, item);
+      metrics.chestTrapOutcomes.corrosionItemsLost[item] =
+        (metrics.chestTrapOutcomes.corrosionItemsLost[item] || 0) + 1;
+    } else if (effect.corrodedIndex < 0) {
+      metrics.chestTrapOutcomes.corrosionNoTarget++;
+    }
   } else if (trap === "teleporter") {
     metrics.trapTeleports += Number(effect.teleported);
   } else if (trap === "flash bomb") {
-    effect.partyBlind.forEach((blinded, index) => {
-      if (blinded && !suppressCost) {
-        state.party[index].status = "blind";
-        costAudit.appliedStatusApplications++;
-        recordStatusObservationApplication(metrics.statusObservations, "blind", "chest");
-        recordBlindApplications(metrics, "chest", 1);
-      }
-    });
+    if (effect.blinded && !suppressCost) {
+      character.status = "blind";
+      costAudit.appliedStatusApplications++;
+      recordStatusObservationApplication(metrics.statusObservations, "blind", "chest");
+      recordBlindApplications(metrics, "chest", 1);
+    }
   }
 
   if (metrics.chestTrapCostAudit) metrics.chestTrapCostAudit.push(costAudit);
@@ -11364,35 +11338,32 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
 }
 
 function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
+  const character = state.party[0];
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor,
-    party: state.party,
+    character,
     weakened,
     rng: Math.random
-  }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
+  }), { trapGuard: getSimulationTrapGuardByParty(state)[0] || 0 });
   recordTrapActivation(metrics, "floor", trap.type);
 
-  effect.partyDamage.forEach((damage, index) => {
-    const target = state.party[index];
-    if (damage <= 0) return;
-    const appliedDamage = Math.max(1, Math.round(damage * TRAP_DAMAGE_MULTIPLIER));
-    const hpBefore = target.hp;
-    target.hp = Math.max(0, target.hp - appliedDamage);
-    clearCharIncapacitationOnDamage(target);
-    if (target.hp === 0) target.status = "dead";
+  if (character && effect.damage > 0) {
+    const appliedDamage = Math.max(1, Math.round(effect.damage * TRAP_DAMAGE_MULTIPLIER));
+    const hpBefore = character.hp;
+    character.hp = Math.max(0, character.hp - appliedDamage);
+    clearCharIncapacitationOnDamage(character);
+    if (character.hp === 0) character.status = "dead";
     recordTrapDamage(metrics, "floor", trap.type, appliedDamage, state.floor, state, {
       hpBefore,
-      hpAfter: target.hp,
-      maxHp: getCharMaxHp(target)
+      hpAfter: character.hp,
+      maxHp: getCharMaxHp(character)
     });
-  });
-  effect.partyMpDrain.forEach((drain, index) => {
-    if (drain > 0) {
-      state.party[index].mp = Math.max(0, state.party[index].mp - drain);
-      metrics.trapMpDrain += drain;
-    }
-  });
+  }
+  if (character && effect.mpDrain > 0) {
+    character.mp = Math.max(0, character.mp - effect.mpDrain);
+    metrics.trapMpDrain += effect.mpDrain;
+  }
   if (effect.alarm) {
     state.alarmActive = true;
     state.alarmWeakened = effect.alarmWeakened;
@@ -13729,7 +13700,7 @@ function schedulePickedUpChests(chestCount, floorSteps) {
 }
 
 const CHEST_PATH_SOURCES = Object.freeze(["ordinary", "secretRoom", "fromDrop"]);
-const CHEST_ACTIONS = Object.freeze(["inspect", "open", "disarm", "trap_kit", "smash", "leave"]);
+const CHEST_ACTIONS = Object.freeze(["open", "trap_kit", "leave"]);
 
 function createChestPathMetrics() {
   return Object.fromEntries(CHEST_PATH_SOURCES.map(source => [
@@ -13737,11 +13708,9 @@ function createChestPathMetrics() {
     {
       generated: 0,
       opened: 0,
-      inspected: 0,
-      inspectSuccesses: 0,
-      inspectFailures: 0,
+      signsAccurate: 0,
+      signsMisread: 0,
       rewardsAwarded: 0,
-      rewardsLost: 0,
       trapsTriggered: 0,
       actions: Object.fromEntries(CHEST_ACTIONS.map(action => [action, 0])),
       mainTownPortalRewards: 0,
@@ -13750,27 +13719,56 @@ function createChestPathMetrics() {
   ]));
 }
 
+// A corroded item leaves the bag without being used: keep each provenance
+// ledger in step with the inventory, but do not count it as a use.
+const CORRODED_ITEM_SOURCE_QUEUES = Object.freeze({
+  HEAL_POTION: "simHealPotionSources",
+  GREATER_HEAL: "simGreaterHealSources",
+  TRAP_KIT: "simTrapKitSources",
+  MANA_POTION: "simManaPotionSources",
+  HOLY_WATER: "simHolyWaterSources"
+});
+
+function dropCorrodedItemProvenance(state, metrics, item) {
+  const queue = CORRODED_ITEM_SOURCE_QUEUES[item];
+  if (queue && Array.isArray(state[queue])) state[queue].shift();
+  if (STATUS_CURE_ITEM_IDS.has(item)) recordStatusCureItemDepletion(state, metrics);
+}
+
+// Simulated-player policy, not a game rule: fight a mimic only above this HP.
+const MIMIC_FIGHT_MIN_HP_RATE = 0.5;
+
+// #1939: per-run chest decision outcomes for the trap-resource measurement.
+function createChestTrapOutcomeMetrics() {
+  return {
+    leaveByFloor: Array(41).fill(0),
+    decisionsByFloor: Array(41).fill(0),
+    corrosionItemsLost: {},
+    corrosionNoTarget: 0,
+    mimic: { encounters: 0, left: 0, fights: 0, victories: 0, flees: 0, deaths: 0 }
+  };
+}
+
 function recordChestPathAction(metrics, source, action) {
   const path = metrics.chestPath?.[source];
   if (!path || path.actions[action] === undefined) return;
   path.actions[action]++;
 }
 
-function recordChestInspection(metrics, source, party, rng, state) {
+// The sign takes the single draw the retired inspection step used, from the
+// same stream, so the simulator's shared RNG order is unchanged.
+function recordChestSign(metrics, source, trap, state, rng) {
   const chestPath = metrics.chestPath?.[source];
-  if (chestPath) {
-    chestPath.opened++;
-    chestPath.inspected++;
-  }
-  recordChestPathAction(metrics, source, "inspect");
-  const chance = calculateChestInspectionChance({
-    party,
+  if (chestPath) chestPath.opened++;
+  const result = resolveChestTrapSign({
+    trap,
+    character: state.party[0],
     lightPower: state?.lightPower,
-    lightTurns: state?.lightTurns
-  }).chance;
-  const inspected = rng() < chance;
-  if (chestPath) chestPath[inspected ? "inspectSuccesses" : "inspectFailures"]++;
-  return inspected;
+    lightTurns: state?.lightTurns,
+    rng
+  });
+  if (chestPath) chestPath[result.accurate ? "signsAccurate" : "signsMisread"]++;
+  return result.sign;
 }
 
 function findSecretRoomPlans(generated, routePlan) {
@@ -14074,17 +14072,16 @@ function resolveFlameTrapAtStep({
     x: state.x,
     y: state.y
   });
+  const character = state.party[0];
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
-    party: state.party,
+    character,
     weakened: resolution.partialSuccess,
     rng: Math.random
-  }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
-  effect.partyDamage.forEach((damage, index) => {
-    const appliedDamage = damage;
-    if (appliedDamage <= 0) return;
-    const character = state.party[index];
+  }), { trapGuard: getSimulationTrapGuardByParty(state)[0] || 0 });
+  const appliedDamage = effect.damage;
+  if (character && appliedDamage > 0) {
     const hpBefore = character.hp;
     character.hp = Math.max(0, character.hp - appliedDamage);
     clearCharIncapacitationOnDamage(character);
@@ -14114,7 +14111,7 @@ function resolveFlameTrapAtStep({
         };
       }
     }
-  });
+  }
   recordB5HpSnapshot(state, metrics, step);
   return true;
 }
@@ -14769,39 +14766,21 @@ function applyTrapEaterChestDisarmBonus(character, observations) {
   }
 }
 
+// Production chest choice is open (automatic disarm), open with a kit, or
+// leave. The simulated player reads the same sign production shows; a "none"
+// sign is opened without spending a kit, and any other sign is judged with the
+// actual trap's full-strength risk as the player's best estimate.
 function resolveChestTrapForSimulation(
   state,
   floor,
   trap,
-  mainItem,
+  sign,
   observations,
   metrics,
-  { futureChestCount = 0, smashRewards = [], rng = Math.random, chestSource = "ordinary" } = {}
+  { futureChestCount = 0, rng = Math.random, chestSource = "ordinary", canFightMimic = true } = {}
 ) {
   const character = state.party[0];
-  const chestPath = metrics.chestPath?.[chestSource];
-  const inspected = recordChestInspection(metrics, chestSource, state.party, rng, state);
-  const falseTraps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
-  const identifiedTrap = chestSource === "ordinary"
-    ? trap
-    : inspected
-    ? trap
-    : falseTraps[Math.floor(rng() * falseTraps.length)];
-  if (trap !== "none") {
-    recordSimulationTrapResolution(metrics, "observed", {
-      state,
-      trap,
-      source: "chest",
-      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
-      action: "inspect",
-      successRate: calculateChestInspectionChance({
-        party: state.party,
-        lightPower: state.lightPower,
-        lightTurns: state.lightTurns
-      }).chance * 100,
-      identified: identifiedTrap === trap
-    });
-  }
+  const trapId = `chest:${chestSource}:${floor}:${metrics.chestsOpened}`;
   const blindStatus = character.status === "blind" ? "blind" : "clear";
   const disarmBlindMetric = metrics.chestDisarmByBlindStatus[blindStatus];
   metrics.trapEncounterCount++;
@@ -14818,88 +14797,85 @@ function resolveChestTrapForSimulation(
     const expectedDisarm = Math.max(0, Math.min(1, chance));
     observations.expectedTrapDisarms += expectedDisarm;
     observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
-    return { mainItemLost: false };
+    return { action: "open" };
   }
 
-  const kitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
-  const kitIndex = state.inventory.indexOf("TRAP_KIT");
-  const riskTrap = identifiedTrap === "none" ? trap : identifiedTrap;
-  const fullRisk = calculateChestTrapExpectedRisk({
-    trap: riskTrap,
-    party: state.party,
-    targetIndex: Math.max(0, state.party.indexOf(character)),
-    poisonWard: getCharAffixSum(character, "poisonWard")
-  }).risk;
-  const action = identifiedTrap === "none"
-    ? "open"
-    : fullRisk >= Math.max(1, character.hp)
-      ? "leave"
-      : state.simPolicy.chestTrapPolicy === "legacy"
-    ? (kitIndex >= 0
-      ? "kit"
-      : (chance >= LEGACY_CHEST_DISARM_MIN_CHANCE ? "direct" : "force"))
-    : calculateChestDisarmActionEv({
-      successRate: chance,
-      fullRisk,
-      weakenedRisk: calculateChestTrapExpectedRisk({
-        trap: riskTrap,
-        weakened: true,
-        party: state.party,
-        targetIndex: Math.max(0, state.party.indexOf(character)),
-        poisonWard: getCharAffixSum(character, "poisonWard")
-      }).risk,
-      contentValue: calculateChestMainItemExpectedValue(mainItem),
-      forcedContentLossRate: calculateChestMainItemForcedLossRate(mainItem),
-      kitCount,
-      futureChestCount
-    }).action;
-  const actionPath = action === "force" ? "forced" : action;
-  recordChestPathAction(
-    metrics,
-    chestSource,
-    action === "kit"
-      ? "trap_kit"
-      : action === "force"
-        ? "smash"
-        : action === "direct"
-          ? "disarm"
-          : action
-  );
-  if (action === "leave") {
-    recordSimulationTrapResolution(metrics, "avoided", {
-      state,
-      trap,
-      source: "chest",
-      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
-      action: "leave"
-    });
-    return { mainItemLost: false, action };
-  }
-  if (action === "open") {
-    if (trap === "none") return { mainItemLost: false, action };
+  if (trap === "mimic") {
+    // A mimic always shows the danger sign and ignores disarm and kits. The
+    // simulated player fights only with at least half HP, and only on paths
+    // whose caller can run a fight (the secret-room helper cannot).
+    const mimic = metrics.chestTrapOutcomes.mimic;
+    mimic.encounters++;
+    const hpRate = character.hp / Math.max(1, getCharMaxHp(character));
+    if (!canFightMimic || hpRate < MIMIC_FIGHT_MIN_HP_RATE) {
+      mimic.left++;
+      recordChestPathAction(metrics, chestSource, "leave");
+      recordSimulationTrapResolution(metrics, "avoided", {
+        state,
+        trap,
+        source: "chest",
+        trapId,
+        action: "leave"
+      });
+      return { action: "leave" };
+    }
+    recordChestPathAction(metrics, chestSource, "open");
     recordSimulationTrapResolution(metrics, "triggered", {
       state,
       trap,
       source: "chest",
-      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      trapId,
       action: "open"
     });
     state.currentRun.trapsTriggered++;
-    metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
-    applyChestTrapEffect(state, trap, false, metrics);
-    return { mainItemLost: false, action };
-  }
-  if (actionPath === "direct" || actionPath === "forced" || actionPath === "kit") {
-    disarmBlindMetric.decisions++;
-    disarmBlindMetric[actionPath]++;
+    recordTrapActivation(metrics, "chest", trap);
+    return { action: "open", mimic: true };
   }
 
-  if (action === "kit" && kitIndex >= 0) {
+  const kitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
+  const kitIndex = state.inventory.indexOf("TRAP_KIT");
+  const expectedRisk = calculateChestTrapExpectedRisk({
+    trap,
+    character,
+    inventory: state.inventory,
+    poisonWard: getCharAffixSum(character, "poisonWard")
+  });
+  const fullRisk = expectedRisk.risk;
+  const action = sign === "none"
+    ? "open"
+    : state.simPolicy.chestTrapPolicy === "legacy"
+      ? (kitIndex >= 0 ? "kit" : "open")
+      : calculateChestOpenActionEv({
+        successRate: chance,
+        fullRisk,
+        kitCount,
+        futureChestCount
+      }).action;
+  // Leave when opening is more likely than not to kill: a failed automatic
+  // disarm followed by a lethal full-strength trap.
+  const lethalRisk = action === "open" && sign !== "none" &&
+    (1 - chance) * expectedRisk.fatalityProbability > 0.5;
+  const finalAction = lethalRisk ? "leave" : action;
+  recordChestPathAction(metrics, chestSource, finalAction === "kit" ? "trap_kit" : finalAction);
+  if (finalAction === "leave") {
+    recordSimulationTrapResolution(metrics, "avoided", {
+      state,
+      trap,
+      source: "chest",
+      trapId,
+      action: "leave"
+    });
+    return { action: finalAction };
+  }
+  disarmBlindMetric.decisions++;
+  disarmBlindMetric[finalAction]++;
+
+  if (finalAction === "kit") {
     recordSimulationTrapResolution(metrics, "disarmed", {
       state,
       trap,
       source: "chest",
-      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
+      trapId,
       action: "trap_kit",
       successRate: 100,
       toolId: "TRAP_KIT",
@@ -14918,77 +14894,48 @@ function resolveChestTrapForSimulation(
     disarmBlindMetric.attempts++;
     disarmBlindMetric.successes++;
     applyTrapEaterChestDisarmBonus(character, observations);
-    return { mainItemLost: false, action };
+    return { action: finalAction };
   }
 
-  if (action === "direct") {
-    metrics.chestDisarmAttempts++;
-    metrics.chestDisarmAttemptsByFloor[floor]++;
-    metrics.chestDisarmDirectAttemptsByFloor[floor]++;
-    metrics.trapDisarmAttempts++;
-    disarmBlindMetric.attempts++;
-    if (rng() < chance) {
-      recordSimulationTrapResolution(metrics, "disarmed", {
-        state,
-        trap,
-        source: "chest",
-        trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
-        action: "disarm",
-        successRate: chance * 100
-      });
-      state.currentRun.trapsDisarmed++;
-      metrics.trapDisarms++;
-      metrics.chestDisarmSuccesses++;
-      metrics.chestDisarmSuccessesByFloor[floor]++;
-      metrics.trapDisarmSuccesses++;
-      disarmBlindMetric.successes++;
-      recordTrapDisarmObservation(observations, floor);
-      applyTrapEaterChestDisarmBonus(character, observations);
-      return { mainItemLost: false, action };
-    }
-    disarmBlindMetric.failures++;
-    recordSimulationTrapResolution(metrics, "triggered", {
+  metrics.chestDisarmAttempts++;
+  metrics.chestDisarmAttemptsByFloor[floor]++;
+  metrics.chestDisarmDirectAttemptsByFloor[floor]++;
+  metrics.trapDisarmAttempts++;
+  disarmBlindMetric.attempts++;
+  if (rng() < chance) {
+    recordSimulationTrapResolution(metrics, "disarmed", {
       state,
       trap,
       source: "chest",
-      trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
-      action: "disarm",
+      trapId,
+      action: "open",
       successRate: chance * 100
     });
-    state.currentRun.trapsTriggered++;
-    metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
-    applyChestTrapEffect(state, trap, false, metrics);
-    // Ordinary disarm failure intentionally follows the existing live path:
-    // openChestDirectly still awards the chest before the game-over transition.
-    // Only the force/smash-equivalent branch has the lethal reward gate.
-    return { mainItemLost: false, action };
+    state.currentRun.trapsDisarmed++;
+    metrics.trapDisarms++;
+    metrics.chestDisarmSuccesses++;
+    metrics.chestDisarmSuccessesByFloor[floor]++;
+    metrics.trapDisarmSuccesses++;
+    disarmBlindMetric.successes++;
+    recordTrapDisarmObservation(observations, floor);
+    applyTrapEaterChestDisarmBonus(character, observations);
+    return { action: finalAction, disarmed: true };
   }
-
-  metrics.trapForced++;
+  disarmBlindMetric.failures++;
   recordSimulationTrapResolution(metrics, "triggered", {
     state,
     trap,
     source: "chest",
-    trapId: `chest:${chestSource}:${floor}:${metrics.chestsOpened}`,
-    action: "smash",
-    partialSuccess: true
+    trapId,
+    action: "open",
+    successRate: chance * 100
   });
-  metrics.chestForcedByFloor[floor]++;
   state.currentRun.trapsTriggered++;
   metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
-  applyChestTrapEffect(state, trap, true, metrics);
-  if (!state.party.some(isAlive)) {
-    return { lethal: true, mainItemLost: false, lostRewardRoles: [], action };
-  }
-  // The simulator's `force` action is the production weakened-trap/smash
-  // branch. Use the shared role-aware rule for all modeled chest rewards.
-  const losses = resolveChestSmashRewardLosses(smashRewards, rng);
-  return {
-    lethal: false,
-    action,
-    mainItemLost: losses.some(loss => loss.role === "main"),
-    lostRewardRoles: losses.map(loss => loss.role)
-  };
+  applyChestTrapEffect(state, trap, metrics);
+  // A failed automatic disarm follows the live path: the chest is still
+  // awarded before the game-over transition.
+  return { action: finalAction, disarmed: false };
 }
 
 // 抽選そのものは src/rules/chest_rules.js（src/chest.js と同一の出所）を叩き、
@@ -15005,7 +14952,9 @@ function rollChestItems(
 ) {
   const chestPath = metrics?.chestPath?.[chestSource];
   if (chestPath) chestPath.generated++;
-  const trap = rollChestTrap(floor, rng, metrics?.runtimeDiagnostics);
+  const rolledTrap = rollChestTrap(floor, rng, metrics?.runtimeDiagnostics);
+  // Match rollChestEncounter: a monster's dropped chest is never a mimic.
+  const trap = fromDrop && rolledTrap === "mimic" ? "none" : rolledTrap;
   maybeAcquireChestIdentificationPowder(state, metrics, rng);
   if (floor === 1) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
@@ -15123,52 +15072,43 @@ function rollChestItems(
   addReward("accessory", rerolledAccessoryItem);
   addReward("extra", extra);
   addReward("extraHealPotion", extraHealPotion);
+  // Trapped-chest rolls (sign, then automatic disarm) use a per-chest stream
+  // so they never perturb the shared combat/recovery RNG used by existing
+  // simulator policies; a trapless chest reads its sign from the shared stream.
+  const trapRng = trap === "none"
+    ? rng
+    : createMaterialOverrideRandom(
+      `${state.currentRun.runSeed}:chest-trap:${floor}:${state.currentRun.chestsOpened}`
+    );
+  const sign = recordChestSign(metrics, chestSource, trap, state, trapRng);
   const trapResult = trap === "none"
     ? (() => {
-        recordChestInspection(metrics, chestSource, state.party, rng, state);
         recordChestPathAction(metrics, chestSource, "open");
-        return { mainItemLost: false, action: "open" };
+        return { action: "open" };
       })()
     : resolveChestTrapForSimulation(
       state,
       floor,
       trap,
-      item,
+      sign,
       observations,
       metrics,
-      {
-        futureChestCount,
-        // Keep smash-loss rolls deterministic without perturbing the shared
-        // combat/recovery RNG stream used by existing simulator policies.
-        rng: createMaterialOverrideRandom(
-          `${state.currentRun.runSeed}:chest-smash:${floor}:${state.currentRun.chestsOpened}`
-        ),
-        chestSource,
-        smashRewards: ["main", "special", "accessory"]
-          .filter(role => Number.isInteger(itemIndices[role]))
-          .map(role => ({ role, item: items[itemIndices[role]] }))
-      }
+      { futureChestCount, rng: trapRng, chestSource, canFightMimic: chestSource !== "secretRoom" }
     );
-  const rewardLossRoles = new Set(trapResult.lostRewardRoles || []);
   if (chestPath) {
-    chestPath.trapsTriggered += Number(
-      state.simPolicy.chestTrapPolicy !== "disabled" &&
-      trap !== "none" &&
-      trapResult.action !== "disarm" &&
-      trapResult.action !== "trap_kit"
-    );
-    chestPath.rewardsLost += rewardLossRoles.size;
+    chestPath.trapsTriggered += Number(trapResult.disarmed === false);
+  }
+  if (metrics?.chestTrapOutcomes) {
+    metrics.chestTrapOutcomes.decisionsByFloor[floor]++;
+    if (trapResult.action === "leave") metrics.chestTrapOutcomes.leaveByFloor[floor]++;
   }
   return {
     items,
     trap,
-    lethal: trapResult.lethal === true,
+    left: trapResult.action === "leave",
+    mimic: trapResult.mimic === true,
     mainItem: mainRewardItem,
     mainItemIndex: itemIndices.main ?? -1,
-    mainItemLost: trapResult.mainItemLost,
-    lostRewardIndices: [...rewardLossRoles]
-      .map(role => itemIndices[role])
-      .filter(index => Number.isInteger(index)),
     specialItem,
     specialItemIndex: itemIndices.special ?? -1,
     accessoryItemIndex: itemIndices.accessory ?? -1,
@@ -15222,8 +15162,7 @@ function recordChestLootEvent(metrics, state, floor, source, chestItems) {
     action: chestItems.trapAction || null,
     generatedItems: chestItems.items.map((item, index) =>
       compactChestLootItem(item, chestRewardRole(chestItems, index))
-    ),
-    lostRewardRoles: [...(chestItems.lostRewardRoles || [])]
+    )
   });
 }
 
@@ -15262,12 +15201,43 @@ function resolveSimulationChest({
     }
   );
   recordChestLootEvent(metrics, state, floor, source, chestItems);
-  if (chestItems.lethal) {
-    // Match src/chest.js: a lethal trap ends the chest transition before any
-    // material, reward, or equipment telemetry is recorded.
-    state.currentRun.chestsOpened++;
-    return false;
+  if (chestItems.left) {
+    // Match src/chest.js leaveChest: a left chest grants no materials or
+    // rewards. Leaving is not a death, so the caller continues the run.
+    chestItems.items.forEach((item, itemIndex) => {
+      recordUnadoptedObjectLoot(state, metrics, item, "left", source, chestRewardRole(chestItems, itemIndex));
+    });
+    return true;
   }
+  // A mimic is fought by the caller, which can replace the run state.
+  if (chestItems.mimic) {
+    return { mimic: true, pending: { chestItems, chestMaterials, tombRaider, source } };
+  }
+  return awardSimulationChest({
+    state,
+    floor,
+    metrics,
+    scenario,
+    scoringProfile,
+    source,
+    chestItems,
+    chestMaterials,
+    tombRaider
+  });
+}
+
+function awardSimulationChest({
+  state,
+  floor,
+  metrics,
+  scenario,
+  scoringProfile,
+  source,
+  chestItems,
+  chestMaterials,
+  tombRaider
+}) {
+  const chestPath = metrics.chestPath[source];
   if (tombRaider) {
     metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
     metrics.coreObservations.tombRaiderMaterialBonusTotal += tombRaider.materialBonus || 0;
@@ -15285,18 +15255,6 @@ function resolveSimulationChest({
   recordEquipmentGenerations(metrics, chestItems.items);
   chestItems.items.forEach((item, itemIndex) => {
     const rewardRole = chestRewardRole(chestItems, itemIndex);
-    if (chestItems.lostRewardIndices?.includes(itemIndex)) {
-      recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
-      return;
-    }
-    if (
-      chestItems.mainItemLost &&
-      itemIndex === chestItems.mainItemIndex &&
-      item === chestItems.mainItem
-    ) {
-      recordUnadoptedObjectLoot(state, metrics, item, "left", source, rewardRole);
-      return;
-    }
     const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
     if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
       recordUnadoptedObjectLoot(state, metrics, item, "discarded", source, rewardRole);
@@ -15353,15 +15311,54 @@ function resolveSimulationChest({
   recordEquipmentAcquisitions(metrics, acquiredEquipment, floor, "chest");
   state.currentRun.chestsOpened++;
   if (chestPath) {
-    chestPath.rewardsAwarded += chestItems.items.filter((item, index) =>
-      !chestItems.lostRewardIndices?.includes(index) &&
-      !(chestItems.mainItemLost && index === chestItems.mainItemIndex)
-    ).length;
+    chestPath.rewardsAwarded += chestItems.items.length;
   }
   applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
   syncObjectLootLifecycle(metrics, state);
   captureObjectLootStake(metrics, state, "pending_reward_resolution");
   return true;
+}
+
+// Production startMimicCombat: the mimic fights with the floor elite's body
+// and, when defeated, leaves its chest with the main reward upgraded.
+function resolveSimulationMimicFight(state, metrics, { floor, scenario, scoringProfile, pending }) {
+  const mimic = metrics.chestTrapOutcomes.mimic;
+  mimic.fights++;
+  const combatResult = runEncounter(state, metrics.coreObservations, metrics.diagnostics, metrics, {
+    isElite: true,
+    isMimic: true,
+    roamingMonster: { mimic: true },
+    encounterCoord: { x: state.x, y: state.y }
+  });
+  const next = combatResult.state;
+  metrics.combatDamageHp += combatResult.telemetry.incomingDamage;
+  if (combatResult.result === "victory") {
+    mimic.victories++;
+    applyPostCombatRecovery(next, metrics);
+    addRecoveryPotionUse(metrics, useHealPotionIfNeeded(next, metrics));
+    const { chestItems } = pending;
+    const upgraded = upgradeMimicChestReward(
+      chestItems.mainItemIndex >= 0 ? chestItems.items[chestItems.mainItemIndex] : null,
+      { floor, rng: Math.random, party: next.party }
+    );
+    if (chestItems.mainItemIndex >= 0) {
+      chestItems.items[chestItems.mainItemIndex] = upgraded;
+    } else {
+      chestItems.mainItemIndex = chestItems.items.length;
+      chestItems.items.push(upgraded);
+    }
+    chestItems.mainItem = upgraded;
+    awardSimulationChest({ state: next, floor, metrics, scenario, scoringProfile, ...pending });
+    return { state: next, alive: isAlive(next.party[0]) };
+  }
+  if (combatResult.result === "flee") {
+    mimic.flees++;
+    applyPostCombatRecovery(next, metrics);
+    addRecoveryPotionUse(metrics, useHealPotionIfNeeded(next, metrics));
+    return { state: next, alive: isAlive(next.party[0]) };
+  }
+  mimic.deaths++;
+  return { state: next, alive: false };
 }
 
 function resolveSecretRoomSearch({
@@ -16581,7 +16578,6 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     chestDisarmSuccessesByFloor: [...metrics.chestDisarmSuccessesByFloor],
     chestDisarmKitUsesByFloor: [...metrics.chestDisarmKitUsesByFloor],
     chestDisarmDirectAttemptsByFloor: [...metrics.chestDisarmDirectAttemptsByFloor],
-    chestForcedByFloor: [...metrics.chestForcedByFloor],
     blindTelemetry: {
       applicationsBySource: { ...metrics.blindApplicationsBySource },
       chestDisarmByBlindStatus: Object.fromEntries(
@@ -16637,6 +16633,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     trapDetectionRateCounts: { ...metrics.trapDetectionRateCounts },
     trapDetectionCapHits: metrics.trapDetectionCapHits,
     trapTeleports: metrics.trapTeleports,
+    chestTrapOutcomes: structuredClone(metrics.chestTrapOutcomes),
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     finalManaPotions: state.inventory.filter(item => item === "MANA_POTION").length,
     finalGreaterHeals: state.inventory.filter(item => item === "GREATER_HEAL").length,
@@ -17235,6 +17232,7 @@ export function simulateRun({
     trapEncounterBySource: { chest: 0, floor: 0 },
     chestsOpened: 0,
     chestPath: createChestPathMetrics(),
+    chestTrapOutcomes: createChestTrapOutcomeMetrics(),
     secretDoorCandidates: 0,
     secretSearchAttempts: 0,
     secretSearchSuccesses: 0,
@@ -17260,7 +17258,6 @@ export function simulateRun({
     chestDisarmSuccessesByFloor: Array(41).fill(0),
     chestDisarmKitUsesByFloor: Array(41).fill(0),
     chestDisarmDirectAttemptsByFloor: Array(41).fill(0),
-    chestForcedByFloor: Array(41).fill(0),
     blindApplicationsBySource: { chest: 0, floor: 0, enemy: 0 },
     chestDisarmByBlindStatus: {
       clear: createChestDisarmBlindStatusMetric(),
@@ -17958,11 +17955,28 @@ export function simulateRun({
           }
         );
         recordChestLootEvent(metrics, state, floor, "ordinary", chestItems);
-        if (chestItems.lethal) {
-          // Match src/chest.js: a lethal trap ends the chest transition before
-          // any material, reward, or equipment telemetry is recorded.
-          state.currentRun.chestsOpened++;
-          break;
+        if (chestItems.left) {
+          // Match src/chest.js leaveChest: a left chest grants no materials or rewards.
+          chestItems.items.forEach((item, itemIndex) => {
+            recordUnadoptedObjectLoot(
+              state, metrics, item, "left", "ordinary", chestRewardRole(chestItems, itemIndex)
+            );
+          });
+          continue;
+        }
+        if (chestItems.mimic) {
+          const fight = resolveSimulationMimicFight(state, metrics, {
+            floor,
+            scenario,
+            scoringProfile,
+            pending: { chestItems, chestMaterials, tombRaider, source: "ordinary" }
+          });
+          state = fight.state;
+          if (!fight.alive) {
+            metrics.deathEncounterType = "chest-mimic";
+            return finishRun(state, "death", metrics);
+          }
+          continue;
         }
         if (tombRaider) {
           metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
@@ -17982,18 +17996,6 @@ export function simulateRun({
         recordEquipmentGenerations(metrics, chestItems.items);
         chestItems.items.forEach((item, itemIndex) => {
           const rewardRole = chestRewardRole(chestItems, itemIndex);
-          if (chestItems.lostRewardIndices?.includes(itemIndex)) {
-            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
-            return;
-          }
-          if (
-            chestItems.mainItemLost &&
-            itemIndex === chestItems.mainItemIndex &&
-            item === chestItems.mainItem
-          ) {
-            recordUnadoptedObjectLoot(state, metrics, item, "left", "ordinary", rewardRole);
-            return;
-          }
           const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
           if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) {
             recordUnadoptedObjectLoot(state, metrics, item, "discarded", "ordinary", rewardRole);
@@ -18058,10 +18060,7 @@ export function simulateRun({
         );
         recordEquipmentAcquisitions(metrics, acquiredEquipment, floor, "chest");
         state.currentRun.chestsOpened++;
-        metrics.chestPath.ordinary.rewardsAwarded += chestItems.items.filter((item, itemIndex) =>
-          !chestItems.lostRewardIndices?.includes(itemIndex) &&
-          !(chestItems.mainItemLost && itemIndex === chestItems.mainItemIndex)
-        ).length;
+        metrics.chestPath.ordinary.rewardsAwarded += chestItems.items.length;
         applySimulationEquipmentPolicy(state, metrics, scoringProfile, floor);
         syncObjectLootLifecycle(metrics, state);
         captureObjectLootStake(metrics, state, "pending_reward_resolution");
@@ -18145,6 +18144,20 @@ export function simulateRun({
             scoringProfile,
             source: "ordinary"
           });
+          if (opened?.mimic) {
+            const fight = resolveSimulationMimicFight(state, metrics, {
+              floor,
+              scenario,
+              scoringProfile,
+              pending: opened.pending
+            });
+            state = fight.state;
+            if (!fight.alive) {
+              metrics.deathEncounterType = "chest-mimic";
+              return finishRun(state, "death", metrics);
+            }
+            continue;
+          }
           if (!opened || !isAlive(state.party[0])) {
             metrics.deathEncounterType = "chest-trap";
             return finishRun(state, "death", metrics);
@@ -19782,8 +19795,8 @@ function simulateCase({
       const aggregate = totals.chestPath[source];
       if (!fromRun) return;
       [
-        "generated", "opened", "inspected", "inspectSuccesses", "inspectFailures",
-        "rewardsAwarded", "rewardsLost", "trapsTriggered", "mainTownPortalRewards",
+        "generated", "opened", "signsAccurate", "signsMisread",
+        "rewardsAwarded", "trapsTriggered", "mainTownPortalRewards",
         "specialTownPortalRewards"
       ].forEach(field => { aggregate[field] += fromRun[field] || 0; });
       CHEST_ACTIONS.forEach(action => {
@@ -21997,7 +22010,7 @@ console.log(
 console.log(
   `罠解除EV閾値: 床非pitfall=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
   `pitfall=${calculateFloorDisarmEvThreshold({ trapType: "pitfall" }).toFixed(2)}%, ` +
-  `宝箱代表閾値=${(CHEST_DISARM_REPRESENTATIVE_THRESHOLD * 100).toFixed(2)}%（実判定はtrap/effect/content/kitのEV）`
+  "宝箱=開封時の自動解除とキットのEV、致死リスクなら立ち去る"
 );
 console.log(
   `trapBonus測定値: ${TRAP_BONUS_OVERRIDE_PERCENT === null

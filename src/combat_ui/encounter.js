@@ -74,6 +74,18 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
       atk: midbossTemplate.atk,
       def: midbossTemplate.def
     }));
+  } else if (roamingMonster?.mimic) {
+    // A mimic fights with the floor elite's depth-scaled body, without the
+    // roaming elite's combat trait or bookkeeping.
+    const eliteName = getBiomeForFloor(state.floor).eliteName;
+    const eliteTemplate = MONSTERS.find(m => m.name === eliteName) || MONSTERS.find(m => m.name === "フラック");
+    monsters.push({
+      ...scaleEnemyForDepth(eliteTemplate, state.floor),
+      name: "ミミック",
+      isMimic: true,
+      trialThemeIds: [],
+      trialRole: floorRole.id
+    });
   } else if (isRoamingFlack) {
     const eliteName = roamingMonster?.name || getBiomeForFloor(state.floor).eliteName;
     const eliteTemplate = MONSTERS.find(m => m.name === eliteName) || MONSTERS.find(m => m.name === "フラック");

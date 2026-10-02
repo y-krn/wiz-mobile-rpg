@@ -312,9 +312,51 @@ and follows the game rules; it does not define new rules to fit a metric.
 
 The player-facing surface shows facts, signs, success, risk, and resource state.
 Internal route diagnostics never become answer choices or trap attributes.
-Chest traps retain a meaningful risk/reward branch: inspect, leave, accept a
-weakened smash path, or spend a tool. The opportunity costs are bag space,
+Chest traps are one decision: is this chest worth opening now? The chest
+offers only open, leave, and, when the player carries a trap kit on a floor
+where traps exist, open with the kit. Opening attempts the disarm
+automatically with the run-local `trapBonus`; a failure fires the trap at full
+strength before the rewards. A kit removes the trap with certainty and is not
+spent on a trapless chest. There is no inspect step and no weakened or
+partial-loss path: a step that only reveals an answer the player then looks up,
+or that scales every trap by the same factor, adds taps without adding a
+decision.
+
+On arrival the chest shows a fuzzy trap sign (no sign, something is rigged, or
+danger) beside the existing loot aura and the automatic-disarm chance. The sign
+reads a tier, never a trap kind, and can be wrong; `treasureSense` and light
+sharpen it. Dangerous traps also raise the equipment upgrade chance, so a
+danger sign signals both a larger risk and a better expected reward. Whether
+to open is weighed against current HP, consumables, position, and the rest of
+the run, not against a lookup table. The opportunity costs are bag space,
 equipment slots, affix slots, and consumables.
+
+The game is solo, so a chest trap never distinguishes one target from a
+party. Each trap instead costs a different resource, so which one hurts
+depends on the run's state rather than on a counter-verb table:
+
+| Trap | Costs | From | Sign |
+| --- | --- | --- | --- |
+| Poison needle | HP and poison over time | B2 | danger |
+| Flash bomb | sight (blind) | B2 | rigged |
+| Corrosion | one carried consumable | B2 | rigged |
+| Teleporter | position | B3 | danger |
+| Mimic | a forced fight | B4 | danger, always |
+
+Corrosion destroys one usable item from the bag; it never takes the retreat
+item, special, quest, or progression items, or equipment, and does nothing
+when nothing qualifies. `trapGuard` does not reduce it. A mimic cannot be
+disarmed by the automatic roll or a kit (the kit is kept); only leaving
+avoids it. It fights with the floor elite's depth-scaled body, ordinary flee
+rules apply, and a fled mimic takes its chest with it. A defeated mimic leaves
+its chest with the main reward upgraded to at least rare equipment. Its sign
+is always danger, but danger also covers the other dangerous traps, so the
+sign alone never confirms a mimic. A monster's dropped chest is never a
+mimic. Leaving is therefore a real choice on deep floors, where a danger sign
+pairs the strongest risks with the better expected reward.
+
+The trap codex records floor and chest traps under separate IDs
+(`floor:<type>`, `chest:<trap>`); the pre-#1939 trap codex was reset.
 
 ### Unknown equipment
 

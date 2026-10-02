@@ -16,8 +16,6 @@ export const PARTIAL_SUCCESS_BAND = 15;
 export const PITFALL_EDGE_BONUS = 20;
 export const DETECT_RATE_CAP = 1;
 
-export const CHEST_WEAKENED_RISK_MULTIPLIER = 0.5;
-
 function clampPercent(value) {
   return Math.max(0, Math.min(100, value));
 }
@@ -93,65 +91,30 @@ export function calculateFloorTrapAvoidanceEv({
   };
 }
 
-// 宝箱の代表的な比較（完全効果1.0 vs 弱体効果0.5）における解除確率閾値。
-// gasの期待ダメージ、teleporter、smash報酬破損は別効用のため個別閾値でない。
-export function calculateChestDisarmEvThreshold({
-  fullRiskMultiplier = 1,
-  weakenedRiskMultiplier = CHEST_WEAKENED_RISK_MULTIPLIER,
-  contentValue = 0,
-  forcedContentLossRate = 0
-} = {}) {
-  const fullRisk = Math.max(0, Number(fullRiskMultiplier));
-  const weakenedRisk = Math.max(0, Number(weakenedRiskMultiplier));
-  const contentLoss = Math.max(0, Number(contentValue) || 0) *
-    clampUnit(forcedContentLossRate);
-  if (fullRisk <= 0) return 0;
-  return clampUnit(1 - (weakenedRisk + contentLoss) / fullRisk);
-}
-
-// 宝箱のdirect/force/kitを同一の近似リスク単位で比較する。
-// fullRisk/weakenedRiskはtrap_effect_rules.jsの純関数から渡す。item品質、状態異常時間、
-// teleporterの追加歩数を素材やHPへ換算する共通ルールはないため、呼び出し側で数字を作らない。
-// kitの将来価値は、未来chest数と現在chestの最良non-kit損失を1段先の近似として使う。
-export function calculateChestDisarmActionEv({
+// 宝箱は「開ける（自動解除）」「キットを使って開ける」「立ち去る」の三択。
+// 開けたときの期待損失は自動解除の失敗率×罠の全効果リスク。fullRiskは
+// trap_effect_rules.jsの純関数から渡し、呼び出し側で罠効果を再実装しない。
+// キットの将来価値は、未来chest数と現在chestの開封損失を1段先の近似として使う。
+// 立ち去るかどうかは報酬価値との比較になるため、ここでは判定しない。
+export function calculateChestOpenActionEv({
   successRate = 0,
   fullRisk = 1,
-  weakenedRisk = CHEST_WEAKENED_RISK_MULTIPLIER,
-  contentValue = 0,
-  forcedContentLossRate = 0,
   kitCount = 0,
   futureChestCount = 0
 } = {}) {
   const chance = clampUnit(successRate);
   const full = Math.max(0, Number(fullRisk) || 0);
-  const weakened = Math.max(0, Number(weakenedRisk) || 0);
-  const content = Math.max(0, Number(contentValue) || 0);
-  const contentLoss = content * clampUnit(forcedContentLossRate);
-  const directExpectedLoss = (1 - chance) * full;
-  const forceExpectedLoss = weakened + contentLoss;
-  const nonKitAction = directExpectedLoss <= forceExpectedLoss ? "direct" : "force";
-  const nonKitExpectedLoss = Math.min(directExpectedLoss, forceExpectedLoss);
+  const openExpectedLoss = (1 - chance) * full;
   const kits = Math.max(0, Math.floor(Number(kitCount) || 0));
   const futureChests = Math.max(0, Math.floor(Number(futureChestCount) || 0));
   const kitReservedForFuture = kits > 0 && futureChests > 0 && kits <= futureChests;
-  const kitOpportunityCost = kitReservedForFuture ? nonKitExpectedLoss : 0;
+  const kitOpportunityCost = kitReservedForFuture ? openExpectedLoss : 0;
   const kitExpectedLoss = kits > 0 ? kitOpportunityCost : Infinity;
-  const action = kits > 0 && kitExpectedLoss < nonKitExpectedLoss
-    ? "kit"
-    : nonKitAction;
+  const action = kits > 0 && kitExpectedLoss < openExpectedLoss ? "kit" : "open";
 
   return {
     action,
-    nonKitAction,
-    threshold: calculateChestDisarmEvThreshold({
-      fullRiskMultiplier: full,
-      weakenedRiskMultiplier: weakened,
-      contentValue: content,
-      forcedContentLossRate
-    }),
-    directExpectedLoss,
-    forceExpectedLoss,
-    nonKitExpectedLoss,
+    openExpectedLoss,
     kitExpectedLoss,
     kitOpportunityCost,
     kitReservedForFuture

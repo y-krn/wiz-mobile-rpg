@@ -5,13 +5,16 @@ import {
   canTransitionChestPhase,
   createChestLootHint,
   generateChestMaterials,
-  getActiveChestCharacter,
+  getChestOpener,
   getChestRewardEntries,
   getChestPhase,
   isChestActionAllowed,
   isEligibleChestCharacter,
   rollChestEncounter,
-  resolveChestInspection
+  calculateChestTrapSignAccuracy,
+  CHEST_TRAP_SIGNS,
+  getChestTrapSignTier,
+  resolveChestTrapSign
 } from "../../../src/chest/chest_domain.js";
 import * as chestDomainOwner from "../../../src/chest/chest_domain.ts";
 import { rollChestTrap } from "../../../src/rules/chest_rules.js";
@@ -84,10 +87,13 @@ assert.equal(isChestActionAllowed({ phase: CHEST_PHASES.MENU }, [CHEST_PHASES.ME
 
 const eligible = { status: "poisoned" };
 const dead = { status: "dead" };
-const party = [dead, eligible];
-assert.equal(isEligibleChestCharacter(eligible, party), true);
-assert.equal(isEligibleChestCharacter({ status: "ok" }, party), false);
-assert.equal(getActiveChestCharacter(party), eligible);
+assert.equal(isEligibleChestCharacter(eligible), true);
+assert.equal(isEligibleChestCharacter({ status: "blind" }), true);
+assert.equal(isEligibleChestCharacter(dead), false);
+assert.equal(isEligibleChestCharacter(null), false);
+assert.equal(getChestOpener(eligible), eligible);
+assert.equal(getChestOpener(dead), null);
+assert.equal(getChestOpener(null), null);
 
 assert.deepEqual(
   getChestRewardEntries({ item: "main", specialItem: "special", accessoryItem: "accessory" }),
@@ -110,7 +116,6 @@ const ordinaryEncounter = rollChestEncounter({
   x: 3,
   y: 4,
   seed: "domain-test",
-  party: [],
   customRng: () => ordinaryRolls.shift() ?? 1
 });
 assert.deepEqual(ordinaryEncounter, {
@@ -128,7 +133,6 @@ const dropEncounter = rollChestEncounter({
   floor: 6,
   x: 3,
   y: 4,
-  party: [],
   fromDrop: true,
   customRng: () => dropRolls.shift() ?? 1
 });
@@ -150,25 +154,88 @@ const forcedEncounter = rollChestEncounter({
 assert.equal(forcedEncounter.item, "HEAL_POTION");
 assert.equal(forcedRolls.length, 0, "forced trap/item do not add RNG draws");
 
-const firstChest = rollChestEncounter({ floor: 1, x: 0, y: 0, party: [], customRng: () => 0 });
+const firstChest = rollChestEncounter({ floor: 1, x: 0, y: 0, customRng: () => 0 });
 assert.equal(firstChest.consumedFirstChestGuarantee, true);
 
-const inspection = resolveChestInspection({
-  chest: { trap: "gas bomb" },
-  party: [{ status: "ok" }],
-  lightPower: "lomilwa",
-  rng: (() => {
-    const rolls = [0.54, 0];
-    return () => rolls.shift() ?? 0;
-  })()
+// Trap sign: a tier, never a trap kind. Dangerous traps read as "danger".
+assert.equal(getChestTrapSignTier("none"), CHEST_TRAP_SIGNS.NONE);
+assert.equal(getChestTrapSignTier(undefined), CHEST_TRAP_SIGNS.NONE);
+for (const trap of ["flash bomb", "corrosion"]) {
+  assert.equal(getChestTrapSignTier(trap), CHEST_TRAP_SIGNS.TRAP, trap);
+}
+for (const trap of ["poison needle", "teleporter", "mimic"]) {
+  assert.equal(getChestTrapSignTier(trap), CHEST_TRAP_SIGNS.DANGER, trap);
+}
+
+const plainReader = { status: "ok", equipment: {} };
+const senseReader = {
+  status: "ok",
+  equipment: {
+    accessory: {
+      kind: "equipment",
+      baseId: "AMULET_HP",
+      identified: true,
+      affixes: [{ id: "treasureSense", type: "treasureSense", value: 10 }]
+    }
+  }
+};
+const plainAccuracy = calculateChestTrapSignAccuracy({ character: plainReader }).accuracy;
+assert.equal(plainAccuracy, 0.70, "the base sign misreads about 30% of the time");
+assert.ok(
+  calculateChestTrapSignAccuracy({ character: senseReader }).accuracy > plainAccuracy,
+  "treasureSense sharpens the trap sign"
+);
+const lightAccuracy = calculateChestTrapSignAccuracy({ character: plainReader, lightTurns: 3 });
+assert.equal(lightAccuracy.lightBonus, 0.15);
+assert.ok(lightAccuracy.accuracy > plainAccuracy, "a light spell sharpens the trap sign");
+assert.ok(
+  calculateChestTrapSignAccuracy({ character: plainReader, lightPower: "lomilwa" }).accuracy >
+    lightAccuracy.accuracy,
+  "lomilwa sharpens the sign more than an ordinary light"
+);
+assert.ok(
+  calculateChestTrapSignAccuracy({ character: { ...plainReader, status: "blind" } }).accuracy < plainAccuracy,
+  "a blind reader misreads more often"
+);
+assert.equal(
+  calculateChestTrapSignAccuracy({ character: senseReader, lightPower: "lomilwa" }).accuracy,
+  0.95,
+  "accuracy is capped below certainty"
+);
+
+const accurateSign = resolveChestTrapSign({
+  trap: "teleporter",
+  character: plainReader,
+  rng: () => 0.69
 });
-assert.equal(inspection.chance, 0.55);
-assert.equal(inspection.lightBonus, 0.25);
-assert.equal(inspection.identifiedTrap, "gas bomb");
+assert.deepEqual(
+  { sign: accurateSign.sign, accurate: accurateSign.accurate },
+  { sign: CHEST_TRAP_SIGNS.DANGER, accurate: true }
+);
+for (const [trap, roll, expected] of [
+  ["teleporter", 0.70, CHEST_TRAP_SIGNS.NONE],
+  ["teleporter", 0.99, CHEST_TRAP_SIGNS.TRAP],
+  ["none", 0.70, CHEST_TRAP_SIGNS.TRAP],
+  ["none", 0.99, CHEST_TRAP_SIGNS.DANGER]
+]) {
+  let draws = 0;
+  const misread = resolveChestTrapSign({ trap, character: plainReader, rng: () => { draws++; return roll; } });
+  assert.equal(misread.accurate, false);
+  assert.equal(misread.sign, expected, `${trap} misread with ${roll}`);
+  assert.equal(draws, 1, "the sign consumes exactly one draw");
+}
+
+// A mimic always reads as danger, even on a roll that would misread.
+for (const roll of [0, 0.7, 0.99]) {
+  const mimicSign = resolveChestTrapSign({ trap: "mimic", character: plainReader, rng: () => roll });
+  assert.equal(mimicSign.sign, CHEST_TRAP_SIGNS.DANGER, `mimic sign with ${roll}`);
+}
+// A monster's dropped chest is never a mimic; a dungeon chest can be.
+assert.equal(rollChestEncounter({ floor: 5, x: 1, y: 1, forcedTrap: "mimic", fromDrop: true, customRng: () => 0.5 }).trap, "none");
+assert.equal(rollChestEncounter({ floor: 5, x: 1, y: 1, forcedTrap: "mimic", customRng: () => 0.5 }).trap, "mimic");
 
 const lootHint = createChestLootHint({
   item: { kind: "equipment", rarity: "rare", affixes: [{ type: "arcane" }] },
-  party: [],
   rng: () => 0
 });
 assert.deepEqual(lootHint, {

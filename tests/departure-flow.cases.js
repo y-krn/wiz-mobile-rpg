@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { exploreMove, satchelAction } from './explore-input-helpers.js';
 import { waitForPixiReady } from './ui-ux-helpers.js';
 
 test('New runs always use the unified rules without a mode selector @smoke', async ({ page }) => {
@@ -151,7 +152,7 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
     state.forcedEncounterSteps = 2;
     updateUI();
   });
-  await page.locator('#btn-move-forward').click();
+  await exploreMove(page, 'forward');
   await expect(page.locator('#combat-controls')).toBeVisible({ timeout: 10_000 });
   expect(await screen()).toMatchObject({ gameState: 'combat', menu: '' });
 
@@ -168,8 +169,8 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
     updateUI();
   });
 
-  // Explore -> Bag is also crossed through its visible action.
-  await page.locator('#btn-inspect').click();
+  // Explore -> Bag is also crossed through the satchel on the adventurer's card.
+  await (await satchelAction(page, '#btn-inspect')).click();
   await expect(page.locator('#submenu-controls')).toBeVisible();
   await expect(page.locator('#submenu-options')).toContainText('傷薬');
   expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'item_inventory' });
@@ -219,7 +220,7 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
     state.currentRun.unbankedObjectLoot ||= [];
     updateUI();
   });
-  await page.locator('#btn-move-forward').click();
+  await exploreMove(page, 'forward');
   await expect(page.locator('#submenu-controls')).toBeVisible();
   await expect(page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button')).toBeVisible();
   await expect.poll(async () => page.evaluate(async () => {

@@ -94,7 +94,7 @@ cap.
 | --- | --- | --- |
 | 血杖 | `CORE_BLOOD_WAND` | When a spell lacks MP, convert the missing resource into an HP payment, keeping magic available at lethal risk. |
 | 浄化の環 | `CORE_PURIFY_RING` | On an undead, spirit, or demon victory, recover MP when it is not full and recover HP when it is full. |
-| 罠喰い | `CORE_TRAP_EATER` | Each successful chest-trap disarm accumulates temporary physical pressure for the run; floor traps and forced breakthroughs do not. |
+| 罠喰い | `CORE_TRAP_EATER` | Each successful chest-trap disarm (automatic on opening, or with a kit) accumulates temporary physical pressure for the run; floor traps and forced breakthroughs do not. |
 | 呪飼いの鎖 | `CORE_CURSE_KEEPER` | Each equipped curse increases all stats, trading immediate power for the curse's binding and identification risk. |
 | 反撃の棘 | `CORE_THORN_SHIELD` | After the wearer is hit, create a chance for a partial counterattack; the opportunity competes with the shield slot and Guard profile. |
 | 執行人 | `CORE_EXECUTIONER` | Before an attack, set up poison on a valid target and reward attacking targets already carrying a combat status. |

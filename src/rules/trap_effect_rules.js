@@ -1,14 +1,27 @@
 import { FORCE_DAMAGE_MULTIPLIER } from "./trap_rules.js";
 import { getCharMaxHp, getCharMaxMp } from "./character_stats.js";
+import { ITEMS } from "../data/items.js";
+import { isSpecialOrQuestItem } from "./item_rules.js";
 
-const CHEST_POISON_NEEDLE_DAMAGE = Object.freeze({ full: 12, weakened: 6 });
-const CHEST_GAS_BOMB_RANGE = Object.freeze({
-  full: Object.freeze({ min: 5, range: 8 }),
-  weakened: Object.freeze({ min: 2, range: 5 })
-});
-const CHEST_POISON_WEAKENED_TRIGGER_CHANCE = 0.50;
-const CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE = 0.50;
-const CHEST_FLASH_BLIND_CHANCE = Object.freeze({ full: 0.60, weakened: 0.30 });
+// Chest traps resolve at full strength only: a chest is either disarmed
+// automatically on opening, disarmed with a kit, or its trap fires.
+const CHEST_POISON_NEEDLE_DAMAGE = 12;
+const CHEST_FLASH_BLIND_CHANCE = 0.60;
+// Corrosion never takes the retreat item or special/quest/progression items.
+const CORROSION_PROTECTED_ITEM_IDS = new Set(["TOWN_PORTAL"]);
+
+// Corrosion destroys one carried consumable. Only plain usable item keys in
+// the bag are candidates; equipment is never touched.
+export function getCorrosionCandidateIndexes(inventory = []) {
+  const indexes = [];
+  (Array.isArray(inventory) ? inventory : []).forEach((entry, index) => {
+    if (typeof entry !== "string") return;
+    if (CORROSION_PROTECTED_ITEM_IDS.has(entry) || isSpecialOrQuestItem(entry)) return;
+    if (ITEMS[entry]?.type !== "usable") return;
+    indexes.push(index);
+  });
+  return indexes;
+}
 export const B5_FLAME_TRAP_DAMAGE_PROFILE = "b5-flame";
 const FLOOR_TRAP_DAMAGE_PROFILES = Object.freeze({
   [B5_FLAME_TRAP_DAMAGE_PROFILE]: Object.freeze({ min: 8, max: 16 })
@@ -21,68 +34,53 @@ function reduceTrapDamage(damage, trapGuard = 0) {
   return Math.max(1, Math.round(damage * (1 - reduction)));
 }
 
-export function applyTrapGuardToEffect(
-  effect,
-  { trapGuardByParty = [], targetIndex = 0 } = {}
-) {
+// The game is solo: every trap effect targets the one character. trapGuard
+// only reduces HP damage; status, MP, teleport, and alarm are unchanged.
+export function applyTrapGuardToEffect(effect, { trapGuard = 0 } = {}) {
   if (!effect) return effect;
   return {
     ...effect,
-    targetDamage: reduceTrapDamage(
-      effect.targetDamage,
-      trapGuardByParty[targetIndex]
-    ),
-    partyDamage: (effect.partyDamage || []).map((damage, index) =>
-      reduceTrapDamage(damage, trapGuardByParty[index])
-    )
+    damage: reduceTrapDamage(effect.damage, trapGuard)
   };
 }
 
 export function resolveChestTrapEffect({
   trap,
-  weakened = false,
-  party = [],
-  targetIndex = 0,
+  character = null,
+  inventory = [],
   poisonWard = 0,
   rng = Math.random
 }) {
   const effect = {
     trap,
-    targetDamage: 0,
-    targetPoisonTriggered: false,
-    targetPoisonResisted: false,
-    partyDamage: party.map(() => 0),
-    partyBlind: party.map(() => false),
+    damage: 0,
+    poisonTriggered: false,
+    poisonResisted: false,
+    blinded: false,
     teleported: false,
-    teleporterFailed: false
+    corrodedIndex: -1,
+    corrodedItem: null,
+    mimic: false
   };
 
   if (trap === "poison needle") {
-    const target = party[targetIndex] || party[0];
-    effect.targetDamage = CHEST_POISON_NEEDLE_DAMAGE[weakened ? "weakened" : "full"];
-    effect.targetPoisonTriggered = !weakened ||
-      rng() < CHEST_POISON_WEAKENED_TRIGGER_CHANCE;
-    const hpAfter = Math.max(0, (target?.hp || 0) - effect.targetDamage);
-    effect.targetPoisonResisted = hpAfter > 0 && effect.targetPoisonTriggered &&
-      poisonWard > 0 && rng() * 100 < poisonWard;
-  } else if (trap === "gas bomb") {
-    const rangeData = CHEST_GAS_BOMB_RANGE[weakened ? "weakened" : "full"];
-    const { min, range } = rangeData;
-    effect.partyDamage = party.map(char => {
-      if (char?.status === "dead") return 0;
-      return Math.floor(rng() * range) + min;
-    });
-  } else if (trap === "teleporter") {
-    if (weakened && rng() < CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE) {
-      effect.teleporterFailed = true;
-    } else {
-      effect.teleported = true;
+    effect.damage = CHEST_POISON_NEEDLE_DAMAGE;
+    effect.poisonTriggered = true;
+    const hpAfter = Math.max(0, (character?.hp || 0) - effect.damage);
+    effect.poisonResisted = hpAfter > 0 && poisonWard > 0 && rng() * 100 < poisonWard;
+  } else if (trap === "corrosion") {
+    const candidates = getCorrosionCandidateIndexes(inventory);
+    if (candidates.length > 0) {
+      const index = candidates[Math.min(candidates.length - 1, Math.floor(rng() * candidates.length))];
+      effect.corrodedIndex = index;
+      effect.corrodedItem = inventory[index];
     }
+  } else if (trap === "teleporter") {
+    effect.teleported = true;
+  } else if (trap === "mimic") {
+    effect.mimic = true;
   } else if (trap === "flash bomb") {
-    const blindChance = CHEST_FLASH_BLIND_CHANCE[weakened ? "weakened" : "full"];
-    effect.partyBlind = party.map(char =>
-      char?.status === "ok" && rng() < blindChance
-    );
+    effect.blinded = character?.status === "ok" && rng() < CHEST_FLASH_BLIND_CHANCE;
   }
 
   return effect;
@@ -92,20 +90,12 @@ function isLivingCharacter(char) {
   return char?.status !== "dead" && Number(char?.hp) > 0;
 }
 
-function uniformAtLeastProbability(min, range, hp) {
-  const max = min + range - 1;
-  if (hp <= min) return 1;
-  if (hp > max) return 0;
-  return (max - hp + 1) / range;
-}
-
 // 宝箱罠効果を乱数消費なしで期待値化する。riskは異種効果を共通通貨へ
 // 換算できないため、HP割合・致死・各状態/転送確率の最大成分を採用する保守近似。
 export function calculateChestTrapExpectedRisk({
   trap,
-  weakened = false,
-  party = [],
-  targetIndex = 0,
+  character = null,
+  inventory = [],
   poisonWard = 0
 } = {}) {
   const effect = {
@@ -114,54 +104,48 @@ export function calculateChestTrapExpectedRisk({
     poisonProbability: 0,
     blindProbability: 0,
     teleportProbability: 0,
+    itemLossProbability: 0,
+    combatProbability: 0,
     fatalityProbability: 0,
-    partyMaxHp: 0,
+    maxHp: 0,
     risk: 0
   };
-  const living = party.filter(isLivingCharacter);
-  effect.partyMaxHp = living.reduce(
-    (sum, char) => sum + Math.max(0, Number(char.maxHp) || Number(char.hp) || 0),
-    0
-  );
-
-  if (trap === "poison needle") {
-    const target = party[targetIndex] || party[0];
-    if (isLivingCharacter(target)) {
-      const damage = CHEST_POISON_NEEDLE_DAMAGE[weakened ? "weakened" : "full"];
-      const hpAfter = Math.max(0, target.hp - damage);
-      effect.expectedDamageHp = damage;
-      effect.poisonProbability = hpAfter > 0
-        ? (weakened ? CHEST_POISON_WEAKENED_TRIGGER_CHANCE : 1) *
-          (1 - Math.max(0, Math.min(100, Number(poisonWard) || 0)) / 100)
-        : 0;
-      effect.fatalityProbability = hpAfter <= 0 && living.length === 1 ? 1 : 0;
-    }
-  } else if (trap === "gas bomb") {
-    const { min, range } = CHEST_GAS_BOMB_RANGE[weakened ? "weakened" : "full"];
-    const expectedDamage = min + (range - 1) / 2;
-    effect.expectedDamageHp = living.length * expectedDamage;
-    effect.fatalityProbability = living.reduce(
-      (probability, char) => probability * uniformAtLeastProbability(min, range, char.hp),
-      living.length > 0 ? 1 : 0
-    );
-  } else if (trap === "teleporter") {
-    effect.teleportProbability = weakened
-      ? 1 - CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE
-      : 1;
-  } else if (trap === "flash bomb") {
-    const eligible = party.filter(char => char?.status === "ok" && isLivingCharacter(char));
-    const blindChance = CHEST_FLASH_BLIND_CHANCE[weakened ? "weakened" : "full"];
-    effect.blindProbability = 1 - Math.pow(1 - blindChance, eligible.length);
+  const alive = isLivingCharacter(character);
+  if (alive) {
+    effect.maxHp = Math.max(0, Number(character.maxHp) || Number(character.hp) || 0);
   }
 
-  const damageRisk = effect.partyMaxHp > 0
-    ? effect.expectedDamageHp / effect.partyMaxHp
+  if (trap === "poison needle") {
+    if (alive) {
+      const damage = CHEST_POISON_NEEDLE_DAMAGE;
+      const hpAfter = Math.max(0, character.hp - damage);
+      effect.expectedDamageHp = damage;
+      effect.poisonProbability = hpAfter > 0
+        ? 1 - Math.max(0, Math.min(100, Number(poisonWard) || 0)) / 100
+        : 0;
+      effect.fatalityProbability = hpAfter <= 0 ? 1 : 0;
+    }
+  } else if (trap === "corrosion") {
+    effect.itemLossProbability = getCorrosionCandidateIndexes(inventory).length > 0 ? 1 : 0;
+  } else if (trap === "teleporter") {
+    effect.teleportProbability = 1;
+  } else if (trap === "mimic") {
+    // The fight's outcome is not a trap formula; the caller weighs it.
+    effect.combatProbability = 1;
+  } else if (trap === "flash bomb") {
+    effect.blindProbability = alive && character.status === "ok" ? CHEST_FLASH_BLIND_CHANCE : 0;
+  }
+
+  const damageRisk = effect.maxHp > 0
+    ? effect.expectedDamageHp / effect.maxHp
     : 0;
   effect.risk = Math.min(1, Math.max(
     damageRisk,
     effect.poisonProbability,
     effect.blindProbability,
     effect.teleportProbability,
+    effect.itemLossProbability,
+    effect.combatProbability,
     effect.fatalityProbability
   ));
   return effect;
@@ -210,68 +194,49 @@ function getFloorTrapPowerMultiplier({ weakened }) {
 export function calculateFloorTrapExpectedDamage({
   trap,
   floor,
-  party = [],
+  character = null,
   weakened = false
 } = {}) {
-  if (!getFloorTrapDamageRange({ trap, floor })) return party.map(() => 0);
+  if (!getFloorTrapDamageRange({ trap, floor })) return 0;
+  if (!character || character.status === "dead") return 0;
 
-  const powerMultiplier = getFloorTrapPowerMultiplier({
-    weakened
-  });
-  return party.map(char => {
-    if (char?.status === "dead") return 0;
-    const range = getVictimTrapDamageRange(trap, floor, char);
-    const rollCount = range.max - range.min + 1;
-    return Array.from(
-      { length: rollCount },
-      (_, index) => Math.max(1, Math.floor((range.min + index) * powerMultiplier))
-    ).reduce((sum, damage) => sum + damage, 0) / rollCount;
-  });
+  const powerMultiplier = getFloorTrapPowerMultiplier({ weakened });
+  const range = getVictimTrapDamageRange(trap, floor, character);
+  const rollCount = range.max - range.min + 1;
+  return Array.from(
+    { length: rollCount },
+    (_, index) => Math.max(1, Math.floor((range.min + index) * powerMultiplier))
+  ).reduce((sum, damage) => sum + damage, 0) / rollCount;
 }
 
 export function resolveFloorTrapEffect({
   trap,
   floor,
-  party = [],
+  character = null,
   weakened = false,
   rng = Math.random
 }) {
   const effect = {
     type: trap?.type,
-    partyDamage: party.map(() => 0),
-    partyMpDrain: party.map(() => 0),
+    damage: 0,
+    mpDrain: 0,
     alarm: trap?.type === "alarm",
     alarmWeakened: weakened
   };
-  const powerMultiplier = getFloorTrapPowerMultiplier({
-    weakened
-  });
+  const powerMultiplier = getFloorTrapPowerMultiplier({ weakened });
+  const alive = Boolean(character) && character.status !== "dead";
 
-  if (trap?.type === "damage") {
-    effect.partyDamage = party.map(char => {
-      if (char?.status === "dead") return 0;
-      const range = getVictimTrapDamageRange(trap, floor, char);
-      const rollCount = range.max - range.min + 1;
-      const rawDamage = Math.floor(rng() * rollCount) + range.min;
-      return Math.max(1, Math.floor(rawDamage * powerMultiplier));
-    });
-  } else if (trap?.type === "mpDrain") {
+  if ((trap?.type === "damage" || trap?.type === "pitfall") && alive) {
+    const range = getVictimTrapDamageRange(trap, floor, character);
+    const rollCount = range.max - range.min + 1;
+    const rawDamage = Math.floor(rng() * rollCount) + range.min;
+    effect.damage = Math.max(1, Math.floor(rawDamage * powerMultiplier));
+  } else if (trap?.type === "mpDrain" && alive && getCharMaxMp(character) > 0) {
     const baseMin = 1;
     const baseMax = Math.max(2, Math.floor(floor * 1.2));
     const range = baseMax - baseMin + 1;
-    effect.partyMpDrain = party.map(char => {
-      if (char?.status === "dead" || getCharMaxMp(char) <= 0) return 0;
-      const rawDrain = Math.floor(rng() * range) + baseMin;
-      return Math.max(1, Math.floor(rawDrain * powerMultiplier));
-    });
-  } else if (trap?.type === "pitfall") {
-    effect.partyDamage = party.map(char => {
-      if (char?.status === "dead") return 0;
-      const range = getVictimTrapDamageRange(trap, floor, char);
-      const rollCount = range.max - range.min + 1;
-      const rawDamage = Math.floor(rng() * rollCount) + range.min;
-      return Math.max(1, Math.floor(rawDamage * powerMultiplier));
-    });
+    const rawDrain = Math.floor(rng() * range) + baseMin;
+    effect.mpDrain = Math.max(1, Math.floor(rawDrain * powerMultiplier));
   }
 
   return effect;

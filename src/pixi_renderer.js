@@ -65,19 +65,24 @@ const FLOATING_TEXT_RISE = 22;
 const PARTY_HIT_MS = 420;
 
 // Navigation motion is display-only: movement rules resolve synchronously and
-// the view follows. The motion only transforms one scene root (scale >= 1, so
-// the viewport stays covered) and never fades or layers two corridors, which
-// caused the #1251 double-contour flicker. Forward pushes the outgoing view in
-// toward the vanishing point with one small step bob, then cuts. Turns flow the
-// outgoing view toward the turn and settle the incoming view from the other
-// side. Backward cuts first and settles the incoming view back out.
+// the view follows. The motion only transforms one scene root and never
+// layers two corridors, which caused the #1251 double-contour flicker.
+// Forward is a walk: the outgoing view pushes in evenly toward the vanishing
+// point, most of the way to the next cell's frame, with one soft footfall
+// dip, then cuts. Backward is the same push in reverse on the incoming view. Turns swing the head: the
+// outgoing view sweeps off toward the turn and the new facing swings in from
+// the other side.
 export const NAVIGATION_MOTION = Object.freeze({
-  durationMs: Object.freeze({ forward: 180, backward: 160, "turn-left": 180, "turn-right": 180, "turn-around": 220 }),
-  pushScale: 0.1,
-  turnScale: 0.1,
-  turnShift: 0.045,
-  bobPx: 3
+  durationMs: Object.freeze({ forward: 340, backward: 320, "turn-left": 280, "turn-right": 280, "turn-around": 420 }),
+  turnScale: 0.08,
+  turnSweep: 0.62,
+  turnDim: 0.35,
+  // A step is a calm, uniform push toward the vanishing point: one scale for
+  // both axes (no stretching), most of the way to the next cell, then a cut.
+  stepReach: 0.7,
+  bobRatio: 0.005
 });
+
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
@@ -486,9 +491,13 @@ export class PixiDungeonRenderer {
     return false;
   }
 
-  getCombatTargetAtClientPoint(clientX, clientY, input = null) {
+  // Enemy under a screen point. During target selection only; with
+  // { duringSelection: false } any visible combat scene answers, which lets a
+  // tap on an enemy choose the attack and its target in one touch.
+  getCombatTargetAtClientPoint(clientX, clientY, input = null, { duringSelection = true } = {}) {
     const renderInput = this.resolveRenderInput(input);
-    if (!renderInput.combatTargetSelection?.active || !this.canvas) return null;
+    const active = duringSelection ? renderInput.combatTargetSelection?.active : renderInput.sceneVisibility?.showCombat;
+    if (!active || !this.canvas) return null;
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
     const { width, height } = this.viewport;
@@ -567,44 +576,55 @@ export class PixiDungeonRenderer {
     return progress < 0.5 ? transition.source : renderInput;
   }
 
+  // How much the camera cell's far frame (plane 1) must grow, horizontally
+  // and vertically, to fill the screen frame (plane 0): one step's zoom.
+  getStepDolly(renderInput) {
+    const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
+    return {
+      kx: (projection.xr[0] - projection.xl[0]) / Math.max(1, projection.xr[1] - projection.xl[1]),
+      ky: (projection.yb[0] - projection.yt[0]) / Math.max(1, projection.yb[1] - projection.yt[1])
+    };
+  }
+
   applyNavigationMotion(root, renderInput) {
     const transition = this.transition;
     if (!transition || !root) return;
     const { width, height } = this.viewport;
     const progress = clamp01(transition.elapsed / transition.duration);
-    let scale;
-    let pivotX = width / 2;
-    let pivotY = height / 2;
-    let offsetX = 0;
-    let offsetY = 0;
-    if (transition.action === "forward") {
-      const eased = 1 - (1 - progress) ** 2;
-      scale = 1 + NAVIGATION_MOTION.pushScale * eased;
-      pivotY = this.getHorizonY(renderInput);
-      offsetY = NAVIGATION_MOTION.bobPx * Math.sin(Math.PI * progress);
-    } else if (transition.action === "backward") {
-      const eased = (1 - progress) ** 2;
-      scale = 1 + NAVIGATION_MOTION.pushScale * eased;
-      pivotY = this.getHorizonY(renderInput);
-    } else {
-      // Turning left sweeps the view to the right, and the new facing
-      // arrives from the left; turning right mirrors it.
-      const direction = transition.action === "turn-left" ? 1 : -1;
-      const outgoing = progress < 0.5;
-      const phase = outgoing ? progress * 2 : 1 - (progress - 0.5) * 2;
-      const eased = phase ** 2;
-      scale = 1 + NAVIGATION_MOTION.turnScale * eased;
-      offsetX = (outgoing ? 1 : -1) * direction * NAVIGATION_MOTION.turnShift * width * eased;
+    if (transition.action === "forward" || transition.action === "backward") {
+      const { kx, ky } = this.getStepDolly(renderInput);
+      // Uniform scale about the vanishing point keeps every line straight and
+      // in proportion; travelling in log space keeps the apparent speed even.
+      const stepScale = Math.max(1, Math.sqrt(kx * ky)) ** NAVIGATION_MOTION.stepReach;
+      const eased = 1 - (1 - progress) ** 3;
+      const walked = transition.action === "forward" ? eased : 1 - eased;
+      const scale = stepScale ** walked;
+      const pivotX = width / 2;
+      const pivotY = this.getHorizonY(renderInput);
+      // One soft footfall, kept inside the margin the zoom adds so the canvas
+      // edge is never exposed.
+      const marginY = Math.min(pivotY, height - pivotY) * (scale - 1);
+      const offsetY = Math.min(marginY, NAVIGATION_MOTION.bobRatio * height * Math.sin(Math.PI * progress));
+      root.pivot.set(pivotX, pivotY);
+      root.position.set(pivotX, pivotY + offsetY);
+      root.scale.set(scale, scale);
+      return;
     }
-    // Keep every offset inside the margin the zoom adds so the canvas edge
-    // is never exposed.
-    const marginX = Math.min(pivotX, width - pivotX) * (scale - 1);
-    const marginY = Math.min(pivotY, height - pivotY) * (scale - 1);
-    offsetX = Math.max(-marginX, Math.min(marginX, offsetX));
-    offsetY = Math.max(-marginY, Math.min(marginY, offsetY));
+    // Turning left sweeps the view to the right, and the new facing arrives
+    // from the left; turning right mirrors it. The gap opened mid-turn shows
+    // the renderer background, never a second corridor.
+    const direction = transition.action === "turn-right" ? -1 : 1;
+    const outgoing = progress < 0.5;
+    const phase = outgoing ? progress * 2 : 1 - (progress - 0.5) * 2;
+    const eased = outgoing ? phase ** 2 : phase ** 1.6;
+    const sweep = NAVIGATION_MOTION.turnSweep * (transition.action === "turn-around" ? 1.3 : 1);
+    const scale = 1 + NAVIGATION_MOTION.turnScale * eased;
+    const pivotX = width / 2;
+    const pivotY = this.getHorizonY(renderInput);
     root.pivot.set(pivotX, pivotY);
-    root.position.set(pivotX + offsetX, pivotY + offsetY);
+    root.position.set(pivotX + (outgoing ? 1 : -1) * direction * sweep * width * eased, pivotY);
     root.scale.set(scale, scale);
+    root.alpha = 1 - NAVIGATION_MOTION.turnDim * eased;
   }
 
   resetMotion(root) {

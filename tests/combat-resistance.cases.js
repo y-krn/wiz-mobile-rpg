@@ -72,67 +72,14 @@ async function expectWithinViewport(locator, viewport, label) {
 }
 
 for (const viewport of VIEWPORTS) {
-  test(`combat resistance disclosure is readable at ${viewport.width}x${viewport.height}`, async ({ page }) => {
-    await page.setViewportSize(viewport);
-    await page.goto('/');
-    await installCombat(page, 'combat_spell', 'wisp');
-
-    const overlay = page.locator('#combat-overlay');
-    const wisp = overlay.locator('.combat-enemy-info-card', { hasText: 'ウィル・オー・ウィスプ' });
-    await expect(wisp).toBeVisible();
-    await expect(wisp.locator('.combat-enemy-info-name')).toBeVisible();
-    await expect(wisp.locator('[data-resistance-type="magic"]')).toContainText('ほとんど効かない');
-    await expect(wisp.locator('[data-resistance-type="physical"]')).toContainText('未判明');
-    await expectWithinViewport(wisp, viewport, 'wisp target card');
-
-    await page.screenshot({
-      path: `output/playwright/combat-resistance-${viewport.width}x${viewport.height}.png`,
-      fullPage: true,
-    });
-
-    await installCombat(page, 'combat_spell');
-    const golem = overlay.locator('.combat-enemy-info-card', { hasText: 'アイアンゴーレム' });
-    const slime = overlay.locator('.combat-enemy-info-card', { hasText: 'マッドスライム' });
-    await expect(wisp).toBeVisible();
-    await expect(golem).toBeVisible();
-    await expect(slime).toBeVisible();
-    await expect(wisp.locator('.combat-enemy-info-name')).toBeVisible();
-    await expect(golem.locator('.combat-enemy-info-name')).toBeVisible();
-    await expect(slime.locator('.combat-enemy-info-name')).toBeVisible();
-    await expect(wisp.locator('[data-resistance-type="magic"]')).toContainText('ほとんど効かない');
-    await expect(wisp.locator('[data-resistance-type="physical"]')).toContainText('未判明');
-    await expect(golem.locator('[data-resistance-type="magic"]')).toContainText('弱点');
-    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('ほとんど効かない');
-    await expect(slime).not.toContainText('弱点');
-    await expect(slime).not.toContainText('効きにくい');
-    await expect(slime).toContainText('未判明');
-    await expectWithinViewport(wisp, viewport, 'wisp target card');
-    await expectWithinViewport(golem, viewport, 'golem target card');
-    await expectWithinViewport(slime, viewport, 'unknown target card');
-
-    await overlay.evaluate(element => {
-      element.style.filter = 'grayscale(1)';
-    });
-    await expect(wisp.locator('[data-resistance-type="magic"]')).toContainText('ほとんど効かない');
-    await expect(golem.locator('[data-resistance-type="magic"]')).toContainText('弱点');
-    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('ほとんど効かない');
-    await expectWithinViewport(wisp, viewport, 'grayscale wisp target card');
-    await expectWithinViewport(golem, viewport, 'grayscale golem target card');
-  });
-
-  test(`spell selection shows enemy resistance information at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+  // Resistances live in the archives; the spell hand keeps the world clear.
+  test(`spell selection leaves enemy resistances to the archives at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/');
     await installCombat(page, 'combat_spell');
-
-    const panel = page.locator('#combat-overlay .combat-enemy-info');
-    await expect(panel).toBeVisible();
-    await expect(panel).toContainText('敵の耐性情報');
-    await expect(panel).toContainText('ウィル・オー・ウィスプ');
-    await expect(panel).toContainText('ほとんど効かない');
-    await expect(panel).toContainText('アイアンゴーレム');
-    await expect(panel).toContainText('弱点');
-    await expectWithinViewport(panel, viewport, 'enemy information panel');
+    await expect(page.locator('#combat-overlay .combat-item-card.spell').first()).toBeVisible();
+    await expect(page.locator('#combat-overlay')).not.toContainText('ほとんど効かない');
+    await expect(page.locator('#combat-overlay')).not.toContainText('弱点');
   });
 }
 

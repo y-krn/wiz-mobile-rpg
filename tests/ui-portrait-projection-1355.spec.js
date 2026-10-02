@@ -75,6 +75,10 @@ async function readProjection(page) {
       .map(({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }) => ({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }));
     const bounds = topology.reduce((result, { z, column }) => {
       if (Math.abs(column) === 2 && z < 2) return result;
+      // The camera cell is the screen frame: its walls run off both edges
+      // and its side openings sit off screen, so only the corridor ahead is
+      // held inside the view.
+      if (z === 0) return result;
       const plane = getProjectionColumn(projection, z, column);
       return {
         left: Math.min(result.left, plane.leftTop, plane.leftBottom, plane.rightTop, plane.rightBottom),
@@ -151,7 +155,7 @@ test('Portrait Pixi projection covers six topology archetypes @smoke @visual', a
 test('Portrait Pixi combat pointer keeps Fight and HALITO targets aligned @smoke @visual', async ({ page }) => {
   await page.setViewportSize(PRIMARY);
   await seed(page, 'combat');
-  await page.locator('#btn-combat-fight').click();
+  await page.locator('#btn-combat-fight').press('Enter');
   await page.locator('#dungeon-canvas').click({ position: await canvasTargetPoint(page) });
   await expect.poll(() => page.evaluate(async () => (await import('/src/combat.js')).combatSelection.actions[0])).toMatchObject({ type: 'fight', targetIdx: 0 });
 

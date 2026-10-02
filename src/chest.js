@@ -1,15 +1,13 @@
 import { BUILD_SEED_CHOICE_ROLE, generateBuildSeedOffer, shouldOfferBuildSeed } from "./systems/build_vnext_seed.js";
-import { state, saveAutosave, addLog, addEventLog, clearEventObservations, recordEquipmentDiscovery, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
-import { getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
-import {
-  getChestSmashRewardCategory,
-  resolveChestSmashRewardLosses
-} from "./rules/chest_rules.js";
+import { state, saveAutosave, addLog, clearEventObservations, recordEquipmentDiscovery, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
+import { getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText, ITEMS } from "./data.js";
+import { canChestHaveTrap, getChestRewardCategory, upgradeMimicChestReward } from "./rules/chest_rules.js";
+import { getChestTrapCodexId } from "./state/codex_trap_ids.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer_runtime.js";
 import { updateUI } from "./ui.js";
 import { menuContext, resetSubmenuBackButton } from "./navigation.js";
-import { triggerGameOver } from "./combat.js";
+import { startCombat, triggerGameOver } from "./combat.js";
 import { increaseChestTrapTier } from "./systems/traps.js";
 import {
   applyStatusEffect,
@@ -21,21 +19,21 @@ import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry } from "./state/run_loot.js";
-import { trackChestAction, trackChestSmashResult, trackLootLifecycle, trackTrapResolution, trackValuableLocation } from "./telemetry.js";
+import { trackChestAction, trackLootLifecycle, trackTrapResolution, trackValuableLocation } from "./telemetry.js";
 import { captureException } from "./sentry.js";
 import {
   CHEST_PHASES,
   CHEST_PHASE_TRANSITIONS,
   canTransitionChestPhase,
   generateChestMaterials,
-  getActiveChestCharacter,
-  getChestPhase,
+  getChestOpener,
   getChestRewardEntries,
   isChestActionAllowed,
-  isEligibleChestCharacter,
-  resolveChestInspection,
+  createChestLootHint,
+  resolveChestTrapSign,
   rollChestEncounter
 } from "./chest/chest_domain.js";
+import { createRng } from "./seed_rng.js";
 import { renderChestMenu } from "./chest/chest_view.js";
 import { recordEliteGreedAction } from "./systems/roaming_elites.js";
 import { openPendingRewardMenu, stagePendingRewardBundle } from "./pending_rewards.js";
@@ -52,69 +50,45 @@ function chestActionAllowed(phases, { allowTransition = false } = {}) {
   return isChestActionAllowed(state.chestState, phases, state.transitioning, { allowTransition });
 }
 
-function clearChestInspectionState(chest) {
-  delete chest.inspected;
-  delete chest.identifiedTrap;
-  delete chest.inspectChance;
-}
-
 function finishChest(chest) {
   transitionChestPhase(chest, CHEST_PHASES.TERMINAL);
   clearEventObservations({ scope: `chest:${state.floor}:${chest?.x}:${chest?.y}` });
   state.chestState = null;
 }
 
-function getChestObservationOptions(chest) {
-  return {
-    key: `chest:${state.floor}:${chest?.x}:${chest?.y}:unresolved`,
-    scope: `chest:${state.floor}:${chest?.x}:${chest?.y}`
-  };
+// The game is solo; the run keeps its one character at state.party[0].
+function getSoloCharacter() {
+  return state.party?.[0] ?? null;
 }
 
 function translateTrap(trap) {
   if (trap === "poison needle") return "毒針";
-  if (trap === "gas bomb") return "ガス爆弾";
+  if (trap === "corrosion") return "腐食";
   if (trap === "teleporter") return "テレポーター";
+  if (trap === "mimic") return "ミミック";
   if (trap === "flash bomb") return "閃光弾";
   return "なし";
 }
 
-function inspectChest() {
-  const chest = state.chestState;
-  if (!chest || state.transitioning || chest.inspected) return false;
-  const { chance, lightBonus, identifiedTrap } = resolveChestInspection({
-    chest,
-    party: state.party,
+// The sign uses its own seeded stream so reading it never shifts the chest's
+// trap and reward rolls. A chest restored from an older save has no sign yet
+// and still carries the retired inspection fields.
+function ensureChestTrapSign(chest) {
+  delete chest.inspected;
+  delete chest.identifiedTrap;
+  delete chest.inspectChance;
+  if (chest.trapSign) return;
+  const trapSign = resolveChestTrapSign({
+    trap: chest.trap,
+    character: getChestOpener(getSoloCharacter()),
     lightPower: state.lightPower,
-    lightTurns: state.lightTurns
+    lightTurns: state.lightTurns,
+    rng: state.seed
+      ? createRng(`${state.seed}:chest-sign:B${state.floor}:${chest.x},${chest.y}`)
+      : Math.random
   });
-  if (lightBonus > 0) {
-    addLog(`明かりの呪文が罠の調査を助けている。成功率 +${Math.round(lightBonus * 100)}%`);
-  }
-  chest.inspected = true;
-  chest.inspectChance = chance;
-  chest.identifiedTrap = identifiedTrap;
-  if (chest.trap && chest.trap !== "none") {
-    trackTrapResolution("observed", {
-      state,
-      character: getActiveChestCharacter(state.party),
-      source: "chest",
-      trap: chest.trap,
-      action: "inspect",
-      successRate: chance * 100,
-      identified: identifiedTrap === chest.trap,
-      x: chest.x,
-      y: chest.y
-    });
-  }
-  if (identifiedTrap === chest.trap) {
-    addLog(`調査結果：[${translateTrap(chest.trap)}]の罠のようだ！`);
-  } else {
-    addEventLog(`調査結果：[${translateTrap(identifiedTrap)}]の罠の可能性が高い。（不確実）`, getChestObservationOptions(chest));
-  }
-  playSound("move");
-  openChestMenu();
-  return true;
+  chest.trapSign = trapSign.sign;
+  chest.trapSignAccuracy = trapSign.accuracy;
 }
 
 export function applyTombRaiderTrapTier(chest, opener) {
@@ -125,31 +99,52 @@ export function applyTombRaiderTrapTier(chest, opener) {
   return true;
 }
 
+function createRestoredMimicEncounter(restored) {
+  const character = getSoloCharacter();
+  const item = upgradeMimicChestReward(restored.item, {
+    floor: state.floor,
+    rng: Math.random,
+    party: character ? [character] : [],
+    trialProfile: state.currentRun?.trialProfile || "normal"
+  });
+  return {
+    trap: "none",
+    item,
+    specialItem: restored.specialItem ?? null,
+    accessoryItem: restored.accessoryItem ?? null,
+    consumedFirstChestGuarantee: false,
+    lootHint: createChestLootHint({ item, accessoryItem: restored.accessoryItem ?? null, character })
+  };
+}
+
 export function setupChestState(forcedTrap = null, _legacyReward = null, forcedItem = null, customRng = null, options = {}) {
   void _legacyReward;
-  if (state.codex && state.codex.events && state.codex.events.facilities) {
+  const restored = options.restoredChest || null;
+  if (!restored && state.codex && state.codex.events && state.codex.events.facilities) {
     if (!state.codex.events.facilities.chest) {
       state.codex.events.facilities.chest = { found: 0, opened: 0 };
     }
     state.codex.events.facilities.chest.found++;
   }
 
-  if (state.floor === 1 && state.currentRun) {
+  if (!restored && state.floor === 1 && state.currentRun) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
-  const encounter = rollChestEncounter({
-    floor: state.floor,
-    x: state.x,
-    y: state.y,
-    seed: state.seed,
-    party: state.party,
-    currentRun: state.currentRun,
-    firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
-    forcedTrap,
-    forcedItem,
-    customRng,
-    fromDrop: options.fromDrop ?? false
-  });
+  const encounter = restored
+    ? createRestoredMimicEncounter(restored)
+    : rollChestEncounter({
+      floor: state.floor,
+      x: state.x,
+      y: state.y,
+      seed: state.seed,
+      character: getSoloCharacter(),
+      currentRun: state.currentRun,
+      firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
+      forcedTrap,
+      forcedItem,
+      customRng,
+      fromDrop: options.fromDrop ?? false
+    });
   if (encounter.consumedFirstChestGuarantee) {
     state.firstChestUnidentifiedGuaranteed = true;
   }
@@ -159,8 +154,6 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
     item: encounter.item,
     specialItem: encounter.specialItem,
     accessoryItem: encounter.accessoryItem,
-    inspected: false,
-    identifiedTrap: "",
     phase: CHEST_PHASES.MENU,
     x: state.x,
     y: state.y,
@@ -182,29 +175,21 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
 export function openChestMenu() {
   if (!state.chestState || state.transitioning) return false;
   if (!transitionChestPhase(state.chestState, CHEST_PHASES.MENU)) return false;
+  ensureChestTrapSign(state.chestState);
   menuContext.prevGameState = null;
   state.gameState = "submenu";
   menuContext.type = "chest_menu";
 
+  const opener = getChestOpener(getSoloCharacter());
   renderChestMenu({
     chest: state.chestState,
-    floor: state.floor,
     inventory: state.inventory,
-    onInspect: inspectChest,
-    onDisarm: () => {
-      const disarmer = getActiveChestCharacter(state.party);
-      if (disarmer) executeDisarm(disarmer);
-    },
-    onTrapKit: () => {
-      if (!useTrapKit()) return false;
-      openChestMenu();
-      return true;
-    },
-    onOpen: () => {
-      const opener = getActiveChestCharacter(state.party);
-      if (opener) openChestDirectly(opener);
-    },
-    onSmash: smashChest,
+    disarmChance: opener
+      ? calculateChestDisarmChance({ trapBonus: getCharTrapBonus(opener), blind: opener.status === "blind" })
+      : 0,
+    canUseTrapKit: canChestHaveTrap(state.floor) && state.inventory.includes("TRAP_KIT"),
+    onOpen: () => openChest(),
+    onOpenWithKit: () => openChest(Math.random, { useKit: true }),
     onLeave: leaveChest
   });
   updateUI();
@@ -217,7 +202,7 @@ export function leaveChest() {
   if (chest.trap && chest.trap !== "none") {
     trackTrapResolution("avoided", {
       state,
-      character: getActiveChestCharacter(state.party),
+      character: getChestOpener(getSoloCharacter()),
       source: "chest",
       trap: chest.trap,
       action: "leave",
@@ -249,23 +234,6 @@ export function leaveChest() {
 
 
 
-function recoverChestDisarmTransition(error) {
-  captureException(error, {
-    level: "warning",
-    tags: { subsystem: "chest", op: "disarm-transition", recovery: "return-to-menu" },
-    extra: { phase: state.chestState?.phase ?? null }
-  });
-  console.error("Failed to finish chest disarm transition", error);
-  state.transitioning = false;
-  if (state.chestState) {
-    state.chestState.phase = CHEST_PHASES.MENU;
-    openChestMenu();
-  } else {
-    state.gameState = "explore";
-    updateUI();
-  }
-}
-
 function recoverChestOpenTransition(error, chest = state.chestState) {
   captureException(error, {
     level: "warning",
@@ -292,10 +260,10 @@ function recoverChestOpenTransition(error, chest = state.chestState) {
 function trackChestChoice(chest, action) {
   const rewardCategories = getChestRewardEntries(chest)
     .filter(reward => reward.item)
-    .map(reward => getChestSmashRewardCategory(reward.item, reward.role));
+    .map(reward => getChestRewardCategory(reward.item, reward.role));
   trackChestAction(chest, action, {
     state,
-    character: state.party[0],
+    character: getSoloCharacter(),
     combat: state.combatState,
     floor: state.floor,
     trap: chest?.trap || "none",
@@ -318,95 +286,108 @@ function markChestProcessed(chest) {
   }
 }
 
-export function executeDisarm(char, rng = Math.random) {
-  if (
-    !chestActionAllowed([CHEST_PHASES.MENU, CHEST_PHASES.DISARM_SELECT]) ||
-    !isEligibleChestCharacter(char, state.party)
-  ) return false;
+function recordChestTrapCodex(trap, field) {
+  const record = state.codex?.events?.traps?.[getChestTrapCodexId(trap)];
+  if (!record) return;
+  record[field]++;
+  if (record.firstFloor === 0) record.firstFloor = state.floor;
+}
 
-  trackChestChoice(state.chestState, "disarm");
-  transitionChestPhase(state.chestState, CHEST_PHASES.RESOLVING);
-
-  applyTombRaiderTrapTier(state.chestState, char);
-  const trap = state.chestState.trap;
-  const chance = calculateChestDisarmChance({
-    trapBonus: getCharTrapBonus(char),
-    blind: char.status === "blind"
-  });
-  const success = rng() < chance;
-  
-  state.transitioning = true;
-  try {
-    updateUI();
-    if (success) {
-      addLog(`解除成功！${char.name}は無事に罠を解除した。`);
-      const tKey = state.chestState.trap;
-      if (state.codex && state.codex.events && state.codex.events.traps) {
-        if (state.codex.events.traps[tKey]) {
-          state.codex.events.traps[tKey].disarmed++;
-          if (state.codex.events.traps[tKey].firstFloor === 0) {
-            state.codex.events.traps[tKey].firstFloor = state.floor;
-          }
-        }
-      }
-      if (state.currentRun) {
-        state.currentRun.trapsDisarmed++;
-      }
-      trackTrapResolution("disarmed", {
-        state,
-        character: char,
-        source: "chest",
-        trap,
-        action: "disarm",
-        successRate: chance * 100,
-        x: state.chestState?.x,
-        y: state.chestState?.y
-      });
-      const previousTrapBonus = char.runTrapAttackBonus || 0;
-      char.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(char, previousTrapBonus);
-      if (char.runTrapAttackBonus > previousTrapBonus) {
-        addLog(getCoreLogText("CORE_TRAP_EATER"));
-      }
-      state.chestState.trap = "none";
-      playSound("heal");
-    } else {
-      addLog(`解除失敗！${char.name}は罠を作動させてしまった！`);
-      if (state.currentRun) {
-        state.currentRun.trapsTriggered++;
-      }
-      triggerChestTrap(char, false, rng, "disarm");
-    }
-  } catch (error) {
-    recoverChestDisarmTransition(error);
-    return false;
+// A kit removes the trap without a disarm roll, so it is not counted as a
+// disarm in the run record or the codex; CORE_TRAP_EATER rewards both.
+function recordChestTrapDisarmed(char, trap, action, extra = {}) {
+  if (action !== "trap_kit") {
+    recordChestTrapCodex(trap, "disarmed");
+    if (state.currentRun) state.currentRun.trapsDisarmed++;
   }
-  
-  // Open the chest after disarm attempt resolves
-  setTimeout(() => {
-    try {
-      if (!state.chestState) {
-        state.transitioning = false;
-        state.gameState = "explore";
-        updateUI();
-        return;
-      }
-      if (getChestPhase(state.chestState) !== CHEST_PHASES.RESOLVING) {
-        state.transitioning = false;
-        return;
-      }
-      openChestDirectly(char, rng, {
-        recordAction: false,
-        allowTransition: true,
-        fromDisarm: true
-      });
-    } catch (error) {
-      recoverChestDisarmTransition(error);
+  trackTrapResolution("disarmed", {
+    state,
+    character: char,
+    source: "chest",
+    trap,
+    action,
+    x: state.chestState?.x,
+    y: state.chestState?.y,
+    ...extra
+  });
+  if (char) {
+    const previousTrapBonus = char.runTrapAttackBonus || 0;
+    char.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(char, previousTrapBonus);
+    if (char.runTrapAttackBonus > previousTrapBonus) {
+      addLog(getCoreLogText("CORE_TRAP_EATER"));
     }
-  }, 1500);
+  }
+  state.chestState.trap = "none";
+}
+
+function consumeTrapKit() {
+  const kitIndex = state.inventory.indexOf("TRAP_KIT");
+  if (kitIndex < 0) return false;
+  const lootId = findRunObjectLootEntry(state, "TRAP_KIT")?.id;
+  state.inventory.splice(kitIndex, 1);
+  consumeRunObjectLoot(state, "TRAP_KIT");
+  if (lootId) trackLootLifecycle("consumed", {
+    state,
+    itemKey: "TRAP_KIT",
+    lootId,
+    source: "dungeon"
+  });
   return true;
 }
 
-export function triggerChestTrap(char, weakened = false, rng = Math.random, action = "open") {
+// Opening is the only way to claim a chest. A trap is disarmed automatically
+// with the opener's run-local trapBonus, or with certainty by a kit; a failed
+// automatic disarm fires the trap at full strength before the rewards.
+export function openChest(rng = Math.random, { useKit = false } = {}) {
+  if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
+  const chest = state.chestState;
+  const opener = getChestOpener(getSoloCharacter());
+  if (!opener) return false;
+  if (useKit && !state.inventory.includes("TRAP_KIT")) return false;
+
+  trackChestChoice(chest, useKit ? "trap_kit" : "open");
+  transitionChestPhase(chest, CHEST_PHASES.RESOLVING);
+  state.transitioning = true;
+  try {
+    applyTombRaiderTrapTier(chest, opener);
+    const trap = chest.trap;
+    if (trap === "mimic") return startMimicCombat(chest, opener, useKit);
+    if (useKit) {
+      if (trap && trap !== "none") {
+        recordChestTrapDisarmed(opener, trap, "trap_kit", {
+          toolId: "TRAP_KIT",
+          toolUsed: true,
+          successRate: 100
+        });
+        consumeTrapKit();
+        addLog("罠外しキットを使い、宝箱の罠を確実に解除した。キットは壊れた。");
+        playSound("heal");
+      } else {
+        addLog("罠は仕掛けられていなかった。キットは使わずに済んだ。");
+      }
+    } else if (trap && trap !== "none") {
+      const chance = calculateChestDisarmChance({
+        trapBonus: getCharTrapBonus(opener),
+        blind: opener.status === "blind"
+      });
+      if (rng() < chance) {
+        addLog(`${opener.name}は罠 [${translateTrap(trap)}] に気づき、解除した。`);
+        recordChestTrapDisarmed(opener, trap, "open", { successRate: chance * 100 });
+        playSound("heal");
+      } else {
+        addLog(`解除失敗！宝箱を開けた瞬間、罠 [${translateTrap(trap)}] が作動した！`);
+        if (state.currentRun) state.currentRun.trapsTriggered++;
+        triggerChestTrap(opener, rng, "open", { successRate: chance * 100 });
+      }
+    }
+  } catch (error) {
+    recoverChestOpenTransition(error, chest);
+    return false;
+  }
+  return resolveChestRewards(opener, rng);
+}
+
+export function triggerChestTrap(char, rng = Math.random, action = "open", extra = {}) {
   if (!state.chestState || state.chestState.trap === "none") return;
   const trap = state.chestState.trap;
   trackTrapResolution("triggered", {
@@ -415,40 +396,30 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random, acti
     source: "chest",
     trap,
     action,
-    partialSuccess: weakened,
     x: state.chestState.x,
-    y: state.chestState.y
+    y: state.chestState.y,
+    ...extra
   });
-  if (state.codex && state.codex.events && state.codex.events.traps) {
-    if (state.codex.events.traps[trap]) {
-      state.codex.events.traps[trap].triggered++;
-      if (state.codex.events.traps[trap].firstFloor === 0) {
-        state.codex.events.traps[trap].firstFloor = state.floor;
-      }
-    }
-  }
+  recordChestTrapCodex(trap, "triggered");
   state.chestState.trap = "none";
   playSound("chest_trap");
 
-  const targetIndex = Math.max(0, state.party.indexOf(char));
   const effect = applyTrapGuardToEffect(resolveChestTrapEffect({
     trap,
-    weakened,
-    party: state.party,
-    targetIndex,
+    character: char,
+    inventory: state.inventory,
     poisonWard: getCharAffixSum(char, "poisonWard"),
     rng
   }), {
-    trapGuardByParty: state.party.map(member => getCharAffixSum(member, "trapGuard")),
-    targetIndex
+    trapGuard: getCharAffixSum(char, "trapGuard")
   });
 
   if (trap === "poison needle") {
-    const damage = effect.targetDamage;
+    const damage = effect.damage;
     char.hp = Math.max(0, char.hp - damage);
     clearCharIncapacitationOnDamage(char);
-    const poisonTriggered = effect.targetPoisonTriggered;
-    const resisted = effect.targetPoisonResisted;
+    const poisonTriggered = effect.poisonTriggered;
+    const resisted = effect.poisonResisted;
     let deathLog = null;
     if (char.hp === 0) {
       char.status = "dead";
@@ -469,27 +440,18 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random, acti
       addLog("毒はそれほど深くない。やがて体から抜けるだろう。");
     }
     if (renderer) renderer.addDamageText(String(damage), "#ff3b30");
-  } else if (trap === "gas bomb") {
-    addLog("ガス爆弾が作動！冒険者はガスに包まれた！");
-    state.party.forEach((c, index) => {
-      const dmg = effect.partyDamage[index];
-      if (dmg > 0) {
-        c.hp = Math.max(0, c.hp - dmg);
-        clearCharIncapacitationOnDamage(c);
-        let deathLog = null;
-        if (c.hp === 0) {
-          c.status = "dead";
-          deathLog = recordCharDeath(state, c, "宝箱の罠「ガス爆弾」", { type: "trap", source: "宝箱のガス爆弾" });
-        }
-        addLog(`${c.name}は${dmg}のガスダメージを受けた。`);
-        if (deathLog) addLog(formatCharDeathLog(deathLog));
-      }
-    });
-  } else if (trap === "teleporter") {
-    if (effect.teleporterFailed) {
-      addLog("テレポーターは衝撃で壊れ、不発に終わった！");
-      return;
+  } else if (trap === "corrosion") {
+    if (effect.corrodedIndex >= 0) {
+      const item = effect.corrodedItem;
+      state.inventory.splice(effect.corrodedIndex, 1);
+      const lootId = findRunObjectLootEntry(state, item)?.id;
+      consumeRunObjectLoot(state, item);
+      if (lootId) trackLootLifecycle("lost", { state, itemKey: item, lootId, source: "dungeon" });
+      addLog(`腐食の罠が作動！${ITEMS[item]?.name || item}が腐り落ちた。`);
+    } else {
+      addLog("腐食の罠が作動したが、腐らせる物は持っていなかった。");
     }
+  } else if (trap === "teleporter") {
     // Teleport to random coordinates inside map paths
     // Find empty spots (must not be isolated "stone/wall" cells - i.e. must have at least one open wall)
     const emptySpots = [];
@@ -533,110 +495,63 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random, acti
     if (renderer && typeof renderer.triggerFlash === "function") {
       renderer.triggerFlash(400);
     }
-    state.party.forEach((c, index) => {
-      if (effect.partyBlind[index]) {
-        c.status = "blind";
-        addLog(`${c.name}は光に目がくらみ、盲目状態になった！`);
-      }
-    });
+    if (effect.blinded) {
+      char.status = "blind";
+      addLog(`${char.name}は光に目がくらみ、盲目状態になった！`);
+    }
   }
 }
 
-export function useTrapKit() {
-  if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
-  const kitIndex = state.inventory.indexOf("TRAP_KIT");
-  if (kitIndex < 0) return false;
-
-  const trap = state.chestState.trap;
-  if (!trap || trap === "none") return false;
-  const activeCharacter = getActiveChestCharacter(state.party);
-  trackChestChoice(state.chestState, "trap_kit");
-  const lootId = findRunObjectLootEntry(state, "TRAP_KIT")?.id;
-  trackTrapResolution("disarmed", {
+// A mimic cannot be disarmed by roll or kit; opening it starts a fight. The
+// chest's contents ride on the combat state and return as a chest on victory.
+function startMimicCombat(chest, opener, usedKit) {
+  if (usedKit) addLog("罠外しキットはミミックには通じない。キットは無事だ。");
+  addLog("宝箱が牙をむいた！ミミックだ！");
+  trackTrapResolution("triggered", {
     state,
-    character: activeCharacter,
+    character: opener,
     source: "chest",
-    trap,
-    action: "trap_kit",
-    toolId: "TRAP_KIT",
-    toolUsed: true,
-    successRate: 100,
-    x: state.chestState.x,
-    y: state.chestState.y
+    trap: "mimic",
+    action: usedKit ? "trap_kit" : "open",
+    x: chest.x,
+    y: chest.y
   });
-  state.inventory.splice(kitIndex, 1);
-  consumeRunObjectLoot(state, "TRAP_KIT");
-  if (lootId) trackLootLifecycle("consumed", {
-    state,
-    itemKey: "TRAP_KIT",
-    lootId,
-    source: "dungeon"
-  });
-  state.chestState.trap = "none";
-  if (activeCharacter) {
-    const previousTrapBonus = activeCharacter.runTrapAttackBonus || 0;
-    activeCharacter.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(
-      activeCharacter,
-      previousTrapBonus
-    );
-    if (activeCharacter.runTrapAttackBonus > previousTrapBonus) {
-      addLog(getCoreLogText("CORE_TRAP_EATER"));
-    }
-  }
-  addLog("罠外しキットを使い、宝箱の罠を確実に解除した。キットは壊れた。");
-  playSound("heal");
+  recordChestTrapCodex("mimic", "triggered");
+  if (state.currentRun) state.currentRun.trapsTriggered++;
+  const mimicChest = {
+    item: chest.item ?? null,
+    specialItem: chest.specialItem ?? null,
+    accessoryItem: chest.accessoryItem ?? null
+  };
+  playSound("chest_trap");
+  markChestProcessed(chest);
+  finishChest(chest);
+  state.transitioning = false;
+  resetSubmenuBackButton();
+  startCombat(false, false, false, null, { mimicChest });
   return true;
 }
 
-export function smashChest(rng = Math.random) {
-  if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
-  const chest = state.chestState;
-  const trapFired = Boolean(chest.trap && chest.trap !== "none");
-  trackChestChoice(chest, "smash");
-  state.transitioning = true;
-  transitionChestPhase(chest, CHEST_PHASES.RESOLVING);
-  try {
-    const trapTarget = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
-    addLog("宝箱を力任せに叩き壊した！");
-
-    if (chest.trap && chest.trap !== "none") {
-      if (state.currentRun) state.currentRun.trapsTriggered++;
-      triggerChestTrap(trapTarget, true, rng, "smash");
-    }
-
-    return openChestDirectly(null, rng, {
-      smash: true,
-      recordAction: false,
-      allowTransition: true,
-      smashTrapFired: trapFired
-    });
-  } catch (error) {
-    recoverChestOpenTransition(error, chest);
-    return false;
+// After a won fight, a dropped chest appears; a defeated mimic leaves its own
+// chest with the main reward upgraded. The restored chest is persisted like
+// any dropped chest so a reload cannot lose it.
+export function setupPostCombatChest(mimicChest = null) {
+  if (!mimicChest) {
+    setupChestState(null, null, null, null, { fromDrop: true });
+    return;
   }
+  setupChestState("none", null, null, null, { fromDrop: true, restoredChest: mimicChest });
 }
 
-export function openChestDirectly(opener = null, rng = Math.random, options = {}) {
-  if (!state.chestState) return false;
-  if (options.smash !== true && options.fromDisarm !== true && !isEligibleChestCharacter(opener, state.party)) return false;
-  // A failed disarm may kill the already-validated disarmer before the
-  // automatic reward resolution. Keep that internal continuation legal.
-  if (options.fromDisarm === true && !state.party.includes(opener)) return false;
-  const allowedPhases = options.fromDisarm || options.smash
-    ? [CHEST_PHASES.RESOLVING]
-    : [CHEST_PHASES.MENU, CHEST_PHASES.OPEN_SELECT];
-  if (!chestActionAllowed(allowedPhases, { allowTransition: options.allowTransition === true })) {
+// Rewards resolve after the trap step even when a fired trap killed the
+// opener; the game-over transition follows the awarded chest.
+function resolveChestRewards(opener, rng = Math.random) {
+  if (!chestActionAllowed([CHEST_PHASES.RESOLVING], { allowTransition: true })) {
     return false;
   }
-  if (!options.fromDisarm && !options.smash) {
-    transitionChestPhase(state.chestState, CHEST_PHASES.RESOLVING);
-  }
-  state.transitioning = true;
   try {
-    const smash = options.smash === true;
     menuContext.type = "chest_result";
     const chest = state.chestState;
-    if (options.recordAction !== false && !smash) trackChestChoice(chest, "open");
     trackValuableLocation("chest", "opened", {
       state,
       floor: state.floor,
@@ -644,92 +559,13 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       y: chest.y,
       source: chest.fromDrop ? "combat" : "chest"
     });
-    const tombRaiderActivated = applyTombRaiderTrapTier(chest, opener);
 
     if (state.currentRun) {
       state.currentRun.chestsOpened++;
       recordEliteGreedAction(state, "chest");
     }
 
-    const translateTrap = (t) => {
-      if (t === "poison needle") return "毒針";
-      if (t === "gas bomb") return "ガス爆弾";
-      if (t === "teleporter") return "テレポーター";
-      if (t === "flash bomb") return "閃光弾";
-      return "なし";
-    };
-
-    // If trap is still active, trigger on selected opener if provided.
-    if (chest.trap && chest.trap !== "none") {
-      const trapTarget = opener || state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
-      addLog(`宝箱を開けた瞬間、罠 [${translateTrap(chest.trap)}] が作動した！`);
-      if (state.currentRun) {
-        state.currentRun.trapsTriggered++;
-      }
-      triggerChestTrap(trapTarget, false, rng, smash ? "smash" : "open");
-    }
-
-    // Smash has a deliberate two-stage risk: the weakened trap resolves first,
-    // then a dead party stops all reward work. Ordinary open/disarm/kit paths
-    // retain their existing reward behavior and never use these loss rolls.
-    if (smash && !state.party.some(c => c.status !== "dead")) {
-      const rewardCount = getChestRewardEntries(chest).filter(reward => reward.item).length;
-      trackChestSmashResult(chest, {
-        floor: state.floor,
-        trapFired: options.smashTrapFired,
-        partyDied: true,
-        rewardCount,
-        lostRewardCount: 0,
-        lostRewardRoles: [],
-        lostRewardCategories: [],
-        remainingRewardCount: 0,
-        awardedRewardCount: 0,
-        unawardedRewardCount: rewardCount
-      });
-      markChestProcessed(chest);
-      finishChest(chest);
-      state.gameState = "explore";
-      updateUI();
-      setTimeout(() => {
-        resetSubmenuBackButton();
-        state.transitioning = false;
-        triggerGameOver();
-      }, 1800);
-      return true;
-    }
-
-    if (smash) {
-      const rewardEntries = getChestRewardEntries(chest);
-      const rewardCount = rewardEntries.filter(reward => reward.item).length;
-      const losses = resolveChestSmashRewardLosses(rewardEntries, rng);
-      const lostRoles = new Set(losses.map(loss => loss.role));
-      if (lostRoles.has("main")) chest.item = null;
-      if (lostRoles.has("special")) chest.specialItem = null;
-      if (lostRoles.has("accessory")) chest.accessoryItem = null;
-
-      if (losses.length === 0) {
-        addLog("叩き壊した衝撃に耐え、報酬は無事だった。");
-      } else if (losses.length > 1) {
-        addLog("叩き壊した衝撃で、複数の報酬が失われた。");
-      } else if (losses[0].category === "usable") {
-        addLog("叩き壊した衝撃で、消耗品が砕けていた。");
-      } else {
-        addLog("叩き壊した衝撃で、装備品が壊れていた。");
-      }
-      chest.smashTelemetry = {
-        floor: state.floor,
-        trapFired: options.smashTrapFired,
-        partyDied: false,
-        rewardCount,
-        lostRewardCount: losses.length,
-        lostRewardRoles: losses.map(loss => loss.role),
-        lostRewardCategories: losses.map(loss => loss.category),
-        remainingRewardCount: rewardEntries.filter(reward => reward.item && !lostRoles.has(reward.role)).length
-      };
-    }
-
     transitionChestPhase(chest, CHEST_PHASES.REWARD);
-    clearChestInspectionState(chest);
 
     // 素材束の獲得
     const tombRaider = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
@@ -743,7 +579,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       });
       const matStr = Object.entries(mats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
       addLog(`宝箱から素材束: [${matStr}] を獲得した！`);
-      if (tombRaiderActivated || tombRaider) addLog(getCoreLogText("CORE_TOMB_RAIDER"));
+      if (tombRaider) addLog(getCoreLogText("CORE_TOMB_RAIDER"));
     }
 
     if (rng() < IDENTIFICATION_BALANCE.chestPowderChance) {
@@ -759,7 +595,6 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     }
   
     const objectRewards = getChestRewardEntries(chest).filter(reward => reward.item);
-    let awardedRewardCount = objectRewards.length;
     objectRewards.forEach(({ item }) => {
       recordEquipmentDiscovery(item);
       if (state.currentRun) {
@@ -794,20 +629,12 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       addLog(`戦果 ${pendingBundle.entries.length}件をまとめて解決する。`);
     }
 
-    // Clear the original chest cell even if a trap moved the party.
+    // Clear the original chest cell even if a trap moved the character.
     markChestProcessed(chest);
 
     // Check game over
-    const partyAlive = state.party.some(c => c.status !== "dead");
-    if (smash) {
-      trackChestSmashResult(chest, {
-        ...chest.smashTelemetry,
-        awardedRewardCount,
-        unawardedRewardCount: Math.max(0, (chest.smashTelemetry?.remainingRewardCount ?? 0) - awardedRewardCount)
-      });
-      delete chest.smashTelemetry;
-    }
-    if (partyAlive) {
+    const character = getSoloCharacter();
+    if (character && character.status !== "dead") {
       resetSubmenuBackButton();
       state.transitioning = false;
       finishChest(chest);
@@ -828,6 +655,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       state.transitioning = false;
       triggerGameOver();
     }, 1800);
+    return true;
   } catch (error) {
     recoverChestOpenTransition(error);
     return false;

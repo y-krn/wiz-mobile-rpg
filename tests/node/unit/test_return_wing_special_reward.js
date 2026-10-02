@@ -61,7 +61,7 @@ global.localStorage = {
 
 const { state, createDefaultCodex, createDefaultCurrentRun, createStartingKitCharacter } =
   await import("../../../src/state.js");
-const { setupChestState, openChestDirectly, smashChest } = await import("../../../src/chest.js");
+const { setupChestState, openChest } = await import("../../../src/chest.js");
 const { resolvePendingRewardBundle } = await import("../../../src/pending_rewards.js");
 
 const failures = [];
@@ -164,7 +164,7 @@ await liveCheck("live setup/opening keeps main and special rewards together", as
   assert.ok(mainItem, "setup should create an ordinary main reward");
   assert.equal(state.chestState.specialItem, "TOWN_PORTAL");
 
-  openChestDirectly(state.party[0], () => 0);
+  openChest(() => 0);
   resolvePending();
 
   assert.ok(state.inventory.includes(mainItem), "main reward should be awarded");
@@ -175,27 +175,27 @@ await liveCheck("live setup/opening keeps main and special rewards together", as
 await liveCheck("live opening handles duplicate and full Return Wing inventory", async () => {
   prepareLiveChest(["TOWN_PORTAL"]);
   setupChestState("none", null, null, () => 0);
-  openChestDirectly(state.party[0], () => 0);
+  openChest(() => 0);
   resolvePending({ leaveWing: true });
   assert.equal(state.inventory.filter(item => item === "TOWN_PORTAL").length, 1);
   assert.ok(state.logs.some(log => log.includes("帰還の翼を置いていく")));
 
   prepareLiveChest(Array.from({ length: 20 }, () => "ANTIDOTE"));
   setupChestState("none", null, null, () => 0);
-  openChestDirectly(state.party[0], () => 0);
+  openChest(() => 0);
   resolvePending({ leaveAll: true });
   assert.equal(state.inventory.length, 20, "full inventory should not overflow");
   assert.equal(state.inventory.includes("TOWN_PORTAL"), false);
   assert.ok(state.logs.some(log => log.includes("戦果解決")));
 });
 
-await liveCheck("live smash path still resolves the trap and rewards", async () => {
+await liveCheck("live failed automatic disarm still resolves the trap and rewards", async () => {
   prepareLiveChest();
   setupChestState("poison needle", null, null, () => 0);
-  assert.equal(smashChest(() => 0), true);
+  assert.equal(openChest(() => 0.99), true);
   resolvePending();
-  assert.ok(state.currentRun.trapsTriggered > 0, "smash should trigger the chest trap");
-  assert.equal(state.chestState, null, "smash should finish the real chest path");
+  assert.ok(state.currentRun.trapsTriggered > 0, "a failed disarm should trigger the chest trap");
+  assert.equal(state.chestState, null, "opening should finish the real chest path");
 });
 
 await liveCheck("combat-generated reward chests keep their existing reward scope", async () => {
@@ -206,16 +206,16 @@ await liveCheck("combat-generated reward chests keep their existing reward scope
   assert.equal(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[2][20], "TOWN_PORTAL");
   assert.equal(state.chestState.item, "TOWN_PORTAL");
   assert.equal(state.chestState.specialItem, null);
-  openChestDirectly(state.party[0], () => 0);
+  openChest(() => 0);
   resolvePending();
   assert.equal(state.inventory.filter(item => item === "TOWN_PORTAL").length, 1);
 });
 
-await liveCheck("combat-generated Return Wing remains protected when smashed", async () => {
+await liveCheck("combat-generated Return Wing is awarded when opened", async () => {
   prepareLiveChest();
   setupChestState("none", null, "TOWN_PORTAL", () => 0, { fromDrop: true });
   assert.equal(state.chestState.fromDrop, true);
-  assert.equal(smashChest(() => 0), true);
+  assert.equal(openChest(() => 0), true);
   resolvePending();
   assert.equal(state.inventory.filter(item => item === "TOWN_PORTAL").length, 1);
   assert.equal(state.currentRun.itemsFound.includes("TOWN_PORTAL"), true);

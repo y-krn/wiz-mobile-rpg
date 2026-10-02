@@ -7,7 +7,7 @@ import { setUiUpdateCallback, goBackSubmenu, menuContext } from "./navigation.js
 import { handleTrapAction } from "./systems/traps.js";
 import { blockGuardedControlsEvent } from "./controls_guard.js";
 import { openChestMenu } from "./chest.js";
-import { getScreenViewState } from "./state/view_state.js";
+import { getScreenViewState, isActionableCombatScreen } from "./state/view_state.js";
 import { getRendererInput } from "./state/renderer_view.js";
 import { hasPendingRewardBundle, openPendingRewardMenu } from "./pending_rewards.js";
 import {
@@ -22,8 +22,10 @@ import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
 import { isFullMapOpen } from "./ui/full_map_overlay.js";
 import { handleMove, enterDungeon, resumePendingCampEntry } from "./movement.js";
 import { handleExploreAction, handleTownOption } from "./menu.js";
+import { initWorldGestures, markWorldTouch } from "./ui/world_gestures.js";
 import { selectCombatAction, cancelCombatAction, toggleCombatAuto, repeatLastCombatAction, resumeCombat } from "./combat.js";
 import { commitCombatTarget } from "./combat_ui/combat_overlay.js";
+import { registerPwaServiceWorker } from "./ui/pwa_update_manager.js";
 
 // Re-exports for external use and backward compatibility
 export { updateUI } from "./ui.js";
@@ -139,6 +141,7 @@ export function initGame() {
   setUiUpdateCallback(updateUI);
   lockViewportScale();
   loadGame();
+  void registerPwaServiceWorker();
   if (state.chestState?.fromDrop) openChestMenu();
   else if (hasPendingRewardBundle()) openPendingRewardMenu();
 
@@ -315,6 +318,29 @@ function bindCanvasTargeting(canvas) {
   if (!canvas) return;
   canvas.addEventListener("pointerdown", (event) => {
     const view = getScreenViewState(state, menuContext);
+    // With the spell hand or the item pouch open, touching the world puts
+    // it away again.
+    if (view.isUsableCombatOverlaySubmenu && (menuContext.type === "combat_spell" || menuContext.type === "combat_item")) {
+      event.preventDefault();
+      goBackSubmenu();
+      return;
+    }
+    // Combat is played on the world too: touching an enemy while choosing an
+    // action attacks it, without opening a command first.
+    if (isActionableCombatScreen(state, menuContext) && state.combatState?.phase === "choose_actions" && !state.transitioning) {
+      const targetIdx = renderer?.getCombatTargetAtClientPoint(
+        event.clientX,
+        event.clientY,
+        getRendererInput(state, menuContext),
+        { duringSelection: false }
+      );
+      if (!Number.isInteger(targetIdx)) return;
+      event.preventDefault();
+      markWorldTouch("world-touch--strike", event.clientX, event.clientY);
+      selectCombatAction("fight");
+      if (menuContext.type === "combat_target") commitCombatTarget(targetIdx);
+      return;
+    }
     if (!view.isUsableCombatOverlaySubmenu || menuContext.type !== "combat_target" || menuContext.targetType !== "enemy") return;
     const targetIdx = renderer?.getCombatTargetAtClientPoint(
       event.clientX,
@@ -334,6 +360,7 @@ function bindButtons() {
   document.getElementById("trap-controls").addEventListener("click", blockGuardedControlsEvent, true);
 
   bindCanvasTargeting(document.getElementById("dungeon-canvas"));
+  initWorldGestures({ onMove: handleMove, onSearch: () => handleExploreAction("search") });
 
   // Exploration (pointerdown for touch/mouse, keydown for keyboard focus space/enter)
   const bindPress = (id, action) => {

@@ -1,6 +1,7 @@
 import { markMapChanged, state } from "./state_core.js";
 import { MAP_WIDTH, MAP_HEIGHT } from "../data.js";
 import { createRng } from "../seed_rng.js";
+import { isDangerousChestTrap } from "../rules/chest_rules.js";
 
 // 保存済みマップに探索メモリを重ねるだけの処理。床の生成そのものはラン側が持つ。
 export function applyDungeonMemoryToMaps() {
@@ -65,13 +66,13 @@ export function calculateSeedProperties() {
           const chestSeed = `${state.seed}:chest:B${f}:${x},${y}`;
           const rng = createRng(chestSeed);
           
-          let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+          let traps = ["poison needle", "corrosion", "teleporter", "flash bomb", "none"];
           if (f === 2) {
-            traps = ["poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none", "none"];
+            traps = ["poison needle", "poison needle", "corrosion", "flash bomb", "flash bomb", "none", "none"];
           } else if (f === 4) {
-            traps = ["gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle"];
+            traps = ["corrosion", "teleporter", "teleporter", "flash bomb", "poison needle", "mimic"];
           } else if (f === 5) {
-            traps = ["gas bomb", "teleporter", "teleporter", "poison needle", "flash bomb"];
+            traps = ["corrosion", "teleporter", "teleporter", "poison needle", "flash bomb", "mimic"];
           }
           const randIdx = Math.floor(rng() * traps.length);
           const trap = traps[randIdx];
@@ -81,7 +82,7 @@ export function calculateSeedProperties() {
           
           const itemChance = f === 4 ? 0.75 : 0.50;
           if (rng() < itemChance) {
-            const randChance = f === 5 ? 0.70 : (["poison needle", "gas bomb", "teleporter"].includes(trap) ? 0.60 : 0.35);
+            const randChance = f === 5 ? 0.70 : (isDangerousChestTrap(trap) ? 0.60 : 0.35);
             if (rng() < randChance) {
               equipChanceSum += 1;
             }

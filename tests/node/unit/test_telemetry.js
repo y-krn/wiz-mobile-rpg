@@ -23,7 +23,6 @@ import {
   trackEquipmentDecision,
   trackChestAction,
   trackTrapResolution,
-  trackChestSmashResult,
   trackBleedingEvent,
   trackVulnerableEvent,
   trackDamageReceived,
@@ -165,7 +164,7 @@ check("capture injects schema version and removes nested and array undefined val
   });
   assert.deepEqual(events[0], {
     name: "custom",
-    properties: { schemaVersion: 2, defined: 1, nested: { value: null, list: [null, { kept: 2 }] } }
+    properties: { schemaVersion: 3, defined: 1, nested: { value: null, list: [null, { kept: 2 }] } }
   });
 });
 
@@ -368,7 +367,7 @@ check("bleeding telemetry keeps lazy snapshot and legacy capture semantics", () 
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
   assert.equal(events.length, 1);
   assert.equal(events[0].name, "bleeding_other");
-  assert.equal(events[0].properties.schemaVersion, 2);
+  assert.equal(events[0].properties.schemaVersion, 3);
   assert.equal(events[0].properties.enemyId, "いにしえの竜");
   assert.equal(events[0].properties.isBoss, true);
   assert.equal(events[0].properties.isMidboss, false);
@@ -450,7 +449,7 @@ check("vulnerable telemetry preserves legacy reads, order, and capture payload",
   assert.equal(events[0].name, "vulnerable_attempt");
   assert.equal(Object.hasOwn(events[0].properties, "buildSnapshot"), false);
   assert.equal(Object.hasOwn(events[0].properties, "runId"), false);
-  assert.equal(events[0].properties.schemaVersion, 2);
+  assert.equal(events[0].properties.schemaVersion, 3);
   assert.deepEqual(Object.keys(events[0].properties).filter(key => key !== "schemaVersion"), [
     "floor", "enemyId", "isBoss", "isMidboss", "remainingTurns", "multiplier", "reason", "source",
     "buildKey", "qualifyingHitType", "latencyTurns", "damageContribution", "directDamage"
@@ -1049,7 +1048,7 @@ check("elite decision telemetry preserves production ID, fallback, and enum sema
   assert.deepEqual(elites.map(event => event.properties.contactMode), ["combat", "other", "combat", "other", "other", "other"]);
   assert.deepEqual(elites.map(event => event.properties.detected), [false, false, false, false, false, true]);
   assert.deepEqual(elites.map(event => event.properties.elitePolicy), [null, null, null, "unknown", null, "other"]);
-  assert.ok(elites.every(event => event.properties.schemaVersion === 2));
+  assert.ok(elites.every(event => event.properties.schemaVersion === 3));
   assert.deepEqual(events.map(event => event.name), ["run_start", ...Array(6).fill("elite_decision")]);
 });
 
@@ -1430,16 +1429,6 @@ check("legacy chest, combat, and run fields stay bounded", () => {
     inventoryCount: Number.MAX_VALUE,
     rewardCount: Number.MAX_VALUE
   });
-  trackChestSmashResult({}, {
-    floor: Number.MAX_VALUE,
-    rewardCount: Number.MAX_VALUE,
-    lostRewardCount: Number.MAX_VALUE,
-    lostRewardRoles: Array.from({ length: 100 }, (_, index) => index === 0 ? "main" : "migrated-role"),
-    lostRewardCategories: Array.from({ length: 100 }, (_, index) => index === 0 ? "usable" : "migrated-category"),
-    remainingRewardCount: Number.MAX_VALUE,
-    awardedRewardCount: Number.MAX_VALUE,
-    unawardedRewardCount: Number.MAX_VALUE
-  });
   trackCombatStart({
     ...decisionCombat,
     floor: Number.MAX_VALUE,
@@ -1455,80 +1444,17 @@ check("legacy chest, combat, and run fields stay bounded", () => {
   trackRunEnd({ ...run, startedAt: 1 }, "retreat", decisionState);
 
   const chest = events.find(event => event.name === "chest_action");
-  const smash = events.find(event => event.name === "chest_smash_result");
   const combat = events.find(event => event.name === "combat_start");
   const combatEnd = events.find(event => event.name === "combat_end");
   const runEnd = events.find(event => event.name === "run_end");
   assert.equal(chest.properties.floor, 1_000_000);
   assert.equal(chest.properties.inventoryCount, 1_000_000);
   assert.equal(chest.properties.rewardCount, 1_000_000);
-  assert.equal(smash.properties.floor, 1_000_000);
-  assert.equal(smash.properties.lostRewardCount, 1_000_000);
-  assert.equal(smash.properties.remainingRewardCount, 1_000_000);
-  assert.equal(smash.properties.awardedRewardCount, 1_000_000);
-  assert.equal(smash.properties.unawardedRewardCount, 1_000_000);
-  assert.equal(smash.properties.lostRewardRoles.length, 24);
-  assert.deepEqual(smash.properties.lostRewardRoles.slice(0, 2), ["main", "other"]);
-  assert.equal(smash.properties.lostRewardCategories.length, 24);
-  assert.deepEqual(smash.properties.lostRewardCategories.slice(0, 2), ["usable", "other"]);
   assert.equal(combat.properties.floor, 1_000_000);
   assert.equal(combatEnd.properties.floor, 1_000_000);
   assert.equal(combatEnd.properties.turns, 1_000_000);
   assert.equal(combatEnd.properties.enemiesDefeated, 8);
   assert.equal(runEnd.properties.durationMs, 1_000_000);
-});
-
-check("chest smash facade preserves field, getter, and capture order", () => {
-  const order = [];
-  let captured;
-  __setTelemetryClientForTests({ capture: (name, properties) => {
-    order.push("capture");
-    captured = { name, properties };
-  } });
-  trackRunStart(run, decisionPlayer, decisionState);
-  order.length = 0;
-
-  const chest = {
-    reads: 0,
-    get fromDrop() {
-      const read = ++this.reads;
-      order.push(`fromDrop${read}`);
-      return read === 1 ? "drop" : 0;
-    }
-  };
-  const details = {};
-  const values = {
-    floor: 2,
-    trapFired: 1,
-    partyDied: 0,
-    rewardCount: 3,
-    lostRewardCount: 1,
-    lostRewardRoles: ["main"],
-    lostRewardCategories: ["usable"],
-    remainingRewardCount: 1,
-    awardedRewardCount: 2,
-    unawardedRewardCount: 1
-  };
-  for (const [key, value] of Object.entries(values)) {
-    Object.defineProperty(details, key, { get() { order.push(key); return value; } });
-  }
-
-  trackChestSmashResult(chest, details);
-  assert.deepEqual(order, [
-    "floor", "fromDrop1", "fromDrop2", "trapFired", "partyDied", "rewardCount", "lostRewardCount",
-    "lostRewardRoles", "lostRewardCategories", "remainingRewardCount", "awardedRewardCount",
-    "unawardedRewardCount", "capture"
-  ]);
-  assert.equal(chest.reads, 2);
-  assert.equal(captured.name, "chest_smash_result");
-  assert.deepEqual(Object.keys(captured.properties).filter(key => key !== "schemaVersion"), [
-    "runId", "floor", "chestSource", "fromDrop", "trapFired", "partyDied", "rewardCount",
-    "lostRewardCount", "lostRewardRoles", "lostRewardCategories", "remainingRewardCount",
-    "awardedRewardCount", "unawardedRewardCount"
-  ]);
-  assert.equal(captured.properties.schemaVersion, 2);
-  assert.equal(captured.properties.chestSource, "fromDrop");
-  assert.equal(captured.properties.fromDrop, false);
 });
 
 check("production cell and run result enums are preserved", () => {
@@ -1748,7 +1674,7 @@ check("chest and run events include common resource and status context", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
   trackRunStart(run, decisionPlayer, decisionState);
-  trackChestAction({ fromDrop: false, inspected: true }, "disarm", {
+  trackChestAction({ fromDrop: false, trapSign: "danger" }, "open", {
     state: decisionState,
     character: decisionPlayer,
     floor: 2,
@@ -1806,12 +1732,12 @@ check("chest action fields preserve valid values and coerce malformed input", ()
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
   trackRunStart(run, decisionPlayer, decisionState);
-  trackChestAction({ lootHint: { aura: "strong" } }, "disarm", {
+  trackChestAction({ lootHint: { aura: "strong" }, trapSign: "trap" }, "trap_kit", {
     trap: "poison needle",
     hasTrapKit: 1,
     rewardCategories: ["weapon", "usable", "unsupported"]
   });
-  trackChestAction({ lootHint: { aura: { migrated: true } } }, { migrated: true }, {
+  trackChestAction({ lootHint: { aura: { migrated: true } }, trapSign: "inspected" }, "smash", {
     trap: "migrated trap",
     hasTrapKit: "false"
   });
@@ -1823,14 +1749,16 @@ check("chest action fields preserve valid values and coerce malformed input", ()
       trap: chestEvents[0].properties.trap,
       hasTrapKit: chestEvents[0].properties.hasTrapKit,
       rewardCategories: chestEvents[0].properties.rewardCategories,
-      lootAura: chestEvents[0].properties.lootAura
+      lootAura: chestEvents[0].properties.lootAura,
+      trapSign: chestEvents[0].properties.trapSign
     },
     {
-      action: "disarm",
+      action: "trap_kit",
       trap: "poison needle",
       hasTrapKit: true,
       rewardCategories: ["weapon", "usable", "other"],
-      lootAura: "strong"
+      lootAura: "strong",
+      trapSign: "trap"
     }
   );
   assert.deepEqual(
@@ -1838,9 +1766,10 @@ check("chest action fields preserve valid values and coerce malformed input", ()
       action: chestEvents[1].properties.action,
       trap: chestEvents[1].properties.trap,
       hasTrapKit: chestEvents[1].properties.hasTrapKit,
-      lootAura: chestEvents[1].properties.lootAura
+      lootAura: chestEvents[1].properties.lootAura,
+      trapSign: chestEvents[1].properties.trapSign
     },
-    { action: "other", trap: "other", hasTrapKit: true, lootAura: "other" }
+    { action: "other", trap: "other", hasTrapKit: true, lootAura: "other", trapSign: "other" }
   );
 });
 
@@ -1848,7 +1777,7 @@ check("chest action guard avoids input getters and facade preserves context eval
   const guardTrap = () => { throw new Error("guard must not evaluate telemetry inputs"); };
   const guardedChest = Object.defineProperties({}, {
     fromDrop: { get: guardTrap },
-    inspected: { get: guardTrap },
+    trapSign: { get: guardTrap },
     lootHint: { get: guardTrap }
   });
   const guardedDetails = Object.defineProperties({}, {
@@ -1880,13 +1809,13 @@ check("chest action guard avoids input getters and facade preserves context eval
   const chest = {
     reads: 0,
     get fromDrop() { order.push(`fromDrop${++this.reads}`); return this.reads === 1 ? "drop" : 0; },
-    get inspected() { order.push("inspected"); return true; },
+    get trapSign() { order.push("trapSign"); return "none"; },
     get lootHint() { order.push("lootHint"); return { aura: "strong" }; }
   };
   trackChestAction(chest, "open", details);
   assert.deepEqual(order, [
     "state", "character", "context", "context", "context", "floor", "fromDrop1", "fromDrop2",
-    "inspected", "lootHint", "capture"
+    "trapSign", "lootHint", "capture"
   ]);
   assert.equal(chest.reads, 2);
   const keys = Object.keys(events.find(event => event.name === "chest_action").properties);
@@ -1894,7 +1823,7 @@ check("chest action guard avoids input getters and facade preserves context eval
   assert.equal(keys[1], "runId");
   assert.ok(keys.indexOf("floor") < keys.indexOf("chestSource"));
   assert.deepEqual(keys.slice(keys.indexOf("chestSource")), [
-    "chestSource", "fromDrop", "action", "trap", "inspected",
+    "chestSource", "fromDrop", "action", "trap", "trapSign",
     "hasTrapKit", "rewardCount", "rewardCategories", "lootAura"
   ]);
   assert.ok(keys.indexOf("inventoryCount") < keys.indexOf("chestSource"));
@@ -1935,7 +1864,7 @@ check("UX decision boundaries are bounded, semantic, and deduplicated", () => {
     "ux_decision_opened",
     "ux_decision_resolved"
   ]);
-  assert.equal(uxEvents[0].properties.schemaVersion, 2);
+  assert.equal(uxEvents[0].properties.schemaVersion, 3);
   assert.equal(uxEvents[0].properties.surface, "equipment");
   assert.equal(uxEvents[0].properties.revisitBucket, "none");
   assert.equal(uxEvents[1].properties.resolution, "cancel");

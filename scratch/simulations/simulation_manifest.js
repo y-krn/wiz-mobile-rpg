@@ -95,7 +95,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
         "production run-floor generation", "round combat and reward resolution",
         "equipment generation and upgrade path", "chest opening and material rewards",
         "hidden-door search, revealed secret-room reward reachability, and search-step cost",
-        "fromDrop chest pool and inspect/open/disarm/trap-kit/smash/leave policy outcomes",
+        "fromDrop chest pool and trap-sign/open/trap-kit/leave policy outcomes",
         "production recovery effect", "production chest-trap roll",
         "production enhance/polish actions with explicit standard and omitted policies"
       ]),
@@ -275,7 +275,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**", "src/renderer.js", "src/rules/map_movement.js", "src/rules/map_movement.ts", "src/state.js", "src/state/view_state.js", "src/state/view_state.ts", "src/state/renderer_view.js", "src/state/renderer_view.ts", "src/state/equipment.js", "src/state/equipment.ts", "src/state/item.js", "src/state/item.ts",
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_storage.ts", "src/state/save_migrations.js", "src/state/save_payload.js", "src/state/save_payload.ts",
     "src/state/save_contract.js", "src/state/save_contract.ts", "src/state/run_state.js", "src/state/run_state.ts", "src/state/run_discovery_state.js", "src/state/run_discovery_state.ts", "src/state/run_return_state.ts", "src/state/run_record_result.ts", "src/state/event_observation.ts", "src/state/material_state.js", "src/state/material_state.ts", "src/state/material_balance.js", "src/state/material_balance.ts", "src/state/milestone_state.js", "src/state/milestone_state.ts", "src/state/camp_state.js", "src/state/camp_state.ts", "src/state/run_seed.js", "src/state/run_seed.ts", "src/state/run_quest.js", "src/state/run_quest.ts", "src/state/pending_reward.js", "src/state/pending_reward.ts", "src/state/trial_band.js", "src/state/trial_band.ts", "src/state/starting_kit.js", "src/state/starting_kit.ts", "src/state/elite_floor.ts", "src/state/floor_steps.ts", "src/state/death_logs.js", "src/state/death_logs.ts",
-    "src/error_context.js", "src/controls_guard.js", "src/state/codex_state.js", "src/state/codex_state.ts",
+    "src/error_context.js", "src/controls_guard.js", "src/state/codex_state.js", "src/state/codex_state.ts", "src/state/codex_trap_ids.ts", "src/state/dungeon_state.js",
     "src/state/initial_state.js", "src/state/records_state.js", "src/state/state_core.js", "src/state/character.js", "src/state/character.ts", "src/state/monster.js", "src/state/monster.ts", "src/result.js", "src/rules/renderer_topology.js", "src/rules/renderer_topology.ts", "src/chest_prop.js", "src/chest_prop.ts", "src/dungeon_prop.js", "src/dungeon_prop.ts", "src/renderer_selection.js", "src/renderer_selection.ts", "src/renderer_runtime.js",
     "src/data/spells.js", "src/data/status_treatments.js", "src/systems/spell_effects.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/telemetry_combat_start.ts", "src/telemetry_combat_end.ts", "src/telemetry_run_start.ts", "src/telemetry_damage_received.ts", "src/telemetry_capture.ts", "src/telemetry_normalization.ts", "src/telemetry_decision_normalization.ts", "src/telemetry_combat_decision.ts", "src/telemetry_exploration_decision.ts", "src/telemetry_loadout_transaction.ts", "src/telemetry_equipment_decision.ts", "src/telemetry_build_shift.ts", "src/telemetry_elite_decision.ts", "src/telemetry_portal_decision.ts", "src/telemetry_valuable_location.ts", "src/telemetry_stairs_discovery.ts", "src/telemetry_floor_exploration.ts", "src/telemetry_loot_stake_snapshot.ts", "src/telemetry_loot_lifecycle.ts", "src/telemetry_bleeding_event.ts", "src/telemetry_vulnerable_event.ts", "src/telemetry_chest_smash_result.ts", "src/telemetry_chest_action.ts", "src/telemetry_trap_resolution.ts", "src/systems/traps.js", "src/pixi_renderer.js", "src/pixi_enemy_prototypes.js", "src/pixi_pixel_art.js", "src/minimap.js",
@@ -1124,14 +1124,14 @@ const CALL_EXPRESSION = /\b(?:[A-Za-z_$][A-Za-z0-9_$]*\s*\.\s*)?[A-Za-z_$][A-Za-
 const CONTROL_KEYWORDS = new Set(["if", "while", "switch", "for", "catch"]);
 const KNOWN_BOUNDARY_CALLS = new Set([
   "transitionChestPhase", "getChestPhase", "chestActionAllowed",
-  "clearChestInspectionState", "finishChest", "isUsableCombatScreen",
+  "finishChest", "isUsableCombatScreen",
   "hasUsableCombatActor", "isUsableSpellForActor", "getScreenViewState",
   "bindCombatCallback"
 ]);
-const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|clearChestInspectionState|finishChest|openChestMenu|executeDisarm|smashChest|openChestDirectly)\b/;
-const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition|fromDisarm|smashTrapFired)\b/;
+const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|finishChest|openChestMenu)\b/;
+const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition)\b/;
 const STATE_BOUNDARY_PROPERTIES = new Set([
-  "phase", "fromDrop", "smashTelemetry", "inspected", "identifiedTrap", "inspectChance"
+  "phase", "fromDrop"
 ]);
 const LITERAL_ONLY_DECLARATION = /^(?:const|let|var)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*=\s*(?:"\s*"|'\s*'|`\s*`|\/\s*\/[A-Za-z]*)\s*;?$/;
 
@@ -1184,17 +1184,16 @@ function isAllowedStateBoundaryLine(text, file) {
   if (BOUNDARY_COMPUTED_ACCESS.test(classificationText)) return false;
   if (AGGREGATE_MUTATOR_CALL.test(classificationText)) return false;
   if (COMPUTED_AGGREGATE_ACCESS.test(classificationText)) return false;
-  if (/^(?:state\.party\.includes\((?:char|opener)\)\s*&&|if \(options\.fromDisarm === true && !state\.party\.includes\(opener\)\) return false;)$/.test(classificationText)) return true;
+  if (/^state\.party\.includes\((?:char|opener)\)\s*&&$/.test(classificationText)) return true;
   if ([...classificationText.matchAll(STATE_ROOT_ACCESS)].some(([, root]) => !ALLOWED_STATE_ROOTS.has(root))) return false;
   if (/^\["ok",\s*"poisoned",\s*"blind"\]\.includes\(char\.status\)$/.test(text)) return true;
   if (/^(?:MENU|DISARM_SELECT|OPEN_SELECT|RESOLVING|REWARD|TERMINAL):\s*"[a-z_]+",?$/.test(text)) return true;
-  if (/^smash:\s*true,?$/.test(classificationText)) return true;
   if (/^:\s*(?:null|state\.chestState)/.test(classificationText)) return true;
   if (/^(?:if|while|switch)\s*\($/.test(classificationText)) return true;
   if (/^\)\s*return\s+(?:false|true|undefined);$/.test(classificationText)) return true;
   if (/^(?:char\s*&&|return\s+Boolean\(|[{}),;]+|return(?:\s+(?:true|false|undefined))?;?)$/.test(classificationText)) return true;
   if (file === "src/state/save_payload.js" && /^\?\s*\{\s*\.\.\.data\.chestState,\s*phase:\s*"menu"\s*\}$/.test(text)) return true;
-  if (/^(?:delete\s+)?chest\.(?:phase|inspected|identifiedTrap|inspectChance)\b/.test(classificationText)) return true;
+  if (/^(?:delete\s+)?chest\.phase\b/.test(classificationText)) return true;
   if (/^const\s+(?:currentPhase|allowedPhases|persistedChestState)\b/.test(classificationText)) return true;
   if ((STATE_BOUNDARY_LOCALS.test(classificationText) || STATE_BOUNDARY_HELPERS.test(classificationText)) && !/\bstate\./.test(classificationText)) return true;
   if (STATE_BOUNDARY_ROOTS.test(classificationText)) {

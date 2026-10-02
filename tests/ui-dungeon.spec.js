@@ -23,8 +23,8 @@ test('Chest opened immediately after entering the dungeon does not draw the town
     state.chestState = {
       trap: 'none',
       item: 'HEAL_POTION',
-      inspected: false,
-      identifiedTrap: '',
+      trapSign: 'none',
+      trapSignAccuracy: 0.7,
       x: state.x,
       y: state.y,
       lootHint: { label: '静かな気配', aura: 'weak' },
@@ -1260,7 +1260,7 @@ test('Combat autosave resumes action selection without persisting resolving phas
   expect(resumed.monsters).toEqual(beforeReload.live.monsters);
   await expect(page.locator('#combat-controls')).toHaveClass(/active/);
 
-  await page.locator('#btn-combat-fight').click();
+  await page.locator('#btn-combat-fight').press('Enter');
   await expect(page.locator('#combat-overlay')).toBeVisible();
   const target = page.locator('#combat-overlay .combat-target-a11y').first();
   await target.focus();
@@ -1607,7 +1607,7 @@ test('triggerChest outcome reload enters the dropped chest screen', async ({ pag
     combatState: null,
     fromDrop: true,
   });
-  await expect(page.locator('#submenu-title')).toHaveText('宝箱の調査・解除');
+  await expect(page.locator('#submenu-title')).toHaveText('宝箱');
 });
 
 test('Defeat during battle log playback reloads into game over', async ({ page }) => {

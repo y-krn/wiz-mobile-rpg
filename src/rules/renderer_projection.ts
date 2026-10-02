@@ -145,7 +145,9 @@ export const BASE_GEOMETRY = Object.freeze({
 const PORTRAIT_COLUMN_LAYOUT = Object.freeze([
   // Total spans and centre weights intentionally diverge: the near plane
   // expands across the camera while depth still contracts quickly.
-  Object.freeze({ span: 0.99, weights: Object.freeze([0.07, 0.86, 0.07]) }),
+  // The cell you stand in spans the whole screen: its walls run off both
+  // edges, like the canonical wide view, so no pale band frames the world.
+  Object.freeze({ span: 1.17, weights: Object.freeze([0.07, 0.86, 0.07]) }),
   Object.freeze({ span: 0.92, weights: Object.freeze([0.12, 0.76, 0.12]) }),
   Object.freeze({ span: 0.78, weights: Object.freeze([0.10, 0.15, 0.64, 0.15, 0.10]) }),
   Object.freeze({ span: 0.72, weights: Object.freeze([0.11, 0.19, 0.40, 0.19, 0.11]) }),
@@ -258,14 +260,19 @@ export function getProjectionPlanes(geometry: unknown = BASE_GEOMETRY, profile: 
   const rightBottom = [];
 
   for (let z = 0; z < viewport.base.xl.length; z++) {
+    // The plane at the camera is the screen frame itself. Biome width and
+    // ceiling shape the corridor ahead, but never pull the near walls, floor,
+    // or ceiling in from the screen edge.
+    const nearFrame = z === 0;
     const baseWidth = viewport.base.xr[z] - viewport.base.xl[z];
-    const width = baseWidth * horizontalCorridorWidth;
+    const width = baseWidth * (nearFrame ? 1 : horizontalCorridorWidth);
     const center = (viewport.base.xr[z] + viewport.base.xl[z]) / 2;
     const projectedLeft = center - width / 2;
     const projectedRight = center + width / 2;
     const horizon = (viewport.base.yb[z] + viewport.base.yt[z]) / 2;
-    const projectedTop = horizon - (horizon - viewport.base.yt[z]) * ceilingHeight;
-    const projectedBottom = horizon + (viewport.base.yb[z] - horizon) * ceilingHeight;
+    const verticalScale = nearFrame ? 1 : ceilingHeight;
+    const projectedTop = horizon - (horizon - viewport.base.yt[z]) * verticalScale;
+    const projectedBottom = horizon + (viewport.base.yb[z] - horizon) * verticalScale;
     const lean = width * wallLean * 0.5;
 
     xl.push(projectedLeft);

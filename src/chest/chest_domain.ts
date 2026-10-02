@@ -1,7 +1,9 @@
-import { getCharAffixSum, getPartyMaxAffix } from "../data.js";
+import { getCharAffixSum } from "../data.js";
 import {
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
+  CHEST_TRAP_SIGNS as CHEST_TRAP_SIGNS_AT_BOUNDARY,
   getChestItemWeightsBySource,
+  isDangerousChestTrap,
   rollChestAccessory,
   rollChestReward,
   rollChestSpecialReward,
@@ -38,7 +40,24 @@ const chestPhaseTransitions: Record<string, readonly string[]> = {
 export const CHEST_PHASE_TRANSITIONS = Object.freeze(chestPhaseTransitions);
 
 const ELIGIBLE_STATUSES: ReadonlySet<string> = new Set(["ok", "poisoned", "blind"]);
-const FALSE_TRAPS = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"] as const;
+
+// The trap sign is the only trap information the chest menu shows. It reads
+// a tier, never a trap kind, and can be wrong.
+export const CHEST_TRAP_SIGNS = CHEST_TRAP_SIGNS_AT_BOUNDARY as Readonly<{
+  NONE: "none";
+  TRAP: "trap";
+  DANGER: "danger";
+}>;
+
+export type ChestTrapSign = typeof CHEST_TRAP_SIGNS[keyof typeof CHEST_TRAP_SIGNS];
+
+const CHEST_TRAP_SIGN_ORDER: readonly ChestTrapSign[] = [
+  CHEST_TRAP_SIGNS.NONE,
+  CHEST_TRAP_SIGNS.TRAP,
+  CHEST_TRAP_SIGNS.DANGER
+];
+const CHEST_TRAP_SIGN_BASE_ACCURACY = 0.70;
+const CHEST_TRAP_SIGN_MAX_ACCURACY = 0.95;
 const CHEST_TAG_LABELS: Readonly<Record<string, string>> = Object.freeze({
   followUp: "連撃",
   spellPower: "術力",
@@ -60,7 +79,8 @@ export interface ChestCharacterLike {
   readonly [key: string]: unknown;
 }
 
-export type ChestParty = readonly ChestCharacterLike[];
+// Equipment generation still takes a party array at its own boundary.
+type ChestRewardParty = readonly ChestCharacterLike[];
 
 export interface ChestAffixLike {
   readonly type?: string;
@@ -92,27 +112,31 @@ export interface ChestRewardEntry {
   readonly item: ChestLootItem | null | undefined;
 }
 
-export interface ChestInspectionInput {
-  readonly chest?: ChestStateLike | null;
-  readonly party?: ChestParty;
+export interface ChestTrapSignAccuracyInput {
+  readonly character?: ChestCharacterLike | null;
   readonly lightPower?: string;
   readonly lightTurns?: number;
-  readonly rng?: ChestRng;
 }
 
-export interface ChestInspectionChanceResult {
-  readonly chance: number;
+export interface ChestTrapSignAccuracyResult {
+  readonly accuracy: number;
   readonly lightBonus: number;
 }
 
-export interface ChestInspectionResult extends ChestInspectionChanceResult {
-  readonly identifiedTrap: string | undefined;
+export interface ChestTrapSignInput extends ChestTrapSignAccuracyInput {
+  readonly trap?: string | null;
+  readonly rng?: ChestRng;
+}
+
+export interface ChestTrapSignResult extends ChestTrapSignAccuracyResult {
+  readonly sign: ChestTrapSign;
+  readonly accurate: boolean;
 }
 
 export interface ChestLootHintInput {
   readonly item?: ChestLootItem | null;
   readonly accessoryItem?: ChestLootItem | null;
-  readonly party?: ChestParty;
+  readonly character?: ChestCharacterLike | null;
   readonly rng?: ChestRng;
 }
 
@@ -127,7 +151,7 @@ export interface ChestEncounterInput {
   readonly x?: number;
   readonly y?: number;
   readonly seed?: string | number | null;
-  readonly party?: ChestParty;
+  readonly character?: ChestCharacterLike | null;
   readonly currentRun?: ChestRunLike | null;
   readonly firstChestGuaranteed?: boolean;
   readonly forcedTrap?: string | null;
@@ -156,7 +180,7 @@ interface ChestMaterialPoolOptions {
 interface ChestRewardRollInput {
   readonly floor?: number;
   readonly rng: ChestRng;
-  readonly party: ChestParty;
+  readonly party: ChestRewardParty;
   readonly currentRun: ChestRunLike | null;
   readonly trap: string;
   readonly firstChestGuaranteed: boolean;
@@ -172,10 +196,6 @@ interface ChestRewardRollResult {
 
 // These JS rule modules are existing runtime owners. Keep their formulas and
 // call boundaries intact while giving this TS owner bounded interop types.
-const getPartyMaxAffixAtBoundary = getPartyMaxAffix as unknown as (
-  party: ChestParty,
-  affixType: string
-) => number;
 const getCharAffixSumAtBoundary = getCharAffixSum as unknown as (
   character: ChestCharacterLike,
   affixType: string
@@ -209,16 +229,13 @@ export function isChestActionAllowed(
   return phases.includes(getChestPhase(chest));
 }
 
-export function isEligibleChestCharacter(
-  char: ChestCharacterLike | null | undefined,
-  party: ChestParty = []
-): boolean {
-  if (!char) return false;
-  return party.includes(char) && ELIGIBLE_STATUSES.has(char.status ?? "");
+// The game is solo: the one character opens chests while it can act.
+export function isEligibleChestCharacter(char: ChestCharacterLike | null | undefined): boolean {
+  return Boolean(char) && ELIGIBLE_STATUSES.has(char?.status ?? "");
 }
 
-export function getActiveChestCharacter(party: ChestParty = []): ChestCharacterLike | null {
-  return party.find(char => isEligibleChestCharacter(char, party)) || null;
+export function getChestOpener(character: ChestCharacterLike | null | undefined): ChestCharacterLike | null {
+  return character && isEligibleChestCharacter(character) ? character : null;
 }
 
 export function getChestRewardEntries(
@@ -231,37 +248,50 @@ export function getChestRewardEntries(
   ];
 }
 
-// treasureSense is information-only: it improves trap inspection reliability
-// and can reveal an affix signal in the loot hint. Reward candidates, item
-// chances, replacement weights, and Medium/Rune pairing remain build-blind.
-export function calculateChestInspectionChance({
-  party = [],
+export function getChestTrapSignTier(trap: string | null | undefined): ChestTrapSign {
+  if (!trap || trap === "none") return CHEST_TRAP_SIGNS.NONE;
+  return isDangerousChestTrap(trap) ? CHEST_TRAP_SIGNS.DANGER : CHEST_TRAP_SIGNS.TRAP;
+}
+
+// treasureSense is information-only: it sharpens the trap sign and can reveal
+// an affix signal in the loot hint. Reward candidates, item chances,
+// replacement weights, and Medium/Rune pairing remain build-blind.
+export function calculateChestTrapSignAccuracy({
+  character = null,
   lightPower = "",
   lightTurns = 0
-}: Pick<ChestInspectionInput, "party" | "lightPower" | "lightTurns"> = {}): ChestInspectionChanceResult {
-  const inspector = getActiveChestCharacter(party);
-  const partyAffix = getPartyMaxAffixAtBoundary(party, "treasureSense");
-  let chance = 0.30 + partyAffix / 100;
-  if (inspector?.status === "blind") chance /= 2;
+}: ChestTrapSignAccuracyInput = {}): ChestTrapSignAccuracyResult {
+  const treasureSense = character ? getCharAffixSumAtBoundary(character, "treasureSense") : 0;
+  let accuracy = CHEST_TRAP_SIGN_BASE_ACCURACY + treasureSense / 100;
+  if (character?.status === "blind") accuracy /= 2;
   const lightBonus = lightPower === "lomilwa" ? 0.25 : (lightTurns > 0 ? 0.15 : 0);
   return {
-    chance: Math.min(0.95, chance + lightBonus),
+    accuracy: Math.min(CHEST_TRAP_SIGN_MAX_ACCURACY, accuracy + lightBonus),
     lightBonus
   };
 }
 
-export function resolveChestInspection({
-  chest,
-  party = [],
+// A misread shows one of the two other tiers, so a wrong sign never repeats
+// the true tier and every tier stays possible for every chest. One draw
+// decides both the misread and which wrong tier is shown.
+export function resolveChestTrapSign({
+  trap,
+  character = null,
   lightPower = "",
   lightTurns = 0,
   rng = Math.random
-}: ChestInspectionInput = {}): ChestInspectionResult {
-  const { chance, lightBonus } = calculateChestInspectionChance({ party, lightPower, lightTurns });
-  const identifiedTrap = rng() < chance
-    ? chest?.trap
-    : FALSE_TRAPS[Math.floor(rng() * FALSE_TRAPS.length)];
-  return { chance, lightBonus, identifiedTrap };
+}: ChestTrapSignInput = {}): ChestTrapSignResult {
+  const { accuracy, lightBonus } = calculateChestTrapSignAccuracy({ character, lightPower, lightTurns });
+  const trueSign = getChestTrapSignTier(trap);
+  const roll = rng();
+  // A mimic always reads as danger, so the danger sign never hides a fight.
+  if (roll < accuracy || trap === "mimic") {
+    return { sign: trueSign, accurate: true, accuracy, lightBonus };
+  }
+  const wrongSigns = CHEST_TRAP_SIGN_ORDER.filter(sign => sign !== trueSign);
+  const wrongRoll = accuracy < 1 ? (roll - accuracy) / (1 - accuracy) : 0;
+  const index = Math.min(wrongSigns.length - 1, Math.max(0, Math.floor(wrongRoll * wrongSigns.length)));
+  return { sign: wrongSigns[index], accurate: false, accuracy, lightBonus };
 }
 
 function isChestItemRecord(item: ChestLootItem | null | undefined): item is ChestItemLike {
@@ -275,7 +305,7 @@ function getChestAffixHints(item: ChestLootItem | null | undefined): readonly Ch
 export function createChestLootHint({
   item,
   accessoryItem,
-  party = [],
+  character = null,
   rng = Math.random
 }: ChestLootHintInput = {}): ChestLootHintResult {
   let aura: ChestLootHintResult["aura"] = "weak";
@@ -293,9 +323,9 @@ export function createChestLootHint({
 
   let label = hasEquipmentSignal ? "装備品の反応あり" : "消耗品または反応なし";
   if (hasEquipmentSignal) {
-    const senseSum = party.reduce((sum, char) => (
-      char.status === "dead" ? sum : sum + getCharAffixSumAtBoundary(char, "treasureSense")
-    ), 0);
+    const senseSum = character && character.status !== "dead"
+      ? getCharAffixSumAtBoundary(character, "treasureSense")
+      : 0;
     const shouldRevealTag = senseSum >= 5 || rng() < 0.20;
     const hintedAffix = getChestAffixHints(item)?.find(affix => Boolean(affix.type && CHEST_TAG_LABELS[affix.type]));
     const hintedAccessoryAffix = getChestAffixHints(accessoryItem)?.find(affix => Boolean(affix.type && CHEST_TAG_LABELS[affix.type]));
@@ -312,7 +342,7 @@ export function rollChestEncounter({
   x,
   y,
   seed,
-  party = [],
+  character = null,
   currentRun = null,
   firstChestGuaranteed = false,
   forcedTrap = null,
@@ -322,7 +352,10 @@ export function rollChestEncounter({
 }: ChestEncounterInput = {}): ChestEncounterResult {
   const chestSeed = `${seed}:chest:B${floor}:${x},${y}`;
   const rng: ChestRng = customRng || (seed ? createRng(chestSeed) : Math.random);
-  const trap: string = forcedTrap !== null ? forcedTrap : rollChestTrap(floor, rng);
+  const rolledTrap: string = forcedTrap !== null ? forcedTrap : rollChestTrap(floor, rng);
+  // A monster's dropped chest is never itself a monster.
+  const trap: string = fromDrop && rolledTrap === "mimic" ? "none" : rolledTrap;
+  const rewardParty: ChestRewardParty = character ? [character] : [];
   let item: ChestLootItem | null;
   let consumedFirstChestGuarantee = false;
   if (forcedItem !== null) {
@@ -335,7 +368,7 @@ export function rollChestEncounter({
     const reward: ChestRewardRollResult = rollChestRewardAtBoundary({
       floor,
       rng,
-      party,
+      party: rewardParty,
       currentRun,
       trap,
       firstChestGuaranteed,
@@ -353,7 +386,7 @@ export function rollChestEncounter({
     ? rollChestAccessory(
       floor,
       rng,
-      party,
+      rewardParty,
       undefined,
       typeof currentRun?.trialProfile === "string" ? currentRun.trialProfile : "normal"
     )
@@ -364,7 +397,7 @@ export function rollChestEncounter({
     specialItem,
     accessoryItem,
     consumedFirstChestGuarantee,
-    lootHint: createChestLootHint({ item, accessoryItem, party, rng })
+    lootHint: createChestLootHint({ item, accessoryItem, character, rng })
   };
 }
 

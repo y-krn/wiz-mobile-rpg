@@ -6,6 +6,7 @@ import {
   normalizeCombatLogPresentationKind,
   mergeCombatLogPresentationKinds
 } from "../combat_log_semantics.js";
+import { CODEX_TRAP_IDS } from "./codex_trap_ids.js";
 
 // Main State Object
 export const state = {
@@ -54,13 +55,7 @@ export const state = {
     monsters: {},
     equipment: {},
     events: {
-      traps: {
-        "poison needle": { triggered: 0, disarmed: 0, firstFloor: 0 },
-        "gas bomb": { triggered: 0, disarmed: 0, firstFloor: 0 },
-        "teleporter": { triggered: 0, disarmed: 0, firstFloor: 0 },
-        "flash bomb": { triggered: 0, disarmed: 0, firstFloor: 0 },
-        "pitfall": { triggered: 0, disarmed: 0, firstFloor: 0 }
-      },
+      traps: Object.fromEntries(CODEX_TRAP_IDS.map(id => [id, { triggered: 0, disarmed: 0, firstFloor: 0 }])),
       facilities: {
         spring: { found: 0, used: 0 },
         merchant: { found: 0, purchased: 0 },

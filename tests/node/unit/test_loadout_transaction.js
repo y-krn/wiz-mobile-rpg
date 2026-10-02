@@ -187,7 +187,7 @@ assert.equal(
 const exploreCommitEvents = telemetryEvents.slice(exploreCommitStart);
 assert.equal(exploreCommitEvents.filter(event => event.name === "loadout_transaction").length, 1);
 assert.equal(exploreCommitEvents.at(-1)?.properties.action, "commit");
-assert.equal(exploreCommitEvents.at(-1)?.properties.schemaVersion, 2);
+assert.equal(exploreCommitEvents.at(-1)?.properties.schemaVersion, 3);
 assert.equal(exploreCommitEvents.at(-1)?.properties.equipmentChangeCount, 1);
 assert.equal(exploreCommitEvents.at(-1)?.properties.runeChangeCount, 0);
 assert.equal(exploreCommitEvents.at(-1)?.properties.discardedItemCount, 0);

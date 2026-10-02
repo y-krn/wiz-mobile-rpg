@@ -125,16 +125,16 @@ not a free replacement for carrying treatment.
 
 ## Exploration resource ownership
 
-The player-facing exploration verbs are shared: inspect, detect, disarm, avoid,
-and force a known risk when necessary. Exploration success and information
+The player-facing exploration verbs are shared: read signs, detect, disarm,
+avoid, and force a known risk when necessary. Exploration success and information
 belong to the run-local equipment/support/tool build, not to a class label, raw
 attribute, or level permission.
 
 Tools and rule-changing build effects may exchange a resource for a condition
 or a deterministic response. They must not silently grant a universal bypass,
 plain-disarm success, or generic trap-damage immunity. HP-only trap mitigation
-must remain separate from status, MP, teleport, alarm, discovery, and disarm
-rules. The detailed route and information contract lives in the core-loop canon.
+must remain separate from status, MP, teleport, alarm, item loss (corrosion),
+forced fights (mimic), discovery, and disarm rules. The detailed route and information contract lives in the core-loop canon.
 
 ## Run value and object ownership
 

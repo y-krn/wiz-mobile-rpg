@@ -214,7 +214,6 @@ export function getCurrentExplorationCell() {
 
 export function handleMove(action) {
   if (state.transitioning || state.gameState !== "explore" || hasPendingRewardBundle(state)) return;
-  playSound("move");
   
   state.prevX = state.x;
   state.prevY = state.y;
@@ -231,16 +230,19 @@ export function handleMove(action) {
   
   if (action === "turn-left") {
     renderer?.beginNavigationTransition?.(action);
+    playSound("turn");
     state.dir = (state.dir + 3) % 4;
     advanceRoamingTurn(false);
   } else if (action === "turn-right") {
     renderer?.beginNavigationTransition?.(action);
+    playSound("turn");
     state.dir = (state.dir + 1) % 4;
     advanceRoamingTurn(false);
   } else if (action === "turn-around") {
     // One input for the two quarter turns it replaces; the world advances
     // exactly as far as it would for two presses of ◀.
     renderer?.beginNavigationTransition?.(action);
+    playSound("turn");
     state.dir = (state.dir + 2) % 4;
     if (!advanceRoamingTurn(false) && state.gameState === "explore") advanceRoamingTurn(false);
   } else if (action === "forward") {
@@ -264,6 +266,7 @@ export function handleMove(action) {
         return;
       }
       renderer?.beginNavigationTransition?.(action);
+      playSound("step");
       recordAdjacentTrapAvoidance(nextX, nextY);
       state.x = nextX;
       state.y = nextY;
@@ -296,6 +299,7 @@ export function handleMove(action) {
         return;
       }
       renderer?.beginNavigationTransition?.(action);
+      playSound("step");
       recordAdjacentTrapAvoidance(backX, backY);
       state.x = backX;
       state.y = backY;
@@ -818,32 +822,31 @@ export function triggerFlameTrap() {
     x: state.x,
     y: state.y
   });
+  // The game is solo; the flame burns the run's one character.
+  const character = state.party[0] ?? null;
   const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
-    party: state.party,
+    character,
     weakened: resolution.partialSuccess,
     rng: Math.random
   }), {
-    trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
+    trapGuard: getCharAffixSum(character, "trapGuard")
   });
-  state.party.forEach((c, index) => {
-    const dmg = effect.partyDamage[index];
-    if (dmg > 0) {
-      c.hp = Math.max(0, c.hp - dmg);
-      clearCharIncapacitationOnDamage(c);
-      addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
-      if (c.hp === 0) {
-        c.status = "dead";
-        const deathLog = recordCharDeath(state, c, "火炎の罠", { type: "trap", source: "火炎の罠" });
-        if (deathLog) addLog(formatCharDeathLog(deathLog));
-        addLog(`[!] ${c.name}は炎に焼かれて力尽きた！`);
-      }
+  const dmg = effect.damage;
+  if (character && dmg > 0) {
+    character.hp = Math.max(0, character.hp - dmg);
+    clearCharIncapacitationOnDamage(character);
+    addLog(`${character.name}は${dmg}の炎ダメージを受けた。`);
+    if (character.hp === 0) {
+      character.status = "dead";
+      const deathLog = recordCharDeath(state, character, "火炎の罠", { type: "trap", source: "火炎の罠" });
+      if (deathLog) addLog(formatCharDeathLog(deathLog));
+      addLog(`[!] ${character.name}は炎に焼かれて力尽きた！`);
     }
-  });
+  }
 
-  const allPartyDead = state.party.every(c => c.status === "dead");
-  if (allPartyDead) {
+  if (!character || character.status === "dead") {
     triggerGameOver();
   } else {
     saveAutosave();
