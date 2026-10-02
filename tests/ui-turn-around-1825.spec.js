@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
-import { exploreMove } from './explore-input-helpers.js';
+import { exploreMove, swipeToTurn } from './explore-input-helpers.js';
 
 const VIEWPORT = { width: 390, height: 844 };
 
@@ -86,6 +86,21 @@ test('A long sideways sweep turns around in one gesture and swiping down still s
 
   await exploreMove(page, 'turn-around');
   expect(await snapshot(page)).toMatchObject({ x: 4, y: 5, dir: 0 });
+});
+
+test('A sideways swipe turns toward the direction the finger moves, like an edge tap @smoke', async ({ page }) => {
+  await seedDeadEnd(page);
+
+  await swipeToTurn(page, 'right');
+  expect(await snapshot(page)).toMatchObject({ x: 4, y: 4, dir: 1, gameState: 'explore' });
+  await swipeToTurn(page, 'left');
+  expect(await snapshot(page)).toMatchObject({ x: 4, y: 4, dir: 0 });
+  await swipeToTurn(page, 'left');
+  expect(await snapshot(page)).toMatchObject({ x: 4, y: 4, dir: 3 });
+
+  // The edge taps agree with the swipes.
+  await exploreMove(page, 'turn-right');
+  expect(await snapshot(page)).toMatchObject({ dir: 0 });
 });
 
 test('Q key turns around once per press during exploration @smoke', async ({ page }) => {

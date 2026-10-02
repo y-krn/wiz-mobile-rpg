@@ -44,6 +44,12 @@ export async function exploreMove(page, action) {
   throw new Error(`unknown exploration move: ${action}`);
 }
 
+// A sideways swipe turns toward the direction the finger moves.
+export async function swipeToTurn(page, direction) {
+  const [from, to] = direction === 'right' ? [0.3, 0.6] : [0.7, 0.4];
+  return dragWorld(page, [from, 0.62], [to, 0.62]);
+}
+
 export async function holdToSearch(page) {
   const box = await worldBox(page);
   await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.62);
