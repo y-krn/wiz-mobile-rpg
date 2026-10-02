@@ -2,6 +2,7 @@ import { syncAimRings } from "./aim_rings.js";
 import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
+import { syncPwaUpdateAvailability } from "./pwa_update_manager.js";
 import { state, getLogEntries } from "../state.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 import { getIsMuted } from "../audio.js";
@@ -320,6 +321,7 @@ export function updateUI() {
   resetViewportZoom();
   updateRecordsStrip();
   const view = getScreenViewState(state, menuContext);
+  syncPwaUpdateAvailability(view);
   const { gameState } = view;
   const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
   const hasUsableCombat = view.hasCombat && view.hasUsableCombatActor;
