@@ -72,22 +72,7 @@
       </div>
 
       <!-- Full-floor map (opened from #btn-minimap-toggle, #1833) -->
-      <div id="full-map-overlay" class="full-map-overlay" role="dialog" aria-modal="true" aria-labelledby="full-map-title" hidden>
-        <div class="full-map-header">
-          <h2 id="full-map-title" class="full-map-title">全体地図</h2>
-          <button id="btn-full-map-close" type="button" class="btn full-map-close" aria-label="地図を閉じる" title="地図を閉じる">✕</button>
-        </div>
-        <div id="full-map-viewport" class="full-map-viewport" aria-label="ピンチで拡大、ドラッグで移動">
-          <canvas id="full-map-canvas" class="full-map-canvas" role="img" aria-label="現在の階の地図"></canvas>
-          <div class="full-map-zoom" role="group" aria-label="地図の表示">
-            <button id="btn-full-map-zoom-in" type="button" class="btn full-map-zoom-btn" aria-label="拡大">＋</button>
-            <button id="btn-full-map-zoom-out" type="button" class="btn full-map-zoom-btn" aria-label="縮小">－</button>
-            <button id="btn-full-map-fit" type="button" class="btn full-map-zoom-btn" aria-label="初期表示に戻す" title="初期表示に戻す">⤢</button>
-          </div>
-        </div>
-        <ul id="full-map-legend" class="full-map-legend" aria-label="凡例"></ul>
-        <button id="btn-full-map-back" type="button" class="btn btn-neon full-map-back">探索に戻る</button>
-      </div>
+      <div id="full-map-overlay-root"></div>
 
       <!-- Controls Panel (Grid) -->
       <div id="controls-panel" class="action-dock" data-shell-region="action-dock" data-dock-state="compact" aria-label="操作">

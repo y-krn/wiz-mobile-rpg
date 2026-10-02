@@ -1,6 +1,8 @@
 /* Full-floor map (#1833), opened from #btn-minimap-toggle. The map canvas is
    transformed inside a clipped viewport; the legend and the return button stay
    fixed so closing is always one tap at the bottom of the screen. */
+#full-map-overlay-root { display: contents; }
+
 .full-map-overlay {
   position: absolute;
   inset: 0;
