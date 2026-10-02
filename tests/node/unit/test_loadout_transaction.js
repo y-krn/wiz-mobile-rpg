@@ -293,7 +293,7 @@ assert.deepEqual(
   telemetryEvents.slice(trialCommitStart).map(event => event.name),
   ["equipment_decision", "loot_lifecycle", "loadout_transaction"]
 );
-assert.equal(state.logs.at(-1), "試用を確定した。ダガー → 未鑑定の装備品（試用済）（探索時間が進む）");
+assert.equal(state.logs.at(-1), "試しに装備した。ダガー → 未鑑定の装備品（試用済）（探索時間が進む）");
 assert.ok(state.logs.includes("[呪い装備] 未鑑定の装備品（試用済）は外せない。"));
 
 // Trial policy keeps location, explicit world-action escape hatch, and strict turn-cost semantics.
@@ -311,7 +311,7 @@ const turnFailure = commitLoadoutDraft(staged.draft, { stateLike: state, turnCos
 assert.deepEqual(turnFailure, { ok: false, reason: "未鑑定装備の試用は探索中のみ実行できます。" });
 const worldActionTrial = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: 1, worldAction: "explore" });
 assert.equal(worldActionTrial.ok, true, "worldAction explore retains the location escape hatch");
-assert.equal(worldActionTrial.changed && state.logs.at(-1), "試用を確定した。ダガー → 未鑑定の装備品（試用済）（探索時間が進む）");
+assert.equal(worldActionTrial.changed && state.logs.at(-1), "試しに装備した。ダガー → 未鑑定の装備品（試用済）（探索時間が進む）");
 
 // Strict numeric turn cost, normal lifecycle, log, reference, copy, and finite MP clamp.
 const normalCharacter = createStartingKitCharacter("arcana");
@@ -332,7 +332,7 @@ assert.equal(state.party, staged.draft.party, "commit preserves the draft party 
 assert.notEqual(state.inventory, normalDraftInventory, "commit shallow-copies the inventory array");
 assert.equal(state.inventory[0], normalDraftInventory[0], "inventory items preserve identity");
 assert.ok(state.party[0].mp < 999 && Number.isFinite(state.party[0].mp), "finite MP is clamped");
-assert.equal(state.logs.at(-1), "装備変更を確定した。ダガー → ショートソード");
+assert.equal(state.logs.at(-1), "装備を変更した。ダガー → ショートソード");
 assert.equal(staged.draft.committed, true, "successful commit marks the draft only after applying it");
 
 // Trial turn-cost reason is exact when the location constraint is satisfied.

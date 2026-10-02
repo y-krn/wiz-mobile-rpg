@@ -123,7 +123,7 @@ test('equipped dungeon gear keeps its unconfirmed ownership badge @smoke', async
   const equippedRow = page.locator('.equip-equipped-row[data-slot-id="weapon"]');
   await expect(equippedRow).toHaveAttribute('data-ownership', 'dungeon-unconfirmed');
   await expect(equippedRow.locator('.ownership-badge')).toContainText('まだ持ち帰っていない品');
-  await expect(equippedRow.locator('.equip-row-badge.equipped')).toHaveText('装備中');
+  await expect(equippedRow.locator('.equip-slot-label')).toHaveText('武器');
 });
 
 test('unified bag shows equipment and materials instead of an empty tool list at 390x844 @smoke', async ({ page }) => {

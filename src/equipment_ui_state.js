@@ -13,6 +13,9 @@ function createEquipmentUiState() {
     listScrollTop: 0,
     prevGameState: null,
     draft: null,
+    sessionChanged: false,
+    sessionTurnPaid: false,
+    pendingTurns: 0,
   };
 }
 
@@ -43,4 +46,7 @@ export function resetEquipState() {
   equipState.listScrollTop = 0;
   equipState.prevGameState = null;
   equipState.draft = null;
+  equipState.sessionChanged = false;
+  equipState.sessionTurnPaid = false;
+  equipState.pendingTurns = 0;
 }

@@ -150,12 +150,13 @@ test('equipment retry preserves the original context and creates a normal draft 
 
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
-  await expect(page.locator('#btn-equip-commit')).toBeVisible();
+  await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toContainText('ショートソード');
   expect(await page.evaluate(async () => {
     const { equipState } = await import('/src/equip.js');
-    return Boolean(equipState.draft?.party?.[0]);
-  })).toBe(true);
-  await page.getByRole('button', { name: 'キャンセル' }).first().click();
+    const { state } = await import('/src/state.js');
+    return { draftExists: Boolean(equipState.draft?.party?.[0]), weapon: state.party[0].equipment.weapon };
+  })).toEqual({ draftExists: true, weapon: 'SHORT_SWORD' });
+  await page.getByRole('button', { name: '閉じる' }).click();
   await expect(page.locator('#equip-overlay')).toBeHidden();
   await expect.poll(() => page.evaluate(async () => (await import('/src/state.js')).state.gameState)).toBe('town');
 });
@@ -287,14 +288,14 @@ test('equipment draft actions use one render owner and retain keyboard focus @sm
     });
   });
   await page.getByRole('button', { name: '装備する' }).click();
-  await expect(page.locator('#btn-equip-commit')).toBeVisible();
+  await expect(page.locator('.equip-body.is-detail')).toHaveCount(0);
   expect(await page.evaluate(() => ({
     renderCount: window.__equipmentRenderCount,
     focusInsideOverlay: document.querySelector('#equip-overlay')?.contains(document.activeElement),
   }))).toEqual({ renderCount: 1, focusInsideOverlay: true });
 });
 
-test('loadout changes stay in a draft until one exploration-turn commit @smoke', async ({ page }) => {
+test('loadout edits apply immediately and share one exploration turn on close @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
@@ -316,16 +317,24 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
     await openEquipOverlay(0);
   });
 
+  await expect(page.locator('#btn-equip-commit')).toHaveCount(0);
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
   expect(await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    return { weapon: state.party[0].equipment.weapon, inventory: state.inventory, steps: state.currentRun.steps };
-  })).toEqual({ weapon: 'DAGGER', inventory: [expect.any(Object)], steps: 0 });
+    return {
+      weapon: state.party[0].equipment.weapon?.instanceId || state.party[0].equipment.weapon,
+      returned: state.inventory.map(item => item?.instanceId || item),
+      steps: state.currentRun.steps,
+    };
+  })).toEqual({ weapon: 'transaction-sword', returned: ['DAGGER'], steps: 0 });
+  await expect(page.locator('.equip-turn-note')).toContainText('1ターン');
 
-  await expect(page.locator('#btn-equip-commit')).toBeEnabled();
-  await expect(page.locator('#btn-equip-commit')).toContainText('探索時間が進む');
-  await page.locator('#btn-equip-commit').click();
+  // A second edit in the same session does not add another exploration turn.
+  await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ダガー' }).click();
+  await page.getByRole('button', { name: '装備する' }).click();
+  await expect(page.locator('.equip-turn-note')).toContainText('1ターン');
+  await page.locator('#btn-equip-close').click();
   await expect(page.locator('#equip-overlay')).toBeHidden();
   expect(await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -336,8 +345,8 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
       floorSteps: state.currentRun.floorSteps['1'],
     };
   })).toEqual({
-    weapon: 'transaction-sword',
-    returned: ['DAGGER'],
+    weapon: 'DAGGER',
+    returned: ['transaction-sword'],
     steps: 1,
     floorSteps: 1,
   });
@@ -349,7 +358,7 @@ test('loadout changes stay in a draft until one exploration-turn commit @smoke',
   ]);
 });
 
-test('canceling a dirty loadout draft leaves the live run untouched @smoke', async ({ page }) => {
+test('closing equipment without an edit leaves exploration time untouched @smoke', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -367,8 +376,9 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
     await openEquipOverlay(0);
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
-  await page.getByRole('button', { name: '装備する' }).click();
-  await page.getByRole('button', { name: 'キャンセル' }).first().click();
+  await page.getByRole('button', { name: '一覧へ戻る' }).click();
+  await expect(page.locator('.equip-turn-note')).toHaveCount(0);
+  await page.locator('#btn-equip-close').click();
   expect(await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return { weapon: state.party[0].equipment.weapon, inventory: state.inventory, steps: state.currentRun.steps };
@@ -377,11 +387,11 @@ test('canceling a dirty loadout draft leaves the live run untouched @smoke', asy
     .filter((event) => event.name.startsWith('ux_decision_'))
     .map((event) => [event.name, event.properties.surface, event.properties.resolution]))).toEqual([
     ['ux_decision_opened', 'equipment', undefined],
-    ['ux_decision_resolved', 'equipment', 'cancel'],
+    ['ux_decision_resolved', 'equipment', 'back'],
   ]);
 });
 
-test('equipment transaction actions stay separated and thumb-safe across mobile widths @e2e @smoke', async ({ page }) => {
+test('equipment footer actions stay side by side and thumb-safe across mobile widths @e2e @smoke', async ({ page }) => {
   for (const viewport of [
     { width: 320, height: 568 },
     { width: 360, height: 800 },
@@ -407,51 +417,31 @@ test('equipment transaction actions stay separated and thumb-safe across mobile 
 
     await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
     await page.getByRole('button', { name: '装備する' }).click();
+    await expect(page.locator('.equip-turn-note')).toBeVisible();
 
     const actionButtons = {
-      organize: page.locator('.equip-transaction-actions .equip-organize-entry'),
-      cancel: page.locator('#btn-equip-close'),
-      commit: page.locator('#btn-equip-commit'),
+      organize: page.locator('.equip-close-row .equip-organize-entry'),
+      close: page.locator('#btn-equip-close'),
     };
     const boxes = {};
     for (const [name, button] of Object.entries(actionButtons)) {
       await expect(button).toBeVisible();
       const box = await button.boundingBox();
       expect(box, `${name} should have a rendered bounding box at ${viewport.width}px`).not.toBeNull();
-      boxes[name] = {
-        ...box,
-        left: box.x,
-        top: box.y,
-        right: box.x + box.width,
-        bottom: box.y + box.height,
-      };
+      boxes[name] = { left: box.x, top: box.y, right: box.x + box.width, bottom: box.y + box.height, height: box.height };
       expect(boxes[name].height, `${name} should meet the 44px touch target at ${viewport.width}px`).toBeGreaterThanOrEqual(44);
       expect(boxes[name].left).toBeGreaterThanOrEqual(0);
       expect(boxes[name].right).toBeLessThanOrEqual(viewport.width);
+      expect(boxes[name].bottom).toBeLessThanOrEqual(viewport.height);
     }
 
-    expect(boxes.organize.bottom).toBeLessThanOrEqual(boxes.cancel.top - 11);
-    expect(boxes.cancel.right).toBeLessThanOrEqual(boxes.commit.left - 11);
-    expect(boxes.cancel.top).toBe(boxes.commit.top);
-
-    const commitBeforeDisabled = { ...boxes.commit };
-    await actionButtons.commit.evaluate((button) => { button.disabled = true; });
-    const commitAfterDisabled = await actionButtons.commit.boundingBox();
-    expect(commitAfterDisabled).toEqual({
-      x: commitBeforeDisabled.x,
-      y: commitBeforeDisabled.y,
-      width: commitBeforeDisabled.width,
-      height: commitBeforeDisabled.height,
-    });
-
-    const layout = await page.locator('.equip-transaction-actions').evaluate((row) => ({
+    expect(boxes.organize.right).toBeLessThanOrEqual(boxes.close.left - 4);
+    expect(boxes.organize.top).toBe(boxes.close.top);
+    const layout = await page.locator('.equip-close-row').evaluate((row) => ({
       scrollWidth: row.scrollWidth,
       clientWidth: row.clientWidth,
-      scrollHeight: row.scrollHeight,
-      clientHeight: row.clientHeight,
     }));
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
-    expect(layout.scrollHeight).toBeGreaterThan(0);
   }
 });
 
@@ -483,11 +473,11 @@ test('unknown equipment uses an explicit irreversible trial action @smoke', asyn
   await page.getByRole('button', { name: '試す' }).click();
   expect(await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    return { weapon: state.party[0].equipment.weapon, steps: state.currentRun.steps };
-  })).toEqual({ weapon: 'DAGGER', steps: 0 });
-
-  await expect(page.locator('#btn-equip-commit')).toContainText('試す内容を確定する（探索時間が進む）');
-  await page.getByRole('button', { name: '試す内容を確定する（探索時間が進む）' }).click();
+    const item = state.party[0].equipment.weapon;
+    return { weapon: item?.instanceId || item, steps: state.currentRun.steps };
+  })).toEqual({ weapon: 'ui-unknown-trial', steps: 0 });
+  await expect(page.locator('.equip-turn-note')).toContainText('1ターン');
+  await page.locator('#btn-equip-close').click();
   await expect(page.locator('#equip-overlay')).toBeHidden();
   await expect.poll(() => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -510,7 +500,7 @@ test('unknown equipment uses an explicit irreversible trial action @smoke', asyn
   });
 });
 
-test('committing outside exploration does not advance exploration time @smoke', async ({ page }) => {
+test('equipping outside exploration does not advance exploration time @smoke', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -525,7 +515,8 @@ test('committing outside exploration does not advance exploration time @smoke', 
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
-  await page.locator('#btn-equip-commit').click();
+  await expect(page.locator('.equip-turn-note')).toHaveCount(0);
+  await page.locator('#btn-equip-close').click();
   await expect(page.locator('#equip-overlay')).toBeHidden();
   expect(await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -545,7 +536,7 @@ test('committing outside exploration does not advance exploration time @smoke', 
   });
 });
 
-test('committing a loadout consumes the normal exploration poison tick @smoke', async ({ page }) => {
+test('closing after a loadout edit consumes the normal exploration poison tick @smoke', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {
     const { createStartingKitCharacter, state } = await import('/src/state.js');
@@ -565,7 +556,7 @@ test('committing a loadout consumes the normal exploration poison tick @smoke', 
   });
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
-  await page.locator('#btn-equip-commit').click();
+  await page.locator('#btn-equip-close').click();
   const result = await page.evaluate(async () => {
     Math.random = window.__loadoutTestRandom;
     const { state } = await import('/src/state.js');
@@ -616,7 +607,7 @@ test('equipment detail exposes build commitments and neutral replacement consequ
   await expect(detail.locator('[data-build-compare="bag"]')).toContainText('1/20 → 2/20');
   await expect(detail.locator('[data-build-compare="bag-items"]')).toContainText('ダガーがバッグへ戻る');
   await expect(detail.locator('[data-build-compare="bag-items"]')).toContainText('スモールシールドがバッグへ戻る');
-  await expect(detail.locator('.equip-build-comparison-note')).toContainText('確定前');
+  await expect(detail.locator('.equip-build-comparison-note')).toContainText('装備する前');
 });
 
 test('active and spare Runes are labeled by their ownership surface @smoke', async ({ page }) => {
@@ -664,7 +655,7 @@ test('medium replacement shows current MP separately from maximum MP @smoke', as
   await expect(page.locator('[data-build-compare="bag-items"]')).toContainText('魔術師の杖がバッグへ戻る');
   await expect(page.locator('[data-build-compare="bag-items"]')).toContainText('装着中のルーン 1個がバッグへ戻る');
   await page.getByRole('button', { name: '装備する' }).click();
-  await page.locator('#btn-equip-commit').click();
+  await page.locator('#btn-equip-close').click();
   await expect.poll(() => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { getCharMaxMp } = await import('/src/data.js');
