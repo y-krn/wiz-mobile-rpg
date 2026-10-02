@@ -42,6 +42,7 @@ import { buildVulnerableEventTelemetry } from "./telemetry_vulnerable_event.ts";
 import { buildChestActionPayload } from "./telemetry_chest_action.ts";
 import { buildTrapResolutionPayload } from "./telemetry_trap_resolution.ts";
 import { buildCombatStartPayload } from "./telemetry_combat_start.ts";
+import { buildRunStartPayload } from "./telemetry_run_start.ts";
 import {
   buildLootLifecyclePayload,
   normalizeLootStage
@@ -1156,23 +1157,19 @@ export function trackRunStart(run, character, stateSnapshot = null) {
   stairsStepByFloor = new Map();
   uxDecisionStates = new Map();
 
-  capture("run_start", {
+  const context = safeDecisionContext({ state: stateSnapshot, character });
+  capture("run_start", buildRunStartPayload({
     runId,
-    ...safeDecisionContext({ state: stateSnapshot, character }),
-    level: boundedFiniteOrNull(character?.level),
-    startFloor: boundedFiniteOrNull(run?.startFloor),
-    // Preserve v1 raw capacity fields while exposing effective capacities via
-    // the shared snapshot fields above and these explicit v2 aliases.
-    maxHp: boundedFiniteOrNull(character?.maxHp),
-    maxMp: boundedFiniteOrNull(character?.maxMp),
-    effectiveMaxHp: boundedFiniteOrNull(getCharMaxHp(character)),
-    effectiveMaxMp: boundedFiniteOrNull(getCharMaxMp(character)),
-    equipmentIds: buildEquipmentSnapshot(character).equipmentIds,
-    startingInventoryCount: buildResourceSnapshot(stateSnapshot).inventoryCount,
-    startingInventoryFreeSlots: buildResourceSnapshot(stateSnapshot).inventoryFreeSlots,
-    startingWingCount: buildResourceSnapshot(stateSnapshot).consumableWingCount,
-    startingUnbankedObjectLootCount: getUnbankedLootSummary(stateSnapshot).count
-  });
+    context,
+    run,
+    character,
+    getCharMaxHp,
+    getCharMaxMp,
+    buildEquipmentSnapshot,
+    buildResourceSnapshot,
+    getUnbankedLootSummary,
+    stateSnapshot
+  }));
 }
 
 export function trackCombatStart(combat, stateSnapshot = null) {
