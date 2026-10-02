@@ -1,9 +1,10 @@
 // Exploration is played on the world itself, not on a control pad.
 //   tap the corridor ............ step forward
 //   tap near the left/right edge  turn that way
-//   swipe ........................ drag the view: up walks on, down steps
-//                                  back, sideways looks the other way, and
-//                                  a long sideways sweep turns right round
+//   swipe ........................ point where to go: up walks on, down
+//                                  steps back, sideways turns that way (the
+//                                  same way an edge tap does), and a long
+//                                  sideways sweep turns right round
 //   press and hold ............... search the spot (a ring of light fills)
 //   tap the adventurer's card .... open or close the satchel
 // The classic controls stay in the DOM, visually hidden, so keyboard and
@@ -119,7 +120,7 @@ function bindWorldGestures({ canvas, host, onMove, onSearch }) {
     if (Math.max(Math.abs(dx), Math.abs(dy)) >= SWIPE_MIN_PX) {
       const width = canvas.getBoundingClientRect().width || 1;
       if (Math.abs(dx) > Math.abs(dy) * 1.2) {
-        onMove(Math.abs(dx) >= width * TURN_AROUND_SWEEP ? "turn-around" : dx < 0 ? "turn-right" : "turn-left");
+        onMove(Math.abs(dx) >= width * TURN_AROUND_SWEEP ? "turn-around" : dx > 0 ? "turn-right" : "turn-left");
       }
       else if (Math.abs(dy) > Math.abs(dx) * 1.2) onMove(dy < 0 ? "forward" : "backward");
       return;
@@ -179,7 +180,7 @@ function showCoachOnce(host) {
     <p class="world-coach-title">迷宮では、景色に触れて進む</p>
     <ul class="world-coach-list">
       <li><span class="world-coach-glyph" data-glyph="tap"></span>通路をタップ<em>一歩進む</em></li>
-      <li><span class="world-coach-glyph" data-glyph="edge"></span>左右の端をタップ / 横にスワイプ<em>振り向く（大きく払うと後ろを向く）</em></li>
+      <li><span class="world-coach-glyph" data-glyph="edge"></span>左右の端をタップ / 向きたい方へ横にスワイプ<em>振り向く（大きく払うと後ろを向く）</em></li>
       <li><span class="world-coach-glyph" data-glyph="down"></span>下にスワイプ<em>一歩下がる</em></li>
       <li><span class="world-coach-glyph" data-glyph="hold"></span>長押し<em>その場を調べる</em></li>
       <li><span class="world-coach-glyph" data-glyph="satchel"></span>自分の札をタップ<em>持ち物・魔法・装備</em></li>
