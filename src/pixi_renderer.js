@@ -36,7 +36,8 @@ import {
   createProceduralEnemy,
   getEnemyPrototypePresentation
 } from "./pixi_enemy_prototypes.js";
-import { createPixelSurfaceTextures, getDepthFog, getPixelScenePalette } from "./pixi_pixel_art.js";
+import { createPixelSurfaceTextures, getDepthFog, getPixelScenePalette, getPixelSurfaceKey, listPixelSurfaceTextures } from "./pixi_pixel_art.js";
+import { getWallDecorIndex } from "./rules/wall_decor.js";
 
 // Exposed for deterministic visual-gate asset injection; production rendering
 // continues to use the same Pixi Assets singleton.
@@ -173,6 +174,32 @@ function addTexturedQuad(container, texture, corners, tint = 0xffffff) {
   return mesh;
 }
 
+// Bilinear point on a wall quad given as [topLeft, topRight, bottomRight, bottomLeft].
+function lerpQuad([topLeft, topRight, bottomRight, bottomLeft], u, v) {
+  const top = { x: topLeft.x + (topRight.x - topLeft.x) * u, y: topLeft.y + (topRight.y - topLeft.y) * u };
+  const bottom = { x: bottomLeft.x + (bottomRight.x - bottomLeft.x) * u, y: bottomLeft.y + (bottomRight.y - bottomLeft.y) * u };
+  return { x: top.x + (bottom.x - top.x) * v, y: top.y + (bottom.y - top.y) * v };
+}
+
+// Wall decor hangs in the middle of the face, clear of the trim and floor.
+function getWallDecorCorners(corners) {
+  const [u0, u1, v0, v1] = [0.24, 0.76, 0.16, 0.78];
+  return [lerpQuad(corners, u0, v0), lerpQuad(corners, u1, v0), lerpQuad(corners, u1, v1), lerpQuad(corners, u0, v1)];
+}
+
+// A flat floor trapezoid centred on (cx, y), foreshortened like the floor.
+function getTrapDecalCorners(cx, y, width) {
+  const topHalf = width * 0.2;
+  const bottomHalf = width * 0.26;
+  const depth = width * 0.075;
+  return [
+    { x: cx - topHalf, y: y - depth },
+    { x: cx + topHalf, y: y - depth },
+    { x: cx + bottomHalf, y: y + depth },
+    { x: cx - bottomHalf, y: y + depth }
+  ];
+}
+
 function drawProjectedFrontWall(container, plane, ceilingStyle, color, alpha, stroke = null) {
   const graphic = new Graphics();
   graphic.moveTo(plane.leftTop, plane.top);
@@ -255,6 +282,7 @@ export class PixiDungeonRenderer {
     this.enemyPresentationMode = getEnemyPresentationMode();
     this.scenePalette = null;
     this.pixelSurfaces = new Map();
+    this.activeSurfaces = null;
     this.resourceStats = {
       sceneRebuilds: 0,
       maxChildren: 0,
@@ -706,12 +734,14 @@ export class PixiDungeonRenderer {
     return this.scenePalette;
   }
 
-  getPixelSurfaces(palette) {
-    let surfaces = this.pixelSurfaces.get(palette.accent);
+  getPixelSurfaces(palette, visual = {}) {
+    const surfaceSet = { ...(visual.surfaces || {}), trapStyle: visual.landmarks?.trapStyle };
+    const key = getPixelSurfaceKey(palette, surfaceSet);
+    let surfaces = this.pixelSurfaces.get(key);
     if (!surfaces) {
-      surfaces = createPixelSurfaceTextures(palette);
-      this.pixelSurfaces.set(palette.accent, surfaces);
-      this.resourceStats.pixelSurfaceTextureCount = this.pixelSurfaces.size * 3;
+      surfaces = createPixelSurfaceTextures(palette, surfaceSet);
+      this.pixelSurfaces.set(key, surfaces);
+      this.resourceStats.pixelSurfaceTextureCount = [...this.pixelSurfaces.values()].reduce((total, entry) => total + listPixelSurfaceTextures(entry).length, 0);
     }
     return surfaces;
   }
@@ -859,8 +889,16 @@ export class PixiDungeonRenderer {
     const visibleTopology = getVisibleCorridorTopology(map, renderInput.x, renderInput.y, renderInput.dir);
     const topology = new Map(visibleTopology.map((cell) => [`${cell.z}:${cell.column}`, cell]));
     const palette = this.getScenePalette(renderInput);
-    const surfaces = this.getPixelSurfaces(palette);
+    const surfaces = this.getPixelSurfaces(palette, renderInput.visual);
+    this.activeSurfaces = surfaces;
     const wallColor = palette.accent;
+    const facing = Number(renderInput.dir) || 0;
+    // Wall decor is keyed by the absolute wall face, so it stays put as the
+    // player turns and returns (#1964).
+    const decorFor = (cellX, cellY, wallDir) => {
+      const index = getWallDecorIndex({ seed: renderInput.decorSeed, floor: renderInput.floor, x: cellX, y: cellY, dir: wallDir, count: surfaces.decor.length });
+      return index >= 0 ? surfaces.decor[index] : null;
+    };
     const ceilingStyle = renderInput.visual.geometry?.ceilingStyle || "flat";
     const floorLayer = this.layer("floor");
     const walls = this.layer("structural-walls");
@@ -916,14 +954,16 @@ export class PixiDungeonRenderer {
           this.drawLandmark(cell, objectPlane, renderInput.visual.wallColor, renderInput.visual.landmarks);
         }
 
-        if (cellTopology.leftBlocked) this.drawSideWall(plane, nextPlane, "left", palette, surfaces, spanFog, recess);
+        if (cellTopology.leftBlocked) {
+          this.drawSideWall(plane, nextPlane, "left", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 3) % 4));
+        }
         if (cellTopology.rightBlocked) {
           const mirroredPlane = { ...plane, leftTop: plane.rightTop, rightTop: plane.leftTop, leftBottom: plane.rightBottom, rightBottom: plane.leftBottom };
           const mirroredNext = { ...nextPlane, leftTop: nextPlane.rightTop, rightTop: nextPlane.leftTop, leftBottom: nextPlane.rightBottom, rightBottom: nextPlane.leftBottom };
-          this.drawSideWall(mirroredPlane, mirroredNext, "right", palette, surfaces, spanFog, recess);
+          this.drawSideWall(mirroredPlane, mirroredNext, "right", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 1) % 4));
         }
         if (cellTopology.frontBlocked) {
-          this.drawFrontWall(nextPlane, ceilingStyle, palette, surfaces, farFog, recess);
+          this.drawFrontWall(nextPlane, ceilingStyle, palette, surfaces, farFog, recess, decorFor(cellTopology.x, cellTopology.y, facing));
           if (cellTopology.frontOneWayBarrier && column === 0) this.drawOneWayBarrier(nextPlane, wallColor);
         }
 
@@ -950,14 +990,16 @@ export class PixiDungeonRenderer {
     addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
   }
 
-  drawSideWall(plane, nextPlane, side, palette, surfaces, fog, recess = 0) {
+  drawSideWall(plane, nextPlane, side, palette, surfaces, fog, recess = 0, decor = null) {
     const walls = this.layer("structural-walls");
     const near = { top: { x: plane.leftTop, y: plane.top }, bottom: { x: plane.leftBottom, y: plane.bottom } };
     const far = { top: { x: nextPlane.leftTop, y: nextPlane.top }, bottom: { x: nextPlane.leftBottom, y: nextPlane.bottom } };
     const corners = [near.top, far.top, far.bottom, near.bottom];
     // Soft key light from the upper left keeps both walls readable in a
     // bright palette without introducing dark voids.
-    addTexturedQuad(walls, surfaces.wall, corners, side === "left" ? SIDE_WALL_TINT.left : SIDE_WALL_TINT.right);
+    const tint = side === "left" ? SIDE_WALL_TINT.left : SIDE_WALL_TINT.right;
+    addTexturedQuad(walls, surfaces.wall, corners, tint);
+    if (decor) addTexturedQuad(walls, decor, getWallDecorCorners(corners), tint);
     addPolygon(walls, corners, palette.fog, fog);
     if (recess > 0) addPolygon(walls, corners, palette.ink, recess);
     addLine(walls, [near.top, far.top], { color: palette.accent, width: 2.5, alpha: 1 });
@@ -965,7 +1007,7 @@ export class PixiDungeonRenderer {
     addLine(walls, [far.top, far.bottom], { color: palette.ink, width: 2, alpha: 0.42 });
   }
 
-  drawFrontWall(plane, ceilingStyle, palette, surfaces, fog, recess = 0) {
+  drawFrontWall(plane, ceilingStyle, palette, surfaces, fog, recess = 0, decor = null) {
     const walls = this.layer("structural-walls");
     const corners = [
       { x: plane.leftTop, y: plane.top },
@@ -975,6 +1017,7 @@ export class PixiDungeonRenderer {
     ];
     if (ceilingStyle === "arch") drawProjectedFrontWall(walls, plane, ceilingStyle, palette.wall.base, 1);
     addTexturedQuad(walls, surfaces.wall, corners);
+    if (decor) addTexturedQuad(walls, decor, getWallDecorCorners(corners));
     if (ceilingStyle === "arch") drawProjectedFrontWall(walls, plane, ceilingStyle, palette.fog, fog);
     else addPolygon(walls, corners, palette.fog, fog);
     if (recess > 0) drawProjectedFrontWall(walls, plane, ceilingStyle, palette.ink, recess);
@@ -999,11 +1042,22 @@ export class PixiDungeonRenderer {
     } else if (cell.event === EVENT_TYPES.SPRING) {
       this.drawSpringProp(plane, color);
     } else if (cell.trap?.state === "discovered") {
-      const cx = (plane.leftBottom + plane.rightBottom) / 2;
-      const width = Math.max(8, plane.rightBottom - plane.leftBottom);
-      const y = plane.bottom - width * 0.12;
-      drawEllipse(this.layer("world-objects"), cx, y - width * 0.05, width * 0.10, width * 0.06, "#ff3b30", 0.12, { color: "#ff3b30", width: 1.4 });
+      this.drawTrapDecal(plane);
     }
+  }
+
+  // A discovered trap lies flat on the floor as the biome's trapStyle decal
+  // inside a red warning ring (#1964).
+  drawTrapDecal(plane) {
+    const cx = (plane.leftBottom + plane.rightBottom) / 2;
+    const width = Math.max(8, plane.rightBottom - plane.leftBottom);
+    const y = plane.bottom - width * 0.17;
+    const texture = this.activeSurfaces?.trap;
+    if (!texture) {
+      drawEllipse(this.layer("world-objects"), cx, y, width * 0.10, width * 0.06, "#ff3b30", 0.12, { color: "#ff3b30", width: 1.4 });
+      return;
+    }
+    addTexturedQuad(this.layer("world-objects"), texture, getTrapDecalCorners(cx, y, width));
   }
 
   // Traversal gimmicks (#1963) read by silhouette: a heap that fills the
@@ -1398,7 +1452,7 @@ export class PixiDungeonRenderer {
   }
 
   destroyPixelSurfaces() {
-    this.pixelSurfaces.forEach((surfaces) => Object.values(surfaces).forEach((texture) => texture.destroy(true)));
+    this.pixelSurfaces.forEach((surfaces) => listPixelSurfaceTextures(surfaces).forEach((texture) => texture.destroy(true)));
     this.pixelSurfaces.clear();
     this.resourceStats.pixelSurfaceTextureCount = 0;
   }

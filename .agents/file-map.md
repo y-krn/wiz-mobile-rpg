@@ -80,7 +80,7 @@ to verify the change.
 
 | Request area | Start here | Also check when relevant | Verify |
 | --- | --- | --- | --- |
-| Dungeon View / renderer | `src/renderer.js`, `src/pixi_renderer.js`, `src/state/renderer_view.js`, `src/rules/renderer_topology.js` | `src/minimap.js`, full-floor map (`src/ui/full_map.js`, `src/ui/full_map_overlay.js`), floor themes, combat target caller, renderer selection/fallback tests | focused unit, Canvas/Pixi browser tests, `npm run test:browser`, build/lint when final |
+| Dungeon View / renderer | `src/renderer.js`, `src/pixi_renderer.js`, `src/pixi_pixel_art.js` (biome wall/floor patterns, wall decor, trap decals), `src/rules/wall_decor.js` (deterministic decor placement), `src/state/renderer_view.js`, `src/rules/renderer_topology.js` | `src/minimap.js`, full-floor map (`src/ui/full_map.js`, `src/ui/full_map_overlay.js`), floor themes, combat target caller, renderer selection/fallback tests | focused unit (`tests/node/unit/test_biome_surfaces.js` for biome surfaces), Canvas/Pixi browser tests, `npm run test:browser`, build/lint when final |
 | App startup, button binding, viewport lock | `src/game.js`, `src/main.js` | `index.html`, `src/navigation.js`, `src/ui.js` | `npm run build`, `npm run test:browser` |
 | Global HUD, logs, goal banner, overlays | `src/ui.js`, `src/ui/*`, `src/styles/app-shell.css` | `src/state.js`, `src/state/*`, screen module being rendered, relevant `src/styles/overlays-*.css` | `npm run test:browser` |
 | Town menu and generic submenu flow | `src/menu.js`, `src/menu/*`, `src/navigation.js`, `src/styles/controls.css` | `src/ui.js`, `src/ui/*`, `src/styles/buttons.css`, `src/styles/mobile-touch.css` | `npm run test:browser` |

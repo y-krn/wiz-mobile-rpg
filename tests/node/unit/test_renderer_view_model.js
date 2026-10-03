@@ -30,7 +30,7 @@ assert.equal(isRendererInput(input), true, "renderer input has an explicit bound
 assert.deepEqual(
   Object.keys(input).sort(),
   [
-    "arcaneSense", "combatMonsters", "combatTargetSelection", "dangerCue", "depthCorruption", "dir", "floor", "hasArcaneSense",
+    "arcaneSense", "combatMonsters", "combatTargetSelection", "dangerCue", "decorSeed", "depthCorruption", "dir", "floor", "hasArcaneSense",
     "kind", "lightPower", "lightTurns", "map", "mapFragments", "mapRevision", "party",
     "roamingMonsters", "sceneVisibility", "view", "visitedMap", "visual", "x", "y"
   ].sort(),

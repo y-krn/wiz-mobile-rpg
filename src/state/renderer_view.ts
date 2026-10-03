@@ -53,6 +53,8 @@ export interface RendererInput {
   readonly combatMonsters: RendererCollection;
   readonly combatTargetSelection: CombatTargetSelection;
   readonly visual: RendererVisual;
+  /** Run seed that keys deterministic wall decor (#1964); "" outside a run. */
+  readonly decorSeed: string;
   readonly depthCorruption: unknown;
   readonly arcaneSense: unknown;
   readonly hasArcaneSense: boolean;
@@ -236,6 +238,7 @@ export function getRendererInput(
     combatMonsters,
     combatTargetSelection,
     visual,
+    decorSeed: isRecord(source.currentRun) && typeof source.currentRun.runSeed === "string" ? source.currentRun.runSeed : "",
     depthCorruption: getDepthCorruption(floor),
     arcaneSense,
     hasArcaneSense,
