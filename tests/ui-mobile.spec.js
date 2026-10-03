@@ -429,7 +429,8 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
       await expect(page.locator('#log-panel')).toBeVisible();
       await expect(page.locator('#log-content')).toContainText('泉の水は清らかだった');
-      await expect(page.getByRole('button', { name: '探索に戻る' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '探索に戻る' })).toHaveCount(0);
+      await expect(page.locator('#explore-controls')).toHaveClass(/active/);
 
 
     });
