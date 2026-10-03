@@ -31,7 +31,7 @@ async function seedExplore(page, reducedMotion) {
   await page.goto('/?renderer=pixi');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
   await page.evaluate(async (map) => {
-    const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+    const { state, createDefaultCurrentRun, createStartingKitCharacter, hasPendingAutosave } = await import('/src/state.js');
     const { menuContext } = await import('/src/navigation.js');
     const { updateUI } = await import('/src/ui.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
@@ -55,7 +55,7 @@ async function seedExplore(page, reducedMotion) {
     updateUI();
     dungeonRenderer.cancelNavigationTransition();
     dungeonRenderer.draw();
-    window.__issue1766 = { state, dungeonRenderer };
+    window.__issue1766 = { state, dungeonRenderer, hasPendingAutosave };
   }, makeCorridorMap());
 }
 
@@ -185,6 +185,9 @@ async function runRapidSequence(page, reducedMotion) {
     await page.locator(`#${id}`).dispatchEvent('pointerdown');
     if (index % 3 === 2) await page.waitForTimeout(60);
   }
+  // Plain steps defer their autosave (#1973); wait for it to land rather than
+  // reading the save mid-burst.
+  await page.waitForFunction(() => !window.__issue1766.hasPendingAutosave(), null, { timeout: 5000 });
   return page.evaluate((key) => {
     const { state, dungeonRenderer } = window.__issue1766;
     const save = JSON.parse(localStorage.getItem(key));

@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
+import { state, saveAutosave, scheduleAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
@@ -463,8 +463,12 @@ export function handleMove(action) {
       processExplorationResolution(prevX, prevY);
     }
   }
-  
-  saveAutosave();
+
+  // A plain step or turn defers its autosave so the write never stalls the
+  // step motion (#1973); anything the step started (an event, a menu, a
+  // fight, a floor change) saves at once.
+  if (state.gameState === "explore" && !state.transitioning) scheduleAutosave();
+  else saveAutosave();
   updateUI();
 }
 

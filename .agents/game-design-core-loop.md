@@ -313,7 +313,11 @@ before or after the boss, and B6 transition.
   meaningful material or preparation trade-off so it cannot replace B1 runs for
   every purpose.
 - Autosave and resume support multi-session mobile play. A terminal outcome
-  replaces the active run so reloading cannot erase a decision.
+  replaces the active run so reloading cannot erase a decision. Decisions,
+  events, fights, and floor changes save at once; plain steps and turns save
+  once input pauses (and within a couple of seconds of continuous walking),
+  and leaving the page writes any pending step, so a reload can at most
+  replay the last few plain steps, never undo a decision.
 
 ## Information disclosure
 
