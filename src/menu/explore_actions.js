@@ -808,7 +808,7 @@ export function renderEventSpring(optGrid) {
       markMapChanged();
     }
     saveAutosave();
-    openSubmenu("event_spring_result", "泉の結果：");
+    closeSubmenu();
   });
   optGrid.appendChild(btnDrink);
 
@@ -864,14 +864,3 @@ export function renderEventCamp(optGrid) {
   optGrid.appendChild(btnLeave);
 }
 
-export function renderEventSpringResult(optGrid) {
-  document.getElementById("btn-submenu-back").style.display = "none";
-
-  const btnReturn = document.createElement("button");
-  btnReturn.className = "btn btn-neon btn-block";
-  btnReturn.textContent = "探索に戻る";
-  btnReturn.addEventListener("click", () => {
-    closeSubmenu();
-  });
-  optGrid.appendChild(btnReturn);
-}
