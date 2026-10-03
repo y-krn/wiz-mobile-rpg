@@ -286,6 +286,29 @@ before or after the boss, and B6 transition.
   rather than the floor's difficulty band.
   A gimmick's first meeting explains itself through the exploration log, and
   discovered gimmicks stay marked on the minimap and the full map.
+- Each biome owns one special room, so a floor offers an exploration goal
+  besides the stairs and chests. Every floor places one room on a quiet,
+  naturally reachable cell off the natural route (preferably a dead end a short
+  detour away, never past a crumbling ledge), so visiting it is a choice. A
+  room is used once; its state lives on the floor grid and survives reload.
+  Placement only marks an existing cell and never changes the layout.
+  - Collapsed mine — ore vein: digging costs exploration turns and makes noise;
+    it yields a small chest-pool material bundle and may draw an ambush.
+  - Forgotten catacomb — altar: a material-priced cleanse of status effects,
+    or a blood blessing that converts a share of max HP into full MP.
+  - Rift nest — brood chamber: breaking the eggs starts an elite-strength fight
+    whose victory leaves an ordinary dropped chest. Fleeing still spends the room.
+  - Sunken library — reading room: a few turns of study mark the down stairs
+    and every unopened chest on this floor's map.
+  - Dragon forge — forge: a material-priced temper adds a share of weapon ATK
+    for the next few battles, then cools.
+  - Abyssal throne — mirror hall: paying a share of max HP marks the next
+    floor's down stairs and their approach on that floor's map.
+  Rewards stay inside the economy canon: materials come from the existing chest
+  pool, the elite fight pays the existing dropped chest, and costs are turns,
+  noise, HP, or materials. No room adds a currency, a permanent stat, curse
+  removal (the merchant owns it), or a guaranteed build piece. Springs,
+  merchants, and camps keep their roles and are not replaced.
 - Starting deeper may be a useful record-oriented option, but it must carry a
   meaningful material or preparation trade-off so it cannot replace B1 runs for
   every purpose.

@@ -248,6 +248,30 @@ export function getLeverPropGeometry(plane: DungeonPropPlane | null | undefined,
   });
 }
 
+/** Stone plinth carrying a glowing emblem for a biome special room (#1965). */
+export function getSpecialRoomPropGeometry(plane: DungeonPropPlane | null | undefined) {
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.5);
+  const top = baseY - width * 0.42;
+  return Object.freeze({
+    width,
+    shadow: Object.freeze({ x: centerX, y: baseY, radiusX: width * 0.5, radiusY: Math.max(2, width * 0.1) }),
+    plinth: freezePoints([
+      { x: centerX - width * 0.3, y: baseY },
+      { x: centerX + width * 0.3, y: baseY },
+      { x: centerX + width * 0.22, y: top },
+      { x: centerX - width * 0.22, y: top }
+    ]),
+    cap: freezePoints([
+      { x: centerX - width * 0.3, y: top },
+      { x: centerX + width * 0.3, y: top },
+      { x: centerX + width * 0.26, y: top - width * 0.06 },
+      { x: centerX - width * 0.26, y: top - width * 0.06 }
+    ]),
+    emblem: Object.freeze({ x: centerX, y: top - width * 0.22, radiusX: width * 0.15, radiusY: width * 0.15 }),
+    glow: Object.freeze({ x: centerX, y: top - width * 0.22, radiusX: width * 0.3, radiusY: width * 0.3 })
+  });
+}
+
 /** Cracked ledge slab, or the hole it leaves once fallen (#1963). */
 export function getCrumblePropGeometry(plane: DungeonPropPlane | null | undefined) {
   const { width, centerX, baseY } = getDungeonPropBase(plane, 0.86);

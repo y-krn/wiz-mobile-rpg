@@ -224,6 +224,16 @@ A guaranteed breather after a milestone offers recovery and preparation before
 the next floor. Rest should be a choice about resources, not a replacement for
 route risk or a second safe-return system.
 
+## Biome special rooms
+
+One special room per floor is an optional detour, not a supply line. Each
+converts an existing resource into another existing one—turns and noise into
+materials, materials into status relief or a short weapon temper, HP into MP
+or next-floor information, risk into an ordinary dropped chest—so it adds a
+route decision without a new currency, a permanent stat, or a substitute for
+the milestone merchant's curse removal. The room list and its rules live in the
+core-loop canon.
+
 ## Run quests
 
 Run-scoped contracts are optional supporting content, not a second progression
