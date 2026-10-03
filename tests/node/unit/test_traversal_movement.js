@@ -158,6 +158,8 @@ function enterFloor(floor) {
   assert.deepEqual({ x: state.x, y: state.y }, { x: ledge.x, y: ledge.y }, 'an intact ledge is walkable');
   const exitDir = ledge.cell.walls.findIndex((wall, dir) => !wall && dir !== (state.dir + 2) % 4);
   state.dir = exitDir;
+  // The floor is random: a discovered trap past the ledge would stop the step at a confirmation prompt.
+  map[ledge.y + DY[exitDir]][ledge.x + DX[exitDir]].trap = null;
   quiet();
   handleMove('forward');
   assert.equal(ledge.cell.obstacle.state, 'collapsed', 'the ledge falls once crossed');
