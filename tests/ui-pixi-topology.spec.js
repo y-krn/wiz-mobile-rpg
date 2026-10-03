@@ -93,7 +93,7 @@ test('PixiJS topology remains readable across supported widths and six navigatio
       expect(evidence.topology.length).toBeGreaterThan(0);
       expect(evidence.canvasSize[0]).toBeGreaterThanOrEqual(viewport.width - 2);
       expect(evidence.canvasSize[1]).toBeGreaterThanOrEqual(viewport.height - 2);
-      expect(evidence.layers).toEqual(['background', 'far-environment', 'floor', 'world-objects', 'structural-walls', 'environment-fx', 'actors', 'combat-fx', 'overlays']);
+      expect(evidence.layers).toEqual(['background', 'far-environment', 'floor', 'end-walls', 'world-objects', 'structural-walls', 'environment-fx', 'actors', 'combat-fx', 'overlays']);
       expect(evidence.childCount).toBe(9);
       const screenshot = await page.locator('#dungeon-canvas').screenshot({ path: testInfo.outputPath(`pixi-${archetype}-${viewport.width}px.png`) });
       await testInfo.attach(`pixi-${archetype}-${viewport.width}px`, { body: screenshot, contentType: 'image/png' });
