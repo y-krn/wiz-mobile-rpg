@@ -62,7 +62,7 @@ const pitfallResult = simulateRun({
     collectStage15Diagnostics: true
   },
   workshop: pitfallScenario.workshop,
-  worldSeed: "pitfall:legacy:source:35",
+  worldSeed: "pitfall:legacy:source:44",
   collectDiagnostics: true
 });
 const pitfallEvents = (pitfallResult.floorTransitionRecovery || [])

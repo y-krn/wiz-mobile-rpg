@@ -265,49 +265,54 @@ function getBounds(grid) {
   return { left: 2, top: 2, right: grid[0].length - 3, bottom: grid.length - 3 };
 }
 
-// 崩れた坑道: a long switchback tunnel with jittered turns, dead-end ore
-// veins, and one collapsed cross-cut. The silhouette is ragged because only
-// the tunnels exist; there is no rectangular frame.
+// 崩れた坑道: a vertical haulage shaft beside the entrance with hand-dug drifts
+// branching off at several levels. Drifts kink and end raggedly, a few winzes
+// link neighboring drifts, and ore veins dead-end off the drifts. The shaft
+// keeps every drift within reach, so the far end of the mine stays near the
+// depth template's pacing instead of trailing along one long switchback.
 function generateMineTunnels(carver, rng) {
   const { left, top, right, bottom } = getBounds(carver.grid);
-  const waypointCount = randomInt(rng, 5, 7);
+  const shaftX = right - randomInt(rng, 0, 2);
+  const levelCount = randomInt(rng, 4, 5);
   const span = bottom - top;
-  const waypoints = [];
-  for (let index = 0; index < waypointCount; index++) {
-    const towardRight = index % 2 === 0;
-    const x = towardRight ? right - randomInt(rng, 0, 4) : left + randomInt(rng, 0, 4);
-    const baseY = top + Math.round((span * index) / (waypointCount - 1));
-    const y = Math.min(bottom, Math.max(top, baseY + randomInt(rng, -1, 1)));
-    waypoints.push({ x, y });
+  const levels = [];
+  for (let index = 0; index < levelCount; index++) {
+    const baseY = top + Math.round((span * index) / (levelCount - 1));
+    levels.push(Math.min(bottom, Math.max(top, baseY + (index === 0 ? 0 : randomInt(rng, -1, 1)))));
   }
-  for (let index = 0; index < waypoints.length - 1; index++) {
-    const from = waypoints[index];
-    const to = waypoints[index + 1];
-    // A mid-leg kink breaks the uniform serpentine into a hand-dug tunnel.
-    const kink = {
-      x: Math.round((from.x + to.x) / 2) + randomInt(rng, -2, 2),
-      y: Math.min(bottom, Math.max(top, from.y + randomInt(rng, 0, Math.max(0, to.y - from.y))))
-    };
-    carver.path(from, kink, rng() < 0.5);
-    carver.path(kink, to, rng() < 0.5);
-  }
+  carver.path({ x: shaftX, y: levels[0] }, { x: shaftX, y: levels.at(-1) }, false);
 
-  // One collapsed cross-cut joins two switchbacks for a single shortcut.
-  const cutIndex = randomInt(rng, 1, waypoints.length - 2);
-  const cutX = Math.round((left + right) / 2) + randomInt(rng, -3, 3);
-  carver.path({ x: cutX, y: waypoints[cutIndex - 1].y }, { x: cutX, y: waypoints[cutIndex + 1].y }, false);
+  const drifts = levels.map(y => {
+    const endX = left + randomInt(rng, 0, Math.max(0, Math.floor((right - left) / 3)));
+    const kinkX = Math.round((shaftX + endX) / 2) + randomInt(rng, -2, 2);
+    const kinkY = Math.min(bottom, Math.max(top, y + randomInt(rng, -1, 1)));
+    const endY = Math.min(bottom, Math.max(top, kinkY + randomInt(rng, -1, 1)));
+    carver.path({ x: shaftX, y }, { x: kinkX, y: kinkY }, rng() < 0.5);
+    carver.path({ x: kinkX, y: kinkY }, { x: endX, y: endY }, true);
+    return { y, kinkX, kinkY, endX, endY };
+  });
+
+  // Winzes join neighboring drifts away from the shaft for a few loops.
+  const winzeCount = randomInt(rng, 1, 2);
+  for (let winze = 0; winze < winzeCount; winze++) {
+    const index = randomInt(rng, 0, drifts.length - 2);
+    const upper = drifts[index];
+    const lower = drifts[index + 1];
+    const x = randomInt(rng, Math.max(upper.endX, lower.endX) + 1, Math.min(upper.kinkX, lower.kinkX) - 1);
+    if (!Number.isFinite(x) || x <= left) continue;
+    carver.path({ x, y: upper.kinkY }, { x, y: lower.kinkY }, false);
+  }
 
   const rooms = [];
-  const galleryIndexes = [1, waypoints.length - 2];
-  galleryIndexes.forEach(index => {
-    const anchor = waypoints[index];
+  const galleryDrifts = [drifts[1], drifts.at(-1)];
+  galleryDrifts.forEach(drift => {
     const w = pick(rng, [2, 3]);
     const h = 2;
-    const x = Math.min(right - w + 1, Math.max(left, anchor.x - (anchor.x > (left + right) / 2 ? w - 1 : 0)));
-    const y = Math.min(bottom - h + 1, Math.max(top, anchor.y));
+    const x = Math.min(right - w + 1, Math.max(left - 1, drift.endX - w + 1));
+    const y = Math.min(bottom - h + 1, Math.max(top - 1, drift.endY));
     const room = { x, y, w, h };
     carver.room(room);
-    carver.path({ x: room.x, y: room.y }, anchor, true);
+    carver.path({ x: room.x + room.w - 1, y: room.y }, { x: drift.endX, y: drift.endY }, true);
     rooms.push(room);
   });
 

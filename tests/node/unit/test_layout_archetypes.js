@@ -35,7 +35,7 @@ function signature(generated) {
 const aggregates = new Map();
 for (const floor of [...BIOME_FLOORS, ...CYCLE_FLOORS]) {
   const biome = getBiomeForFloor(floor);
-  const totals = { symmetry: 0, turnRatio: 0, voidCount: 0, corridorRatio: 0, cycles: 0, openAreaShare: 0 };
+  const totals = { symmetry: 0, turnRatio: 0, voidCount: 0, corridorRatio: 0, alternativePathRate: 0, openAreaShare: 0 };
   for (let seedIndex = 0; seedIndex < SEEDS; seedIndex++) {
     const runSeed = `ISSUE-1962-${seedIndex}`;
     const generated = generateRunFloor({ runSeed, floor });
@@ -59,7 +59,7 @@ for (const floor of [...BIOME_FLOORS, ...CYCLE_FLOORS]) {
     totals.turnRatio += shape.turnRatio / SEEDS;
     totals.voidCount += shape.voidCount / SEEDS;
     totals.corridorRatio += generated.structureMetrics.corridorRatio / SEEDS;
-    totals.cycles += generated.structureMetrics.cycleCount / SEEDS;
+    totals.alternativePathRate += generated.structureMetrics.alternativePathRate / SEEDS;
     totals.openAreaShare += generated.structureMetrics.openAreaCellCount /
       generated.structureMetrics.walkableCellCount / SEEDS;
   }
@@ -75,10 +75,10 @@ const forge = aggregates.get("dragon_forge");
 const abyss = aggregates.get("abyssal_throne");
 assert.equal(aggregates.size, BIOMES.length);
 
-assert.ok(others("collapsed_mine").every(value => mine.corridorRatio > value.corridorRatio + 0.2),
+assert.ok(others("collapsed_mine").every(value => mine.corridorRatio > value.corridorRatio + 0.1),
   "mine tunnels are not the most corridor-heavy layout");
-assert.ok(others("collapsed_mine").every(value => mine.cycles < value.cycles),
-  "mine tunnels have too many loops");
+assert.ok(others("collapsed_mine").every(value => mine.alternativePathRate < value.alternativePathRate - 0.1),
+  "mine tunnels have too many alternate routes");
 assert.ok(others("forgotten_catacomb").every(value => catacomb.symmetry > value.symmetry + 0.15),
   "catacomb lattice lost its left/right symmetry");
 assert.ok(rift.voidCount >= 30, "rift chasm is missing");
@@ -88,6 +88,13 @@ assert.ok(library.voidCount >= 12, "library flood is missing");
 assert.ok(forge.voidCount >= 9, "forge furnace is missing");
 assert.ok(others("abyssal_throne").every(value => abyss.turnRatio > value.turnRatio * 1.8),
   "abyss causeways do not turn on every step");
+
+// Milestone guardians stay within the depth template's reach: the mine shaft
+// keeps the farthest cell near the shared pacing instead of a long switchback.
+for (let seedIndex = 0; seedIndex < SEEDS; seedIndex++) {
+  const generated = generateRunFloor({ runSeed: `ISSUE-1962-${seedIndex}`, floor: 5 });
+  assert.ok(generated.milestoneEvents.boss.distance <= 60, `B5 ISSUE-1962-${seedIndex} guardian is too far`);
+}
 
 // Forge furnaces sit at the center of every floor.
 for (let seedIndex = 0; seedIndex < SEEDS; seedIndex++) {

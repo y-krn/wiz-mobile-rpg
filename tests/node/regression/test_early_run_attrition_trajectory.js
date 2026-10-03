@@ -449,13 +449,14 @@ assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributi
 // #1801 solo HP budget: two of the eight seeded runs now return before B3 and
 // none of the B3 entrants die at B3. #1939 replaced the B3 gas bomb with
 // corrosion, so one more B3 entrant returns instead of descending. #1962 biome
-// layout archetypes reshuffle the seeded floors: one more of the eight runs
-// enters B3 (a 64-run comparison kept B3-B5 entrants and deaths within noise).
-assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 7);
+// layout archetypes reshuffle the seeded floors: two more B3 entrants descend
+// instead of returning (a 64-run comparison kept B3-B5 entrants and deaths
+// within noise).
+assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 6);
 assert.deepEqual(
   Object.fromEntries(Object.entries(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts)
     .map(([id, cohort]) => [id, cohort.count])),
-  { reachedNextFloor: 4, died: 0, voluntaryReturn: 3, otherTerminal: 0 }
+  { reachedNextFloor: 5, died: 0, voluntaryReturn: 1, otherTerminal: 0 }
 );
 assert.equal(canonicalOnlySmoke.cases[0].policies.t0, undefined);
 const canonicalOnlyReport = trajectory.buildReport(
@@ -541,7 +542,7 @@ assert.equal(
 // floor layouts moved them off the previous seed (1301).
 const largerSmoke = await trajectory.runMeasurement({
   runs: 16,
-  seed: 1322,
+  seed: 1323,
   startingKitIds: ["vanguard"],
   scenarioIds: ["workshop-empty"],
   collectEquipmentCandidateAudit: true,
@@ -550,7 +551,7 @@ const largerSmoke = await trajectory.runMeasurement({
 const largerReport = trajectory.buildReport(
   largerSmoke,
   { sourceCommit: "a".repeat(40), measurementRunnerCommit: "b".repeat(40) },
-  { SIM_SEED: "1322" },
+  { SIM_SEED: "1323" },
   { measurementId: "build-progression-audit", purpose: "regression" }
 );
 const largestSmoke = await trajectory.runMeasurement({

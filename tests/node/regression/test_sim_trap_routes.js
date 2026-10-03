@@ -21,7 +21,7 @@ function run() {
     targetDepth: 6,
     // Generator changes (#934 structures, #1962 biome archetypes) move traps;
     // keep a deterministic seed that exercises detour and subsequent-trap paths.
-    runIndex: 55,
+    runIndex: 21,
     seriesId: "issue-933-route",
     scoringProfile: null,
     scenario,
