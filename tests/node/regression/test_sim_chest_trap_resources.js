@@ -35,11 +35,13 @@ assert.deepEqual(mimicOutcome(victory), {
 });
 assert.deepEqual(mimicOutcome(run(8)), mimicOutcome(victory), "mimic fights are deterministic");
 
-const cautious = run(1);
+// Run indexes are fixtures; floor layouts (#1962) decide which chests a run meets.
+const cautious = run(24);
 const cautiousMimic = mimicOutcome(cautious);
+assert.ok(cautiousMimic.encounters > 0, "the cautious fixture meets a mimic");
 assert.equal(cautiousMimic.left, cautiousMimic.encounters, "a low-HP player leaves every mimic");
 assert.equal(cautiousMimic.fights, 0);
-assert.deepEqual(cautious.chestTrapOutcomes.corrosionItemsLost, { ETHER: 1 });
+assert.deepEqual(cautious.chestTrapOutcomes.corrosionItemsLost, { TRAP_SENSE_STONE: 1 });
 
 for (const result of [victory, cautious]) {
   const mimic = mimicOutcome(result);

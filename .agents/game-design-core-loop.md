@@ -252,6 +252,16 @@ before or after the boss, and B6 transition.
   descent decision.
 - Biomes rotate on a five-floor rhythm. Their enemy themes, hazards, landmarks,
   and atmosphere answer “where am I?” while depth supplies the pressure axis.
+- Each biome owns one layout archetype, so the floor silhouette and route graph
+  answer “where am I?” before color does: winding mine tunnels, a symmetric
+  catacomb lattice, a chasm crossed only by bridges, flooded library stacks,
+  forge rings around an impassable furnace, and abyssal islands joined by
+  staircase causeways. The seed varies each archetype's proportions and
+  placement; it must not collapse biomes back onto one shared skeleton.
+  Impassable archetype terrain (chasm, water, furnace) stays impassable through
+  every later generation stage. The depth template still owns floor size,
+  gimmick density, and the critical-path envelope, and the natural route stays
+  within the mobile pacing targets below.
 - Starting deeper may be a useful record-oriented option, but it must carry a
   meaningful material or preparation trade-off so it cannot replace B1 runs for
   every purpose.

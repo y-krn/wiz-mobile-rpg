@@ -19,9 +19,9 @@ function run() {
     className: "Fighter",
     startFloor: 1,
     targetDepth: 6,
-    // The structure-driven generator changed the old fixture's trap order;
+    // Generator changes (#934 structures, #1962 biome archetypes) move traps;
     // keep a deterministic seed that exercises detour and subsequent-trap paths.
-    runIndex: 53,
+    runIndex: 55,
     seriesId: "issue-933-route",
     scoringProfile: null,
     scenario,

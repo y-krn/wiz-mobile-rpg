@@ -9244,8 +9244,13 @@ export function applyPhase4cV1EnemyBaseline(monsters, floor, isBoss) {
   const band = Math.max(0, Math.min(5, Math.floor(floor / 5)));
   for (const monster of monsters) {
     if (monster.isBoss === true) continue;
-    const templateName = monster.name.replace(/\s[A-Z]$/, "");
-    const template = MONSTERS.find(entry => entry.name === templateName);
+    // A mimic fights with the floor elite's body (production startMimicCombat),
+    // so its generic baseline comes from that elite template.
+    const templateName = monster.isMimic
+      ? getBiomeForFloor(floor).eliteName
+      : monster.name.replace(/\s[A-Z]$/, "");
+    const template = MONSTERS.find(entry => entry.name === templateName) ||
+      (monster.isMimic ? MONSTERS.find(entry => entry.name === "フラック") : null);
     if (!template) throw new Error(`Phase 4c v1 missing generic enemy template: ${monster.name}`);
     const hp = Math.max(1, Math.round(template.hp * PHASE4C_V1.enemyHpMultiplier(band)));
     monster.maxHp = hp;

@@ -5,30 +5,32 @@ import {
   generateRandomMap,
   getMapStructureMetrics
 } from "../../../src/map_generator.js";
+import { LAYOUT_ARCHETYPES, getLayoutArchetypePrimitive } from "../../../src/map_layout_archetypes.js";
 import { generateRunFloor } from "../../../src/run_map_generator.js";
 
 const floors = [1, 6, 11, 16, 21, 26];
 
+// #1962: each biome owns one layout archetype, and archetypes are not shared.
+assert.equal(new Set(BIOMES.map(biome => biome.terrain.layoutArchetype)).size, BIOMES.length);
 for (const biome of BIOMES) {
-  const profile = biome.terrain.structureProfile;
-  assert.deepEqual(Object.keys(profile).sort(), [...TERRAIN_STRUCTURE_TYPES].sort(), biome.id);
-  assert.ok(Math.abs(Object.values(profile).reduce((sum, value) => sum + value, 0) - 1) < 1e-9, biome.id);
-  assert.ok(Object.values(profile).every(value => value > 0), biome.id);
+  assert.ok(LAYOUT_ARCHETYPES[biome.terrain.layoutArchetype], `${biome.id} archetype is unknown`);
+  assert.ok(TERRAIN_STRUCTURE_TYPES.includes(getLayoutArchetypePrimitive(biome.terrain.layoutArchetype)), biome.id);
 }
 
 const observedTypes = new Set();
 const aggregate = new Map();
 for (const floor of floors) {
   const biome = getBiomeForFloor(floor);
-  const profile = getBiomeTerrainForFloor(floor);
-  assert.deepEqual(profile.structureProfile, biome.terrain.structureProfile);
+  const terrain = getBiomeTerrainForFloor(floor);
+  assert.equal(terrain.layoutArchetype, biome.terrain.layoutArchetype);
 
   const totals = { cycles: 0, alternativePathRate: 0, openAreaCells: 0, corridorRatio: 0 };
   for (let seedIndex = 0; seedIndex < 24; seedIndex++) {
     const generated = generateRunFloor({ runSeed: `ISSUE-934-${seedIndex}`, floor });
     const repeated = generateRunFloor({ runSeed: `ISSUE-934-${seedIndex}`, floor });
     assert.deepEqual(generated.structureMetrics, repeated.structureMetrics, `B${floor} metrics not deterministic`);
-    assert.deepEqual(generated.structureProfile, profile.structureProfile, `B${floor} profile not consumed`);
+    assert.equal(generated.layoutArchetype, terrain.layoutArchetype, `B${floor} archetype not consumed`);
+    assert.equal(generated.structureType, getLayoutArchetypePrimitive(terrain.layoutArchetype));
     assert.equal(generated.validation.valid, true, `B${floor} validation failed`);
     assert.equal(generated.structureMetrics.componentCount, 1, `B${floor} disconnected structure`);
     assert.ok(generated.structureMetrics.cycleCount >= 0, `B${floor} invalid cycle count`);
@@ -46,9 +48,9 @@ for (const floor of floors) {
 
 assert.equal(observedTypes.size, TERRAIN_STRUCTURE_TYPES.length, "all structure primitives were not selected");
 assert.notDeepEqual(aggregate.get("forgotten_catacomb"), aggregate.get("sunken_library"),
-  "distinct biome profiles produced identical structure aggregates");
+  "distinct biome archetypes produced identical structure aggregates");
 assert.notDeepEqual(aggregate.get("rift_nest"), aggregate.get("dragon_forge"),
-  "loop/open-area biome profiles produced identical structure aggregates");
+  "loop archetypes produced identical structure aggregates");
 
 const forcedProfiles = Object.fromEntries(TERRAIN_STRUCTURE_TYPES.map(type => [type, {
   corridor: type === "corridor" ? 1 : 0,
@@ -99,4 +101,4 @@ const direct = generateRandomMap(1, null, "ISSUE-934-DIRECT", {
 assert.equal(direct.structureType, "hub");
 assert.deepEqual(direct.structureMetrics, getMapStructureMetrics(direct.grid, direct.rooms));
 
-console.log("[PASS] Issue #934 structure profiles select all primitives, expose graph metrics, preserve deterministic floors, and keep Biome aggregates distinct.");
+console.log("[PASS] Issue #934/#1962 biome archetypes cover all primitives, expose graph metrics, preserve deterministic floors, and keep Biome aggregates distinct.");

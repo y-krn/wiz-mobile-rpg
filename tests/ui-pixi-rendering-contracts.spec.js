@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { test, expect } from './fixtures/browser-health.js';
 
-const PRODUCTION_FIXTURE = Object.freeze({ seed: 'ISSUE-1230-B1F-PRODUCTION', floor: 1, x: 6, y: 4, dir: 1 });
+// #1962 biome layouts moved B1F passages; the fixture cell keeps a near side opening.
+const PRODUCTION_FIXTURE = Object.freeze({ seed: 'ISSUE-1230-B1F-PRODUCTION', floor: 1, x: 10, y: 2, dir: 1 });
 const EVIDENCE_DIR = process.env.PIXI_EVIDENCE_DIR || '';
 
 function persistEvidence(name, buffer) {

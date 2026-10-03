@@ -1,5 +1,6 @@
 import { DIR_N, DIR_E, DIR_S, DIR_W, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, TRAP_TYPES } from "./data.js";
 import { createRng } from "./seed_rng.js";
+import { generateLayoutArchetype, getLayoutArchetypePrimitive } from "./map_layout_archetypes.js";
 
 // Directions helper
 const DX = [0, 1, 0, -1];
@@ -92,6 +93,7 @@ const SECRET_DOOR_COUNTS = {
 
 // Preserve the existing sparse/dense profile split while bounding endpoint counts.
 const DEAD_END_TARGET_RANGE = [15, 38];
+const NO_VOID_KEYS = new Set();
 
 
 function isWalkableCell(cell) {
@@ -1027,12 +1029,13 @@ function removeInvalidOneWayPassages(grid, start) {
   }
 }
 
-function placeSecretShortcuts(grid, targetCount, protectedRoomKeys, rng) {
+function placeSecretShortcuts(grid, targetCount, protectedRoomKeys, rng, voidKeys = NO_VOID_KEYS) {
   const candidates = [];
 
   for (let y = 1; y < getMapHeight(grid) - 1; y++) {
     for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       const cell = grid[y][x];
+      if (voidKeys.has(`${x},${y}`)) continue;
       if (cell.type !== "empty" || cell.event || cell.walls.some(w => !w) || cell.secretDoor.some(Boolean)) continue;
       if ([0, 1, 2, 3].some(dir => protectedRoomKeys.has(`${x + DX[dir]},${y + DY[dir]}`))) continue;
 
@@ -1068,13 +1071,14 @@ function placeSecretShortcuts(grid, targetCount, protectedRoomKeys, rng) {
   return placed;
 }
 
-function getSecretRoomCandidates(grid, requiredKeys, start) {
+function getSecretRoomCandidates(grid, requiredKeys, start, voidKeys = NO_VOID_KEYS) {
   const candidates = [];
   const reachableKeys = getDirectedReachableCellKeys(grid, start);
 
   for (let y = 1; y < getMapHeight(grid) - 1; y++) {
     for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       const roomCell = grid[y][x];
+      if (voidKeys.has(`${x},${y}`)) continue;
       if (!roomCell.walls.every(Boolean) || roomCell.event || roomCell.type !== "empty") continue;
       if (requiredKeys.has(`${x},${y}`)) continue;
 
@@ -1102,8 +1106,8 @@ function getSecretRoomCandidates(grid, requiredKeys, start) {
   return candidates;
 }
 
-function ensureSecretRoomCandidates(grid, targetCount, requiredKeys, start, rng) {
-  let candidates = getSecretRoomCandidates(grid, requiredKeys, start);
+function ensureSecretRoomCandidates(grid, targetCount, requiredKeys, start, rng, voidKeys = NO_VOID_KEYS) {
+  let candidates = getSecretRoomCandidates(grid, requiredKeys, start, voidKeys);
   let protectedCount = selectProtectedSecretRoomKeys(candidates, targetCount).size;
   while (protectedCount < targetCount) {
     const reachableKeys = getDirectedReachableCellKeys(grid, start);
@@ -1128,7 +1132,7 @@ function ensureSecretRoomCandidates(grid, targetCount, requiredKeys, start, rng)
     let created = false;
     for (const deadEnd of deadEnds) {
       closeWall(grid, deadEnd.x, deadEnd.y, deadEnd.openDir);
-      const nextCandidates = getSecretRoomCandidates(grid, requiredKeys, start);
+      const nextCandidates = getSecretRoomCandidates(grid, requiredKeys, start, voidKeys);
       const nextProtectedCount = selectProtectedSecretRoomKeys(nextCandidates, targetCount).size;
       if (nextProtectedCount > protectedCount) {
         candidates = nextCandidates;
@@ -1156,8 +1160,8 @@ function selectProtectedSecretRoomKeys(candidates, targetCount, initialKeys = ne
   return keys;
 }
 
-function placeSecretRooms(grid, targetCount, requiredKeys, start, protectedRoomKeys, rng) {
-  const candidates = getSecretRoomCandidates(grid, requiredKeys, start);
+function placeSecretRooms(grid, targetCount, requiredKeys, start, protectedRoomKeys, rng, voidKeys = NO_VOID_KEYS) {
+  const candidates = getSecretRoomCandidates(grid, requiredKeys, start, voidKeys);
 
   shuffleInPlace(candidates, rng);
   candidates.sort((a, b) =>
@@ -1186,15 +1190,24 @@ function placeSecretRooms(grid, targetCount, requiredKeys, start, protectedRoomK
   return placed;
 }
 
-function placeSecretDoors(grid, floor, start, stairsDownCoord, bossCoord, rng, counts = null) {
+function placeSecretDoors(
+  grid,
+  floor,
+  start,
+  stairsDownCoord,
+  bossCoord,
+  rng,
+  counts = null,
+  voidKeys = NO_VOID_KEYS
+) {
   counts ||= SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
   const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
-  const initialRoomCandidates = getSecretRoomCandidates(grid, requiredKeys, start);
+  const initialRoomCandidates = getSecretRoomCandidates(grid, requiredKeys, start, voidKeys);
   let protectedRoomKeys = selectProtectedSecretRoomKeys(initialRoomCandidates, counts.room);
-  const shortcuts = placeSecretShortcuts(grid, counts.shortcut, protectedRoomKeys, rng);
-  const roomCandidates = ensureSecretRoomCandidates(grid, counts.room, requiredKeys, start, rng);
+  const shortcuts = placeSecretShortcuts(grid, counts.shortcut, protectedRoomKeys, rng, voidKeys);
+  const roomCandidates = ensureSecretRoomCandidates(grid, counts.room, requiredKeys, start, rng, voidKeys);
   protectedRoomKeys = selectProtectedSecretRoomKeys(roomCandidates, counts.room, protectedRoomKeys);
-  const rooms = placeSecretRooms(grid, counts.room, requiredKeys, start, protectedRoomKeys, rng);
+  const rooms = placeSecretRooms(grid, counts.room, requiredKeys, start, protectedRoomKeys, rng, voidKeys);
 
   if (!canReachAllRequired(grid, start, requiredKeys)) {
     throw new Error(`B${floor}F required path blocked by secret doors`);
@@ -1648,6 +1661,15 @@ function hasClosedWallBesideWalkableCell(grid, room) {
   return false;
 }
 
+function roomContainsVoid(room, voidKeys) {
+  for (let y = room.y; y < room.y + room.h; y++) {
+    for (let x = room.x; x < room.x + room.w; x++) {
+      if (voidKeys.has(`${x},${y}`)) return true;
+    }
+  }
+  return false;
+}
+
 // Overlapping or directly adjacent rooms would merge into one large hall.
 function roomsTooClose(a, b) {
   return a.x <= b.x + b.w && b.x <= a.x + a.w &&
@@ -1681,7 +1703,8 @@ export function carveRooms(
   roomCountRange = ROOM_COUNT_RANGE,
   structureProfile = null,
   structureType = null,
-  seedRooms = []
+  seedRooms = [],
+  voidKeys = NO_VOID_KEYS
 ) {
   const targetCount = roomCountRange[0] +
     Math.floor(rng() * (roomCountRange[1] - roomCountRange[0] + 1));
@@ -1723,6 +1746,7 @@ export function carveRooms(
     if (structureType !== "openArea" && candidate.w === 3 && candidate.h === 3 &&
       rooms.some(room => room.w === 3 && room.h === 3)) continue;
     if (rooms.some(room => roomsTooClose(room, candidate))) continue;
+    if (voidKeys.size > 0 && roomContainsVoid(candidate, voidKeys)) continue;
     if (countRoomEntrances(grid, candidate) < 2) continue;
     if (hasClosedWallBesideWalkableCell(grid, candidate)) continue;
 
@@ -1788,12 +1812,20 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   const mapWidth = options.size?.width ?? MAP_WIDTH;
   const mapHeight = options.size?.height ?? MAP_HEIGHT;
   const rng = seed ? createRng(`${seed}:map:B${floor}`) : Math.random;
+  const layoutArchetype = options.layoutArchetype ?? null;
+  const archetypePrimitive = layoutArchetype ? getLayoutArchetypePrimitive(layoutArchetype) : null;
+  if (layoutArchetype && !archetypePrimitive) throw new Error(`unknown layout archetype: ${layoutArchetype}`);
+  // An archetype fixes the dominant primitive, so the floor reports the same
+  // structure vocabulary as profile-driven floors.
+  const structureProfile = archetypePrimitive
+    ? Object.fromEntries(TERRAIN_STRUCTURE_TYPES.map(type => [type, type === archetypePrimitive ? 1 : 0]))
+    : options.structureProfile;
   const mazeProfile = createMazeProfile(
     floor,
     rng,
     options.mazeProfile,
     { width: mapWidth, height: mapHeight },
-    options.structureProfile
+    structureProfile
   );
   // 1. Initialize grid with all walls closed
   const grid = Array.from({ length: mapHeight }, () =>
@@ -1927,11 +1959,16 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
 
   let seededRooms = [];
-  if (mazeProfile.structureType) {
+  let voidKeys = NO_VOID_KEYS;
+  if (layoutArchetype) {
+    const layout = generateLayoutArchetype(grid, visited, rng, layoutArchetype);
+    seededRooms = layout.rooms;
+    voidKeys = layout.voidKeys;
+  } else if (mazeProfile.structureType) {
     seededRooms = generateStructureLayout(grid, visited, mazeProfile.structureType);
   }
 
-  if (mazeProfile.structureType === "corridor") {
+  if (!layoutArchetype && mazeProfile.structureType === "corridor") {
     carveLongAlternatePaths(grid, visited, 1);
   }
   if (!mazeProfile.structureType) removeIsolatedInternalWalls(grid);
@@ -1943,7 +1980,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     options.roomCountRange,
     mazeProfile.structureProfile,
     mazeProfile.structureType,
-    seededRooms
+    seededRooms,
+    voidKeys
   );
 
   const b1EntryCandidates = [];
@@ -1993,7 +2031,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
             const nx = pos.x + DX[dir];
             const ny = pos.y + DY[dir];
             const key = `${nx},${ny}`;
-            if (!isValid(nx, ny) || seen.has(key)) continue;
+            if (!isValid(nx, ny) || seen.has(key) || voidKeys.has(key)) continue;
             seen.add(key);
             previous.set(key, pos);
             if (visited[ny][nx]) {
@@ -2028,7 +2066,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
 
   // Keep enough meaningful endpoints for stairs and events while pruning excess branches.
-  const protectedDeadEndKeys = new Set([`${suCoord.x},${suCoord.y}`]);
+  // Void cells are protected so dead-end growth never fills the silhouette.
+  const protectedDeadEndKeys = new Set([`${suCoord.x},${suCoord.y}`, ...voidKeys]);
   for (const room of rooms) {
     for (let y = room.y; y < room.y + room.h; y++) {
       for (let x = room.x; x < room.x + room.w; x++) {
@@ -2182,7 +2221,14 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   const secretCounts = options.secretDoorCounts || SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
   const preEventRequiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
-  const preEventRoomCandidates = ensureSecretRoomCandidates(grid, secretCounts.room, preEventRequiredKeys, suCoord, rng);
+  const preEventRoomCandidates = ensureSecretRoomCandidates(
+    grid,
+    secretCounts.room,
+    preEventRequiredKeys,
+    suCoord,
+    rng,
+    voidKeys
+  );
   const reservedRoomKeys = selectProtectedSecretRoomKeys(preEventRoomCandidates, secretCounts.room);
   const reservedPassageKeys = new Set(preEventRoomCandidates
     .filter(candidate => reservedRoomKeys.has(`${candidate.roomX},${candidate.roomY}`))
@@ -2316,7 +2362,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     options.oneWayPassageCount,
     options.criticalPathRange
   );
-  placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, secretCounts);
+  placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, secretCounts, voidKeys);
   removeInvalidOneWayPassages(grid, suCoord);
   if (mazeProfile.structureType) connectStructureComponents(grid);
 
@@ -2329,6 +2375,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     rooms,
     structureProfile: mazeProfile.structureProfile,
     structureType: mazeProfile.structureType,
+    layoutArchetype,
+    voidCells: [...voidKeys],
     structureMetrics,
     trapMeta: {
       total: chosen.length,
