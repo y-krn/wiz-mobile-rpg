@@ -149,7 +149,12 @@ const TRAVERSAL_MINIMAP_MARKERS = Object.freeze({
   rubble: { glyph: "岩", color: "#9a6a32" },
   seal: { glyph: "封", color: "#b8860b" },
   lever: { glyph: "仕", color: "#c7771a" },
-  "lever-pulled": { glyph: "仕", color: "#8f8a80" }
+  "lever-pulled": { glyph: "仕", color: "#8f8a80" },
+  crumble: { glyph: "崩", color: "#a0522d" },
+  "crumble-collapsed": { glyph: "崩", color: "#5a4a40" },
+  flood: { glyph: "水", color: "#3d9be9" },
+  heat: { glyph: "熱", color: "#e0602a" },
+  spinner: { glyph: "回", color: "#7c5cd6" }
 });
 
 // Biome traversal gimmicks (#1963) share the full map's glyphs.

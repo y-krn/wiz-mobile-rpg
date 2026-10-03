@@ -247,3 +247,46 @@ export function getLeverPropGeometry(plane: DungeonPropPlane | null | undefined,
     })
   });
 }
+
+/** Cracked ledge slab, or the hole it leaves once fallen (#1963). */
+export function getCrumblePropGeometry(plane: DungeonPropPlane | null | undefined) {
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.86);
+  const near = baseY;
+  const far = baseY - width * 0.16;
+  return Object.freeze({
+    width,
+    slab: freezePoints([
+      { x: centerX - width * 0.5, y: near },
+      { x: centerX + width * 0.5, y: near },
+      { x: centerX + width * 0.42, y: far },
+      { x: centerX - width * 0.42, y: far }
+    ]),
+    cracks: Object.freeze([
+      freezePoints([
+        { x: centerX - width * 0.3, y: near - width * 0.02 },
+        { x: centerX - width * 0.12, y: near - width * 0.08 },
+        { x: centerX - width * 0.18, y: far + width * 0.02 }
+      ]),
+      freezePoints([
+        { x: centerX + width * 0.08, y: near - width * 0.01 },
+        { x: centerX + width * 0.2, y: near - width * 0.09 },
+        { x: centerX + width * 0.32, y: far + width * 0.03 }
+      ])
+    ]),
+    hole: Object.freeze({ x: centerX, y: (near + far) / 2, radiusX: width * 0.46, radiusY: Math.max(2, width * 0.09) })
+  });
+}
+
+/** Floor-level patch for walkable hazards: water or a heat grate (#1963). */
+export function getFloorPatchPropGeometry(plane: DungeonPropPlane | null | undefined) {
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.9);
+  const y = baseY - width * 0.07;
+  return Object.freeze({
+    width,
+    patch: Object.freeze({ x: centerX, y, radiusX: width * 0.48, radiusY: Math.max(2, width * 0.1) }),
+    bars: Object.freeze([-0.3, -0.15, 0, 0.15, 0.3].map(offset => freezePoints([
+      { x: centerX + width * offset, y: y - width * 0.07 },
+      { x: centerX + width * offset * 1.12, y: y + width * 0.07 }
+    ])))
+  });
+}

@@ -38,7 +38,8 @@ global.localStorage = {
 const { state, createStartingKitCharacter } = await import('../../../src/state.js');
 const { executeEnterDungeon, getCurrentFloorExplorationSteps, handleMove } = await import('../../../src/movement.js');
 const { ensureRunFloor } = await import('../../../src/state/run_floor_state.js');
-const { RUBBLE_CLEAR_TURNS } = await import('../../../src/rules/traversal_gimmicks.js');
+const { RUBBLE_CLEAR_TURNS, getHeatDamage, isHeatActive } = await import('../../../src/rules/traversal_gimmicks.js');
+const { getCharMaxHp } = await import('../../../src/data.js');
 
 // #1963: live exploration resolves biome traversal gimmicks in place.
 global.setTimeout = callback => {
@@ -140,4 +141,84 @@ executeEnterDungeon(1);
   assert.deepEqual({ x: state.x, y: state.y }, { x: gate.x, y: gate.y }, 'the opened seal is walkable');
 }
 
-console.log('[PASS] Issue #1963 rubble digging and seal levers resolve through live exploration.');
+function enterFloor(floor) {
+  state.floor = floor;
+  state._freshRunFloor = floor;
+  return ensureRunFloor(state, floor);
+}
+
+// Crumbling ledge: crossing it once makes it fall behind the player.
+{
+  const map = enterFloor(11);
+  quiet();
+  const ledge = findCell(map, cell => cell.obstacle?.kind === 'crumble');
+  assert.ok(ledge, 'B11 has a crumbling ledge');
+  faceCell(ledge);
+  handleMove('forward');
+  assert.deepEqual({ x: state.x, y: state.y }, { x: ledge.x, y: ledge.y }, 'an intact ledge is walkable');
+  const exitDir = ledge.cell.walls.findIndex((wall, dir) => !wall && dir !== (state.dir + 2) % 4);
+  state.dir = exitDir;
+  quiet();
+  handleMove('forward');
+  assert.equal(ledge.cell.obstacle.state, 'collapsed', 'the ledge falls once crossed');
+  assert.match(logText(), /足場が崩れ落ちた/);
+  state.dir = (exitDir + 2) % 4;
+  const beside = { x: state.x, y: state.y };
+  quiet();
+  handleMove('forward');
+  assert.deepEqual({ x: state.x, y: state.y }, beside, 'a fallen ledge blocks the way back');
+}
+
+// Flood: wading spends an extra exploration turn.
+{
+  const map = enterFloor(16);
+  quiet();
+  const water = findCell(map, cell => cell.hazard?.kind === 'flood');
+  assert.ok(water, 'B16 has flooded cells');
+  faceCell(water);
+  const before = getCurrentFloorExplorationSteps();
+  handleMove('forward');
+  assert.deepEqual({ x: state.x, y: state.y }, { x: water.x, y: water.y });
+  assert.equal(getCurrentFloorExplorationSteps() - before, 2, 'one step plus one wading turn');
+  assert.equal(water.cell.hazard.discovered, true);
+}
+
+// Heat: a hot grate burns, a cool one does not.
+{
+  const map = enterFloor(21);
+  const vent = findCell(map, cell => cell.hazard?.kind === 'heat');
+  assert.ok(vent, 'B21 has heat grates');
+  const hero = state.party[0];
+  for (const wantHot of [false, true]) {
+    quiet();
+    faceCell(vent);
+    // The step itself advances the turn; pick the floor turn so the arrival matches.
+    let turn = 0;
+    while (isHeatActive(vent.cell.hazard, turn + 1) !== wantHot) turn++;
+    state.currentRun.floorSteps[String(state.floor)] = turn;
+    hero.hp = getCharMaxHp(hero);
+    hero.status = 'normal';
+    handleMove('forward');
+    assert.deepEqual({ x: state.x, y: state.y }, { x: vent.x, y: vent.y });
+    const expected = wantHot ? getCharMaxHp(hero) - getHeatDamage(getCharMaxHp(hero)) : getCharMaxHp(hero);
+    assert.equal(hero.hp, expected, `a ${wantHot ? 'hot' : 'cool'} grate ${wantHot ? 'burns' : 'is safe'}`);
+  }
+}
+
+// Spinner: stepping on one turns the player to a different heading.
+{
+  const map = enterFloor(26);
+  quiet();
+  const spinner = findCell(map, cell => cell.hazard?.kind === 'spinner');
+  assert.ok(spinner, 'B26 has a spinner');
+  assert.equal(spinner.cell.hazard.discovered, false, 'spinners start hidden');
+  faceCell(spinner);
+  const facing = state.dir;
+  handleMove('forward');
+  assert.deepEqual({ x: state.x, y: state.y }, { x: spinner.x, y: spinner.y });
+  assert.notEqual(state.dir, facing, 'the spinner turned the player');
+  assert.equal(spinner.cell.hazard.discovered, true);
+  assert.match(logText(), /足元の床が回転した/);
+}
+
+console.log('[PASS] Issue #1963 traversal gimmicks resolve through live exploration.');

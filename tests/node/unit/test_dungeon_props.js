@@ -40,8 +40,8 @@ assert.ok(shortPortraitStairs.baseY < shortPortraitPlane.bottom, "short portrait
 assert.ok(shortPortraitSpring.shadow.y < shortPortraitPlane.viewport.height, "short portrait spring stays inside the viewport");
 
 assert.deepEqual(Object.keys(facade).sort(), [
-  "STAIR_PROP_STYLES", "getDungeonPropBase", "getDungeonPropPalette",
-  "getLeverPropGeometry", "getRubblePropGeometry", "getSealPropGeometry",
+  "STAIR_PROP_STYLES", "getCrumblePropGeometry", "getDungeonPropBase", "getDungeonPropPalette",
+  "getFloorPatchPropGeometry", "getLeverPropGeometry", "getRubblePropGeometry", "getSealPropGeometry",
   "getSpringPropGeometry", "getStairsPropGeometry"
 ].sort(), "facade exposes only the runtime prop exports");
 for (const name of Object.keys(facade)) assert.strictEqual(facade[name], owner[name], `${name} keeps owner identity`);
@@ -122,6 +122,10 @@ assert.equal(exerciseDungeonPropProjectionTypes(390, 844, 1).length, 8, "typed p
   assert.ok(rubble.rocks.length >= 4, "rubble reads as a heap of rocks");
   assert.ok(Math.min(...seal.slab.map(point => point.y)) < 600 - seal.width * 0.9, "the seal stands as a tall slab");
   assert.notDeepEqual(lever.handle, pulled.handle, "a pulled lever changes its handle");
+  const crumble = facade.getCrumblePropGeometry(plane);
+  const patch = facade.getFloorPatchPropGeometry(plane);
+  assert.ok(crumble.cracks.length >= 2 && crumble.hole.radiusX > 0, "a ledge shows cracks and leaves a hole");
+  assert.ok(patch.patch.y < 600 && patch.bars.length >= 3, "floor hazards sit on the floor with grate bars");
 }
 
 console.log("[PASS] dungeon spring, stairs, and traversal prop geometry contracts");

@@ -108,7 +108,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "ポイズンジャイアント", eliteName: "這い寄る影",
     enemyPool: ["スピリット", "はぐれ魔術師", "呪文喰い", "オークの戦士", "カースドハンド", "アイアンゴーレム", "霧の亡霊", "骨の鼓手", "弱体の魔女", "魔封じの目玉", "解呪の司祭"],
-    gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 1, trapBonus: 1 },
+    gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 1, trapBonus: 1, traversal: "crumble" },
     theme: {
       entryText: { first: "底知れぬ裂け目を、無数の糸と獣の息遣いが覆う。", revisit: "大裂溝の巣窟へ戻った。足元の震えが巣へ伝わる。" },
       auraLexicon: { spring: "裂け目の底から水音が上がる…", merchant: "巣の向こうから布の擦れる音がする…", stairs: "深い裂け目から風が吹き上がる…", chest: "巣糸の塊に何かが包まれている気がする…", boss: "大地を伝う振動に、魔性の脈動が混じる…" },
@@ -138,7 +138,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "マスターデーモン", eliteName: "禁書の番人",
     enemyPool: ["ストーンガード", "マスターメイジ", "バンシー", "ブラッドバット群", "石像兵", "魔鏡の司祭", "鋼殻ビートル", "弱体の魔女", "沈黙の修道士", "召喚する悪魔", "魔防崩しの蛇"],
-    gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 1, trapBonus: 2 },
+    gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 1, trapBonus: 2, traversal: "flood" },
     theme: {
       entryText: { first: "水に沈む書架の文字が、侵入者の魔力に反応して淡く光る。", revisit: "水没した魔導書庫へ戻った。濡れた頁がひとりでにめくれる。" },
       auraLexicon: { spring: "水没した回廊から水音が響く…", merchant: "書架の向こうで濡れた外套が擦れる…", stairs: "沈んだ階段から冷たい水気が流れる…", chest: "朽ちた書架に封じられた品の気配がする…", boss: "書庫全体を押さえつける魔力が脈打つ…" },
@@ -168,7 +168,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "レッドドラゴン", eliteName: "灼熱の徘徊者",
     enemyPool: ["ドラゴンワーム", "ワイバーン", "黒曜の魔導士", "結界の守護者", "盾持ちデーモン", "灰燼の術士", "ストーンガード", "鋼殻ビートル", "双頭の番犬"],
-    gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 2, trapBonus: 2 },
+    gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 2, trapBonus: 2, traversal: "heat" },
     theme: {
       entryText: { first: "赤熱した鍛造炉が脈打ち、竜火が石床の溝を走る。", revisit: "竜火の鍛造殿へ戻った。金床の残響が低く続く。" },
       auraLexicon: { spring: "冷却槽から水音が聞こえる…", merchant: "炉の陰から鎖の擦れる音がする…", stairs: "下層炉から熱風が流れる…", chest: "灰の山に金属の光が揺らぐ…", boss: "鍛造殿の奥から竜の咆哮が響く…" },
@@ -198,7 +198,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "いにしえの竜", eliteName: "深淵の徘徊者",
     enemyPool: ["マスターデーモン", "プリーストデーモン", "命喰いの影", "深淵の分裂体", "破滅の導師", "盾持ちデーモン", "結界の守護者", "反逆の鎧", "竜血の再生者"],
-    gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 2, trapBonus: 3 },
+    gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 2, trapBonus: 3, traversal: "spinner" },
     theme: {
       entryText: { first: "光の届かない玉座で、深淵の脈動が床を震わせる。", revisit: "深淵の玉座へ戻った。見えない視線が一歩ごとに追う。" },
       auraLexicon: { spring: "闇の底から水音が聞こえる…", merchant: "玉座の陰から衣擦れが聞こえる…", stairs: "底なしの階段から冷気が流れる…", chest: "幻影の陰に財宝の気配が揺らぐ…", boss: "玉座から圧倒的な魔力が押し寄せる…" },

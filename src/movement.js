@@ -43,9 +43,14 @@ import {
   RUBBLE_CLEAR_TURNS,
   TRAVERSAL_GIMMICKS,
   advanceRubbleClearing,
+  collapseCrumbleAt,
   discoverAdjacentTraversalFeatures,
+  getHeatDamage,
+  getSpinnerFacing,
+  isHeatActive,
   isTraversalObstacleBlocking,
-  pullLeverAt
+  pullLeverAt,
+  refreshHeatHazards
 } from "./rules/traversal_gimmicks.js";
 import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
@@ -90,6 +95,7 @@ export function recordExplorationSteps(count = 1) {
   if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
   const key = String(state.floor);
   state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + count;
+  if (refreshHeatHazards(state.map, state.currentRun.floorSteps[key])) markMapChanged();
   // Carrying gives the first observation early; later signs require a
   // meaningful low-frequency exploration pulse instead of every step.
   if (isCarriedObservationDue(previousSteps, state.currentRun.steps) && observeCarriedEquipment(state) > 0) {
@@ -249,7 +255,13 @@ function resolveTraversalStep() {
   if (found.length === 0) return;
   markMapChanged();
   found.forEach(({ cell }) => {
-    if (cell.obstacle?.kind === TRAVERSAL_GIMMICKS.RUBBLE && isTraversalObstacleBlocking(cell)) {
+    if (cell.obstacle?.kind === TRAVERSAL_GIMMICKS.CRUMBLE && cell.obstacle.state === "intact") {
+      addLog("崩れかけた足場がある。一度渡れば崩れ落ちそうだ。");
+    } else if (cell.hazard?.kind === TRAVERSAL_GIMMICKS.FLOOD) {
+      addLog("床が水に沈んでいる。踏み込めば足を取られそうだ。");
+    } else if (cell.hazard?.kind === TRAVERSAL_GIMMICKS.HEAT) {
+      addLog("床の格子から熱気が噴き出している。熱が引く間合いがあるようだ。");
+    } else if (cell.obstacle?.kind === TRAVERSAL_GIMMICKS.RUBBLE && isTraversalObstacleBlocking(cell)) {
       addLog("この先は落盤で塞がっている。");
     } else if (cell.obstacle?.kind === TRAVERSAL_GIMMICKS.SEAL && isTraversalObstacleBlocking(cell)) {
       addLog("古い石の封印扉が見える。");
@@ -257,6 +269,51 @@ function resolveTraversalStep() {
       addLog("床に古い仕掛けが埋め込まれている。");
     }
   });
+}
+
+// Hazards act when the player arrives on a cell. Returns true when the step's
+// resolution must stop (death, an interrupting encounter, or a state change).
+function applyTraversalHazards() {
+  const cell = state.map?.[state.y]?.[state.x];
+  const hazard = cell?.hazard;
+  if (!hazard) return false;
+  const firstMeeting = !hazard.discovered;
+  hazard.discovered = true;
+  markMapChanged();
+  if (hazard.kind === TRAVERSAL_GIMMICKS.FLOOD) {
+    addLog("水に足を取られ、進むのに余計な時間がかかった（+1手番）。");
+    const turn = consumeExplorationTurn();
+    return Boolean(turn.wiped || turn.encounter || state.gameState !== "explore");
+  }
+  if (hazard.kind === TRAVERSAL_GIMMICKS.HEAT) {
+    if (!isHeatActive(hazard, getCurrentFloorExplorationSteps())) {
+      if (firstMeeting) addLog("格子の熱が引いている。今のうちに通り抜けた。");
+      return false;
+    }
+    playSound("hit");
+    state.party.forEach(c => {
+      if (c.status === "dead" || c.hp <= 0) return;
+      const damage = getHeatDamage(getCharMaxHp(c));
+      c.hp = Math.max(0, c.hp - damage);
+      addLog(`[!] 灼熱の格子を踏んだ！${c.name}は${damage}のダメージを受けた。`);
+      if (c.hp === 0) {
+        c.status = "dead";
+        const deathLog = recordCharDeath(state, c, "灼熱の格子", { type: "trap", source: "灼熱の格子" });
+        if (deathLog) addLog(formatCharDeathLog(deathLog));
+      }
+    });
+    if (state.party.every(c => c.status === "dead")) {
+      triggerGameOver();
+      return true;
+    }
+    return false;
+  }
+  if (hazard.kind === TRAVERSAL_GIMMICKS.SPINNER) {
+    state.dir = getSpinnerFacing(state.x, state.y, getCurrentFloorExplorationSteps(), state.dir);
+    playSound("turn");
+    addLog(`足元の床が回転した！${firstMeeting ? "方角を見失わないよう、方位と地図を確かめよう。" : `いまは${DIR_NAMES[state.dir]}を向いている。`}`);
+  }
+  return false;
 }
 
 export function getCurrentExplorationCell() {
@@ -1195,6 +1252,11 @@ export function advanceRoamingTurn(playerMoved) {
 }
 
 export function processExplorationResolution(prevX, prevY) {
+  if ((prevX !== state.x || prevY !== state.y) && collapseCrumbleAt(state.map, prevX, prevY)) {
+    markMapChanged();
+    playSound("bump");
+    addLog("背後で足場が崩れ落ちた。もうここは渡れない。");
+  }
   const wiped = applyExplorationPoison();
   if (wiped) return;
 
@@ -1235,6 +1297,7 @@ export function processExplorationResolution(prevX, prevY) {
     if (triggerTrap(steppedTrap, false)) return;
   }
   detectAdjacentTraps();
+  if (applyTraversalHazards()) return;
   resolveTraversalStep();
 
   // 3. Regular floor events
