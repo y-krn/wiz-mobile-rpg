@@ -10,7 +10,7 @@ import {
   paintSurfacePattern,
   paintTrapDecal,
   paintWallDecor
-} from "../../../src/pixi_pixel_art.js";
+} from "../../../src/pixel_art_painters.js";
 import { WALL_DECOR_DENSITY, getWallDecorIndex } from "../../../src/rules/wall_decor.js";
 
 // #1964: each biome paints its own wall/floor pattern, mounts its own wall
