@@ -9,6 +9,7 @@ import {
 } from "../../../src/state.js";
 import { ensureRunFloor, isUsableFloorMap, resetRunFloors, RunFloorRecoveryError } from "../../../src/state/run_floor_state.js";
 import { getCurrentExplorationCell } from "../../../src/movement.js";
+import { decodeSaveMaps } from "../../../src/state/map_codec.js";
 
 globalThis.localStorage = (() => {
   let values = new Map();
@@ -72,6 +73,9 @@ state.maps = [nullRowMap];
 state.visitedMaps = [nullRowMap.map(row => row.map(() => false))];
 saveAutosave();
 const nullRowSave = JSON.parse(localStorage.getItem("mobile_wiz_rpg_autosave"));
+// Saves store grids compactly (#1974); corrupt the decoded grid as an older
+// plain save would carry it.
+nullRowSave.maps = decodeSaveMaps(nullRowSave.maps);
 nullRowSave.maps[0][0] = null;
 delete nullRowSave.floorChestsTotal;
 localStorage.setItem("mobile_wiz_rpg_autosave", JSON.stringify(nullRowSave));

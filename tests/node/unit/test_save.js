@@ -13,6 +13,7 @@ import { resolveItemDefinition } from "../../../src/state/item.js";
 import { RUN_QUEST_TEMPLATES } from "../../../src/data/run_quests.js";
 import { createRunQuest } from "../../../src/systems/run_quests.js";
 import { isNormalizedSavePayload } from "../../../src/state/save_contract.js";
+import { decodeSaveMaps } from "../../../src/state/map_codec.js";
 import { normalizeMaterialBalance } from "../../../src/state/material_balance.js";
 
 const saveValues = new Map();
@@ -453,6 +454,8 @@ check("save bounds normalize floor and coordinates to a traversable cell", () =>
   state.currentRun = null;
   state.party = [createStartingKitCharacter("vanguard")];
   const basePayload = createSavePayload();
+  // Saves store grids compactly (#1974); this check edits them as arrays.
+  basePayload.maps = decodeSaveMaps(basePayload.maps);
   const start = basePayload.maps[0]
     .flatMap((row, y) => row.map((cell, x) => cell.type === "stairs-up" ? { x, y } : null))
     .find(Boolean);

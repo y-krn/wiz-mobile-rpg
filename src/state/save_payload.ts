@@ -9,6 +9,7 @@ import { EQUIPMENT_SLOTS } from "../rules/equipment_slots.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { assertNormalizedSavePayload } from "./save_contract.js";
 import { normalizeMaterialBalance } from "./material_balance.js";
+import { encodeSaveMaps, encodeVisitedMaps } from "./map_codec.js";
 import type { NormalizedSavePayload, PersistedGameState } from "./save_contract.js";
 import type { StorageCollection, RuntimeItemCollection, RuntimeItemRef } from "./item.js";
 import type { CharacterEquipment } from "./equipment.js";
@@ -212,8 +213,9 @@ export function createSavePayload(): SavePayload {
     party: persistedParty,
     inventory: state.inventory.map(item => sanitizePersistedItem(item)),
     floor: state.floor,
-    maps: state.maps,
-    visitedMaps: state.visitedMaps,
+    // Compact lossless encoding keeps deep runs within localStorage (#1974).
+    maps: encodeSaveMaps(state.maps),
+    visitedMaps: encodeVisitedMaps(state.visitedMaps),
     lightTurns: state.lightTurns,
     lightPower: state.lightPower,
     repelTurns: state.repelTurns,
