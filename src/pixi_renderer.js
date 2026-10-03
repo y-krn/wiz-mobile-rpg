@@ -1,7 +1,7 @@
 // balance-impact: none — PixiJS screen-space presentation.
 // Pixi is the production-default renderer. This module consumes RendererInput
 // and deliberately stays within the shared screen-space projection contract.
-import { Application, Assets, Container, Graphics, PerspectiveMesh, Text } from "pixi.js";
+import { Application, Assets, Container, Graphics, PerspectiveMesh, RenderLayer, Text } from "pixi.js";
 import { EVENT_TYPES } from "./data.js";
 import { getEnemyPresentation } from "./enemy_presentation.js";
 import { TELEGRAPH_FLAGS } from "./data/techniques.js";
@@ -53,9 +53,12 @@ const DANGER_VIGNETTE_COLOR = "#e08c14";
 // Telegraphed enemy attacks use the shared danger role (--semantic-danger):
 // the warning is about incoming damage or loss, not a recommendation.
 const TELEGRAPH_COLOR = "#d9483b";
-// A corridor's end wall sits behind every object visible in front of it, so
-// it draws under world objects (#1976). Side walls and opening posts stay
-// above them so nearer walls still hide farther objects.
+// End walls, world objects, and side walls keep their own layers, but they
+// render through one depth-ordered stream (see createLayers): far to near, and
+// within a depth end walls, then objects, then side walls. A chest stays in
+// front of the end wall behind it (#1976), and a nearer end wall still hides
+// whatever lies behind it (#1982).
+const DEPTH_ORDERED_LAYERS = Object.freeze(["end-walls", "world-objects", "structural-walls"]);
 const LAYER_NAMES = Object.freeze([
   "background",
   "far-environment",
@@ -336,13 +339,23 @@ export class PixiDungeonRenderer {
   createSceneRoot(name) {
     const root = new Container();
     root.label = name;
+    this.createLayers(root);
+    return root;
+  }
+
+  // The depth stream renders at the bottom of the end-walls layer. Corridor
+  // pieces stay children of their named layer and are attached to the stream
+  // in painter's order; anything not attached renders with its own layer.
+  createLayers(root) {
     root.layers = Object.fromEntries(LAYER_NAMES.map((layerName) => {
       const layer = new Container();
       layer.label = layerName;
       root.addChild(layer);
       return [layerName, layer];
     }));
-    return root;
+    root.depthOrder = new RenderLayer();
+    root.depthOrder.label = "depth-order";
+    root.layers["end-walls"].addChild(root.depthOrder);
   }
 
   layer(name, root = this.activeRoot || this.scene) {
@@ -582,14 +595,7 @@ export class PixiDungeonRenderer {
     const children = root.removeChildren();
     children.forEach((child) => child.destroy({ children: true }));
     this.resourceStats.sceneRebuilds += 1;
-    if (root.layers) {
-      root.layers = Object.fromEntries(LAYER_NAMES.map((layerName) => {
-        const layer = new Container();
-        layer.label = layerName;
-        root.addChild(layer);
-        return [layerName, layer];
-      }));
-    }
+    if (root.layers) this.createLayers(root);
   }
 
   beginNavigationTransition(action, input = null) {
@@ -984,8 +990,22 @@ export class PixiDungeonRenderer {
     const floorLayer = this.layer("floor");
     const walls = this.layer("structural-walls");
     const edgeStroke = (alpha) => ({ color: palette.ink, width: 2, alpha });
+    const depthOrder = this.activeRoot?.depthOrder || this.scene?.depthOrder;
+    const depthLayers = DEPTH_ORDERED_LAYERS.map((name) => this.layer(name));
+    // Runs one draw step and attaches what it added to the depth stream, so
+    // render order follows call order across the three layers.
+    const inDepthOrder = (draw) => {
+      const counts = depthLayers.map((layer) => layer.children.length);
+      draw();
+      if (!depthOrder) return;
+      depthLayers.forEach((layer, index) => layer.children.slice(counts[index]).forEach((child) => {
+        if (child !== depthOrder) depthOrder.attach(child);
+      }));
+    };
 
     for (let z = 3; z >= 0; z -= 1) {
+      const objects = [];
+      const sideWalls = [];
       const width = projection.xr[z] - projection.xl[z];
       const nearFog = getDepthFog(z - fogShift);
       const farFog = getDepthFog(z + 1 - fogShift);
@@ -999,7 +1019,7 @@ export class PixiDungeonRenderer {
         const row = map[cellTopology.y];
         const cell = row?.[cellTopology.x];
         if (!isRenderableCorridorCell(cell)) {
-          drawProjectedFrontWall(walls, plane, ceilingStyle, "#0c0c0e", 1, { color: "#ff3b30", width: 2 });
+          inDepthOrder(() => drawProjectedFrontWall(walls, plane, ceilingStyle, "#0c0c0e", 1, { color: "#ff3b30", width: 2 }));
           continue;
         }
 
@@ -1030,28 +1050,33 @@ export class PixiDungeonRenderer {
         }
         addLine(floorLayer, [floorCorners[3], floorCorners[0], floorCorners[1], floorCorners[2]], edgeStroke(0.22));
 
+        // Within one depth: end walls first, then objects standing in front
+        // of them, then side walls, which are nearer at their open end.
+        if (cellTopology.frontBlocked) {
+          inDepthOrder(() => {
+            this.drawFrontWall(nextPlane, ceilingStyle, palette, surfaces, farFog, recess, decorFor(cellTopology.x, cellTopology.y, facing));
+            if (cellTopology.frontOneWayBarrier && column === 0) this.drawOneWayBarrier(nextPlane, wallColor);
+          });
+        }
         if (isVisibleWorldObjectCell(cellTopology)) {
           const objectPlane = getWorldObjectProjection(projection, z, column);
-          this.drawLandmark(cell, objectPlane, renderInput.visual.wallColor, renderInput.visual.landmarks);
+          objects.push(() => this.drawLandmark(cell, objectPlane, renderInput.visual.wallColor, renderInput.visual.landmarks));
         }
-
         if (cellTopology.leftBlocked) {
-          this.drawSideWall(plane, nextPlane, "left", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 3) % 4));
+          sideWalls.push(() => this.drawSideWall(plane, nextPlane, "left", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 3) % 4)));
         }
         if (cellTopology.rightBlocked) {
           const mirroredPlane = { ...plane, leftTop: plane.rightTop, rightTop: plane.leftTop, leftBottom: plane.rightBottom, rightBottom: plane.leftBottom };
           const mirroredNext = { ...nextPlane, leftTop: nextPlane.rightTop, rightTop: nextPlane.leftTop, leftBottom: nextPlane.rightBottom, rightBottom: nextPlane.leftBottom };
-          this.drawSideWall(mirroredPlane, mirroredNext, "right", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 1) % 4));
-        }
-        if (cellTopology.frontBlocked) {
-          this.drawFrontWall(nextPlane, ceilingStyle, palette, surfaces, farFog, recess, decorFor(cellTopology.x, cellTopology.y, facing));
-          if (cellTopology.frontOneWayBarrier && column === 0) this.drawOneWayBarrier(nextPlane, wallColor);
+          sideWalls.push(() => this.drawSideWall(mirroredPlane, mirroredNext, "right", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 1) % 4)));
         }
 
         if (column === 0 && renderInput.roamingMonsters.some((monster) => monster.floor === renderInput.floor && monster.x === cellTopology.x && monster.y === cellTopology.y) && z > 0) {
           drawEllipse(this.layer("environment-fx"), (nextPlane.leftBottom + nextPlane.rightBottom) / 2, nextPlane.bottom - 12, width * 0.10, Math.max(4, width * 0.04), "#ff3b30", 0.12, { color: "#ff3b30", width: 2, alpha: 0.85 });
         }
       }
+      objects.forEach(inDepthOrder);
+      sideWalls.forEach(inDepthOrder);
     }
     getSideOpeningPosts(visibleTopology, projection).forEach((post) => this.drawOpeningPost(post, palette, surfaces));
   }

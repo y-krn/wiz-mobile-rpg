@@ -83,7 +83,11 @@ async function renderObject(page, object) {
       viewport: [dungeonRenderer.viewport.width, dungeonRenderer.viewport.height],
       actorChildren: dungeonRenderer.scene.layers.actors.children.length,
       worldObjectChildren: dungeonRenderer.scene.layers['world-objects'].children.length,
-      endWallChildren: dungeonRenderer.scene.layers['end-walls'].children.length,
+      depthStream: (() => {
+        const stream = dungeonRenderer.scene.depthOrder.renderLayerChildren;
+        const indexes = (label) => stream.map((child, index) => (child.parent?.label === label ? index : -1)).filter(index => index >= 0);
+        return { endWalls: indexes('end-walls'), worldObjects: indexes('world-objects') };
+      })(),
       layerOrder: Object.keys(dungeonRenderer.scene.layers),
       topology: {
         visible: Boolean(topologyCell),
@@ -130,10 +134,12 @@ for (const viewport of VIEWPORTS) {
       expect(evidence[object.id].topology.frontWall).toBe(true);
       expect(evidence[object.id].topology.frontBlocked).toBe(true);
       expect(evidence[object.id].layerOrder.indexOf('world-objects')).toBeLessThan(evidence[object.id].layerOrder.indexOf('structural-walls'));
-      // #1976: the end wall behind the object draws under it, so a tall prop
-      // standing in front of a dead end is never cut off by that wall.
-      expect(evidence[object.id].layerOrder.indexOf('end-walls')).toBeLessThan(evidence[object.id].layerOrder.indexOf('world-objects'));
-      expect(evidence[object.id].endWallChildren).toBeGreaterThan(0);
+      // #1976/#1982: the depth stream draws the end wall behind the object
+      // first, so a tall prop standing in front of a dead end is never cut
+      // off by that wall.
+      expect(evidence[object.id].depthStream.endWalls.length).toBeGreaterThan(0);
+      expect(evidence[object.id].depthStream.worldObjects.length).toBeGreaterThan(0);
+      expect(Math.max(...evidence[object.id].depthStream.endWalls)).toBeLessThan(Math.min(...evidence[object.id].depthStream.worldObjects));
       expect(evidence[object.id].prop.objectBottom).toBeGreaterThan(evidence[object.id].wallPlane.bottom);
       expect(evidence[object.id].prop.shapeCount).toBeGreaterThan(2);
       expect(evidence[object.id].prop.shadowY).toBeGreaterThan(evidence[object.id].prop.baseY);
