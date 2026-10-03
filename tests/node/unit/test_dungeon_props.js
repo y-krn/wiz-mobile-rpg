@@ -41,8 +41,9 @@ assert.ok(shortPortraitSpring.shadow.y < shortPortraitPlane.viewport.height, "sh
 
 assert.deepEqual(Object.keys(facade).sort(), [
   "STAIR_PROP_STYLES", "getDungeonPropBase", "getDungeonPropPalette",
+  "getLeverPropGeometry", "getRubblePropGeometry", "getSealPropGeometry",
   "getSpringPropGeometry", "getStairsPropGeometry"
-].sort(), "facade exposes only the five runtime exports");
+].sort(), "facade exposes only the runtime prop exports");
 for (const name of Object.keys(facade)) assert.strictEqual(facade[name], owner[name], `${name} keeps owner identity`);
 assert.strictEqual(STAIR_STYLES_FROM_FACADE, owner.STAIR_PROP_STYLES);
 assert.deepEqual(Object.keys(STAIR_STYLES_FROM_FACADE), [
@@ -109,4 +110,18 @@ assert.throws(() => getBaseFromFacade(throwingPlane, 0.5), /native getter failur
 
 assert.equal(exerciseDungeonPropProjectionTypes(390, 844, 1).length, 8, "typed projection owner and JS facade paths execute");
 
-console.log("[PASS] dungeon spring and stairs prop geometry contracts");
+// #1963 traversal props stay inside the corridor and read by silhouette.
+{
+  const plane = { leftBottom: 100, rightBottom: 300, bottom: 600, leftTop: 100, rightTop: 300, top: 200 };
+  const rubble = facade.getRubblePropGeometry(plane);
+  const seal = facade.getSealPropGeometry(plane);
+  const lever = facade.getLeverPropGeometry(plane, false);
+  const pulled = facade.getLeverPropGeometry(plane, true);
+  const xs = points => points.map(point => point.x);
+  assert.ok(Math.min(...xs(rubble.mound)) >= 100 && Math.max(...xs(rubble.mound)) <= 300, "rubble stays in the corridor");
+  assert.ok(rubble.rocks.length >= 4, "rubble reads as a heap of rocks");
+  assert.ok(Math.min(...seal.slab.map(point => point.y)) < 600 - seal.width * 0.9, "the seal stands as a tall slab");
+  assert.notDeepEqual(lever.handle, pulled.handle, "a pulled lever changes its handle");
+}
+
+console.log("[PASS] dungeon spring, stairs, and traversal prop geometry contracts");

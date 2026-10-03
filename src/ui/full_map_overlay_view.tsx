@@ -33,10 +33,13 @@ export function FullMapOverlayView({
   onClose,
 }: FullMapOverlayProps): React.ReactElement {
   const legendCanvases = useRef<(HTMLCanvasElement | null)[]>([]);
+  const legend = FULL_MAP_LEGEND.filter(entry =>
+    !("optional" in entry && entry.optional) || projection.markerKinds.includes(entry.kind));
+  const legendKey = legend.map(({ kind }) => kind).join(" ");
 
   useEffect(() => {
     const dpr = Math.min(3, window.devicePixelRatio || 1);
-    FULL_MAP_LEGEND.forEach(({ kind }, index) => {
+    legend.forEach(({ kind }, index) => {
       const canvas = legendCanvases.current[index];
       if (!canvas) return;
       canvas.width = 20 * dpr;
@@ -46,7 +49,8 @@ export function FullMapOverlayView({
       context.scale(dpr, dpr);
       drawFullMapIcon(context, kind, 1, 1, 18);
     });
-  }, []);
+    // The legend only changes when the floor's marker kinds change.
+  }, [legendKey]);
 
   return (
     <div
@@ -81,7 +85,7 @@ export function FullMapOverlayView({
         </div>
       </div>
       <ul id="full-map-legend" className="full-map-legend" aria-label="凡例">
-        {FULL_MAP_LEGEND.map(({ kind, label }, index) => (
+        {legend.map(({ kind, label }, index) => (
           <li key={kind} className="full-map-legend-item" data-kind={kind}>
             <canvas
               ref={canvas => { legendCanvases.current[index] = canvas; }}

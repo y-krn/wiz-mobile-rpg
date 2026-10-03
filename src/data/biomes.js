@@ -48,7 +48,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "デーモンガード", eliteName: "フラック",
     enemyPool: ["かみつき蟲", "コボルトの斥候", "マッドスライム", "フラッシュバット", "分裂スライム", "錆びた盾兵", "ゴブリンの呪術師", "群れネズミ", "火薬コウモリ", "まどろみ胞子", "泥の呪い子"],
-    gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 0, trapBonus: 0 },
+    gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 0, trapBonus: 0, traversal: "rubble" },
     theme: {
       entryText: { first: "崩れた岩肌の奥から、乾いた反響音が返ってくる。", revisit: "崩れた坑道へ戻った。遠くの物音が坑道を伝う。" },
       auraLexicon: { spring: "岩間から湧き水の音が聞こえる…", merchant: "置き去りの荷車のそばから衣擦れが聞こえる…", stairs: "下へ続く坑道から冷たい風が流れてくる…", chest: "崩れた岩陰に何かが隠されている気がする…", boss: "反響の奥から、重い足音が近づいてくる…" },
@@ -78,7 +78,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "ストーンガード", eliteName: "墓守の巨躯",
     enemyPool: ["リビングアーマー", "ゾンビ", "ジャイアントスパイダー", "針甲虫", "呪いの小鏡", "鉄皮のゴブリン", "祈祷ゴブリン", "マナドレイン", "スケルトンアーチャー", "煙幕盗賊", "腐毒の蛆", "催眠コウモリ"],
-    gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 0, trapBonus: 1 },
+    gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 0, trapBonus: 1, traversal: "seal" },
     theme: {
       entryText: { first: "並ぶ棺の間を、死者の吐息のような冷気が抜ける。", revisit: "忘れられた地下墓地へ戻った。礼拝堂跡だけが静かだ。" },
       auraLexicon: { spring: "聖水盤から水滴の音が響く…", merchant: "棺の間から静かな衣擦れが聞こえる…", stairs: "地下へ続く墓道から冷気が流れる…", chest: "棺の陰に何かが納められている気がする…", boss: "暗闇の奥で、乾いた骨の音が重なる…" },

@@ -21,9 +21,13 @@ import { renderMiniMapOverlay } from "./minimap.js";
 import { getChestPropGeometry, getChestPropPalette, getChestPropStyle } from "./chest_prop.js";
 import {
   getDungeonPropPalette,
+  getLeverPropGeometry,
+  getRubblePropGeometry,
+  getSealPropGeometry,
   getSpringPropGeometry,
   getStairsPropGeometry
 } from "./dungeon_prop.js";
+import { TRAVERSAL_GIMMICKS, isTraversalObstacleBlocking } from "./rules/traversal_gimmicks.js";
 import {
   SIMPLE_ENEMY_PROTOTYPE_MODE,
   createEnemyPrototype,
@@ -977,7 +981,12 @@ export class PixiDungeonRenderer {
   }
 
   drawLandmark(cell, plane, color, landmarks = {}) {
-    if (cell.type === "stairs-up" || cell.type === "stairs-down") {
+    if (isTraversalObstacleBlocking(cell)) {
+      if (cell.obstacle.kind === TRAVERSAL_GIMMICKS.RUBBLE) this.drawRubbleProp(plane, color);
+      else this.drawSealProp(plane, color);
+    } else if (cell.lever) {
+      this.drawLeverProp(plane, color, cell.lever.state === "pulled");
+    } else if (cell.type === "stairs-up" || cell.type === "stairs-down") {
       this.drawStairsProp(plane, cell.type === "stairs-up" ? "up" : "down", landmarks.stairsStyle, color);
     } else if (cell.event === EVENT_TYPES.CHEST) {
       this.drawChestProp(plane, getChestPropStyle(landmarks.chestStyle));
@@ -989,6 +998,44 @@ export class PixiDungeonRenderer {
       const y = plane.bottom - width * 0.12;
       drawEllipse(this.layer("world-objects"), cx, y - width * 0.05, width * 0.10, width * 0.06, "#ff3b30", 0.12, { color: "#ff3b30", width: 1.4 });
     }
+  }
+
+  // Traversal gimmicks (#1963) read by silhouette: a heap that fills the
+  // corridor, a slab with a glowing sigil, and a floor lever.
+  drawRubbleProp(plane, wallColor) {
+    const geometry = getRubblePropGeometry(plane);
+    const worldObjects = this.layer("world-objects");
+    const stone = mixColor(wallColor, "#3a2c1e", 0.58);
+    const light = mixColor(wallColor, "#f3e7cf", 0.45);
+    const stroke = { color: mixColor(wallColor, "#120c06", 0.7), width: Math.max(1, geometry.width * 0.012) };
+    drawEllipse(worldObjects, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, "#000000", 0.42);
+    addPolygon(worldObjects, geometry.mound, mixColor(wallColor, "#2a1f15", 0.66), 1, stroke);
+    geometry.rocks.forEach((rock, index) => {
+      addPolygon(worldObjects, rock, index % 2 === 0 ? stone : light, 1, stroke);
+    });
+  }
+
+  drawSealProp(plane, wallColor) {
+    const geometry = getSealPropGeometry(plane);
+    const worldObjects = this.layer("world-objects");
+    const slab = mixColor(wallColor, "#4a4238", 0.6);
+    const ink = { color: mixColor(wallColor, "#100c08", 0.72), width: Math.max(1, geometry.width * 0.014) };
+    addPolygon(worldObjects, geometry.slab, slab, 1, ink);
+    addPolygon(worldObjects, geometry.frame, mixColor(wallColor, "#5a5246", 0.52), 1, ink);
+    addLine(worldObjects, geometry.seam, { ...ink, alpha: 0.8 });
+    drawEllipse(worldObjects, geometry.sigil.x, geometry.sigil.y, geometry.sigil.radiusX * 1.5, geometry.sigil.radiusY * 1.5, "#ffd27a", 0.12);
+    drawEllipse(worldObjects, geometry.sigil.x, geometry.sigil.y, geometry.sigil.radiusX, geometry.sigil.radiusY, mixColor(wallColor, "#2a241e", 0.7), 1, { color: "#ffd27a", width: Math.max(1.2, geometry.width * 0.02) });
+  }
+
+  drawLeverProp(plane, wallColor, pulled) {
+    const geometry = getLeverPropGeometry(plane, pulled);
+    const worldObjects = this.layer("world-objects");
+    const metal = pulled ? "#8f8a80" : "#ffd27a";
+    const ink = { color: mixColor(wallColor, "#100c08", 0.72), width: Math.max(1, geometry.width * 0.02) };
+    drawEllipse(worldObjects, geometry.plate.x, geometry.plate.y, geometry.plate.radiusX, geometry.plate.radiusY, mixColor(wallColor, "#3a3026", 0.6), 1, ink);
+    addPolygon(worldObjects, geometry.post, mixColor(wallColor, "#2a221b", 0.7), 1, ink);
+    addLine(worldObjects, geometry.handle, { color: metal, width: Math.max(2, geometry.width * 0.06), alpha: 1 });
+    drawEllipse(worldObjects, geometry.knob.x, geometry.knob.y, geometry.knob.radiusX, geometry.knob.radiusY, metal, 1, ink);
   }
 
   drawSpringProp(plane, wallColor) {

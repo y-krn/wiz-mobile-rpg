@@ -59,6 +59,11 @@ action, reward, route cost, discovery rule, or balance role of the landmark.
 Distinct signals must not rely on a single color or an implementation-specific
 style identifier.
 
+Traversal gimmicks follow the same rule: rubble, a sealed slab, and a floor
+lever each read by silhouette in the corridor view, and their map glyphs stay
+distinct from traps and facilities. Their wording names the cost of resolving
+them before the player commits.
+
 ### Terminology stays economical
 
 Prefer an existing term when it already describes the player-facing concept.

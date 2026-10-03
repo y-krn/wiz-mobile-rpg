@@ -39,6 +39,14 @@ import {
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
+import {
+  RUBBLE_CLEAR_TURNS,
+  TRAVERSAL_GIMMICKS,
+  advanceRubbleClearing,
+  discoverAdjacentTraversalFeatures,
+  isTraversalObstacleBlocking,
+  pullLeverAt
+} from "./rules/traversal_gimmicks.js";
 import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 
@@ -180,6 +188,77 @@ function finishBlockedMove() {
   updateUI();
 }
 
+// Rubble asks for a second push in a row before digging, so a stray tap never
+// spends turns. Runtime-only: a reload simply asks again.
+let pendingRubbleKey = null;
+
+function digRubble(cell, x, y) {
+  createNoiseEvent(x, y);
+  addLog("瓦礫をどけ始めた。崩れる音が坑道に響く…");
+  while (isTraversalObstacleBlocking(cell)) {
+    const turn = consumeExplorationTurn();
+    const cleared = advanceRubbleClearing(cell);
+    markMapChanged();
+    if (cleared) {
+      playSound("hit");
+      addLog("瓦礫をどけて、道が通じた。");
+      return;
+    }
+    if (!turn.ok || turn.wiped || turn.encounter || state.gameState !== "explore") {
+      const left = RUBBLE_CLEAR_TURNS - (cell.obstacle.progress || 0);
+      addLog(`作業が中断された。残りの瓦礫は${left}手番分だ。`);
+      return;
+    }
+  }
+}
+
+// Handles a step into an unresolved obstacle. The player stays in place.
+function handleTraversalObstacle(cell, x, y, pendingKey) {
+  if (!cell.obstacle.discovered) {
+    cell.obstacle.discovered = true;
+    markMapChanged();
+  }
+  if (cell.obstacle.kind === TRAVERSAL_GIMMICKS.RUBBLE) {
+    const cellKey = `${state.floor}:${x},${y}`;
+    if (pendingKey === cellKey) {
+      digRubble(cell, x, y);
+      return;
+    }
+    pendingRubbleKey = cellKey;
+    playSound("bump");
+    showMoveBlockedCue("wall");
+    const left = RUBBLE_CLEAR_TURNS - (cell.obstacle.progress || 0);
+    addLog(`落盤で道が塞がっている。もう一度進むと瓦礫をどける（${left}手番かかり、物音が立つ）。`);
+    return;
+  }
+  playSound("bump");
+  showMoveBlockedCue("wall");
+  addLog("石の封印扉が道を閉ざしている。この階のどこかにある床の仕掛けで開くようだ。");
+}
+
+function resolveTraversalStep() {
+  const opened = pullLeverAt(state.map, state.x, state.y);
+  if (opened) {
+    markMapChanged();
+    playSound("item");
+    addLog(opened.length > 0
+      ? "床の仕掛けを踏み込んだ。どこかで石扉の開く音が響いた。"
+      : "床の仕掛けを踏み込んだが、何も起きなかった。");
+  }
+  const found = discoverAdjacentTraversalFeatures(state.map, state.x, state.y);
+  if (found.length === 0) return;
+  markMapChanged();
+  found.forEach(({ cell }) => {
+    if (cell.obstacle?.kind === TRAVERSAL_GIMMICKS.RUBBLE && isTraversalObstacleBlocking(cell)) {
+      addLog("この先は落盤で塞がっている。");
+    } else if (cell.obstacle?.kind === TRAVERSAL_GIMMICKS.SEAL && isTraversalObstacleBlocking(cell)) {
+      addLog("古い石の封印扉が見える。");
+    } else if (cell.lever && cell.lever.state !== "pulled") {
+      addLog("床に古い仕掛けが埋め込まれている。");
+    }
+  });
+}
+
 export function getCurrentExplorationCell() {
   let cell = state.map?.[state.y]?.[state.x];
   if (isUsableFloorCell(cell)) return cell;
@@ -217,6 +296,8 @@ export function handleMove(action) {
   
   state.prevX = state.x;
   state.prevY = state.y;
+  const pendingKey = pendingRubbleKey;
+  pendingRubbleKey = null;
   
   const prevX = state.x;
   const prevY = state.y;
@@ -258,7 +339,14 @@ export function handleMove(action) {
       // backing out costs nothing.
       const nextX = state.x + DX[state.dir];
       const nextY = state.y + DY[state.dir];
-      const nextTrap = state.map[nextY]?.[nextX]?.trap;
+      const nextCell = state.map[nextY]?.[nextX];
+      if (isTraversalObstacleBlocking(nextCell)) {
+        handleTraversalObstacle(nextCell, nextX, nextY, pendingKey);
+        saveAutosave();
+        updateUI();
+        return;
+      }
+      const nextTrap = nextCell?.trap;
       if (nextTrap && nextTrap.state === "discovered") {
         startTrapEncounter(nextTrap, { x: nextX, y: nextY });
         saveAutosave();
@@ -291,7 +379,14 @@ export function handleMove(action) {
     } else {
       const backX = state.x + DX[backDir];
       const backY = state.y + DY[backDir];
-      const backTrap = state.map[backY]?.[backX]?.trap;
+      const backCell = state.map[backY]?.[backX];
+      if (isTraversalObstacleBlocking(backCell)) {
+        handleTraversalObstacle(backCell, backX, backY, pendingKey);
+        saveAutosave();
+        updateUI();
+        return;
+      }
+      const backTrap = backCell?.trap;
       if (backTrap && backTrap.state === "discovered") {
         startTrapEncounter(backTrap, { x: backX, y: backY });
         saveAutosave();
@@ -1007,7 +1102,7 @@ function getPassableNeighbors(monster, targetActive) {
     if (!destCell) continue;
     const blocked = state.roamingMonsters.some(rm => rm.floor === state.floor && rm !== monster && rm.x === x && rm.y === y);
     const special = destCell.type === "stairs-up" || destCell.type === "stairs-down" || destCell.event === "boss" || destCell.event === "midboss";
-    const oneWay = Boolean(destCell.blockEnter?.[(dir + 2) % 4]);
+    const oneWay = Boolean(destCell.blockEnter?.[(dir + 2) % 4]) || isTraversalObstacleBlocking(destCell);
     const homeDist = Math.abs(x - (monster.homeX ?? monster.x)) + Math.abs(y - (monster.homeY ?? monster.y));
     if (!blocked && !special && !oneWay && (targetActive || homeDist <= patrolRadius || currentHomeDist > patrolRadius)) {
       neighbors.push({ x, y, dir });
@@ -1140,6 +1235,7 @@ export function processExplorationResolution(prevX, prevY) {
     if (triggerTrap(steppedTrap, false)) return;
   }
   detectAdjacentTraps();
+  resolveTraversalStep();
 
   // 3. Regular floor events
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 

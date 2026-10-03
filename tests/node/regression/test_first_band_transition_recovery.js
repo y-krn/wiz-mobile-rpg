@@ -40,7 +40,7 @@ const pitfallScenario = getScenarioById("workshop-complete");
 // The fixture observes pitfall transition accounting, so chest-trap effects
 // are disabled to keep the seeded path independent of chest rules (#1938);
 // this world falls into a pitfall. The world seed is a fixture: floor layouts
-// (#1962) decide where the run meets a pitfall.
+// (#1962) and gimmicks (#1963) decide where the run meets a pitfall.
 resetSimulationRandom(1);
 const pitfallResult = simulateRun({
   className: "Fighter",
@@ -62,7 +62,7 @@ const pitfallResult = simulateRun({
     collectStage15Diagnostics: true
   },
   workshop: pitfallScenario.workshop,
-  worldSeed: "pitfall:legacy:source:44",
+  worldSeed: "pitfall:legacy:source:1",
   collectDiagnostics: true
 });
 const pitfallEvents = (pitfallResult.floorTransitionRecovery || [])

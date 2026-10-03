@@ -207,6 +207,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/run_map_generator.js", domains: ["maps", "traps", "chests", "combat"] },
     { pattern: "src/map_generator.js", domains: ["maps"] },
     { pattern: "src/map_layout_archetypes.js", domains: ["maps"] },
+    { pattern: "src/map_traversal_gimmicks.js", domains: ["maps"] },
+    { pattern: "src/rules/traversal_gimmicks.js", domains: ["maps"] },
     { pattern: "src/chest.js", domains: ["chests", "traps", "drops", "equipment", "recovery", "economy"] },
     // Chest domain owns the explicit orchestration boundary for these existing
     // rolls, so retain the controller's balance-domain coverage.

@@ -1,5 +1,6 @@
 import { getBiomeForFloor } from "../data/biomes.js";
 import { findMapCellByType } from "../rules/map_queries.js";
+import { isTraversalObstacleBlocking } from "../rules/traversal_gimmicks.js";
 import { createRng } from "../seed_rng.js";
 import { ELITE_PERCEPTIONS } from "./elite_perception.js";
 import { getBandTrialForFloor, getFloorRole } from "../rules/floor_trials.js";
@@ -12,6 +13,8 @@ type EliteGridCell = {
   blockEnter?: readonly unknown[];
   event?: unknown;
   trap?: unknown;
+  obstacle?: unknown;
+  lever?: unknown;
 };
 type EliteGrid = readonly (readonly (EliteGridCell | null | undefined)[] | null | undefined)[];
 type ElitePosition = { x: number; y: number };
@@ -249,7 +252,7 @@ function collectReachableKeys(grid: EliteGrid, start: ElitePosition): Set<string
       const nx = pos.x + DX[dir];
       const ny = pos.y + DY[dir];
       const next = grid[ny]?.[nx];
-      if (!next || next.blockEnter?.[OPPOSITE_DIR[dir]]) continue;
+      if (!next || next.blockEnter?.[OPPOSITE_DIR[dir]] || isTraversalObstacleBlocking(next)) continue;
       const key = `${nx},${ny}`;
       if (!seen.has(key)) {
         seen.add(key);
@@ -268,7 +271,7 @@ export function findEliteStart(grid: EliteGrid | null | undefined, start: EliteP
     for (let x = 1; x < grid[y]!.length - 1; x++) {
       const cell = grid[y]![x]!;
       if (!reachable.has(`${x},${y}`)) continue;
-      if (cell.type !== "empty" || cell.event || cell.trap) continue;
+      if (cell.type !== "empty" || cell.event || cell.trap || cell.obstacle || cell.lever) continue;
       if (Math.abs(x - start.x) + Math.abs(y - start.y) >= ELITE_MIN_START_DISTANCE) {
         candidates.push({ x, y });
       }
