@@ -384,7 +384,13 @@ vignette tint, and pastel surface tints) but must not redefine shared
 selected, focus, danger, destructive, disabled, text, current-event, or
 action-dock meanings. Pixi is the Dungeon renderer; it bakes nearest-filtered
 pixel textures per biome (`src/pixi_pixel_art.js`) and maps them onto the
-shared projection with light distance haze instead of darkness. Renderer
+shared projection with light distance haze instead of darkness. Each biome
+paints its own wall and floor pattern and mounts its own wall decor, so the
+first-person view alone names the biome; decor sits on a wall face chosen by
+the run seed, floor, and face, so a place looks the same on every visit and
+nothing extra is saved. A discovered trap is drawn as the biome's `trapStyle`
+decal inside a shared red warning ring. Floor patterns stay dry and grate-free
+so the flood and heat gimmick tiles keep a unique read. Renderer
 pixels, geometry, materials, fog, lighting, particles, and movement ownership
 remain outside this DOM/CSS contract.
 
