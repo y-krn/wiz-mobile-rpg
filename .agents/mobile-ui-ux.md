@@ -373,7 +373,10 @@ Dungeon navigation motion follows the same rule: a step or turn is short
 (about a fifth of a second) and must not hold back its result. A step zooms
 by exactly one cell, so its last frame already is the destination view and the
 cut to it is seamless; haze follows the zoom. Chained input replaces the
-running motion instead of queueing behind it.
+running motion instead of queueing behind it. Biomes whose environment
+animates keep the loop drawing every frame, but an idle view reuses its built
+scene and redraws only time-varying overlays (the danger pulse), so a standing
+frame costs no rebuild; the reused frame must match a full rebuild.
 
 Buttons are pressable tiles: a 2px border plus a solid drop edge
 (`--btn-edge`) that collapses on press. Each decision surface has at most one
