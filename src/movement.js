@@ -52,6 +52,7 @@ import {
   pullLeverAt,
   refreshHeatHazards
 } from "./rules/traversal_gimmicks.js";
+import { getSpecialRoomInfo } from "./rules/special_rooms.js";
 import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 
@@ -828,6 +829,24 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:camp`);
     const skin = getFloorTheme(state.floor)?.eventSkins.camp || "野営地";
     openGuardedSubmenu(EVENT_TYPES.CAMP, `${skin}。腰を落ち着けられる場所を確かめる。`);
+    return;
+  }
+
+  // Biome special room (#1965): a one-use choice off the natural route.
+  if (cell.event === EVENT_TYPES.SPECIAL_ROOM && cell.specialRoom) {
+    const room = cell.specialRoom;
+    const info = getSpecialRoomInfo(room.kind);
+    if (!room.discovered) {
+      room.discovered = true;
+      markMapChanged();
+    }
+    if (room.used) {
+      addLog(`${info?.name || "部屋"}はもう役目を終えている。`);
+      return;
+    }
+    recordEliteGreedAction(state, "optional_area", 1, `${state.floor}:${state.x},${state.y}:special_room`);
+    addLog(info?.intro || "見慣れない部屋に入った。");
+    openGuardedSubmenu(EVENT_TYPES.SPECIAL_ROOM, info?.name || "特殊な部屋");
     return;
   }
 

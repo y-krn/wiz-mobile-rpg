@@ -2,6 +2,7 @@ import { getFloorTemplate } from "./data/floor_templates.js";
 import { getBiomeForFloor, getBiomeCycle, getBiomeTerrainForFloor } from "./data/biomes.js";
 import { EVENT_TYPES } from "./constants/events.js";
 import { generateRandomMap } from "./map_generator.js";
+import { placeSpecialRoom } from "./map_special_rooms.js";
 import { placeTraversalGimmicks } from "./map_traversal_gimmicks.js";
 import { isTraversalObstacleBlocking } from "./rules/traversal_gimmicks.js";
 import { createRng, deriveFloorAttemptSeed, deriveFloorSeed } from "./seed_rng.js";
@@ -202,6 +203,10 @@ export function generateRunFloor({
         criticalPathRange: template.criticalPathRange,
         rng: createRng(`${generationSeed}:traversal`)
       });
+      const specialRoom = placeSpecialRoom(generated.grid, {
+        kind: biome.gimmicks.specialRoom,
+        rng: createRng(`${generationSeed}:special-room`)
+      });
       const validation = validateGeneratedFloor(generated, validationTemplate);
       if (validation.valid) {
         return {
@@ -218,6 +223,7 @@ export function generateRunFloor({
           layoutArchetype: biomeTerrain.layoutArchetype,
           milestoneEvents,
           traversalGimmicks,
+          specialRoom,
           validation
         };
       }

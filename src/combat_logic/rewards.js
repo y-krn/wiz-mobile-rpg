@@ -375,6 +375,15 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
       msg: "ミミックの残骸から宝を回収する。",
       triggerChest: true
     });
+  } else if (state.combatState.isBrood) {
+    logQueue.push({
+      msg: "巣の主を倒した！卵室の奥に、獲物の遺した荷が積まれている。",
+      sound: "item"
+    });
+    logQueue.push({
+      msg: "卵室の荷を検める。",
+      triggerChest: true
+    });
   } else if (state.combatState.isRoamingFlack) {
     const defeatedId = state.combatState.roamingMonsterId;
     const eliteName = state.combatState.monsters?.[0]?.name || "強敵";

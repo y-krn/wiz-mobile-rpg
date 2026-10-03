@@ -24,6 +24,7 @@ import {
   getDungeonPropPalette,
   getFloorPatchPropGeometry,
   getLeverPropGeometry,
+  getSpecialRoomPropGeometry,
   getRubblePropGeometry,
   getSealPropGeometry,
   getSpringPropGeometry,
@@ -173,6 +174,16 @@ function addTexturedQuad(container, texture, corners, tint = 0xffffff) {
   container.addChild(mesh);
   return mesh;
 }
+
+// Emblem color per special room kind (#1965).
+const SPECIAL_ROOM_EMBLEM_COLORS = Object.freeze({
+  mine_vein: "#58d6e8",
+  altar: "#ffe08a",
+  brood_chamber: "#c58cf5",
+  reading_room: "#7fe0d8",
+  forge: "#ff8a3d",
+  mirror_hall: "#f0a8ff"
+});
 
 // Bilinear point on a wall quad given as [topLeft, topRight, bottomRight, bottomLeft].
 function lerpQuad([topLeft, topRight, bottomRight, bottomLeft], u, v) {
@@ -1035,6 +1046,8 @@ export class PixiDungeonRenderer {
       this.drawFloorPatchProp(plane, color, cell.hazard);
     } else if (cell.lever) {
       this.drawLeverProp(plane, color, cell.lever.state === "pulled");
+    } else if (cell.specialRoom && cell.event === EVENT_TYPES.SPECIAL_ROOM) {
+      this.drawSpecialRoomProp(plane, color, cell.specialRoom);
     } else if (cell.type === "stairs-up" || cell.type === "stairs-down") {
       this.drawStairsProp(plane, cell.type === "stairs-up" ? "up" : "down", landmarks.stairsStyle, color);
     } else if (cell.event === EVENT_TYPES.CHEST) {
@@ -1113,6 +1126,20 @@ export class PixiDungeonRenderer {
     if (hot) drawEllipse(worldObjects, patch.x, patch.y, patch.radiusX * 1.15, patch.radiusY * 1.6, "#ff7a2f", 0.28);
     drawEllipse(worldObjects, patch.x, patch.y, patch.radiusX, patch.radiusY, mixColor(wallColor, "#2a1a10", 0.7), 1, { color: hot ? "#ffb347" : "#6b5a4a", width: Math.max(1, geometry.width * 0.014) });
     geometry.bars.forEach(bar => addLine(worldObjects, bar, { color: hot ? "#ff9a3c" : "#4a3d33", width: Math.max(1.2, geometry.width * 0.018), alpha: 1 }));
+  }
+
+  // A special room (#1965) reads as a plinth with an emblem in the room's
+  // color; a used room's emblem goes dark.
+  drawSpecialRoomProp(plane, wallColor, room) {
+    const geometry = getSpecialRoomPropGeometry(plane);
+    const worldObjects = this.layer("world-objects");
+    const emblem = room.used ? "#6b6460" : (SPECIAL_ROOM_EMBLEM_COLORS[room.kind] || "#ffd27a");
+    const ink = { color: mixColor(wallColor, "#100c08", 0.72), width: Math.max(1, geometry.width * 0.014) };
+    drawEllipse(worldObjects, geometry.shadow.x, geometry.shadow.y, geometry.shadow.radiusX, geometry.shadow.radiusY, "#000000", 0.32);
+    addPolygon(worldObjects, geometry.plinth, mixColor(wallColor, "#4a4238", 0.55), 1, ink);
+    addPolygon(worldObjects, geometry.cap, mixColor(wallColor, "#6a6054", 0.45), 1, ink);
+    if (!room.used) drawEllipse(worldObjects, geometry.glow.x, geometry.glow.y, geometry.glow.radiusX, geometry.glow.radiusY, emblem, 0.22);
+    drawEllipse(worldObjects, geometry.emblem.x, geometry.emblem.y, geometry.emblem.radiusX, geometry.emblem.radiusY, emblem, 1, { color: "#fff6e0", width: Math.max(1.2, geometry.width * 0.02) });
   }
 
   drawLeverProp(plane, wallColor, pulled) {

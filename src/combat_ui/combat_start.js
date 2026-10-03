@@ -14,6 +14,7 @@ import { trackCombatStart } from "../telemetry.js";
 import { recordEliteGreedAction } from "../systems/roaming_elites.js";
 import { dungeonRenderer as renderer } from "../renderer_runtime.js";
 import { preparePhase4jBEncounter } from "../rules/phase4j_b_trial.js";
+import { startForgeTemperBattle } from "../rules/special_rooms.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -30,20 +31,23 @@ import { clearTechniqueCombatFlags } from "../rules/technique_rules.js";
 
 export const POST_COMBAT_QUIET_STEPS = 4;
 
-export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null, { mimicChest = null } = {}) {
+export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null, { mimicChest = null, broodChamber = false } = {}) {
   const isMimic = Boolean(mimicChest);
+  // A brood chamber (#1965) is an elite-strength fight that leaves a chest.
+  const isBrood = Boolean(broodChamber);
   state.encounterQuietSteps = POST_COMBAT_QUIET_STEPS;
   clearTechniqueCombatFlags(state.party);
   state.gameState = "combat";
   clearEventObservations({ scopePrefix: "combat:" });
   if (state.currentRun) {
     state.currentRun.battles++;
-    if (!isBoss && !isMidboss && !isRoamingFlack && !isMimic) recordEliteGreedAction(state, "battle");
+    if (!isBoss && !isMidboss && !isRoamingFlack && !isMimic && !isBrood) recordEliteGreedAction(state, "battle");
   }
 
   state.party.forEach(char => {
     char.buffs = [];
     delete char.mabarrierTurns;
+    if (startForgeTemperBattle(char) === "cooled") addLog(`${char.name}の武器から炉の熱が抜けた。`);
   });
 
   const { monsters, isRare, trial, floorRole } = generateEncounter(
@@ -51,11 +55,11 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     isBoss,
     isMidboss,
     isRoamingFlack,
-    isMimic ? { mimic: true } : roamingMonster
+    isMimic ? { mimic: true } : isBrood ? { brood: true } : roamingMonster
   );
   const trialExp = preparePhase4jBEncounter(state, monsters, {
     boss: isBoss,
-    elite: isRoamingFlack || isMimic,
+    elite: isRoamingFlack || isMimic || isBrood,
     midboss: isMidboss,
     rare: isRare
   });
@@ -73,7 +77,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
 
 
 
-  if (isBoss || isMidboss || isRoamingFlack || isMimic) {
+  if (isBoss || isMidboss || isRoamingFlack || isMimic || isBrood) {
     addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
     if (isBoss && trial) {
       addLog("【帯の決算】これまでに見た気配が、階層守護者に集約されている…！");
@@ -95,7 +99,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     isRoamingFlack,
     isMimic,
     mimicChest,
-    enemyActionScheduling: !isBoss && !isMidboss && !isRoamingFlack && !isMimic
+    isBrood,
+    enemyActionScheduling: !isBoss && !isMidboss && !isRoamingFlack && !isMimic && !isBrood
       ? "shared-normal-slot"
       : "independent",
     roamingMonsterId: roamingMonster?.id ?? null,

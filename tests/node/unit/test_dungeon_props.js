@@ -42,7 +42,7 @@ assert.ok(shortPortraitSpring.shadow.y < shortPortraitPlane.viewport.height, "sh
 assert.deepEqual(Object.keys(facade).sort(), [
   "STAIR_PROP_STYLES", "getCrumblePropGeometry", "getDungeonPropBase", "getDungeonPropPalette",
   "getFloorPatchPropGeometry", "getLeverPropGeometry", "getRubblePropGeometry", "getSealPropGeometry",
-  "getSpringPropGeometry", "getStairsPropGeometry"
+  "getSpecialRoomPropGeometry", "getSpringPropGeometry", "getStairsPropGeometry"
 ].sort(), "facade exposes only the runtime prop exports");
 for (const name of Object.keys(facade)) assert.strictEqual(facade[name], owner[name], `${name} keeps owner identity`);
 assert.strictEqual(STAIR_STYLES_FROM_FACADE, owner.STAIR_PROP_STYLES);

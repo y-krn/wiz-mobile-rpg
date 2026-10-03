@@ -3,6 +3,7 @@ import { getCharCoreParams } from "./affix_rules.js";
 import { calculateDisarmRate } from "./trap_rules.js";
 import { getMediumMaxMpBonus } from "./magic_rules.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
+import { getForgeTemperBonus } from "./special_rooms.js";
 
 export const PHYSICAL_HIT_CHANCE_MIN = 0.50;
 
@@ -102,7 +103,8 @@ export function getCharWeaponAtk(char) {
   }
   // Equipment-owned ATK is already included above. Core ATK is kept as a
   // separate build contribution so Curse Keeper is applied exactly once.
-  const total = atk + getCurseKeeperBonus(char, "atk");
+  // A forge temper (#1965) is a short, battle-counted weapon sharpening.
+  const total = atk + getCurseKeeperBonus(char, "atk") + getForgeTemperBonus(char);
   const baseline = Math.max(0, Math.min(5, Math.floor(Number(char.phase4cV1Baseline) || 0)));
   return total * (1 + 0.16 * baseline);
 }

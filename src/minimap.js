@@ -2,6 +2,7 @@ import { DX, DY, EVENT_TYPES } from "./data.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { isRenderableCorridorCell } from "./rules/renderer_topology.js";
 import { getTraversalMarkerKind } from "./rules/traversal_gimmicks.js";
+import { getSpecialRoomMarkerKind } from "./rules/special_rooms.js";
 
 export const MINIMAP_CANVAS_SIZE = Object.freeze({ width: 400, height: 260 });
 
@@ -154,7 +155,9 @@ const TRAVERSAL_MINIMAP_MARKERS = Object.freeze({
   "crumble-collapsed": { glyph: "崩", color: "#5a4a40" },
   flood: { glyph: "水", color: "#3d9be9" },
   heat: { glyph: "熱", color: "#e0602a" },
-  spinner: { glyph: "回", color: "#7c5cd6" }
+  spinner: { glyph: "回", color: "#7c5cd6" },
+  "special-room": { glyph: "★", color: "#c98a12" },
+  "special-room-used": { glyph: "★", color: "#8f8a80" }
 });
 
 // Biome traversal gimmicks (#1963) share the full map's glyphs.
@@ -214,7 +217,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
       const cell = map[y][x];
       const hasDiscoveredTrap = cell.trap && cell.trap.state !== "hidden";
       const traversalKind = getTraversalMarkerKind(cell);
-      if (!isVisited && !isLightRevealed && !isFragmentRevealed && !hasDiscoveredTrap && !traversalKind) continue;
+      const roomKind = getSpecialRoomMarkerKind(cell, isVisited || isLightRevealed || isFragmentRevealed);
+      if (!isVisited && !isLightRevealed && !isFragmentRevealed && !hasDiscoveredTrap && !traversalKind && !roomKind) continue;
       if (!isRenderableCorridorCell(cell)) continue;
 
       const screenX = PANEL_LEFT + x * CELL_SIZE + offsetX;
@@ -281,6 +285,7 @@ export function drawMiniMap(ctx, input = null, options = {}) {
       }
 
       if (traversalKind) drawTraversalMiniMapMarker(ctx, screenX, screenY, CELL_SIZE, traversalKind);
+      if (roomKind) drawTraversalMiniMapMarker(ctx, screenX, screenY, CELL_SIZE, roomKind);
     }
   }
 

@@ -3,6 +3,7 @@ import { createFloorElite, markEliteEntryRollResolved } from "../systems/roaming
 import { getFloorTemplate } from "../data/floor_templates.js";
 import { getBandIndexForFloor, getBandTrialForFloor, getStoredBandTrial } from "../rules/floor_trials.js";
 import { markMapChanged } from "./state_core.js";
+import { getMirrorVisionCells, hasMirrorVisionFor, revealCells } from "../rules/special_rooms.js";
 
 function createVisitedGrid(grid) {
   return grid.map(row => row.map(() => false));
@@ -164,6 +165,7 @@ export function ensureRunFloor(stateLike, floor) {
       stateLike.visitedMaps[index] = createVisitedGrid(existingMap);
       markMapChanged(stateLike);
     }
+    applyMirrorVision(stateLike, floor);
     return existingMap;
   }
 
@@ -184,8 +186,22 @@ export function ensureRunFloor(stateLike, floor) {
   stateLike.floorChestsOpened[index] = 0;
   stateLike.floorChestsTotal[index] = countChests(generated.grid);
   if (stateLike._freshRunFloor === floor) delete stateLike._freshRunFloor;
+  applyMirrorVision(stateLike, floor);
   markMapChanged(stateLike);
   return generated.grid;
+}
+
+/**
+ * A used mirror hall on the floor above (#1965) shows this floor's down
+ * stairs and their approach on the map. Returns how many cells were revealed.
+ */
+export function applyMirrorVision(stateLike, floor) {
+  const grid = stateLike.maps?.[floor - 1];
+  const visited = stateLike.visitedMaps?.[floor - 1];
+  if (!grid || !visited || !hasMirrorVisionFor(stateLike.maps?.[floor - 2])) return 0;
+  const revealed = revealCells(visited, getMirrorVisionCells(grid));
+  if (revealed > 0) markMapChanged(stateLike);
+  return revealed;
 }
 
 export function resetRunFloors(stateLike) {

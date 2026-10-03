@@ -6,6 +6,7 @@ export {
   getLeverPropGeometry,
   getRubblePropGeometry,
   getSealPropGeometry,
+  getSpecialRoomPropGeometry,
   getSpringPropGeometry,
   getStairsPropGeometry,
   getDungeonPropPalette

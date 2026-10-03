@@ -5,6 +5,7 @@ export const EVENT_TYPES = {
   CAMP: "event_camp",
   MERCHANT: "event_merchant",
   RETURN_PORTAL: "return_portal",
+  SPECIAL_ROOM: "special_room",
   MIDBOSS: "midboss",
   BOSS: "boss"
 };
@@ -15,7 +16,8 @@ export const EVENT_SUBMENU_TYPES = [
   "event_merchant",
   "event_merchant_buy",
   "milestone_merchant",
-  "milestone_portal"
+  "milestone_portal",
+  "special_room"
 ];
 
 export const ITEM_SUBMENU_TYPES = [

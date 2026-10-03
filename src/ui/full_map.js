@@ -3,6 +3,7 @@ import { getRendererInput, isRendererInput } from "../state/renderer_view.js";
 import { isRenderableCorridorCell } from "../rules/renderer_topology.js";
 import { drawStairMiniMapIcon } from "../minimap.js";
 import { getTraversalMarkerKind } from "../rules/traversal_gimmicks.js";
+import { getSpecialRoomMarkerKind } from "../rules/special_rooms.js";
 
 // Full-floor map (#1833). It draws the same cells the minimap may draw
 // (visited, lit, fragment-revealed, or discovered-trap cells), at a larger
@@ -43,7 +44,9 @@ const GLYPH_MARKERS = Object.freeze({
   "crumble-collapsed": { glyph: "崩", color: "#5a4a40" },
   flood: { glyph: "水", color: "#3d9be9" },
   heat: { glyph: "熱", color: "#e0602a" },
-  spinner: { glyph: "回", color: "#7c5cd6" }
+  spinner: { glyph: "回", color: "#7c5cd6" },
+  "special-room": { glyph: "★", color: "#c98a12" },
+  "special-room-used": { glyph: "★", color: "#8f8a80" }
 });
 
 /** Legend rows in display order; `kind` matches the markers drawn on the canvas. */
@@ -72,6 +75,9 @@ export const FULL_MAP_LEGEND = Object.freeze([
   { kind: "flood", label: "浸水", optional: true },
   { kind: "heat", label: "灼熱の格子", optional: true },
   { kind: "spinner", label: "回転床", optional: true },
+  // Biome special rooms (#1965).
+  { kind: "special-room", label: "特殊な部屋", optional: true },
+  { kind: "special-room-used", label: "特殊な部屋（使用済み）", optional: true },
   { kind: "elite", label: "強敵" },
   { kind: "monster", label: "徘徊する敵" }
 ]);
@@ -123,7 +129,8 @@ export function getFullMapModel(input = null) {
       const isLightRevealed = lightRad > 0 && dist <= lightRad;
       const hasDiscoveredTrap = Boolean(cell.trap && cell.trap.state !== "hidden");
       const traversalKind = getTraversalMarkerKind(cell);
-      const isRevealed = (isVisited || isLightRevealed || isFragmentRevealed || hasDiscoveredTrap || traversalKind) &&
+      const discoveredRoom = getSpecialRoomMarkerKind(cell);
+      const isRevealed = (isVisited || isLightRevealed || isFragmentRevealed || hasDiscoveredTrap || traversalKind || discoveredRoom) &&
         isRenderableCorridorCell(cell);
 
       if (isRevealed) {
@@ -137,6 +144,8 @@ export function getFullMapModel(input = null) {
           markers.push({ kind: cell.trap.state === "disabled" ? "trap-disabled" : "trap", x, y });
         }
         if (traversalKind) markers.push({ kind: traversalKind, x, y });
+        const roomKind = getSpecialRoomMarkerKind(cell, true);
+        if (roomKind) markers.push({ kind: roomKind, x, y });
       }
 
       const eventKind = EVENT_MARKERS[cell.event];
