@@ -139,8 +139,9 @@ assert.deepEqual(
 );
 
 for (const condition of result.conditions) {
-  // #1801 solo HP budget: with seed 8 the W0R12 run now returns voluntarily
-  // instead of reaching the B6 synthetic cutoff.
-  assert.equal(condition.outcome.b6Cutoff, 0);
+  // #1801 solo HP budget: with seed 8 the W0R12 run returned voluntarily
+  // instead of reaching the B6 synthetic cutoff. #1963 biome gimmicks reshape
+  // its B1-B5 route, and that run reaches the cutoff again.
+  assert.equal(condition.outcome.b6Cutoff, condition.id === "W0R12" ? 1 : 0);
   assert.ok(condition.outcome.b6Cutoff + condition.outcome.voluntaryReturn <= condition.runs);
 }

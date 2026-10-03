@@ -2,7 +2,9 @@ import { getFloorTemplate } from "./data/floor_templates.js";
 import { getBiomeForFloor, getBiomeCycle, getBiomeTerrainForFloor } from "./data/biomes.js";
 import { EVENT_TYPES } from "./constants/events.js";
 import { generateRandomMap } from "./map_generator.js";
-import { deriveFloorAttemptSeed, deriveFloorSeed } from "./seed_rng.js";
+import { placeTraversalGimmicks } from "./map_traversal_gimmicks.js";
+import { isTraversalObstacleBlocking } from "./rules/traversal_gimmicks.js";
+import { createRng, deriveFloorAttemptSeed, deriveFloorSeed } from "./seed_rng.js";
 
 const DIRECTIONS = [
   { dx: 0, dy: -1, dir: 0 },
@@ -89,6 +91,9 @@ function getDistances(grid, start, { revealGimmicks = false } = {}) {
       const ny = pos.y + dy;
       const next = grid[ny]?.[nx];
       if (!next || next.blockEnter?.[(dir + 2) % 4]) continue;
+      // Natural routes stop at unresolved rubble and seals; revealed routes
+      // treat them as passable because the player can always resolve them.
+      if (!revealGimmicks && isTraversalObstacleBlocking(next)) continue;
       const canReveal = revealGimmicks && cell.secretDoor?.[dir];
       if (cell.walls[dir] && !canReveal) continue;
 
@@ -190,6 +195,13 @@ export function generateRunFloor({
         legacyMilestones: false
       });
       const milestoneEvents = placeMilestoneEvents(generated.grid, floor);
+      const traversalGimmicks = placeTraversalGimmicks(generated.grid, {
+        kind: biome.gimmicks.traversal,
+        floor,
+        floorInBiome: (floor - 1) % 5,
+        criticalPathRange: template.criticalPathRange,
+        rng: createRng(`${generationSeed}:traversal`)
+      });
       const validation = validateGeneratedFloor(generated, validationTemplate);
       if (validation.valid) {
         return {
@@ -205,6 +217,7 @@ export function generateRunFloor({
           gimmickSet: biome.gimmicks,
           layoutArchetype: biomeTerrain.layoutArchetype,
           milestoneEvents,
+          traversalGimmicks,
           validation
         };
       }

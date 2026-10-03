@@ -449,14 +449,13 @@ assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributi
 // #1801 solo HP budget: two of the eight seeded runs now return before B3 and
 // none of the B3 entrants die at B3. #1939 replaced the B3 gas bomb with
 // corrosion, so one more B3 entrant returns instead of descending. #1962 biome
-// layout archetypes reshuffle the seeded floors: two more B3 entrants descend
-// instead of returning (a 64-run comparison kept B3-B5 entrants and deaths
-// within noise).
-assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 6);
+// layout archetypes and #1963 traversal gimmicks reshuffle the seeded floors;
+// 64-run comparisons for each kept B3-B5 entrants and deaths within noise.
+assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 7);
 assert.deepEqual(
   Object.fromEntries(Object.entries(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts)
     .map(([id, cohort]) => [id, cohort.count])),
-  { reachedNextFloor: 5, died: 0, voluntaryReturn: 1, otherTerminal: 0 }
+  { reachedNextFloor: 4, died: 1, voluntaryReturn: 2, otherTerminal: 0 }
 );
 assert.equal(canonicalOnlySmoke.cases[0].policies.t0, undefined);
 const canonicalOnlyReport = trajectory.buildReport(
@@ -539,10 +538,10 @@ assert.equal(
 );
 
 // The seed is a fixture that must reach B1 strict-upgrade rejections; #1962
-// floor layouts moved them off the previous seed (1301).
+// floor layouts and #1963 gimmicks moved them off the previous seed (1301).
 const largerSmoke = await trajectory.runMeasurement({
   runs: 16,
-  seed: 1323,
+  seed: 1355,
   startingKitIds: ["vanguard"],
   scenarioIds: ["workshop-empty"],
   collectEquipmentCandidateAudit: true,
@@ -551,7 +550,7 @@ const largerSmoke = await trajectory.runMeasurement({
 const largerReport = trajectory.buildReport(
   largerSmoke,
   { sourceCommit: "a".repeat(40), measurementRunnerCommit: "b".repeat(40) },
-  { SIM_SEED: "1323" },
+  { SIM_SEED: "1355" },
   { measurementId: "build-progression-audit", purpose: "regression" }
 );
 const largestSmoke = await trajectory.runMeasurement({

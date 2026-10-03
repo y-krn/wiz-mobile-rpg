@@ -2,6 +2,7 @@ import { EVENT_TYPES } from "../data.js";
 import { getRendererInput, isRendererInput } from "../state/renderer_view.js";
 import { isRenderableCorridorCell } from "../rules/renderer_topology.js";
 import { drawStairMiniMapIcon } from "../minimap.js";
+import { getTraversalMarkerKind } from "../rules/traversal_gimmicks.js";
 
 // Full-floor map (#1833). It draws the same cells the minimap may draw
 // (visited, lit, fragment-revealed, or discovered-trap cells), at a larger
@@ -33,7 +34,11 @@ const GLYPH_MARKERS = Object.freeze({
   camp: { glyph: "野", color: "#2f9e62" },
   merchant: { glyph: "商", color: "#7c5cd6" },
   portal: { glyph: "門", color: "#1f8fa0" },
-  boss: { glyph: "主", color: "#d9483b" }
+  boss: { glyph: "主", color: "#d9483b" },
+  rubble: { glyph: "岩", color: "#9a6a32" },
+  seal: { glyph: "封", color: "#b8860b" },
+  lever: { glyph: "仕", color: "#c7771a" },
+  "lever-pulled": { glyph: "仕", color: "#8f8a80" }
 });
 
 /** Legend rows in display order; `kind` matches the markers drawn on the canvas. */
@@ -52,6 +57,11 @@ export const FULL_MAP_LEGEND = Object.freeze([
   { kind: "merchant", label: "商人" },
   { kind: "portal", label: "帰還の門" },
   { kind: "boss", label: "守護者" },
+  // Biome gimmicks (#1963) only take legend space on floors that show them.
+  { kind: "rubble", label: "落盤", optional: true },
+  { kind: "seal", label: "封印扉", optional: true },
+  { kind: "lever", label: "床の仕掛け", optional: true },
+  { kind: "lever-pulled", label: "仕掛け（作動済み）", optional: true },
   { kind: "elite", label: "強敵" },
   { kind: "monster", label: "徘徊する敵" }
 ]);
@@ -102,7 +112,8 @@ export function getFullMapModel(input = null) {
       const isFragmentRevealed = fragmentCells.has(`${x},${y}`);
       const isLightRevealed = lightRad > 0 && dist <= lightRad;
       const hasDiscoveredTrap = Boolean(cell.trap && cell.trap.state !== "hidden");
-      const isRevealed = (isVisited || isLightRevealed || isFragmentRevealed || hasDiscoveredTrap) &&
+      const traversalKind = getTraversalMarkerKind(cell);
+      const isRevealed = (isVisited || isLightRevealed || isFragmentRevealed || hasDiscoveredTrap || traversalKind) &&
         isRenderableCorridorCell(cell);
 
       if (isRevealed) {
@@ -115,6 +126,7 @@ export function getFullMapModel(input = null) {
         if (hasDiscoveredTrap) {
           markers.push({ kind: cell.trap.state === "disabled" ? "trap-disabled" : "trap", x, y });
         }
+        if (traversalKind) markers.push({ kind: traversalKind, x, y });
       }
 
       const eventKind = EVENT_MARKERS[cell.event];

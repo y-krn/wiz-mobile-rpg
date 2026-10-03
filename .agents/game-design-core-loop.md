@@ -262,6 +262,21 @@ before or after the boss, and B6 transition.
   every later generation stage. The depth template still owns floor size,
   gimmick density, and the critical-path envelope, and the natural route stays
   within the mobile pacing targets below.
+- Each biome adds one traversal gimmick that changes a route decision, never
+  whether the floor can be finished: every required cell stays reachable with
+  the gimmick unresolved, and the natural route keeps the critical-path
+  envelope. Resolving a gimmick is a resource or ordering trade, not a key
+  hunt that can soft-lock the run.
+  - Collapsed mine: rubble closes a corridor that has a detour. Digging costs
+    exploration turns and makes noise that roaming threats can hear; walking
+    around costs steps.
+  - Forgotten catacomb: a stone seal closes a short dead-end branch holding
+    treasure, and a floor lever elsewhere opens it, so exploration order
+    decides whether the branch is worth the trip.
+  - The remaining biomes (rift ledges, flooded or dark tiles, timed hot
+    floors, spinners and teleporters) are planned on the same contract.
+  A gimmick's first meeting explains itself through the exploration log, and
+  discovered gimmicks stay marked on the minimap and the full map.
 - Starting deeper may be a useful record-oriented option, but it must carry a
   meaningful material or preparation trade-off so it cannot replace B1 runs for
   every purpose.

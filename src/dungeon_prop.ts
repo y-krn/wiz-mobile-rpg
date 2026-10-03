@@ -159,3 +159,91 @@ export function getDungeonPropPalette(kind: string, wallColor: unknown = "#58d6e
     shadow: "#000000"
   });
 }
+
+/** Rubble heap that fills the corridor mouth (#1963). */
+export function getRubblePropGeometry(plane: DungeonPropPlane | null | undefined) {
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.94);
+  const rock = (cx: number, cy: number, rx: number, ry: number) => freezePoints([
+    { x: centerX + width * (cx - rx), y: baseY - width * (cy - ry * 0.2) },
+    { x: centerX + width * (cx - rx * 0.6), y: baseY - width * (cy + ry * 0.8) },
+    { x: centerX + width * (cx + rx * 0.3), y: baseY - width * (cy + ry) },
+    { x: centerX + width * (cx + rx), y: baseY - width * (cy + ry * 0.3) },
+    { x: centerX + width * (cx + rx * 0.7), y: baseY - width * (cy - ry * 0.9) },
+    { x: centerX + width * (cx - rx * 0.5), y: baseY - width * (cy - ry) }
+  ]);
+  return Object.freeze({
+    width,
+    mound: freezePoints([
+      { x: centerX - width * 0.5, y: baseY },
+      { x: centerX - width * 0.36, y: baseY - width * 0.3 },
+      { x: centerX - width * 0.1, y: baseY - width * 0.46 },
+      { x: centerX + width * 0.16, y: baseY - width * 0.42 },
+      { x: centerX + width * 0.38, y: baseY - width * 0.26 },
+      { x: centerX + width * 0.5, y: baseY }
+    ]),
+    rocks: Object.freeze([
+      rock(-0.28, 0.1, 0.13, 0.08),
+      rock(0.02, 0.12, 0.16, 0.1),
+      rock(0.3, 0.09, 0.12, 0.08),
+      rock(-0.14, 0.3, 0.12, 0.08),
+      rock(0.14, 0.3, 0.11, 0.07),
+      rock(0, 0.42, 0.09, 0.06)
+    ]),
+    shadow: Object.freeze({ x: centerX, y: baseY + width * 0.03, radiusX: width * 0.52, radiusY: Math.max(1.5, width * 0.06) })
+  });
+}
+
+/** Stone seal slab with a sigil that closes the corridor (#1963). */
+export function getSealPropGeometry(plane: DungeonPropPlane | null | undefined) {
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.9);
+  const top = baseY - width * 1.02;
+  const inset = width * 0.07;
+  return Object.freeze({
+    width,
+    slab: freezePoints([
+      { x: centerX - width * 0.5, y: top },
+      { x: centerX + width * 0.5, y: top },
+      { x: centerX + width * 0.5, y: baseY },
+      { x: centerX - width * 0.5, y: baseY }
+    ]),
+    frame: freezePoints([
+      { x: centerX - width * 0.5 + inset, y: top + inset },
+      { x: centerX + width * 0.5 - inset, y: top + inset },
+      { x: centerX + width * 0.5 - inset, y: baseY - inset * 0.4 },
+      { x: centerX - width * 0.5 + inset, y: baseY - inset * 0.4 }
+    ]),
+    seam: freezePoints([
+      { x: centerX, y: top + inset },
+      { x: centerX, y: baseY - inset * 0.4 }
+    ]),
+    sigil: Object.freeze({ x: centerX, y: top + width * 0.42, radiusX: width * 0.17, radiusY: width * 0.17 })
+  });
+}
+
+/** Floor plate with a lever; the handle swings down once pulled (#1963). */
+export function getLeverPropGeometry(plane: DungeonPropPlane | null | undefined, pulled = false) {
+  const { width, centerX, baseY } = getDungeonPropBase(plane, 0.34);
+  const pivot = { x: centerX, y: baseY - width * 0.16 };
+  const tipAngle = pulled ? Math.PI * 0.82 : Math.PI * 0.28;
+  const length = width * 0.55;
+  return Object.freeze({
+    width,
+    plate: Object.freeze({ x: centerX, y: baseY - width * 0.04, radiusX: width * 0.48, radiusY: Math.max(2, width * 0.12) }),
+    post: freezePoints([
+      { x: centerX - width * 0.06, y: baseY - width * 0.04 },
+      { x: centerX + width * 0.06, y: baseY - width * 0.04 },
+      { x: centerX + width * 0.05, y: pivot.y },
+      { x: centerX - width * 0.05, y: pivot.y }
+    ]),
+    handle: freezePoints([
+      pivot,
+      { x: pivot.x + Math.cos(tipAngle) * length, y: pivot.y - Math.sin(tipAngle) * length }
+    ]),
+    knob: Object.freeze({
+      x: pivot.x + Math.cos(tipAngle) * length,
+      y: pivot.y - Math.sin(tipAngle) * length,
+      radiusX: width * 0.08,
+      radiusY: width * 0.08
+    })
+  });
+}

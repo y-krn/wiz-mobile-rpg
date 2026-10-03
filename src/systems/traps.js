@@ -16,6 +16,7 @@ import {
 } from "../rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "../rules/trap_effect_rules.js";
 import { ensureRunFloor } from "../state/run_floor_state.js";
+import { collectNaturallyReachableKeys } from "../rules/traversal_gimmicks.js";
 import { trackTrapResolution } from "../telemetry.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "corrosion", "teleporter"];
@@ -204,6 +205,9 @@ export function triggerPitfall(trap, isPartialSuccess = false, action = "trigger
   const nextMap = ensureRunFloor(state, nextFloor);
   
   const candidates = [];
+  // Never drop the player into a pocket they cannot walk out of (a sealed
+  // branch or past unresolved rubble).
+  const reachableFromEntry = collectNaturallyReachableKeys(nextMap, findCellCoordsByType(nextMap, "stairs-up"));
   for (let y = 1; y < nextMap.length - 1; y++) {
     const rowWidth = nextMap[y]?.length ?? 0;
     for (let x = 1; x < rowWidth - 1; x++) {
@@ -214,7 +218,7 @@ export function triggerPitfall(trap, isPartialSuccess = false, action = "trigger
       const hasNoEvent = !cell.event;
       const hasNoTrap = !cell.trap;
       
-      if (isPassable && isNotStairs && hasNoEvent && hasNoTrap) {
+      if (isPassable && isNotStairs && hasNoEvent && hasNoTrap && reachableFromEntry.has(`${x},${y}`)) {
         candidates.push({ x, y });
       }
     }

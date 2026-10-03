@@ -1,6 +1,7 @@
 import { DX, DY, EVENT_TYPES } from "./data.js";
 import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { isRenderableCorridorCell } from "./rules/renderer_topology.js";
+import { getTraversalMarkerKind } from "./rules/traversal_gimmicks.js";
 
 export const MINIMAP_CANVAS_SIZE = Object.freeze({ width: 400, height: 260 });
 
@@ -144,6 +145,29 @@ export function drawStairMiniMapIcon(ctx, screenX, screenY, cellS, isUp, color) 
 }
 
 /** Draw the shared exploration presentation onto any 2D canvas context. */
+const TRAVERSAL_MINIMAP_MARKERS = Object.freeze({
+  rubble: { glyph: "岩", color: "#9a6a32" },
+  seal: { glyph: "封", color: "#b8860b" },
+  lever: { glyph: "仕", color: "#c7771a" },
+  "lever-pulled": { glyph: "仕", color: "#8f8a80" }
+});
+
+// Biome traversal gimmicks (#1963) share the full map's glyphs.
+function drawTraversalMiniMapMarker(ctx, screenX, screenY, size, kind) {
+  const marker = TRAVERSAL_MINIMAP_MARKERS[kind];
+  if (!marker) return;
+  ctx.fillStyle = "rgba(255, 252, 245, 0.95)";
+  ctx.strokeStyle = marker.color;
+  ctx.lineWidth = 1.2;
+  ctx.fillRect(screenX + 1, screenY + 1, size - 2, size - 2);
+  ctx.strokeRect(screenX + 1, screenY + 1, size - 2, size - 2);
+  ctx.fillStyle = marker.color;
+  ctx.font = "bold 9px DotGothic16, monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(marker.glyph, screenX + size / 2, screenY + size / 2);
+}
+
 export function drawMiniMap(ctx, input = null, options = {}) {
   const renderInput = resolveRenderInput(input);
   const map = renderInput.map;
@@ -184,7 +208,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
       const isLightRevealed = lightRad > 0 && dist <= lightRad;
       const cell = map[y][x];
       const hasDiscoveredTrap = cell.trap && cell.trap.state !== "hidden";
-      if (!isVisited && !isLightRevealed && !isFragmentRevealed && !hasDiscoveredTrap) continue;
+      const traversalKind = getTraversalMarkerKind(cell);
+      if (!isVisited && !isLightRevealed && !isFragmentRevealed && !hasDiscoveredTrap && !traversalKind) continue;
       if (!isRenderableCorridorCell(cell)) continue;
 
       const screenX = PANEL_LEFT + x * CELL_SIZE + offsetX;
@@ -249,6 +274,8 @@ export function drawMiniMap(ctx, input = null, options = {}) {
         ctx.textBaseline = "middle";
         ctx.fillText(isDisabled ? "x" : "!", screenX + CELL_SIZE / 2, screenY + CELL_SIZE / 2);
       }
+
+      if (traversalKind) drawTraversalMiniMapMarker(ctx, screenX, screenY, CELL_SIZE, traversalKind);
     }
   }
 

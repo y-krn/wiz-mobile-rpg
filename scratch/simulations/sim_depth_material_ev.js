@@ -46,6 +46,7 @@ const {
 } = await import("../../src/state/initial_state.js");
 const { state: productionState, recordCharDeath } = await import("../../src/state.js");
 const { calculateEncounterChance } = await import("../../src/movement.js");
+const { isTraversalObstacleBlocking, pullLeverAt } = await import("../../src/rules/traversal_gimmicks.js");
 const {
   applyExplorationItem,
   SILENCE_INCENSE_ENCOUNTER_MULTIPLIER
@@ -13157,6 +13158,9 @@ function canTraverseRouteEdge(
     cell.secretDoor?.[direction.dir] && cell.secretFound?.[direction.dir]
   );
   if (cell.walls?.[direction.dir] && !revealedSecret) return false;
+  // Simulation policy (#1963): the simulated player never digs rubble and
+  // routes around seals until a lever on its path opens them.
+  if (isTraversalObstacleBlocking(next)) return false;
   return !next.blockEnter?.[(direction.dir + 2) % 4];
 }
 
@@ -14383,6 +14387,7 @@ export function advanceSimulationFloorRoute(route, generated, state, floor, metr
   state.y = next.y;
   route.current = { ...next };
   route.path = route.path.slice(1);
+  pullLeverAt(generated.grid, next.x, next.y);
   if (route.partialInformation) {
     const nextKey = routeKey(next);
     const wasUnknown = !route.knownCellKeys.has(nextKey);
