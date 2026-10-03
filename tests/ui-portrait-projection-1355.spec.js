@@ -74,11 +74,10 @@ async function readProjection(page) {
     const topology = getVisibleCorridorTopology(state.map, state.x, state.y, state.dir)
       .map(({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }) => ({ z, column, leftBlocked, rightBlocked, frontBlocked, frontOneWayBarrier }));
     const bounds = topology.reduce((result, { z, column }) => {
-      if (Math.abs(column) === 2 && z < 2) return result;
-      // The camera cell is the screen frame: its walls run off both edges
-      // and its side openings sit off screen, so only the corridor ahead is
+      // The camera cell covers the screen frame and side cells share the
+      // corridor's width, so they run off-screen; only the corridor ahead is
       // held inside the view.
-      if (z === 0) return result;
+      if (z === 0 || column !== 0) return result;
       const plane = getProjectionColumn(projection, z, column);
       return {
         left: Math.min(result.left, plane.leftTop, plane.leftBottom, plane.rightTop, plane.rightBottom),

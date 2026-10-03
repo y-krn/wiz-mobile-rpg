@@ -53,17 +53,33 @@ for (const [width, height] of [[320, 568], [390, 844], [430, 932], [1024, 768]])
     }
 
     if (width < height) {
-      // The camera cell is the screen frame: its walls fill the screen edge to
-      // edge and its side openings sit off-screen, as in the wide view.
+      // The camera cell covers the screen frame: its walls run off both
+      // edges and its side openings sit off-screen, as in the wide view.
       const near = getProjectionColumn(projection, 0, 0);
       assert.ok(near.leftTop <= 1 && near.rightTop >= width - 1, "near plane fills the screen width");
-      for (const z of [0, 1, 2, 3]) {
-        for (const column of [-2, -1, 0, 1, 2]) {
-          if (Math.abs(column) === 2 && z < 2) continue;
-          if (z === 0) continue;
-          const plane = getProjectionColumn(projection, z, column);
-          assert.ok(plane.leftTop >= -1 && plane.rightTop <= width + 1, `${z}:${column} top clipped`);
-          assert.ok(plane.leftBottom >= -1 && plane.rightBottom <= width + 1, `${z}:${column} bottom clipped`);
+      for (const z of [1, 2, 3]) {
+        const plane = getProjectionColumn(projection, z, 0);
+        assert.ok(plane.leftBottom >= -1 && plane.rightBottom <= width + 1, `${z}:0 corridor ahead stays on screen`);
+      }
+    }
+
+    if (width < height) {
+      // One perspective: every corridor edge is a straight ray through the
+      // vanishing point, and side cells match the centre cell's width.
+      for (const geometry of [BASE_GEOMETRY, { corridorWidth: 0.82, ceilingHeight: 0.82, wallLean: 0.04 }, { corridorWidth: 0.96, ceilingHeight: 1.2, wallLean: -0.12 }]) {
+        const planes = getProjectionPlanes(geometry, profile);
+        const { x: vx, y: vy } = profile.vanishingPoint;
+        for (const [edge, rows] of [["leftTop", "yt"], ["rightTop", "yt"], ["leftBottom", "yb"], ["rightBottom", "yb"]]) {
+          const slopes = planes[edge].map((value, z) => (value - vx) / (planes[rows][z] - vy));
+          slopes.forEach(slope => assert.ok(Math.abs(slope - slopes[0]) < 1e-9, `${edge} bends toward the vanishing point`));
+        }
+        assert.ok(planes.yt[0] <= 0 && planes.yb[0] >= height, "camera plane covers the screen height");
+        for (const z of [1, 2, 3]) {
+          const center = getProjectionColumn(planes, z, 0);
+          for (const column of [-2, -1, 1, 2]) {
+            const side = getProjectionColumn(planes, z, column);
+            assert.ok(Math.abs((side.rightBottom - side.leftBottom) - (center.rightBottom - center.leftBottom)) < 1e-9, `${z}:${column} matches centre width`);
+          }
         }
       }
     }

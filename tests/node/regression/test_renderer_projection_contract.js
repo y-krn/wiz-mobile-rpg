@@ -45,14 +45,12 @@ const portrait = facade.getProjectionProfile(320, 568);
 let conversions = 0;
 const planes = facade.getProjectionPlanes(facade.BASE_GEOMETRY, portrait);
 assert.strictEqual(facade.getProjectionPlanes(undefined, portrait).viewport, portrait);
-assert.equal(Object.isFrozen(planes.columnLayout), false);
-assert.equal(Object.isFrozen(planes.columnLayout[0]), true);
-assert.strictEqual(planes.columnLayout[0].weights, portrait.columnLayout[0].weights);
+assert.equal(planes.columnLayout, null);
+assert.equal(portrait.columnLayout, null);
 const narrowPlanes = facade.getProjectionPlanes({ corridorWidth: 0.2, ceilingHeight: 0.5 }, portrait);
-// The camera plane is the screen frame; biome width and ceiling shape only the planes ahead.
-assert.ok(Math.abs((narrowPlanes.xr[0] - narrowPlanes.xl[0]) - (portrait.base.xr[0] - portrait.base.xl[0])) < 1e-9);
-assert.equal(narrowPlanes.yt[0], portrait.base.yt[0]);
-assert.equal(narrowPlanes.yb[0], portrait.base.yb[0]);
+// The camera plane extends the corridor's rays until it covers the screen frame.
+assert.ok(narrowPlanes.xl[0] <= 0 && narrowPlanes.xr[0] >= portrait.width);
+assert.ok(narrowPlanes.yt[0] <= 0 && narrowPlanes.yb[0] >= portrait.height);
 assert.ok(Math.abs((narrowPlanes.xr[1] - narrowPlanes.xl[1]) - (portrait.base.xr[1] - portrait.base.xl[1]) * 0.94) < 1e-9);
 assert.equal(facade.getProjectionPlanes({ ceilingStyle: "invalid" }).ceilingStyle, "flat");
 assert.equal(facade.getProjectionPlanes({ ceilingStyle: "arch" }).ceilingStyle, "arch");
