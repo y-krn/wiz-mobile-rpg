@@ -81,19 +81,30 @@ for (const row of report.rows) {
   // #1801: the solo starting base is 45; the Phase 4c baseline still adds
   // round(20 × 0.10 × baseline) on top of it.
   assert.equal(row.firstCombat.preRewardState.rawMaxHp, STARTING_BASE_MAX_HP + 2 * expectedBaseline);
-  assert.equal(row.firstCombat.preRewardState.hp, row.firstCombat.preRewardState.rawMaxHp);
+  // Floor traps on the way may wound the player before the first combat
+  // (#1962 layouts route the frozen seed past one), so only bound the HP.
+  assert.ok(row.firstCombat.preRewardState.hp > 0);
+  assert.ok(row.firstCombat.preRewardState.hp <= row.firstCombat.preRewardState.rawMaxHp);
   if (row.context === "selected-B10") assert.equal(row.firstCombat.preRewardState.rawMaxHp, STARTING_BASE_MAX_HP + 4);
   if (row.context === "selected-B20") assert.equal(row.firstCombat.preRewardState.rawMaxHp, STARTING_BASE_MAX_HP + 8);
+  // A floor alarm stepped on before the first fight scales that encounter's HP
+  // by one shared multiplier (#1962 layouts route the frozen seed past one).
+  const alarmMultipliers = [1, 1.10, 1.20];
+  const encounterMultipliers = new Set();
   for (const enemy of row.firstCombat.preRewardState.enemies.filter(entry => !entry.isBoss)) {
     const template = MONSTERS.find(entry =>
       entry.name === enemy.name.replace(/\s[A-Z]$/, "")
     );
     assert.ok(template, `generated enemy template exists for ${enemy.name}`);
     const band = row.firstCombat.preRewardState.enemyBand;
-    assert.equal(enemy.maxHp, Math.max(1, Math.round(template.hp * (1 + 0.20 * band))));
+    const baselineHp = Math.max(1, Math.round(template.hp * (1 + 0.20 * band)));
+    const multiplier = alarmMultipliers.find(value => Math.round(baselineHp * value) === enemy.maxHp);
+    assert.ok(multiplier !== undefined, `${enemy.name} maxHp ${enemy.maxHp} is not the Phase 4c baseline ${baselineHp}`);
+    encounterMultipliers.add(multiplier);
     assert.equal(enemy.atk, Math.max(1, Math.round(template.atk * (1 + 0.10 * band))));
     assert.equal(enemy.def, Math.max(0, Math.round(template.def)));
   }
+  assert.ok(encounterMultipliers.size <= 1, "an alarm scales the whole encounter alike");
 }
 
 const selectedB20 = CONTEXTS.find(context => context.id === "selected-B20");
@@ -101,19 +112,19 @@ const precombatReproduction = await runProgressionExpBFullRunDiagnostic({
   runs: 1,
   seed: DEFAULT_SEED,
   contexts: [selectedB20],
-  runIndices: [10]
+  runIndices: [1]
 });
 assert.equal(precombatReproduction.rows.length, ARMS.length);
 assert.deepEqual(precombatReproduction.rows.map(row => [row.arm, row.runIndex]), [
-  ["production", 10],
-  ["phase4j-b", 10]
+  ["production", 1],
+  ["phase4j-b", 1]
 ]);
 assert.equal(precombatReproduction.validity.valid, true);
 assert.equal(precombatReproduction.validity.firstCombatPreRewardStateAndOutcomeMatch, true);
 assert.deepEqual(precombatReproduction.validity.matchedArmMismatches, []);
-// #1801 made floor traps HP-relative: this run index no longer dies to a
-// trap before its first fight (no index in 0..79 does), so the fixture now
-// pins the matched two-battle death and its combat coverage accounting.
+// #1801 made floor traps HP-relative, so the fixture pins a matched two-battle
+// death and its combat coverage accounting. #1962 floor layouts moved the
+// previous index (10) onto a pre-combat trap death, so index 1 is pinned.
 assert.deepEqual(precombatReproduction.rows.map(row => [row.terminationReason, row.battles, row.battleObservationCount]), [
   ["death", 2, 2],
   ["death", 2, 2]

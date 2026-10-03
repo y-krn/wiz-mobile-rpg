@@ -7,7 +7,8 @@ const VIEWPORTS = [
   { width: 430, height: 932 },
 ];
 const ARCHETYPES = ['straight-corridor', 'dead-end', 'left-turn', 'right-turn', 't-junction', 'cross-junction'];
-const PRODUCTION_FIXTURE = Object.freeze({ seed: 'ISSUE-1220-B1F-PRODUCTION', floor: 1, x: 6, y: 4, dir: 1 });
+// #1962 biome layouts moved B1F passages; the fixture cell keeps a near side opening.
+const PRODUCTION_FIXTURE = Object.freeze({ seed: 'ISSUE-1220-B1F-PRODUCTION', floor: 1, x: 10, y: 2, dir: 1 });
 
 function makeSyntheticFixture(name) {
   return {

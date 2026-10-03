@@ -212,6 +212,9 @@ function startGesture() {
 
 function onPointerDown(event) {
   if (!isOpen) return;
+  // The zoom buttons sit inside the viewport; capturing their pointer would
+  // retarget the click to the viewport and swallow the button action.
+  if (event.target?.closest?.(".full-map-zoom")) return;
   event.preventDefault();
   event.currentTarget.setPointerCapture?.(event.pointerId);
   pointers.set(event.pointerId, localPoint(event));

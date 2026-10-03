@@ -9,8 +9,7 @@ const biome = (definition) => Object.freeze({
       ...definition.terrain.mazeProfile,
       straightBias: Object.freeze(definition.terrain.mazeProfile.straightBias),
       loopRate: Object.freeze(definition.terrain.mazeProfile.loopRate)
-    }),
-    structureProfile: Object.freeze({ ...definition.terrain.structureProfile })
+    })
   }),
   visualSignature: Object.freeze({
     ...definition.visualSignature,
@@ -32,7 +31,7 @@ export const BIOMES = Object.freeze([
     terrain: {
       roomCountRange: [2, 3],
       mazeProfile: { straightBias: [0.42, 0.62], loopRate: [0.20, 0.32] },
-      structureProfile: { corridor: 0.42, loop: 0.24, hub: 0.14, openArea: 0.20 }
+      layoutArchetype: "mine_tunnels"
     },
     visualSignature: {
       wallColor: "#58d6e8",
@@ -62,7 +61,7 @@ export const BIOMES = Object.freeze([
     terrain: {
       roomCountRange: [3, 3],
       mazeProfile: { straightBias: [0.30, 0.48], loopRate: [0.12, 0.24] },
-      structureProfile: { corridor: 0.54, loop: 0.14, hub: 0.12, openArea: 0.20 }
+      layoutArchetype: "catacomb_lattice"
     },
     visualSignature: {
       wallColor: "#d5b56f",
@@ -92,7 +91,7 @@ export const BIOMES = Object.freeze([
     terrain: {
       roomCountRange: [3, 3],
       mazeProfile: { straightBias: [0.16, 0.34], loopRate: [0.10, 0.20] },
-      structureProfile: { corridor: 0.30, loop: 0.34, hub: 0.14, openArea: 0.22 }
+      layoutArchetype: "rift_chasm"
     },
     visualSignature: {
       wallColor: "#bd78f2",
@@ -122,7 +121,7 @@ export const BIOMES = Object.freeze([
     terrain: {
       roomCountRange: [3, 4],
       mazeProfile: { straightBias: [0.24, 0.44], loopRate: [0.22, 0.34] },
-      structureProfile: { corridor: 0.28, loop: 0.28, hub: 0.20, openArea: 0.24 }
+      layoutArchetype: "library_stacks"
     },
     visualSignature: {
       wallColor: "#54c8c3",
@@ -152,7 +151,7 @@ export const BIOMES = Object.freeze([
     terrain: {
       roomCountRange: [4, 5],
       mazeProfile: { straightBias: [0.10, 0.30], loopRate: [0.10, 0.20] },
-      structureProfile: { corridor: 0.48, loop: 0.16, hub: 0.16, openArea: 0.20 }
+      layoutArchetype: "forge_rings"
     },
     visualSignature: {
       wallColor: "#f08a45",
@@ -182,7 +181,7 @@ export const BIOMES = Object.freeze([
     terrain: {
       roomCountRange: [4, 5],
       mazeProfile: { straightBias: [0.06, 0.22], loopRate: [0.08, 0.16] },
-      structureProfile: { corridor: 0.36, loop: 0.26, hub: 0.16, openArea: 0.22 }
+      layoutArchetype: "abyss_islands"
     },
     visualSignature: {
       wallColor: "#d45de6",
@@ -240,6 +239,6 @@ export function getBiomeTerrainForFloor(floor) {
       straightBias: biome.terrain.mazeProfile.straightBias.map(value => Math.max(0, value - cycleCorruption)),
       loopRate: biome.terrain.mazeProfile.loopRate.map(value => Math.max(0, value - cycleCorruption * 0.5))
     },
-    structureProfile: { ...biome.terrain.structureProfile }
+    layoutArchetype: biome.terrain.layoutArchetype
   };
 }
