@@ -369,6 +369,12 @@ reason. Under `prefers-reduced-motion: reduce`, suppress decorative movement
 while retaining visible selection, damage, result, pending, and completed
 meaning.
 
+Dungeon navigation motion follows the same rule: a step or turn is short
+(about a fifth of a second) and must not hold back its result. A step zooms
+by exactly one cell, so its last frame already is the destination view and the
+cut to it is seamless; haze follows the zoom. Chained input replaces the
+running motion instead of queueing behind it.
+
 Buttons are pressable tiles: a 2px border plus a solid drop edge
 (`--btn-edge`) that collapses on press. Each decision surface has at most one
 filled primary action (forward, attack, departure, next-run preparation);

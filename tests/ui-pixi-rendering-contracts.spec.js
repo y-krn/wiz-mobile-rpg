@@ -130,8 +130,12 @@ test('PixiJS motion uses projection continuity, restrained turns, and combat fee
     expect(root.rotation).toBe(0);
     expect(root.scaleX).toBe(root.scaleY);
     expect(root.scaleX).toBeGreaterThanOrEqual(1);
-    expect(root.scaleX).toBeLessThanOrEqual(1.1);
-    expect(root.alpha).toBe(1);
+    // A step zooms by at most one full cell (#1972); turns barely zoom.
+    const forwardSample = sample === motion.forwardStart || sample === motion.forwardMid;
+    expect(root.scaleX).toBeLessThanOrEqual(forwardSample ? 1.9 : 1.1);
+    // A step never fades; a turn dips slightly as the head swings (#1944).
+    if (forwardSample) expect(root.alpha).toBe(1);
+    else expect(root.alpha).toBeGreaterThanOrEqual(0.6);
     expect(sample.outgoingRoot).toBeNull();
     expect(sample.outgoingLayers).toBeNull();
   }

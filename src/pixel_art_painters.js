@@ -847,6 +847,12 @@ export function getPixelSurfaceKey(palette, surfaces = {}) {
 
 // Distance haze in a bright scene lifts far surfaces toward the fog color
 // instead of darkening them into a void.
+const DEPTH_FOG = [0, 0.12, 0.26, 0.4, 0.52];
+
+// A fractional depth (a view mid-step, #1972) blends the two nearest planes.
 export function getDepthFog(depth) {
-  return [0, 0.12, 0.26, 0.4, 0.52][Math.max(0, Math.min(4, depth))];
+  const clamped = Math.max(0, Math.min(DEPTH_FOG.length - 1, Number(depth) || 0));
+  const lower = Math.floor(clamped);
+  const upper = Math.min(DEPTH_FOG.length - 1, lower + 1);
+  return DEPTH_FOG[lower] + (DEPTH_FOG[upper] - DEPTH_FOG[lower]) * (clamped - lower);
 }

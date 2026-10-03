@@ -129,11 +129,14 @@ test('ordinary Pixi navigation moves one scene without cross-fade flicker @smoke
       }
       // #1766 navigation motion transforms the one scene root; it never
       // fades or layers an outgoing corridor over the incoming one.
-      expect(sample.sceneAlpha).toBe(1);
+      // A step never fades; a turn dips slightly as the head swings (#1944).
+      if (action === 'forward' || action === 'backward') expect(sample.sceneAlpha).toBe(1);
+      else expect(sample.sceneAlpha).toBeGreaterThanOrEqual(0.6);
       expect(sample.sceneRotation).toBe(0);
       expect(sample.sceneScaleX).toBe(sample.sceneScaleY);
       expect(sample.sceneScaleX).toBeGreaterThanOrEqual(1);
-      expect(sample.sceneScaleX).toBeLessThanOrEqual(1.1);
+      // A step zooms by at most one full cell (#1972); turns barely zoom.
+      expect(sample.sceneScaleX).toBeLessThanOrEqual(action === 'forward' || action === 'backward' ? 1.9 : 1.1);
       expect(Math.abs(sample.sceneOffsetY)).toBeLessThanOrEqual(3);
       expect(sample.structuralWallsAlpha).toBe(1);
       expect(sample.floorAlpha).toBe(1);

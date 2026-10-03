@@ -110,9 +110,10 @@ test('forward, turns, and backward play a short single-scene motion at 390x844 @
   const { forward, turnLeft, turnRight, backward } = evidence;
   expect(forward.resolved).toEqual({ x: 4, y: 3, dir: 0 });
   expect(forward.started.action).toBe('forward');
-  // A walk, not a blink: long enough to read as a step, short enough to chain.
-  expect(forward.started.duration).toBeGreaterThanOrEqual(250);
-  expect(forward.started.duration).toBeLessThanOrEqual(400);
+  // A walk, not a blink, yet short enough that the step's result is on screen
+  // almost at once and chained steps never wait on it (#1972).
+  expect(forward.started.duration).toBeGreaterThanOrEqual(120);
+  expect(forward.started.duration).toBeLessThanOrEqual(220);
   expect(forward.animating).toBe(true);
   // Pushes in evenly toward the vanishing point with one soft footfall: a
   // dip of a few pixels and no sideways sway.
@@ -148,7 +149,9 @@ test('forward, turns, and backward play a short single-scene motion at 390x844 @
       // Uniform zoom: the corridor never stretches on one axis.
       expect(Math.abs(sample.scaleY - sample.scale)).toBeLessThan(1e-9);
       expect(sample.scale).toBeGreaterThanOrEqual(1);
-      expect(sample.scale).toBeLessThanOrEqual(1.8);
+      // At most one full cell (~1.83 in portrait), so the last frame of a
+      // step matches the next view and the cut is seamless (#1972).
+      expect(sample.scale).toBeLessThanOrEqual(1.9);
     }
   }
   for (const result of [turnLeft, turnRight]) {
