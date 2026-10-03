@@ -273,6 +273,7 @@ export class PixiDungeonRenderer {
     this.app = null;
     this.scene = null;
     this.lastSignature = null;
+    this.staticSceneKey = null;
     this.renderCount = 0;
     this.totalRenderMs = 0;
     this.lastRenderMs = 0;
@@ -302,6 +303,7 @@ export class PixiDungeonRenderer {
     this.activeSurfaces = null;
     this.resourceStats = {
       sceneRebuilds: 0,
+      sceneReuses: 0,
       maxChildren: 0,
       destroyed: false,
       layerCount: LAYER_NAMES.length,
@@ -354,6 +356,7 @@ export class PixiDungeonRenderer {
     if (next.width === this.viewport.width && next.height === this.viewport.height) return this.viewport;
     this.viewport = next;
     this.lastSignature = null;
+    this.staticSceneKey = null;
     this.app?.renderer?.resize(next.width, next.height);
     return this.viewport;
   }
@@ -572,6 +575,7 @@ export class PixiDungeonRenderer {
 
   clearSceneRoot(root) {
     if (!root) return;
+    if (root === this.scene) this.staticSceneKey = null;
     // The floating-text container survives scene rebuilds; its Text objects
     // are released individually when their numbers expire.
     if (root === this.scene) this.floatingTextLayer?.parent?.removeChild(this.floatingTextLayer);
@@ -715,8 +719,15 @@ export class PixiDungeonRenderer {
     const renderInput = this.resolveRenderInput(input);
     const startedAt = performance.now();
     const sceneInput = this.resolveNavigationFrame(renderInput);
+    const staticKey = this.getStaticSceneKey(renderInput, sceneInput);
+    if (staticKey !== null && staticKey === this.staticSceneKey) {
+      this.drawDynamicOverlays(renderInput);
+      this.recordRender(startedAt);
+      return;
+    }
     this.clearSceneRoot(this.scene);
     this.drawScene(sceneInput, this.scene);
+    this.staticSceneKey = staticKey;
     // Navigation motion transforms the one scene root; combat feedback is
     // independent and cannot affect exploration navigation.
     this.resetMotion(this.scene);
@@ -735,11 +746,44 @@ export class PixiDungeonRenderer {
     this.drawFloatingTexts();
     this.app.render();
     renderMiniMapOverlay(renderInput);
+    this.recordRender(startedAt);
+  }
+
+  recordRender(startedAt) {
     this.renderCount += 1;
     this.lastRenderMs = performance.now() - startedAt;
     this.maxRenderMs = Math.max(this.maxRenderMs, this.lastRenderMs);
     this.totalRenderMs += this.lastRenderMs;
     this.resourceStats.maxChildren = Math.max(this.resourceStats.maxChildren, this.scene.children.length);
+  }
+
+  // Animated biomes keep the loop drawing every frame (#1975), but an idle
+  // exploration view only changes over time in its overlays. While nothing
+  // else moves, the key stays the same and the built scene is reused. Any
+  // motion, feedback timer, or combat returns null and rebuilds every frame.
+  getStaticSceneKey(renderInput, sceneInput) {
+    if (sceneInput !== renderInput || this.transition || this.shakeTime > 0 || this.flashTime > 0 ||
+      this.hitTime > 0 || this.partyHitTime > 0 || this.combatEntryTime > 0 || this.damageTexts.length > 0) return null;
+    if (renderInput.sceneVisibility.showCombat) return null;
+    return [
+      this.getDrawSignature(renderInput),
+      renderInput.decorSeed,
+      renderInput.visual.wallColor,
+      this.viewport.width,
+      this.viewport.height
+    ].join("|");
+  }
+
+  // Redraws only the time-varying overlay of a reused scene. With nothing
+  // time-varying on screen, the last presented frame is already correct.
+  drawDynamicOverlays(renderInput) {
+    const overlays = this.layer("overlays");
+    const hadOverlays = overlays.children.length > 0;
+    overlays.removeChildren().forEach((child) => child.destroy({ children: true }));
+    this.drawDangerPulse(renderInput);
+    if (hadOverlays || overlays.children.length > 0) this.app.render();
+    renderMiniMapOverlay(renderInput);
+    this.resourceStats.sceneReuses += 1;
   }
 
   drawScene(renderInput, root) {

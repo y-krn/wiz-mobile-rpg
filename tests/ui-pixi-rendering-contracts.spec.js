@@ -334,3 +334,75 @@ test('PixiJS performance and lifecycle stay bounded across repeated transitions 
   expect(evidence.stateUnchanged).toBe(true);
   expect(evidence.disposed).toBe(5);
 });
+
+// #1975: animated biomes draw every frame, but an idle view reuses its built
+// scene and redraws only the time-varying overlay. The reused frame matches a
+// full rebuild, motion still rebuilds, and repeated reuse leaks nothing.
+test('PixiJS reuses the static scene of an idle animated biome without changing the frame @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?renderer=pixi');
+  await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
+  await hideHud(page);
+  const capture = async () => page.evaluate(async () => {
+    const { dungeonRenderer: renderer } = await import('/src/renderer.js');
+    const input = renderer.getRenderInput();
+    const frame = () => {
+      const { pixels } = renderer.app.renderer.extract.pixels(renderer.app.stage);
+      return Array.from(pixels);
+    };
+    const differing = (left, right) => left.reduce((count, value, index) => count + (value !== right[index] ? 1 : 0), 0);
+    const childCount = () => renderer.scene.children.reduce((total, layer) => total + layer.children.length, 0);
+    renderer.draw(input);
+    const rebuilds = renderer.resourceStats.sceneRebuilds;
+    const reuses = renderer.resourceStats.sceneReuses;
+    renderer.draw(input);
+    const reused = frame();
+    const children = childCount();
+    for (let index = 0; index < 200; index += 1) renderer.draw(input);
+    const afterRepeats = {
+      rebuilds: renderer.resourceStats.sceneRebuilds - rebuilds,
+      reuses: renderer.resourceStats.sceneReuses - reuses,
+      children: childCount(),
+      surfaces: renderer.resourceStats.pixelSurfaceTextureCount
+    };
+    renderer.clearScene();
+    renderer.draw(input);
+    const rebuilt = frame();
+    renderer.beginNavigationTransition('forward', input);
+    const beforeMotion = renderer.resourceStats.sceneRebuilds;
+    renderer.update(40); renderer.draw(input);
+    renderer.update(40); renderer.draw(input);
+    renderer.update(1000); renderer.draw(input);
+    const motionRebuilds = renderer.resourceStats.sceneRebuilds - beforeMotion;
+    const settledReuses = renderer.resourceStats.sceneReuses;
+    renderer.draw(input);
+    return {
+      animated: renderer.isAnimating(input),
+      danger: input.dangerCue.active,
+      diff: differing(reused, rebuilt),
+      shades: new Set(reused.filter((_, index) => index % 4 === 0)).size,
+      children,
+      afterRepeats,
+      motionRebuilds,
+      settledReuse: renderer.resourceStats.sceneReuses - settledReuses,
+      overlays: renderer.layer('overlays').children.length
+    };
+  });
+
+  for (const danger of [false, true]) {
+    await setState(page, { map: makeSyntheticFixture('cross-junction'), floor: 22, danger });
+    const evidence = await capture();
+    console.log(`[issue-1975] ${JSON.stringify(evidence)}`);
+    expect(evidence.animated).toBe(true);
+    expect(evidence.danger).toBe(danger);
+    expect(evidence.shades).toBeGreaterThan(8);
+    expect(evidence.diff).toBe(0);
+    expect(evidence.afterRepeats.rebuilds).toBe(0);
+    expect(evidence.afterRepeats.reuses).toBe(201);
+    expect(evidence.afterRepeats.children).toBe(evidence.children);
+    expect(evidence.afterRepeats.surfaces).toBeLessThanOrEqual(6);
+    expect(evidence.motionRebuilds).toBe(3);
+    expect(evidence.settledReuse).toBe(1);
+    expect(evidence.overlays).toBe(danger ? 1 : 0);
+  }
+});
