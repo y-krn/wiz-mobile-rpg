@@ -273,8 +273,17 @@ before or after the boss, and B6 transition.
   - Forgotten catacomb: a stone seal closes a short dead-end branch holding
     treasure, and a floor lever elsewhere opens it, so exploration order
     decides whether the branch is worth the trip.
-  - The remaining biomes (rift ledges, flooded or dark tiles, timed hot
-    floors, spinners and teleporters) are planned on the same contract.
+  - Rift nest: a crumbling ledge is a one-use shortcut. It falls once
+    crossed, and either side still reaches the stairs and every facility.
+  - Sunken library: flooded cells on the route each cost an extra turn; a
+    dry way round exists where the layout allows one.
+  - Dragon forge: heat grates on the route burn for part of a fixed cycle,
+    so the player reads the timing or pays HP.
+  - Abyssal throne: hidden spinners on route junctions turn the player to a
+    new heading; the compass and the map are the counterplay.
+  A biome's first floor introduces one instance; later floors may add a
+  second. Turn and HP costs stay small so the gimmick changes a choice
+  rather than the floor's difficulty band.
   A gimmick's first meeting explains itself through the exploration log, and
   discovered gimmicks stay marked on the minimap and the full map.
 - Starting deeper may be a useful record-oriented option, but it must carry a

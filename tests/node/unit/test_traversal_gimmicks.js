@@ -3,7 +3,14 @@ import { getBiomeForFloor } from "../../../src/data/biomes.js";
 import { getFloorTemplate } from "../../../src/data/floor_templates.js";
 import { generateRunFloor } from "../../../src/run_map_generator.js";
 import {
+  HEAT_ACTIVE_TURNS,
+  HEAT_CYCLE_TURNS,
   RUBBLE_CLEAR_TURNS,
+  collapseCrumbleAt,
+  getHeatDamage,
+  getSpinnerFacing,
+  isHeatActive,
+  refreshHeatHazards,
   advanceRubbleClearing,
   collectNaturallyReachableKeys,
   discoverAdjacentTraversalFeatures,
@@ -54,7 +61,7 @@ function stairsOf(grid) {
   };
 }
 
-for (const floor of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 31, 36]) {
+for (const floor of [1, 3, 6, 8, 11, 13, 16, 18, 21, 23, 26, 28, 31, 36, 41, 46, 51, 56]) {
   const kind = getBiomeForFloor(floor).gimmicks.traversal;
   const template = getFloorTemplate(floor);
   const floorInBiome = (floor - 1) % 5;
@@ -69,6 +76,8 @@ for (const floor of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 31, 36]) {
     const { start, stairs } = stairsOf(grid);
     const obstacles = findCells(grid, cell => cell.obstacle);
     const levers = findCells(grid, cell => cell.lever);
+    const hazards = findCells(grid, cell => cell.hazard);
+    const expectedCount = floorInBiome >= 2 ? 2 : 1;
 
     // The exit stays inside the critical-path envelope with every obstacle intact.
     const critical = naturalDistance(grid, start, stairs);
@@ -111,16 +120,65 @@ for (const floor of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 31, 36]) {
         return copy[oy][ox].event === "chest";
       }), `${label} sealed branch has no chest`);
       assert.equal(naturalDistance(copy, start, stairs), critical, `${label} seal lengthened the route`);
+    } else if (kind === "crumble") {
+      assert.equal(obstacles.length, expectedCount, `${label} ledge count`);
+      assert.equal(hazards.length + levers.length, 0);
+      for (const { x, y, cell } of obstacles) {
+        assert.equal(cell.obstacle.kind, "crumble");
+        assert.equal(cell.obstacle.state, "intact", "an intact ledge is walkable");
+        assert.equal(isTraversalObstacleBlocking(cell), false);
+        // Once fallen, both sides still reach the stairs and every facility.
+        const copy = structuredClone(grid);
+        assert.equal(collapseCrumbleAt(copy, x, y), true);
+        const required = findCells(copy, other => other.type === "stairs-down" ||
+          (other.event && other.event !== "chest"));
+        cell.walls.forEach((wall, dir) => {
+          if (wall) return;
+          const side = { x: x + DX[dir], y: y + DY[dir] };
+          const fromSide = collectNaturallyReachableKeys(copy, side);
+          required.forEach(target => assert.ok(fromSide.has(`${target.x},${target.y}`),
+            `${label} fallen ledge strands ${target.x},${target.y}`));
+        });
+      }
+    } else if (kind === "flood" || kind === "heat" || kind === "spinner") {
+      assert.equal(obstacles.length + levers.length, 0);
+      assert.equal(generated.traversalGimmicks.length, expectedCount, `${label} ${kind} count`);
+      assert.ok(hazards.every(({ cell }) => cell.hazard.kind === kind && !cell.hazard.discovered));
+      assert.ok(hazards.every(({ cell }) => cell.type === "empty" && !cell.event && !cell.trap), `${label} hazard on content`);
+      if (kind === "flood") {
+        assert.ok(hazards.length >= 2 * expectedCount && hazards.length <= 4 * expectedCount, `${label} flood size`);
+      } else if (kind === "heat") {
+        assert.equal(hazards.length, 2 * expectedCount, `${label} heat size`);
+        assert.ok(hazards.every(({ cell }) => cell.hazard.phase >= 0 && cell.hazard.phase < HEAT_CYCLE_TURNS));
+      } else {
+        assert.equal(hazards.length, expectedCount);
+        assert.ok(hazards.every(({ cell }) => cell.walls.filter(wall => !wall).length >= 3), `${label} spinner off a junction`);
+      }
     } else {
-      assert.equal(obstacles.length + levers.length, 0, `${label} has unexpected gimmicks`);
+      assert.fail(`${label} biome has no traversal gimmick`);
     }
   }
 }
 
-// Biomes without a traversal gimmick yet stay untouched.
-for (const floor of [11, 16, 21, 26]) {
-  const generated = generateRunFloor({ runSeed: "ISSUE-1963-OTHER", floor });
-  assert.equal(findCells(generated.grid, cell => cell.obstacle || cell.lever).length, 0, `B${floor} gimmick leak`);
+// Heat vents follow a visible cycle; spinners always turn; ledges fall once.
+{
+  const vent = { kind: "heat", phase: 1 };
+  const pattern = Array.from({ length: HEAT_CYCLE_TURNS * 2 }, (_, turn) => isHeatActive(vent, turn));
+  assert.equal(pattern.filter(Boolean).length, HEAT_ACTIVE_TURNS * 2);
+  assert.deepEqual(pattern.slice(0, HEAT_CYCLE_TURNS), pattern.slice(HEAT_CYCLE_TURNS), "heat repeats every cycle");
+  assert.equal(getHeatDamage(45), Math.ceil(45 * 0.12));
+  const grid = [[{ hazard: { kind: "heat", phase: 0, hot: false } }]];
+  assert.equal(refreshHeatHazards(grid, 0), true);
+  assert.equal(grid[0][0].hazard.hot, true);
+  assert.equal(refreshHeatHazards(grid, 1), false, "unchanged heat reports no change");
+  for (let dir = 0; dir < 4; dir++) {
+    for (let turn = 0; turn < 6; turn++) assert.notEqual(getSpinnerFacing(3, 5, turn, dir), dir);
+  }
+  const ledge = [[{ obstacle: { kind: "crumble", state: "intact", discovered: false } }]];
+  assert.equal(collapseCrumbleAt(ledge, 0, 0), true);
+  assert.equal(isTraversalObstacleBlocking(ledge[0][0]), true);
+  assert.equal(collapseCrumbleAt(ledge, 0, 0), false);
+  assert.equal(getTraversalMarkerKind(ledge[0][0]), "crumble-collapsed");
 }
 
 // Rules: digging takes RUBBLE_CLEAR_TURNS turns; discovery and markers.
@@ -189,7 +247,8 @@ for (const floor of [11, 16, 21, 26]) {
   assert.ok(kinds.includes("lever@3"), "a discovered lever is marked");
   assert.ok(!kinds.some(kind => kind.startsWith("seal")), "an undiscovered seal stays hidden");
   const legend = new Set(FULL_MAP_LEGEND.map(({ kind }) => kind));
-  ["rubble", "seal", "lever", "lever-pulled"].forEach(kind => assert.ok(legend.has(kind), `${kind} legend`));
+  ["rubble", "seal", "lever", "lever-pulled", "crumble", "crumble-collapsed", "flood", "heat", "spinner"]
+    .forEach(kind => assert.ok(legend.has(kind), `${kind} legend`));
 }
 
 console.log("[PASS] Issue #1963 traversal gimmicks are deterministic, keep the exit reachable, and persist.");

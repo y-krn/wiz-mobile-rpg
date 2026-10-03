@@ -9,15 +9,21 @@
 // - A seal closes the only way into a small dead-end branch that holds a
 //   chest; a lever elsewhere on the floor opens it, so exploration order
 //   decides whether the branch is worth the trip.
+// - A crumbling ledge is a one-use shortcut: it falls once crossed, and the
+//   floor stays finishable from either side.
+// - Flooded cells slow a stretch of the route; a dry detour always exists.
+// - Heat vents on the route burn on a visible cycle.
+// - Spinners hide on route junctions and turn the player around.
 
 import { DX, DY } from "./constants/directions.js";
-import { TRAVERSAL_GIMMICKS, isTraversalObstacleBlocking } from "./rules/traversal_gimmicks.js";
+import { HEAT_CYCLE_TURNS, TRAVERSAL_GIMMICKS, isTraversalObstacleBlocking } from "./rules/traversal_gimmicks.js";
 
 const OPPOSITE = [2, 3, 0, 1];
 const RUBBLE_MIN_DETOUR = 4;
 const SEAL_REGION_SIZE = [1, 14];
 const LEVER_MIN_DISTANCE = 6;
 const LEVER_MIN_GATE_SPACING = 5;
+const FLOOD_MAX_DRY_DETOUR = 24;
 
 const key = (x, y) => `${x},${y}`;
 
@@ -64,9 +70,47 @@ function openDirs(cell) {
   return cell.walls.map((wall, dir) => (wall ? -1 : dir)).filter(dir => dir !== -1);
 }
 
+function isQuietCell(grid, x, y, start) {
+  const cell = grid[y]?.[x];
+  if (!cell || cell.type !== "empty" || cell.event || cell.trap || cell.obstacle || cell.lever || cell.hazard) return false;
+  if (cell.blockEnter?.some(Boolean) || cell.secretDoor?.some(Boolean)) return false;
+  return Math.abs(x - start.x) + Math.abs(y - start.y) > 2;
+}
+
+/** Natural shortest route from start to target, as coordinates. */
+function shortestRoute(grid, start, target) {
+  const previous = new Map([[key(start.x, start.y), null]]);
+  const queue = [start];
+  for (const pos of queue) {
+    if (pos.x === target.x && pos.y === target.y) break;
+    const cell = grid[pos.y][pos.x];
+    for (let dir = 0; dir < 4; dir++) {
+      if (cell.walls[dir]) continue;
+      const nx = pos.x + DX[dir];
+      const ny = pos.y + DY[dir];
+      const next = grid[ny]?.[nx];
+      if (!next || previous.has(key(nx, ny)) || next.blockEnter?.[OPPOSITE[dir]] || isTraversalObstacleBlocking(next)) continue;
+      previous.set(key(nx, ny), pos);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  if (!previous.has(key(target.x, target.y))) return [];
+  const route = [];
+  for (let pos = target; pos; pos = previous.get(key(pos.x, pos.y))) route.unshift(pos);
+  return route;
+}
+
+function requiredFacilityKeys(grid) {
+  const keys = [];
+  grid.forEach((row, y) => row.forEach((cell, x) => {
+    if (cell.type === "stairs-down" || (cell.event && cell.event !== "chest")) keys.push(key(x, y));
+  }));
+  return keys;
+}
+
 function isQuietCorridorCell(grid, x, y, start) {
   const cell = grid[y]?.[x];
-  if (!cell || cell.type !== "empty" || cell.event || cell.trap || cell.obstacle || cell.lever) return false;
+  if (!cell || cell.type !== "empty" || cell.event || cell.trap || cell.obstacle || cell.lever || cell.hazard) return false;
   if (cell.blockEnter?.some(Boolean) || cell.secretDoor?.some(Boolean)) return false;
   if (Math.abs(x - start.x) + Math.abs(y - start.y) <= 2) return false;
   const dirs = openDirs(cell);
@@ -177,6 +221,122 @@ function placeSeal(grid, context, rng) {
   return null;
 }
 
+function placeCrumble(grid, context, rng) {
+  const { start, stairs, criticalPathRange } = context;
+  const walkable = collectWalkableKeys(grid);
+  const required = requiredFacilityKeys(grid);
+  const baseCritical = distancesFrom(grid, start).get(key(stairs.x, stairs.y));
+  const candidates = [];
+  grid.forEach((row, y) => row.forEach((cell, x) => {
+    if (!isQuietCorridorCell(grid, x, y, start)) return;
+    const cellKey = key(x, y);
+    const blocked = new Set([cellKey]);
+    const revealed = distancesFrom(grid, start, { blocked, reveal: true });
+    if (walkable.some(walkKey => walkKey !== cellKey && !revealed.has(walkKey))) return;
+    const natural = distancesFrom(grid, start, { blocked });
+    const critical = natural.get(key(stairs.x, stairs.y));
+    if (!Number.isFinite(critical) || critical < criticalPathRange[0] || critical > criticalPathRange[1]) return;
+    // Once fallen, the player may stand on either side: both must still reach
+    // the stairs and every facility on foot.
+    const sides = openDirs(cell).map(dir => ({ x: x + DX[dir], y: y + DY[dir] }));
+    for (const side of sides) {
+      const fromSide = distancesFrom(grid, side, { blocked });
+      if (!required.every(requiredKey => fromSide.has(requiredKey))) return;
+    }
+    const [a, b] = sides;
+    const detour = distancesFrom(grid, a, { blocked }).get(key(b.x, b.y));
+    if (!Number.isFinite(detour) || detour < RUBBLE_MIN_DETOUR) return;
+    candidates.push({ x, y, onRoute: critical > baseCritical, detour });
+  }));
+  if (candidates.length === 0) return null;
+  const onRoute = candidates.filter(candidate => candidate.onRoute);
+  const pool = onRoute.length > 0 ? onRoute : candidates;
+  const chosen = pool[Math.floor(rng() * pool.length)];
+  grid[chosen.y][chosen.x].obstacle = { kind: TRAVERSAL_GIMMICKS.CRUMBLE, state: "intact", discovered: false };
+  return { kind: TRAVERSAL_GIMMICKS.CRUMBLE, x: chosen.x, y: chosen.y, detour: chosen.detour, onRoute: chosen.onRoute };
+}
+
+/** Contiguous runs of quiet cells along the natural route. */
+function routeRuns(grid, context, length) {
+  const route = shortestRoute(grid, context.start, context.stairs);
+  const runs = [];
+  for (let index = 1; index + length < route.length; index++) {
+    const run = route.slice(index, index + length);
+    if (run.every(({ x, y }) => isQuietCell(grid, x, y, context.start))) runs.push({ index, cells: run });
+  }
+  return runs;
+}
+
+function placeFlood(grid, context, rng) {
+  const { start, stairs } = context;
+  const stairsKey = key(stairs.x, stairs.y);
+  const baseCritical = distancesFrom(grid, start).get(stairsKey);
+  for (const length of [4, 3, 2]) {
+    const valid = routeRuns(grid, context, length).filter(({ cells }) => {
+      // Water is walkable, so nothing is cut off; it only needs a dry way round.
+      const blocked = new Set(cells.map(({ x, y }) => key(x, y)));
+      const dry = distancesFrom(grid, start, { blocked }).get(stairsKey);
+      // The dry way around must exist and cost something; wading stays the
+      // natural route, so the detour may run long.
+      return Number.isFinite(dry) && dry > baseCritical && dry <= baseCritical + FLOOD_MAX_DRY_DETOUR;
+    });
+    if (valid.length === 0) continue;
+    const chosen = valid[Math.floor(rng() * valid.length)];
+    chosen.cells.forEach(({ x, y }) => {
+      grid[y][x].hazard = { kind: TRAVERSAL_GIMMICKS.FLOOD, discovered: false };
+    });
+    return { kind: TRAVERSAL_GIMMICKS.FLOOD, cells: chosen.cells, dryRoute: true };
+  }
+  // Without a dry way round the water still only costs turns, never access.
+  const fallback = routeRuns(grid, context, 3);
+  if (fallback.length === 0) return null;
+  const chosen = fallback[Math.floor(rng() * fallback.length)];
+  chosen.cells.forEach(({ x, y }) => {
+    grid[y][x].hazard = { kind: TRAVERSAL_GIMMICKS.FLOOD, discovered: false };
+  });
+  return { kind: TRAVERSAL_GIMMICKS.FLOOD, cells: chosen.cells, dryRoute: false };
+}
+
+function placeHeat(grid, context, rng) {
+  const runs = routeRuns(grid, context, 2);
+  if (runs.length === 0) return null;
+  const chosen = runs[Math.floor(rng() * runs.length)];
+  const length = chosen.cells.length;
+  const phase = Math.floor(rng() * HEAT_CYCLE_TURNS);
+  chosen.cells.forEach(({ x, y }) => {
+    grid[y][x].hazard = { kind: TRAVERSAL_GIMMICKS.HEAT, phase, hot: false, discovered: false };
+  });
+  return { kind: TRAVERSAL_GIMMICKS.HEAT, cells: chosen.cells, phase, length };
+}
+
+function placeSpinner(grid, context, rng) {
+  const { start } = context;
+  const routeKeys = new Set(shortestRoute(grid, context.start, context.stairs).map(({ x, y }) => key(x, y)));
+  const reachable = distancesFrom(grid, start);
+  const candidates = [];
+  grid.forEach((row, y) => row.forEach((cell, x) => {
+    if (!isQuietCell(grid, x, y, start) || !reachable.has(key(x, y))) return;
+    if (openDirs(cell).length < 3 || reachable.get(key(x, y)) < 4) return;
+    const tooClose = grid.some((otherRow, oy) => otherRow.some((other, ox) =>
+      other.hazard?.kind === TRAVERSAL_GIMMICKS.SPINNER && Math.abs(ox - x) + Math.abs(oy - y) < 6));
+    if (!tooClose) candidates.push({ x, y, onRoute: routeKeys.has(key(x, y)) });
+  }));
+  if (candidates.length === 0) return null;
+  const onRoute = candidates.filter(candidate => candidate.onRoute);
+  const pool = onRoute.length > 0 ? onRoute : candidates;
+  const chosen = pool[Math.floor(rng() * pool.length)];
+  grid[chosen.y][chosen.x].hazard = { kind: TRAVERSAL_GIMMICKS.SPINNER, discovered: false };
+  return { kind: TRAVERSAL_GIMMICKS.SPINNER, x: chosen.x, y: chosen.y, onRoute: chosen.onRoute };
+}
+
+const PLACERS = Object.freeze({
+  [TRAVERSAL_GIMMICKS.RUBBLE]: placeRubble,
+  [TRAVERSAL_GIMMICKS.CRUMBLE]: placeCrumble,
+  [TRAVERSAL_GIMMICKS.FLOOD]: placeFlood,
+  [TRAVERSAL_GIMMICKS.HEAT]: placeHeat,
+  [TRAVERSAL_GIMMICKS.SPINNER]: placeSpinner
+});
+
 /**
  * Place the biome's traversal gimmick on a generated run floor. `floorInBiome`
  * is 0 on the biome's first floor; later floors may carry a second rubble.
@@ -188,10 +348,11 @@ export function placeTraversalGimmicks(grid, { kind, floor, floorInBiome = 0, cr
   if (!start || !stairs) return [];
   const context = { start, stairs, floor, criticalPathRange: criticalPathRange || [0, Infinity] };
   const placed = [];
-  if (kind === TRAVERSAL_GIMMICKS.RUBBLE) {
+  if (PLACERS[kind]) {
+    // The biome's first floor introduces one instance; later floors add another.
     const count = floorInBiome >= 2 ? 2 : 1;
     for (let index = 0; index < count; index++) {
-      const result = placeRubble(grid, context, rng);
+      const result = PLACERS[kind](grid, context, rng);
       if (result) placed.push(result);
     }
   } else if (kind === TRAVERSAL_GIMMICKS.SEAL) {

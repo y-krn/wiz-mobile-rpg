@@ -20,7 +20,9 @@ import { getSideOpeningPosts } from "./rules/renderer_openings.js";
 import { renderMiniMapOverlay } from "./minimap.js";
 import { getChestPropGeometry, getChestPropPalette, getChestPropStyle } from "./chest_prop.js";
 import {
+  getCrumblePropGeometry,
   getDungeonPropPalette,
+  getFloorPatchPropGeometry,
   getLeverPropGeometry,
   getRubblePropGeometry,
   getSealPropGeometry,
@@ -981,9 +983,13 @@ export class PixiDungeonRenderer {
   }
 
   drawLandmark(cell, plane, color, landmarks = {}) {
-    if (isTraversalObstacleBlocking(cell)) {
+    if (cell.obstacle?.kind === TRAVERSAL_GIMMICKS.CRUMBLE) {
+      this.drawCrumbleProp(plane, color, cell.obstacle.state === "collapsed");
+    } else if (isTraversalObstacleBlocking(cell)) {
       if (cell.obstacle.kind === TRAVERSAL_GIMMICKS.RUBBLE) this.drawRubbleProp(plane, color);
       else this.drawSealProp(plane, color);
+    } else if (cell.hazard?.kind === TRAVERSAL_GIMMICKS.FLOOD || cell.hazard?.kind === TRAVERSAL_GIMMICKS.HEAT) {
+      this.drawFloorPatchProp(plane, color, cell.hazard);
     } else if (cell.lever) {
       this.drawLeverProp(plane, color, cell.lever.state === "pulled");
     } else if (cell.type === "stairs-up" || cell.type === "stairs-down") {
@@ -1025,6 +1031,34 @@ export class PixiDungeonRenderer {
     addLine(worldObjects, geometry.seam, { ...ink, alpha: 0.8 });
     drawEllipse(worldObjects, geometry.sigil.x, geometry.sigil.y, geometry.sigil.radiusX * 1.5, geometry.sigil.radiusY * 1.5, "#ffd27a", 0.12);
     drawEllipse(worldObjects, geometry.sigil.x, geometry.sigil.y, geometry.sigil.radiusX, geometry.sigil.radiusY, mixColor(wallColor, "#2a241e", 0.7), 1, { color: "#ffd27a", width: Math.max(1.2, geometry.width * 0.02) });
+  }
+
+  drawCrumbleProp(plane, wallColor, collapsed) {
+    const geometry = getCrumblePropGeometry(plane);
+    const worldObjects = this.layer("world-objects");
+    const ink = { color: mixColor(wallColor, "#100c08", 0.72), width: Math.max(1, geometry.width * 0.014) };
+    if (collapsed) {
+      drawEllipse(worldObjects, geometry.hole.x, geometry.hole.y, geometry.hole.radiusX, geometry.hole.radiusY, "#05060a", 0.92, ink);
+      return;
+    }
+    addPolygon(worldObjects, geometry.slab, mixColor(wallColor, "#5b4a3a", 0.55), 1, ink);
+    geometry.cracks.forEach(crack => addLine(worldObjects, crack, { ...ink, width: Math.max(1.4, geometry.width * 0.02) }));
+  }
+
+  // Walkable hazards sit on the floor: water reads cool and flat, a heat grate
+  // glows only while it burns.
+  drawFloorPatchProp(plane, wallColor, hazard) {
+    const geometry = getFloorPatchPropGeometry(plane);
+    const worldObjects = this.layer("world-objects");
+    const { patch } = geometry;
+    if (hazard.kind === TRAVERSAL_GIMMICKS.FLOOD) {
+      drawEllipse(worldObjects, patch.x, patch.y, patch.radiusX, patch.radiusY, "#3d9be9", 0.55, { color: "#bfe8ff", width: Math.max(1, geometry.width * 0.012) });
+      return;
+    }
+    const hot = Boolean(hazard.hot);
+    if (hot) drawEllipse(worldObjects, patch.x, patch.y, patch.radiusX * 1.15, patch.radiusY * 1.6, "#ff7a2f", 0.28);
+    drawEllipse(worldObjects, patch.x, patch.y, patch.radiusX, patch.radiusY, mixColor(wallColor, "#2a1a10", 0.7), 1, { color: hot ? "#ffb347" : "#6b5a4a", width: Math.max(1, geometry.width * 0.014) });
+    geometry.bars.forEach(bar => addLine(worldObjects, bar, { color: hot ? "#ff9a3c" : "#4a3d33", width: Math.max(1.2, geometry.width * 0.018), alpha: 1 }));
   }
 
   drawLeverProp(plane, wallColor, pulled) {

@@ -38,7 +38,12 @@ const GLYPH_MARKERS = Object.freeze({
   rubble: { glyph: "岩", color: "#9a6a32" },
   seal: { glyph: "封", color: "#b8860b" },
   lever: { glyph: "仕", color: "#c7771a" },
-  "lever-pulled": { glyph: "仕", color: "#8f8a80" }
+  "lever-pulled": { glyph: "仕", color: "#8f8a80" },
+  crumble: { glyph: "崩", color: "#a0522d" },
+  "crumble-collapsed": { glyph: "崩", color: "#5a4a40" },
+  flood: { glyph: "水", color: "#3d9be9" },
+  heat: { glyph: "熱", color: "#e0602a" },
+  spinner: { glyph: "回", color: "#7c5cd6" }
 });
 
 /** Legend rows in display order; `kind` matches the markers drawn on the canvas. */
@@ -62,6 +67,11 @@ export const FULL_MAP_LEGEND = Object.freeze([
   { kind: "seal", label: "封印扉", optional: true },
   { kind: "lever", label: "床の仕掛け", optional: true },
   { kind: "lever-pulled", label: "仕掛け（作動済み）", optional: true },
+  { kind: "crumble", label: "崩れる足場", optional: true },
+  { kind: "crumble-collapsed", label: "崩落した足場", optional: true },
+  { kind: "flood", label: "浸水", optional: true },
+  { kind: "heat", label: "灼熱の格子", optional: true },
+  { kind: "spinner", label: "回転床", optional: true },
   { kind: "elite", label: "強敵" },
   { kind: "monster", label: "徘徊する敵" }
 ]);

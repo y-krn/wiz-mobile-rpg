@@ -46,7 +46,13 @@ const {
 } = await import("../../src/state/initial_state.js");
 const { state: productionState, recordCharDeath } = await import("../../src/state.js");
 const { calculateEncounterChance } = await import("../../src/movement.js");
-const { isTraversalObstacleBlocking, pullLeverAt } = await import("../../src/rules/traversal_gimmicks.js");
+const {
+  TRAVERSAL_GIMMICKS,
+  collapseCrumbleAt,
+  isHeatActive,
+  isTraversalObstacleBlocking,
+  pullLeverAt
+} = await import("../../src/rules/traversal_gimmicks.js");
 const {
   applyExplorationItem,
   SILENCE_INCENSE_ENCOUNTER_MULTIPLIER
@@ -14311,6 +14317,14 @@ export function advanceSimulationFloorRoute(route, generated, state, floor, metr
     next = route.path[1];
   }
   if (!next) return { moved: false };
+  // A crumbling ledge that fell behind the player can invalidate the planned path.
+  if (isTraversalObstacleBlocking(generated.grid[next.y]?.[next.x])) {
+    replanSimulationFloorRoute(route, generated, state, floor, metrics, step);
+    next = route.path[1];
+    if (!next) return { moved: false };
+  }
+  // Simulation policy (#1963): wait out a burning heat grate instead of stepping on it.
+  if (isHeatActive(generated.grid[next.y]?.[next.x]?.hazard, step)) return { moved: false };
 
   let nextCell = generated.grid[next.y]?.[next.x];
   const trap = nextCell?.trap;
@@ -14388,6 +14402,11 @@ export function advanceSimulationFloorRoute(route, generated, state, floor, metr
   route.current = { ...next };
   route.path = route.path.slice(1);
   pullLeverAt(generated.grid, next.x, next.y);
+  collapseCrumbleAt(generated.grid, previous.x, previous.y);
+  // Wading through a flooded cell costs one more exploration step of time.
+  if (generated.grid[next.y]?.[next.x]?.hazard?.kind === TRAVERSAL_GIMMICKS.FLOOD) {
+    route.nextMoveAt += EXPLORATION_FACTOR;
+  }
   if (route.partialInformation) {
     const nextKey = routeKey(next);
     const wasUnknown = !route.knownCellKeys.has(nextKey);
