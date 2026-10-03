@@ -27,6 +27,9 @@ export {
   loadGame,
   saveGame,
   saveAutosave,
+  scheduleAutosave,
+  flushAutosave,
+  hasPendingAutosave,
   clearSave
 } from "./state/save_storage.js";
 

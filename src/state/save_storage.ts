@@ -206,7 +206,52 @@ function persistSave({ rotateBackup = true }: { rotateBackup?: boolean } = {}): 
   }
 }
 
+// Ordinary exploration steps defer their autosave (#1973): writing the whole
+// save synchronously on every step blocked the main thread for tens of
+// milliseconds and stalled the step motion. A deferred save runs once input
+// has been quiet for DEFERRED_AUTOSAVE_IDLE_MS, and never later than
+// DEFERRED_AUTOSAVE_MAX_MS after the first unsaved step, so a reload loses at
+// most the last few steps. It does not rotate the backup; immediate saves at
+// events and floor changes still do.
+export const DEFERRED_AUTOSAVE_IDLE_MS = 400;
+export const DEFERRED_AUTOSAVE_MAX_MS = 2000;
+let deferredAutosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let deferredAutosaveSince: number | null = null;
+
+function cancelDeferredAutosave(): void {
+  if (deferredAutosaveTimer !== null) clearTimeout(deferredAutosaveTimer);
+  deferredAutosaveTimer = null;
+  deferredAutosaveSince = null;
+}
+
+export function hasPendingAutosave(): boolean {
+  return deferredAutosaveTimer !== null;
+}
+
+/** Write a deferred autosave now, if one is pending. Returns whether it wrote. */
+export function flushAutosave(): boolean {
+  if (deferredAutosaveTimer === null) return false;
+  cancelDeferredAutosave();
+  persistSave({ rotateBackup: false });
+  return true;
+}
+
+/** Autosave after the current burst of steps instead of on this one. */
+export function scheduleAutosave(): void {
+  if (typeof setTimeout !== "function") {
+    persistSave({ rotateBackup: false });
+    return;
+  }
+  const now = Date.now();
+  deferredAutosaveSince ??= now;
+  if (deferredAutosaveTimer !== null) clearTimeout(deferredAutosaveTimer);
+  const wait = Math.max(0, Math.min(DEFERRED_AUTOSAVE_IDLE_MS, deferredAutosaveSince + DEFERRED_AUTOSAVE_MAX_MS - now));
+  deferredAutosaveTimer = setTimeout(flushAutosave, wait);
+}
+
 export function saveAutosave(): void {
+  // An immediate save covers any deferred one.
+  cancelDeferredAutosave();
   persistSave();
 }
 
@@ -216,6 +261,7 @@ function saveLoadedState(): void {
 }
 
 export function clearSave(): void {
+  cancelDeferredAutosave();
   const keys = SAVE_KEYS;
   localStorage.removeItem(keys.save);
   localStorage.removeItem(keys.old);

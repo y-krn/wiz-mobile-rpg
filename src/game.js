@@ -1,4 +1,4 @@
-import { loadGame, saveAutosave, state } from "./state.js";
+import { flushAutosave, loadGame, saveAutosave, state } from "./state.js";
 import { initErrorContext } from "./error_context.js";
 import { addGameBreadcrumb, captureException } from "./sentry.js";
 import { setDungeonRenderer } from "./renderer_runtime.js";
@@ -149,7 +149,7 @@ export function initGame() {
   initErrorContext(state);
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
-  window.addEventListener("pagehide", stopGameLoop);
+  window.addEventListener("pagehide", handlePageHide);
   window.addEventListener("pageshow", handlePageShow);
 
   // Keep controls inert until Pixi completes its first successful render.
@@ -271,6 +271,13 @@ function handleVisibilityChange() {
     return;
   }
   restartGameLoop();
+}
+
+// Closing or backgrounding the page writes any step autosave still pending
+// (#1973) before the loop stops.
+function handlePageHide() {
+  flushAutosave();
+  stopGameLoop();
 }
 
 function handlePageShow() {
