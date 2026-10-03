@@ -195,7 +195,8 @@ function persistSave({ rotateBackup = true }: { rotateBackup?: boolean } = {}): 
         }
       }
     }
-    localStorage.setItem(keys.save, data);
+    writePrimarySave(keys, data);
+    saveFailureReported = false;
   } catch (err: unknown) {
     console.error("Save autosave failed", err);
     // 保存自体の失敗はプレイヤーの進行喪失に直結するため送信する。
@@ -203,6 +204,31 @@ function persistSave({ rotateBackup = true }: { rotateBackup?: boolean } = {}): 
       level: "error",
       tags: { subsystem: "save", op: "autosave" },
     });
+    // Never lose progress silently (#1974): tell the player once until a
+    // save succeeds again.
+    if (!saveFailureReported) {
+      saveFailureReported = true;
+      addLog("[警告] セーブデータを保存できませんでした。ブラウザの保存容量が不足している可能性があります。");
+    }
+  }
+}
+
+let saveFailureReported = false;
+
+function isQuotaExceeded(error: unknown): boolean {
+  const name = (error as { name?: unknown } | null)?.name;
+  return name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED";
+}
+
+// The primary save outranks the backup: when storage is full, drop the backup
+// copy and retry once before giving up.
+function writePrimarySave(keys: typeof SAVE_KEYS, data: string): void {
+  try {
+    localStorage.setItem(keys.save, data);
+  } catch (error: unknown) {
+    if (!isQuotaExceeded(error)) throw error;
+    localStorage.removeItem(keys.backup);
+    localStorage.setItem(keys.save, data);
   }
 }
 

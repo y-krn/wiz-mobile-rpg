@@ -61,6 +61,7 @@ import {
 } from "./codex_state.js";
 import { createDefaultWorkshopState, normalizeWorkshopState } from "../systems/workshop.js";
 
+import { decodeSaveMaps, decodeVisitedMaps } from "./map_codec.js";
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
 
 // Exact-version save contract. Incompatible saves reset; no migration path.
@@ -787,6 +788,10 @@ export function normalizeSavePayload(data) {
     malformed.name = "MalformedSavePayloadError";
     throw malformed;
   }
+  // Floor grids and visited maps may arrive in the compact save encoding
+  // (#1974) or as plain arrays from older saves; everything below sees arrays.
+  if (Object.hasOwn(data, "maps")) data.maps = decodeSaveMaps(data.maps);
+  if (Object.hasOwn(data, "visitedMaps")) data.visitedMaps = decodeVisitedMaps(data.visitedMaps);
   const normalized = Object.fromEntries(
     SAVE_PAYLOAD_FIELDS
       .filter(field => Object.hasOwn(data, field))

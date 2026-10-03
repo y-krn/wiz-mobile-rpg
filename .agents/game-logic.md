@@ -184,6 +184,14 @@ Mana items are available to any character with positive maximum MP. Trap
 detection, disarm, chest trap signs, critical, barehanded attack, and evasion
 use universal rules plus equipment/affixes; they do not branch on a class name.
 
+Saved floor grids keep their terrain: a run's floors are never regenerated
+from the run seed on load, so a map-generator change cannot alter a saved run.
+Grids and visited maps are stored in a compact, lossless encoding
+(`src/state/map_codec.js`); plain grids from older saves still load, and a
+grid that does not fit the encoding stays plain. A save that cannot be written
+is reported to the player rather than dropped silently, and the primary save
+outranks the backup when storage is full.
+
 Save normalization drops legacy `class` and `spells` fields from current
 characters and never reconstructs learned spells. Historical run records may
 retain a legacy class field as archive evidence, but it is not loaded into the

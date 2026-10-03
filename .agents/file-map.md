@@ -7,7 +7,9 @@ to verify the change.
 ## Core Flow
 
 - App bootstrap: `index.html`, `src/main.js`, `src/game.js`
-- Persistent state and save shape: `src/state.js`, `src/state/*`; active-run
+- Persistent state and save shape: `src/state.js`, `src/state/*`; compact
+  floor-grid and visited-map encoding: `src/state/map_codec.js`
+  (`tests/node/unit/test_compact_save_maps.js`); active-run
   object-loot ownership and terminal settlement: `src/state/run_loot.js`
 - Static game data and formulas: `src/data.js`, `src/data/*`,
   `src/rules/*`, `src/systems/*`, `src/constants/*`
