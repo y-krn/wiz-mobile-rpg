@@ -132,8 +132,8 @@ test('PixiJS navigation motion stays short, low-amplitude, and screen-stable @sm
   for (const [action, result] of Object.entries(results)) {
     // #1766: one transform of the one scene root, short enough to chain.
     expect(result.mid.action).toBe(action);
-    expect(result.mid.duration).toBeGreaterThanOrEqual(250);
-    expect(result.mid.duration).toBeLessThanOrEqual(450);
+    expect(result.mid.duration).toBeGreaterThanOrEqual(120);
+    expect(result.mid.duration).toBeLessThanOrEqual(240);
     expect(result.mid.progress).toBeGreaterThan(0);
     expect(result.mid.progress).toBeLessThan(1);
     expect(result.mid.transitionVisible).toBe(false);
@@ -147,7 +147,7 @@ test('PixiJS navigation motion stays short, low-amplitude, and screen-stable @sm
       // a few pixels, and a bounded zoom.
       expect(Math.abs(root.x)).toBeLessThan(0.5);
       expect(Math.abs(root.y)).toBeLessThanOrEqual(VIEWPORT.height * 0.008);
-      expect(root.scaleX).toBeLessThanOrEqual(1.8);
+      expect(root.scaleX).toBeLessThanOrEqual(1.9);
       expect(root.alpha).toBe(1);
     } else {
       // A turn swings the view aside and dips it, without zooming far.

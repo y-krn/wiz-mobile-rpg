@@ -80,18 +80,20 @@ const PARTY_HIT_MS = 420;
 // the view follows. The motion only transforms one scene root and never
 // layers two corridors, which caused the #1251 double-contour flicker.
 // Forward is a walk: the outgoing view pushes in evenly toward the vanishing
-// point, most of the way to the next cell's frame, with one soft footfall
-// dip, then cuts. Backward is the same push in reverse on the incoming view. Turns swing the head: the
-// outgoing view sweeps off toward the turn and the new facing swings in from
-// the other side.
+// point by exactly one cell, so its last frame already matches the incoming
+// view and the cut to it is seamless (#1972). Backward is the same push in
+// reverse on the incoming view. Turns swing the head: the outgoing view sweeps
+// off toward the turn and the new facing swings in from the other side.
+// Durations stay short so the result of a step is on screen almost at once
+// and chained steps never queue behind the motion.
 export const NAVIGATION_MOTION = Object.freeze({
-  durationMs: Object.freeze({ forward: 340, backward: 320, "turn-left": 280, "turn-right": 280, "turn-around": 420 }),
+  durationMs: Object.freeze({ forward: 180, backward: 160, "turn-left": 180, "turn-right": 180, "turn-around": 220 }),
   turnScale: 0.08,
   turnSweep: 0.62,
   turnDim: 0.35,
-  // A step is a calm, uniform push toward the vanishing point: one scale for
-  // both axes (no stretching), most of the way to the next cell, then a cut.
-  stepReach: 0.7,
+  // A step is a uniform push toward the vanishing point: one scale for both
+  // axes (no stretching) covering the whole step to the next cell.
+  stepReach: 1,
   bobRatio: 0.005
 });
 
@@ -625,14 +627,33 @@ export class PixiDungeonRenderer {
     return progress < 0.5 ? transition.source : renderInput;
   }
 
-  // How much the camera cell's far frame (plane 1) must grow, horizontally
-  // and vertically, to fill the screen frame (plane 0): one step's zoom.
+  // One step's zoom and its fixed point. The corridor ahead is a geometric
+  // series of planes, so scaling the view about this point by the ratio of
+  // plane 1 to plane 2 lands every far plane on the next nearer one: after a
+  // full step the outgoing view matches the incoming one.
   getStepDolly(renderInput) {
     const projection = getProjectionPlanes(renderInput.visual.geometry || BASE_GEOMETRY, this.viewport);
+    const kx = (projection.xr[1] - projection.xl[1]) / Math.max(1, projection.xr[2] - projection.xl[2]);
+    const ky = (projection.yb[1] - projection.yt[1]) / Math.max(1, projection.yb[2] - projection.yt[2]);
+    const scale = Math.max(1, Math.sqrt(kx * ky));
+    const fixedPoint = (near, far, fallback) => (scale > 1 ? (near - scale * far) / (1 - scale) : fallback);
     return {
-      kx: (projection.xr[0] - projection.xl[0]) / Math.max(1, projection.xr[1] - projection.xl[1]),
-      ky: (projection.yb[0] - projection.yt[0]) / Math.max(1, projection.yb[1] - projection.yt[1])
+      kx,
+      ky,
+      scale,
+      pivotX: fixedPoint(projection.xl[1], projection.xl[2], this.viewport.width / 2),
+      pivotY: fixedPoint(projection.yb[1], projection.yb[2], this.getHorizonY(renderInput))
     };
+  }
+
+  // How far through a forward or backward step the drawn view is, in cells
+  // (0 = its own pose, 1 = one cell nearer). Turns and idle frames are 0.
+  getNavigationWalk() {
+    const transition = this.transition;
+    if (!transition || (transition.action !== "forward" && transition.action !== "backward")) return 0;
+    const progress = clamp01(transition.elapsed / transition.duration);
+    const eased = 1 - (1 - progress) ** 3;
+    return (transition.action === "forward" ? eased : 1 - eased) * NAVIGATION_MOTION.stepReach;
   }
 
   applyNavigationMotion(root, renderInput) {
@@ -641,15 +662,13 @@ export class PixiDungeonRenderer {
     const { width, height } = this.viewport;
     const progress = clamp01(transition.elapsed / transition.duration);
     if (transition.action === "forward" || transition.action === "backward") {
-      const { kx, ky } = this.getStepDolly(renderInput);
-      // Uniform scale about the vanishing point keeps every line straight and
-      // in proportion; travelling in log space keeps the apparent speed even.
-      const stepScale = Math.max(1, Math.sqrt(kx * ky)) ** NAVIGATION_MOTION.stepReach;
-      const eased = 1 - (1 - progress) ** 3;
-      const walked = transition.action === "forward" ? eased : 1 - eased;
-      const scale = stepScale ** walked;
-      const pivotX = width / 2;
-      const pivotY = this.getHorizonY(renderInput);
+      const dolly = this.getStepDolly(renderInput);
+      // Uniform scale about the step's fixed point keeps every line straight
+      // and in proportion; travelling in log space keeps the apparent speed
+      // even. Ease-out puts most of the step in the first frames.
+      const scale = dolly.scale ** this.getNavigationWalk();
+      const pivotX = dolly.pivotX;
+      const pivotY = dolly.pivotY;
       // One soft footfall, kept inside the margin the zoom adds so the canvas
       // edge is never exposed.
       const marginY = Math.min(pivotY, height - pivotY) * (scale - 1);
@@ -908,6 +927,9 @@ export class PixiDungeonRenderer {
     this.activeSurfaces = surfaces;
     const wallColor = palette.accent;
     const facing = Number(renderInput.dir) || 0;
+    // Mid-step, every cell is that much nearer, so haze follows the zoom and
+    // the cut at the end of the step does not brighten the view (#1972).
+    const fogShift = this.getNavigationWalk();
     // Wall decor is keyed by the absolute wall face, so it stays put as the
     // player turns and returns (#1964).
     const decorFor = (cellX, cellY, wallDir) => {
@@ -921,8 +943,8 @@ export class PixiDungeonRenderer {
 
     for (let z = 3; z >= 0; z -= 1) {
       const width = projection.xr[z] - projection.xl[z];
-      const nearFog = getDepthFog(z);
-      const farFog = getDepthFog(z + 1);
+      const nearFog = getDepthFog(z - fogShift);
+      const farFog = getDepthFog(z + 1 - fogShift);
       const spanFog = (nearFog + farFog) / 2;
       for (const column of COLUMN_ORDER) {
         if (Math.abs(column) === 2 && z < 2) continue;
@@ -1001,7 +1023,7 @@ export class PixiDungeonRenderer {
       { x: x - width / 2, y: bottom }
     ];
     addTexturedQuad(walls, surfaces.wall, corners);
-    addPolygon(walls, corners, palette.fog, getDepthFog(z), { color: palette.ink, width: 2, alpha: 0.85 });
+    addPolygon(walls, corners, palette.fog, getDepthFog(z - this.getNavigationWalk()), { color: palette.ink, width: 2, alpha: 0.85 });
     addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
   }
 
