@@ -253,7 +253,7 @@ test('PixiJS material/atmosphere differs by biome and preserves production B1F/m
     return { ceiling: dungeonRenderer.getRenderInput().visual.geometry.ceilingStyle, layerCount: dungeonRenderer.resourceStats.layerCount };
   });
   expect(biomeEvidence.ceiling).toBe('arch');
-  expect(biomeEvidence.layerCount).toBe(9);
+  expect(biomeEvidence.layerCount).toBe(10);
 
   const production = await page.evaluate(async (fixture) => {
     const { generateRunFloor } = await import('/src/run_map_generator.js');
@@ -320,7 +320,7 @@ test('PixiJS performance and lifecycle stay bounded across repeated transitions 
     return { repeated, disposed, stateUnchanged };
   });
   console.log(`[issue-1230] runtime ${JSON.stringify(evidence)}`);
-  expect(evidence.repeated.sceneChildren).toBe(9);
+  expect(evidence.repeated.sceneChildren).toBe(10);
   expect(evidence.repeated.maxChildren).toBeLessThan(12);
   expect(evidence.repeated.generatedTextureCount).toBe(0);
   expect(evidence.repeated.filterCount).toBe(0);

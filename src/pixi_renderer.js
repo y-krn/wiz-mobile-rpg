@@ -53,10 +53,14 @@ const DANGER_VIGNETTE_COLOR = "#e08c14";
 // Telegraphed enemy attacks use the shared danger role (--semantic-danger):
 // the warning is about incoming damage or loss, not a recommendation.
 const TELEGRAPH_COLOR = "#d9483b";
+// A corridor's end wall sits behind every object visible in front of it, so
+// it draws under world objects (#1976). Side walls and opening posts stay
+// above them so nearer walls still hide farther objects.
 const LAYER_NAMES = Object.freeze([
   "background",
   "far-environment",
   "floor",
+  "end-walls",
   "world-objects",
   "structural-walls",
   "environment-fx",
@@ -1019,7 +1023,7 @@ export class PixiDungeonRenderer {
   }
 
   drawFrontWall(plane, ceilingStyle, palette, surfaces, fog, recess = 0, decor = null) {
-    const walls = this.layer("structural-walls");
+    const walls = this.layer("end-walls");
     const corners = [
       { x: plane.leftTop, y: plane.top },
       { x: plane.rightTop, y: plane.top },
