@@ -147,7 +147,7 @@ export const BASE_GEOMETRY = Object.freeze({
 // stay straight lines. Side cells are as wide as the centre cell at the same
 // depth (the world grid is uniform); whatever falls outside the screen is
 // clipped, as in the wide view.
-const PORTRAIT_DEPTH_SCALE = Object.freeze([1, 0.40, 0.22, 0.12, 0.07]);
+const PORTRAIT_DEPTH_SCALE = Object.freeze([1, 0.55, 0.30, 0.165, 0.095]);
 // The horizon sits above the screen centre so more floor than ceiling shows.
 const PORTRAIT_HORIZON = 0.44;
 // Screen share of the corridor one step ahead; this fixes the corridor's
