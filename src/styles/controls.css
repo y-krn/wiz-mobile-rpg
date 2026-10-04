@@ -1162,6 +1162,56 @@
   opacity: 0.9;
 }
 
+.guidebook-grid {
+  grid-template-columns: 1fr;
+  grid-auto-rows: auto;
+  align-content: start;
+  gap: var(--sp-sm);
+}
+
+.guidebook-summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+
+.guidebook-page {
+  display: grid;
+  gap: var(--sp-xs);
+  min-width: 0;
+  padding: var(--sp-md) var(--sp-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset);
+}
+
+.guidebook-page.is-decoded {
+  background: var(--surface-raised);
+}
+
+.guidebook-page-title {
+  color: var(--neon-amber);
+  font-size: var(--fs-lg);
+}
+
+.guidebook-page:not(.is-decoded) .guidebook-page-title {
+  color: var(--text-muted);
+}
+
+.guidebook-page-line,
+.guidebook-page-note {
+  margin: 0;
+  color: var(--text-main);
+  font-size: var(--fs-base);
+  line-height: 1.6;
+}
+
+.guidebook-page-note {
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+}
+
 .facility-intro {
   margin: 0;
   color: var(--text-secondary);

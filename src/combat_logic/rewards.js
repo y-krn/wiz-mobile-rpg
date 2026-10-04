@@ -7,6 +7,7 @@ import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { createMonsterCodexRecord, recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
 import { getFeatAnnouncementLines, recordRoleDefeats } from "../systems/feats.js";
+import { addRunFragments, getVictoryFragments } from "../systems/guidebook.js";
 import { settlePhase4jBExpOwnership } from "../rules/phase4j_b_trial.js";
 
 function rollCombatAccessoryDrop(state, rng) {
@@ -119,6 +120,24 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
       });
     }
     recordRoleDefeats(state.currentRun, nonFledMonsters);
+    // Guidebook fragments (#2013): one per strong-enemy fight or rare enemy,
+    // two per floor guardian. They are kept only by a safe return.
+    const eliteFight = state.combatState.isMidboss || state.combatState.isRoamingFlack ||
+      state.combatState.isBrood;
+    const fragments = addRunFragments(state.currentRun, getVictoryFragments({
+      guardians: state.combatState.isBoss && nonFledMonsters.length > 0 ? 1 : 0,
+      elites: state.combatState.isBoss
+        ? 0
+        : eliteFight
+          ? Math.min(1, nonFledMonsters.length)
+          : nonFledMonsters.filter(monster => monster.isRare).length
+    }));
+    if (fragments > 0) {
+      logQueue.push({
+        msg: `手引き書の断片を${fragments}枚手に入れた（計${state.currentRun.guideFragments}枚）。生還すれば持ち帰れる。`,
+        sound: "item"
+      });
+    }
     getFeatAnnouncementLines(state.feats, state.currentRun).forEach(msg => {
       logQueue.push({ msg, sound: "item" });
     });

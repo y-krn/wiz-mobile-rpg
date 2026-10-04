@@ -79,7 +79,7 @@ export const ELITE_PROLONGED_MAX_CHANCE = 0.30;
 // 階段上の目の前に湧くと回避判断の猶予がない。気配ログの射程と同じ5マスを最低距離にする。
 const ELITE_MIN_START_DISTANCE = 5;
 
-const ELITE_GREED_ACTION_WEIGHTS = Object.freeze({
+export const ELITE_GREED_ACTION_WEIGHTS = Object.freeze({
   new_room: 1,
   battle: 2,
   chest: 4,

@@ -49,6 +49,7 @@ import { normalizeRunRecordResult } from "./run_record_result.js";
 import { normalizeRunNearMiss } from "./run_near_miss.js";
 import { normalizeAnnouncedFeatIds, normalizeFeatsState, normalizeRunFeatResult } from "./feats_state.js";
 import { normalizeCompanion, normalizeFacilitiesState } from "./facilities_state.js";
+import { normalizeGuidebookState, normalizeRunGuideFragments, normalizeRunGuideResult } from "./guidebook_state.js";
 import { normalizeStartingKitId } from "./starting_kit.js";
 import {
   normalizeRunFirstKillsBefore,
@@ -671,6 +672,8 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.featResult = normalizeRunFeatResult(normalized.featResult);
   normalized.featsAnnounced = normalizeAnnouncedFeatIds(normalized.featsAnnounced);
   normalized.companion = normalizeCompanion(normalized.companion);
+  normalized.guideFragments = normalizeRunGuideFragments(normalized.guideFragments);
+  normalized.guideResult = normalizeRunGuideResult(normalized.guideResult);
   normalized.recordResult = normalizeRunRecordResult(normalized.recordResult);
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);
@@ -889,6 +892,7 @@ export function normalizeSavePayload(data) {
   normalized.keyItems = arrayOr(data.keyItems);
   normalized.lastPreparation = normalizeLastPreparation(data.lastPreparation);
   normalized.facilities = normalizeFacilitiesState(data.facilities);
+  normalized.guidebook = normalizeGuidebookState(data.guidebook);
   // Saves from before feats seed the counters from the records they already
   // hold; nothing is marked achieved until the next run is settled (#2007).
   normalized.feats = normalizeFeatsState(data.feats, {

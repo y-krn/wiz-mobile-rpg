@@ -307,7 +307,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/equipment_ui_loader.js", "src/equipment_ui_state.js",
     "src/data/starting_kit_copy.js",
     "src/state/last_preparation.ts", "src/systems/departure_preparation.js",
-    "src/state/feats_state.ts", "src/state/facilities_state.ts"
+    "src/state/feats_state.ts", "src/state/facilities_state.ts",
+    "src/state/guidebook_state.ts", "src/data/guidebook.js", "src/systems/guidebook.js"
   ]),
   // A one-off no-impact declaration is recognized only when its marker is
   // added in the same production diff. This keeps mapped modules such as

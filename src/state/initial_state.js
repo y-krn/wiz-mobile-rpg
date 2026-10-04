@@ -60,6 +60,9 @@ export const createDefaultCurrentRun = () => ({
   featsAnnounced: [],
   // A person being led out of the dungeon; rescued only by a safe return (#2009).
   companion: null,
+  // Guidebook fragments carried by this run, and what became of them (#2013).
+  guideFragments: 0,
+  guideResult: null,
   lootSequence: 0,
   itemsFound: [],
   equipmentFound: [],

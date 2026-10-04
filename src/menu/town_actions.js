@@ -21,6 +21,8 @@ export function handleTownOption(option) {
     openSubmenu("castle_main", "おしろ - 記録");
   } else if (option === "feats") {
     openSubmenu("feats_main", "偉業 - 条件と進み具合");
+  } else if (option === "guidebook") {
+    openSubmenu("guidebook_main", "迷宮の手引き書 - 断片で頁を解読する");
   } else if (typeof option === "string" && option.startsWith("facility:")) {
     const facility = FACILITY_BY_ID.get(option.slice("facility:".length));
     if (facility && isFacilityOpen(state.feats, facility.id)) {
