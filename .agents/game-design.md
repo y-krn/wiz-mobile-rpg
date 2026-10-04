@@ -143,8 +143,8 @@ Materials and object loot have different economic roles:
 - materials support resource exchange and horizontal future possibilities;
 - dungeon equipment, consumables, curios, and Wings are unconfirmed object loot
   until a terminal outcome settles them;
-- Portal confirms all unconfirmed object loot, Wing rescues a selected small
-  subset, and Death/Abandon lose the unconfirmed subset;
+- Portal and Wing settle all unconfirmed object loot as run history, while
+  Death/Abandon lose the unconfirmed subset;
 - returned dungeon equipment is history and knowledge, not permanent next-run
   battle inventory;
 - only unused departure-craft supplies return to storage after Portal or Wing;

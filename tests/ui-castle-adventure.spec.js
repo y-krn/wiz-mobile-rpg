@@ -52,7 +52,8 @@ test('Castle presents the adventure chronicle before stats', async ({ page }) =>
   const records = page.locator('[data-adventure-records]');
   await expect(records).toBeVisible();
   await expect(records.locator('.adventure-chronicle')).toContainText('第1回');
-  await expect(records.locator('.adventure-recent-history')).toContainText('帰還の門を選び');
+  await expect(records.locator('.adventure-recent-history')).toContainText('帰還の門から帰還');
+  await expect(records.locator('.adventure-recent-history')).toContainText('素材0個を持ち帰った');
   await expect(records.locator('.adventure-recent-history')).toContainText('開始キット');
   await expect(records.locator('.adventure-recent-history')).toContainText('火炎の罠に倒れた');
   await expect(records.locator('.adventure-record-section').nth(2)).toContainText('最多撃破');

@@ -49,16 +49,16 @@ function getOutcomeMeta(reason) {
   if (reason === "milestone_portal") {
     return {
       key: "portal",
-      label: "帰還",
-      detail: "戦果をすべて持ち帰り、街へ戻った。",
+      label: "帰還の門から帰還",
+      detail: "帰還の門から街へ戻った。",
       success: true
     };
   }
   if (reason === "escape_scroll") {
     return {
       key: "wing",
-      label: "翼で帰還",
-      detail: "帰還の翼を使い、追加の危険を受けずに街へ戻った。",
+      label: "帰還の翼で帰還",
+      detail: "素材と未使用の持ち込み品を守り、追加の危険なく街へ戻った。",
       success: true
     };
   }
@@ -66,7 +66,7 @@ function getOutcomeMeta(reason) {
     return {
       key: "death",
       label: "迷宮で死亡",
-      detail: "物は失っても、今回の記録と新しい知識は残る。",
+      detail: "素材の一部を持ち帰った。未使用の持ち込み品は失った。記録と知識は残る。",
       success: false
     };
   }
@@ -74,14 +74,14 @@ function getOutcomeMeta(reason) {
     return {
       key: "abandon",
       label: "冒険を断念",
-      detail: "持ち帰っていない戦果を手放し、街へ戻った。",
+      detail: "素材は死亡時と同じ割合で持ち帰り、未使用の持ち込み品は失った。",
       success: false
     };
   }
   return {
     key: "stairs",
     label: "帰還",
-    detail: "今回の戦果を確定して、街へ戻った。",
+    detail: "街へ戻った。",
     success: true
   };
 }
@@ -97,7 +97,7 @@ function itemTypeLabel(item) {
 
 function getItemLabel(item) {
   const data = getItemData(item);
-  if (!data) return getItemBaseId(item) || "不明な戦果";
+  if (!data) return getItemBaseId(item) || "不明な品";
   if (typeof item === "object" && item.identified === false) {
     return item.unidentifiedName || `未鑑定の${itemTypeLabel(item)}`;
   }
@@ -106,28 +106,6 @@ function getItemLabel(item) {
 
 function getFoundItems(run) {
   return [...(run.itemsFound || []), ...(run.equipmentFound || [])].filter(Boolean);
-}
-
-function getDepartureItems(run) {
-  return Array.isArray(run.returnedTownItems) ? run.returnedTownItems : [];
-}
-
-function getResultLoot(run, outcome) {
-  const found = getFoundItems(run);
-  const explicitReturned = Array.isArray(run.recoveredItems) ? run.recoveredItems
-    : Array.isArray(run.salvagedItems) ? run.salvagedItems : [
-    ...(run.bankedObjectLoot || [])
-  ];
-  const explicitLost = Array.isArray(run.lostObjectLoot) ? run.lostObjectLoot : null;
-  if (Array.isArray(explicitReturned) || Array.isArray(explicitLost)) {
-    return {
-      returned: Array.isArray(explicitReturned) ? explicitReturned : [],
-      lost: Array.isArray(explicitLost) ? explicitLost : []
-    };
-  }
-  return outcome.success
-    ? { returned: found, lost: [] }
-    : { returned: [], lost: found };
 }
 
 function createLootList(items, emptyText) {
@@ -140,36 +118,18 @@ function createLootList(items, emptyText) {
   return list;
 }
 
-function createLootSection(run, outcome) {
-  const { returned, lost } = getResultLoot(run, outcome);
-  const departure = getDepartureItems(run);
+function createLootSection(run) {
+  const found = getFoundItems(run);
   const section = document.createElement("section");
   section.className = "result-focus-section result-loot-section";
   setAttributeSafe(section, "aria-labelledby", "result-loot-title");
   setAttributeSafe(section, "data-result-loot", "");
   const heading = textElement("h2", "result-section-heading");
   heading.id = "result-loot-title";
-  heading.appendChild(textElement("span", null, "戦果のゆくえ"));
-  heading.appendChild(textElement("strong", null,
-    returned.length ? `${returned.length}点を回収` : lost.length ? `${lost.length}点を喪失` : "記録なし"));
+  heading.appendChild(textElement("span", null, "今回見つけた品"));
+  heading.appendChild(textElement("strong", null, `${found.length}点`));
   section.appendChild(heading);
-  section.appendChild(textElement("div", "result-loot-note", "持ち込んだ品は街の品として扱い、迷宮で得た戦果とは分けて表示します。"));
-  const appendGroup = (className, label, items) => {
-    const group = textElement("div", `result-loot-group ${className}`);
-    group.appendChild(textElement("small", null, label));
-    group.appendChild(createLootList(items, "なし"));
-    section.appendChild(group);
-  };
-  appendGroup("result-loot-returned", outcome.key === "wing" ? "翼で持ち帰った戦果" : "街へ回収した戦果", returned);
-  if (lost.length > 0) appendGroup("result-loot-lost", "迷宮で失われた戦果", lost);
-  if (outcome.success) {
-    appendGroup("result-loot-carried", "倉庫へ戻った持込品", departure);
-    const overflow = Array.isArray(run.overflowTownItems) ? run.overflowTownItems : [];
-    if (overflow.length) appendGroup("result-loot-overflow", "倉庫上限で戻らなかった持込品", overflow);
-  } else {
-    const lostTown = Array.isArray(run.lostTownItems) ? run.lostTownItems : [];
-    if (lostTown.length) appendGroup("result-loot-carried", "死亡・断念で失った持込品", lostTown);
-  }
+  section.appendChild(createLootList(found, "品は見つからなかった"));
   return section;
 }
 
@@ -280,10 +240,6 @@ const RETURN_RARITY_LABELS = {
   legendary: "伝説"
 };
 
-function getReturnItemStatusLabel(status) {
-  return status === "lost" ? "喪失" : status === "rescued" ? "翼で持ち帰り" : status === "returned" ? "帰還" : "観測";
-}
-
 function createReturnProcessingSection(run) {
   const representative = run.representativeItem;
   const history = Array.isArray(run.meaningfulItemHistory) ? run.meaningfulItemHistory : [];
@@ -299,9 +255,9 @@ function createReturnProcessingSection(run) {
   section.appendChild(heading);
   if (representative) {
     const representativeNode = textElement("div", "result-return-representative");
-    representativeNode.appendChild(textElement("small", null, representative.status === "lost" ? "この冒険を象徴する失われた品" : "この冒険を象徴する品"));
+    representativeNode.appendChild(textElement("small", null, "この冒険を象徴する品"));
     representativeNode.appendChild(textElement("strong", null, representative.name));
-    representativeNode.appendChild(textElement("span", null, `${RETURN_RARITY_LABELS[representative.rarity] || "通常"} / ${getReturnItemStatusLabel(representative.status)}`));
+    representativeNode.appendChild(textElement("span", null, RETURN_RARITY_LABELS[representative.rarity] || "通常"));
     section.appendChild(representativeNode);
   }
   if (history.length > 0) {
@@ -311,7 +267,7 @@ function createReturnProcessingSection(run) {
       const row = document.createElement("div");
       row.appendChild(textElement("span", null, item.name));
       const detail = document.createElement("span");
-      detail.textContent = `${getReturnItemStatusLabel(item.status)} / B${item.depth}F `;
+      detail.textContent = `B${item.depth}F `;
       const button = textElement("button", "result-return-representative-button", "この冒険を象徴する品にする");
       button.type = "button";
       setAttributeSafe(button, "data-return-history-index", String(index));
@@ -386,7 +342,7 @@ export function renderResultScreen() {
   body.className = "result-body";
   body.appendChild(createMemorySection(run, outcome));
   body.appendChild(createRecordSection(run));
-  body.appendChild(createLootSection(run, outcome));
+  body.appendChild(createLootSection(run));
   const discoveries = createDiscoverySection(run);
   if (discoveries) body.appendChild(discoveries);
   const returnProcessing = createReturnProcessingSection(run);

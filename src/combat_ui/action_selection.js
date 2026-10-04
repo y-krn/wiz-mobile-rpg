@@ -10,7 +10,7 @@ import { resolveCombatRound } from "./round_runner.js";
 import { openCombatTargetMenu } from "./target_menu.js";
 import { openCombatSpellMenu } from "./spell_menu.js";
 import { openCombatItemMenu } from "./item_menu.js";
-import { openSubmenu } from "../navigation.js";
+import { confirmReturnWing } from "../ui/return_wing_confirmation.js";
 import { COMBAT_SPELL_TARGETS, getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 import { getItemBaseId } from "../rules/item_rules.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
@@ -359,9 +359,30 @@ export function selectCombatAction(type) {
         return;
       }
       if (itemKey === "TOWN_PORTAL") {
-        menuContext.itemKey = itemKey;
-        menuContext.itemIdx = itemIdx;
-        openSubmenu("item_target_select", "帰還の翼：持ち帰る戦果を選択");
+        // balance-impact: none — confirmation gates the existing return action only.
+        confirmReturnWing({ excludedInventoryIndex: itemIdx }).then(confirmed => {
+          if (!confirmed || state.combatState?.phase !== "choose_actions" ||
+              getItemBaseId(state.inventory?.[itemIdx]) !== "TOWN_PORTAL") return;
+          state.gameState = "combat";
+          if (!canCommitCombatAction()) return;
+          queueCombatAction({
+            type: "item",
+            actorIdx: charOriginalIdx,
+            targetIdx: 0,
+            itemKey,
+            itemIdx
+          });
+          trackCombatDecisionPending("item", {
+            state,
+            character: char,
+            combat: state.combatState,
+            actorIdx: charOriginalIdx,
+            targetIdx: 0,
+            itemKey
+          });
+          combatSelection.charIdx++;
+          advanceActionSelection();
+        });
         return;
       }
       const enqueueAllyItem = (targetIdx) => {

@@ -23,8 +23,7 @@ import {
 
 type SettleRunObjectLootBoundary = (
   stateLike: ReturnStateLike,
-  outcome: string,
-  salvageIds: unknown
+  outcome: string
 ) => unknown;
 type RecordRunInsightsBoundary = (
   stateLike: ReturnStateLike,
@@ -166,11 +165,9 @@ function containsItem(items: unknown, item: unknown): boolean {
   ));
 }
 
-function itemStatus(run: ReturnRunLike, item: unknown): "lost" | "rescued" | "returned" | "observed" {
+function itemStatus(run: ReturnRunLike, item: unknown): "lost" | "returned" | "observed" {
   if (containsItem(run.lostObjectLoot, item)) return "lost";
-  if (containsItem(run.bankedObjectLoot, item)) {
-    return run.returnReason === "escape_scroll" ? "rescued" : "returned";
-  }
+  if (containsItem(run.bankedObjectLoot, item)) return "returned";
   return "observed";
 }
 
@@ -183,7 +180,7 @@ function scoreSnapshot(snapshot: ItemSnapshot): number {
 
 function toHistoryRecord(
   snapshot: ItemSnapshot,
-  status: "lost" | "rescued" | "returned" | "observed"
+  status: "lost" | "returned" | "observed"
 ): NormalizedRunReturnItemRecord | null {
   // This is deliberately a fact record, not a retained item. Combat stats,
   // affixes, and enhancement values never become a Castle ability bonus.
@@ -260,8 +257,7 @@ function normalizeWorkshopResult(value: WorkshopUnlockResult): {
  */
 export function processRunReturn(
   stateLike: ReturnStateLike,
-  outcome: string,
-  salvageIds: unknown = null
+  outcome: string
 ): ProcessRunReturnResult {
   const run = stateLike?.currentRun;
   if (!run) {
@@ -276,7 +272,7 @@ export function processRunReturn(
 
   const candidates = getRunCandidates(run);
   const snapshots = candidates.map(item => createItemSnapshot(stateLike, item, run.deepestFloor));
-  const settlement = normalizeSettlement(settleRunObjectLootAtBoundary(stateLike, outcome, salvageIds));
+  const settlement = normalizeSettlement(settleRunObjectLootAtBoundary(stateLike, outcome));
   const rawInsights: unknown = recordRunInsightsAtBoundary(stateLike, candidates, run.deepestFloor);
   const insights = normalizeRunInsights(normalizeInsightInput(rawInsights));
   run.codexInsights = insights;

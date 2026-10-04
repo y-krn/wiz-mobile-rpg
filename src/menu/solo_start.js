@@ -237,7 +237,7 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
 
   const slotNote = document.createElement("div");
   slotNote.className = "solo-preparation-slot-note";
-  slotNote.textContent = `空き ${DEPARTURE_BAG_CAPACITY - selectedItems.length}枠：戦果を持ち帰る余地`;
+  slotNote.textContent = `空き ${DEPARTURE_BAG_CAPACITY - selectedItems.length}枠：迷宮で拾う品の余地`;
   summary.appendChild(slotNote);
 
   const slots = document.createElement("div");
@@ -251,7 +251,7 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
     slot.textContent = itemId ? getShortItemName(itemId) : "空き";
     slot.setAttribute("aria-label", itemId
       ? `${index + 1}枠目：${ITEMS[itemId]?.name || itemId}`
-      : `${index + 1}枠目：戦果を持ち帰る余地`);
+      : `${index + 1}枠目：迷宮で拾う品の余地`);
     slots.appendChild(slot);
   }
   summary.appendChild(slots);

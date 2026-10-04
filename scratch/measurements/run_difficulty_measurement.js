@@ -862,7 +862,6 @@ function readLootLifecycle(result) {
         bagged: null,
         consumed: null,
         banked,
-        salvaged: null,
         lost,
         discarded: null,
         left: null
@@ -879,7 +878,7 @@ function readLootLifecycle(result) {
   return {
     status: "measured",
     counts: Object.fromEntries([
-      "found", "bagged", "consumed", "banked", "salvaged", "lost", "discarded", "left"
+      "found", "bagged", "consumed", "banked", "lost", "discarded", "left"
     ].map(key => [key, Number(lifecycle[key]) || 0]))
   };
 }
@@ -982,7 +981,7 @@ function createConvergenceAccumulator(runs, targetDepths) {
     portal: { pushDecisions: 0, returnDecisions: 0, wingUses: 0 },
     elite: { opportunities: 0, encounters: 0, victories: 0, flees: 0, deaths: 0, avoidDetourSteps: 0 },
     elitePolicyValidation: null,
-    loot: { status: "unobserved", found: 0, equipped: 0, banked: 0, salvaged: null, lost: 0, discarded: null, left: null, consumed: null },
+    loot: { status: "unobserved", found: 0, equipped: 0, banked: 0, lost: 0, discarded: null, left: null, consumed: null },
     consumables: {},
     buildChanges: [],
     checkpoints: Object.fromEntries(targetDepths.map(depth => [String(depth), {
@@ -1143,7 +1142,7 @@ function finalizeConvergenceAccumulator(accumulator, targetDepths) {
       : { status: "validated", ...accumulator.elite },
     loot: {
       ...accumulator.loot,
-      secured: accumulator.loot.banked + (accumulator.loot.salvaged || 0),
+      secured: accumulator.loot.banked,
       perRun: Object.fromEntries(Object.entries(accumulator.loot)
         .filter(([key]) => !["status"].includes(key))
         .map(([key, value]) => [key, Number.isFinite(value) ? value / Math.max(1, runs) : null]))

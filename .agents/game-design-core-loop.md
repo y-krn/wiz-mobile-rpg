@@ -35,22 +35,20 @@ descend again with the resulting knowledge and possibility space
 
 ### Run outcome contract
 
-- **Portal is safe victory.** It confirms all unconfirmed object loot and ends
-  the run safely. There is no hidden post-return tax or extraction minigame.
+- **Portal is safe victory.** It ends the run safely and protects materials
+  and unused departure supplies. Dungeon objects remain run history.
 - **Push defers confirmation.** It does not destroy anything; it keeps the
   unconfirmed results at risk until the next confirmation opportunity.
-- **Wing is controlled loss-cutting.** It is a manually chosen immediate safe
-  escape. The player selects only a small subset of unconfirmed object loot to
-  rescue, including equipment that is currently equipped. It never activates
-  automatically and at most one Wing is carried into a run.
+- **Wing is immediate safe return.** It protects materials and unused
+  departure supplies like Portal, and consumes one carried Wing. It never
+  activates automatically and at most one Wing is carried into a run.
 - **Death loses the gamble.** Unconfirmed object loot is lost by default, while
   knowledge and records follow their own contracts.
 - **Abandon has the same object-loot loss as Death but remains a distinct
   outcome.** It is not a free Wing.
 
-These are object-loot ownership rules, not percentages of banked materials.
-Material recovery and progression may have their own rules, but they must not
-replace the player's explicit object-loot risk decision.
+Dungeon objects remain run-local regardless of return method. The explicit
+risk decision concerns materials and unused departure supplies.
 
 ### Bag and value competition
 
@@ -70,7 +68,7 @@ The 20-slot ordinary bag is part of the push-your-luck design:
 The roles are intentionally different: equipped items provide power, spare
 equipment provides adaptation, consumables provide safety, unknown items carry
 future build potential and danger, curios provide value and information, and a
-Wing reduces loss while consuming capacity.
+Wing consumes capacity to enable immediate safe return.
 
 ## Five-floor bands and build meaning
 
@@ -149,7 +147,7 @@ have a meaningful response before the threat becomes decisive.
 ## Town meta roles
 
 - **Castle = what happened.** Record outcome, depth, Portal/Wing/Death/Abandon,
-  representative items, recovered/rescued/lost value, and meaningful item
+  representative and found items, and meaningful item
   history as structured facts.
 - **Codex = what was understood.** Store observed facts and hypotheses. Unknown
   items progress from signs to observation to trial to full understanding; the
@@ -515,14 +513,14 @@ not a second meta-game.
 
 ## Castle return contract
 
-Every terminal route is resolved before the result view: Portal returns all
-unbanked dungeon objects, Wing rescues its selected small subset, and
-Death/Abandon return none of those objects. The next run starts from Town
-preparations, never from recovered dungeon equipment.
+Every terminal route is resolved before the result view: Portal and Wing
+settle dungeon objects as run history; Death and Abandon lose them. Materials
+and unused departure supplies return only after Portal or Wing. The next run
+starts from Town preparations, never from dungeon-found equipment.
 
 Castle keeps one representative item and a small bounded set of meaningful
-facts per run. Those facts describe what happened—returned, rescued, lost, or
-observed—rather than preserving a full item as a combat bonus. Codex stores
+facts per run. Records list found items without a return-method status and do
+not preserve full items as combat bonuses. Codex stores
 finite coarse observations, and Workshop rewards broaden existing side-grade
 possibilities without granting a superior tier, a target-build advantage, or
 exact drop information.

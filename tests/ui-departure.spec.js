@@ -162,7 +162,7 @@ for (const vp of VIEWPORTS) {
       const { openSubmenu } = await import('/src/navigation.js');
       openSubmenu('milestone_portal', '帰還の門');
     });
-    const retreat = page.getByRole('button', { name: '戦果をすべて持ち帰って帰還' });
+    const retreat = page.getByRole('button', { name: '素材と持ち込み品を持って帰還' });
     expect((await retreat.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await retreat.click();
     await expect(page.locator('.milestone-portal-confirmation')).toContainText('ここで帰還しますか？');
@@ -498,7 +498,7 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
   await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(20);
   await expect(summary).toContainText('持ち込み 0/20');
-  await expect(summary).toContainText('戦果を持ち帰る余地');
+  await expect(summary).toContainText('迷宮で拾う品の余地');
   await expect(summary).toContainText('開始階未選択');
   await expect(page.getByRole('button', { name: '迷宮へ向かう' })).toBeDisabled();
 

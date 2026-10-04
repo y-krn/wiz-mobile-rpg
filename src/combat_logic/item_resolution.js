@@ -30,8 +30,7 @@ export function resolvePlayerItem(char, act, state, logQueue, options = {}) {
       state,
       character: char,
       portalType: "return_wing",
-      wingOwned: true,
-      wingSalvageCount: 0
+      wingOwned: true
     });
     state.inventory.splice(inventoryIdx, 1);
     consumeRunObjectLoot(state, act.itemKey);
@@ -43,7 +42,7 @@ export function resolvePlayerItem(char, act, state, logQueue, options = {}) {
       source: "combat"
     });
     logQueue.push({
-      msg: `[味方] ${char.name}は帰還のスクロールを読んだ！冒険者はお城へ導かれる！`,
+      msg: `[味方] ${char.name}は帰還の翼を掲げた！冒険者はお城へ戻る！`,
       sound: "cast_spell",
       escapeToTown: true
     });

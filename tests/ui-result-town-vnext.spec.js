@@ -36,7 +36,7 @@ test('result screen renders save-derived names and quest text literally', async 
   });
 });
 
-test('Result leads with run memory and keeps loot ownership explicit', async ({ page }) => {
+test('Result lists found loot without return or loss labels', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
@@ -66,10 +66,13 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
   await expect(page.locator('[data-result-memory]')).toContainText('物は失う。物語は残る');
   await expect(page.locator('[data-result-memory]')).toContainText('この冒険を象徴する品');
   await expect(page.locator('#result-overlay')).not.toContainText('代表的な戦果');
-  await expect(page.locator('[data-result-loot]')).toContainText('倉庫へ戻った持込品');
-  await expect(page.locator('[data-result-loot]')).toContainText('罠外しキット');
-  expect(await page.locator('[data-result-loot]').textContent()).toMatch(/罠外しキット/);
-  expect((await page.locator('[data-result-loot]').textContent()).match(/罠外しキット/g)).toHaveLength(1);
+  await expect(page.locator('[data-result-loot]')).toContainText('今回見つけた品');
+  await expect(page.locator('[data-result-loot]')).toContainText('傷薬');
+  await expect(page.locator('[data-result-loot]')).toContainText('未鑑定の短剣');
+  await expect(page.locator('[data-result-loot]')).not.toContainText('帰還');
+  await expect(page.locator('[data-result-loot]')).not.toContainText('喪失');
+  await expect(page.locator('[data-result-loot]')).not.toContainText('翼で持ち帰り');
+  expect((await page.locator('[data-result-loot]').textContent()).match(/傷薬/g)).toHaveLength(1);
   await expect(page.locator('[data-result-discoveries]')).toContainText('Codex');
   await expect(page.locator('[data-result-discoveries]')).toContainText('可能性');
   const order = await page.locator('.result-body').evaluate((body) =>
@@ -86,15 +89,17 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
   expect(await page.locator('#result-overlay').textContent()).not.toContain('戦果価値');
 });
 
-test('Result identifies unused departure supplies lost on death or abandon', async ({ page }) => {
+test('Abandon result states death-rate material recovery and carried-supply loss', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
     const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
     const run = createDefaultCurrentRun();
-    run.returnReason = 'gameover';
-    run.outcome = 'death';
+    run.returnReason = 'abandon';
+    run.outcome = 'abandon';
+    run.materialsBeforeBanking = { '獣の牙': 10 };
+    run.bankedMaterials = { '獣の牙': 3 };
     run.lostTownItems = ['HEAL_POTION'];
     run.quests = [];
     state.party = [createStartingKitCharacter('vanguard')];
@@ -103,9 +108,10 @@ test('Result identifies unused departure supplies lost on death or abandon', asy
     updateUI();
   });
 
-  await expect(page.locator('[data-result-loot]')).toContainText('死亡・断念で失った持込品');
-  await expect(page.locator('[data-result-loot]')).toContainText('傷薬');
-  await expect(page.locator('[data-result-loot]')).not.toContainText('倉庫へ戻った持込品');
+  await expect(page.locator('[data-result-outcome="abandon"]'))
+    .toContainText('素材は死亡時と同じ割合で持ち帰り');
+  await expect(page.locator('[data-result-outcome="abandon"]'))
+    .toContainText('未使用の持ち込み品は失った');
 });
 
 test('Death result loses unused departure supplies and dungeon loot', async ({ page }) => {
@@ -133,17 +139,16 @@ test('Death result loses unused departure supplies and dungeon loot', async ({ p
       inventory: state.inventory,
       storage: state.storage,
       state: state.gameState,
-      lost: document.querySelector('[data-result-loot] .result-loot-lost')?.textContent || '',
-      returned: document.querySelector('[data-result-loot] .result-loot-carried')?.textContent || ''
+      loot: document.querySelector('[data-result-loot]')?.textContent || ''
     };
   });
 
   expect(loot.inventory).toEqual([]);
   expect(loot.storage).not.toContain('TRAP_KIT');
   expect(loot.state).toBe('result');
-  expect(loot.lost).toContain('未鑑定の短剣');
-  expect(loot.returned).toContain('死亡・断念で失った持込品');
-  expect(loot.returned).toContain('罠外しキット');
+  expect(loot.loot).toContain('未鑑定の短剣');
+  expect(loot.loot).not.toContain('死亡・断念で失った持込品');
+  expect(loot.loot).not.toContain('倉庫へ戻った持込品');
 });
 
 test('Town home is organized as previous run, next descent, and accumulated knowledge', async ({ page }) => {

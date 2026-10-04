@@ -5680,14 +5680,12 @@ function recordUnadoptedObjectLoot(state, metrics, item, disposition, source, re
 }
 
 function captureObjectLootStake(metrics, state, snapshotPoint, {
-  settlementOutcome = null,
-  selectedLootIds = []
+  settlementOutcome = null
 } = {}) {
   metrics.objectLootStakeSnapshots ||= [];
   metrics.objectLootStakeSnapshots.push({
     snapshotPoint,
     settlementOutcome,
-    selectedLootIds: [...selectedLootIds],
     snapshot: structuredClone(buildObjectLootStakeSnapshot(state))
   });
 }
@@ -5721,20 +5719,19 @@ function consumeSimulationObjectLoot(state, metrics, item) {
   return consumed;
 }
 
-function finalizeObjectLootLifecycle(metrics, state, outcome, selectedLootIds = []) {
+function finalizeObjectLootLifecycle(metrics, state, outcome) {
   syncObjectLootLifecycle(metrics, state);
   const ledger = (state.currentRun?.unbankedObjectLoot || []).filter(entry => entry?.id && entry.item);
-  const selected = new Set(selectedLootIds);
   metrics.objectLootSettling = true;
   ledger.forEach(entry => {
-    if (outcome === "retreat" || selected.has(entry.id)) {
-      metrics.objectLootLifecycle[outcome === "wing" ? "salvaged" : "banked"]++;
+    if (outcome === "retreat" || outcome === "wing") {
+      metrics.objectLootLifecycle.banked++;
     } else {
       metrics.objectLootLifecycle.lost++;
     }
   });
   metrics.objectLootSettling = false;
-  return settleRunObjectLoot(state, outcome, selectedLootIds.length > 0 ? selectedLootIds : null);
+  return settleRunObjectLoot(state, outcome === "wing" ? "retreat" : outcome);
 }
 
 function recordMaterialPickup(metrics, materials) {
@@ -11439,18 +11436,11 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
     carriedMaterials: totalMaterials(state.currentRun.materials)
   });
   syncObjectLootLifecycle(metrics, state);
-  const selectedLootIds = (state.currentRun.unbankedObjectLoot || [])
-    .slice(0, 2)
-    .map(entry => entry.id);
   const settlementOutcome = resolveTownPortalSettlement({ source });
   captureObjectLootStake(metrics, state, "portal_decision", {
-    settlementOutcome,
-    selectedLootIds
+    settlementOutcome
   });
-  return {
-    settlementOutcome,
-    selectedLootIds
-  };
+  return { settlementOutcome };
 }
 
 function recordMerchantMaterialSpend(metrics, before, after) {
@@ -16231,19 +16221,12 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
   const settlementOutcome = terminationContext?.settlementOutcome || (
     outcome === "death" ? "death" : outcome === "abandon" ? "abandon" : "retreat"
   );
-  const selectedLootIds = terminationContext?.selectedLootIds || (
-    settlementOutcome === "wing"
-      ? (state.currentRun.unbankedObjectLoot || [])
-        .slice(0, 2)
-        .map(entry => entry.id)
-      : []
-  );
   syncObjectLootLifecycle(metrics, state);
   captureObjectLootStake(
     metrics,
     state,
-    settlementOutcome === "wing" ? "wing_salvage_before" : "terminal_settlement_before",
-    { settlementOutcome, selectedLootIds }
+    "terminal_settlement_before",
+    { settlementOutcome }
   );
   const buildPayment = metrics.stage15Diagnostics
     ? createBuildPaymentRunSnapshot(state, metrics, outcome)
@@ -16251,14 +16234,13 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
   const objectLootSettlement = finalizeObjectLootLifecycle(
     metrics,
     state,
-    settlementOutcome,
-    selectedLootIds
+    settlementOutcome
   );
   captureObjectLootStake(
     metrics,
     state,
     "terminal_settlement_after",
-    { settlementOutcome, selectedLootIds }
+    { settlementOutcome }
   );
   if (buildPayment) {
     buildPayment.stake = {
@@ -16273,7 +16255,6 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
           bagged: metrics.objectLootLifecycle.bagged,
           consumed: metrics.objectLootLifecycle.consumed,
           banked: metrics.objectLootLifecycle.banked,
-          salvaged: metrics.objectLootLifecycle.salvaged,
           lost: metrics.objectLootLifecycle.lost,
           discarded: metrics.objectLootLifecycle.discarded,
           left: metrics.objectLootLifecycle.left
@@ -17055,7 +17036,6 @@ export function simulateRun({
       consumed: 0,
       discarded: 0,
       banked: 0,
-      salvaged: 0,
       lost: 0,
       left: 0,
       consumedIds: new Set()
@@ -18871,7 +18851,6 @@ const OBJECT_LOOT_STAKE_SNAPSHOT_POINTS = Object.freeze([
   "pending_reward_resolution",
   "push_decision",
   "portal_decision",
-  "wing_salvage_before",
   "terminal_settlement_before",
   "terminal_settlement_after"
 ]);
@@ -18934,7 +18913,6 @@ function createObjectLootStakeAggregate() {
         bagged: 0,
         consumed: 0,
         banked: 0,
-        salvaged: 0,
         lost: 0,
         discarded: 0,
         left: 0

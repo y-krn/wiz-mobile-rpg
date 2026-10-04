@@ -16,7 +16,7 @@ import {
   normalizeRunWorkshopDiscoveries
 } from "./state/run_discovery_state.js";
 
-export function triggerRunResult(reason, { salvageIds = null } = {}) {
+export function triggerRunResult(reason) {
   if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
 
   state.party.forEach(char => {
@@ -33,19 +33,15 @@ export function triggerRunResult(reason, { salvageIds = null } = {}) {
   const objectLootOutcome = reason === "escape_scroll"
     ? "wing"
     : isSuccess ? "retreat" : "loss";
-  const settlementSnapshotPoint = reason === "escape_scroll"
-    ? "wing_salvage_before"
-    : "terminal_settlement_before";
+  const settlementSnapshotPoint = "terminal_settlement_before";
   trackLootStakeSnapshot(settlementSnapshotPoint, {
     state,
-    settlementOutcome: objectLootOutcome === "loss" ? outcome : objectLootOutcome,
-    selectedLootIds: salvageIds
+    settlementOutcome: objectLootOutcome === "loss" ? outcome : objectLootOutcome
   });
-  processRunReturn(state, objectLootOutcome, salvageIds);
+  processRunReturn(state, objectLootOutcome);
   trackLootStakeSnapshot("terminal_settlement_after", {
     state,
-    settlementOutcome: objectLootOutcome === "loss" ? outcome : objectLootOutcome,
-    selectedLootIds: salvageIds
+    settlementOutcome: objectLootOutcome === "loss" ? outcome : objectLootOutcome
   });
   if (isDeath && !run.deathLogs?.at(-1)) {
     const activeEnemy = state.combatState?.monsters?.find(monster => monster.hp > 0);

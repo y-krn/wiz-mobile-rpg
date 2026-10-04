@@ -45,7 +45,7 @@ export const CRAFT_RECIPES = [
     resultId: "TOWN_PORTAL",
     name: "帰還の翼",
     departureCost: { mode: "any", total: 8 },
-    desc: "任意のフロアから翼で帰還し、選んだ戦果を持ち帰る。素材は100%持ち帰る。"
+    desc: "任意のフロアから帰還する。素材をすべて持ち帰り、未使用の持ち込み品は倉庫に戻る。"
   },
   {
     resultId: "GREATER_HEAL",
