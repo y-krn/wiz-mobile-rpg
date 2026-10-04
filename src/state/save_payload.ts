@@ -9,6 +9,7 @@ import { EQUIPMENT_SLOTS } from "../rules/equipment_slots.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { assertNormalizedSavePayload } from "./save_contract.js";
 import { normalizeMaterialBalance } from "./material_balance.js";
+import { normalizeLastPreparation } from "./last_preparation.js";
 import { encodeSaveMaps, encodeVisitedMaps } from "./map_codec.js";
 import type { NormalizedSavePayload, PersistedGameState } from "./save_contract.js";
 import type { StorageCollection, RuntimeItemCollection, RuntimeItemRef } from "./item.js";
@@ -69,6 +70,7 @@ interface SavePayloadRuntimeState {
   workshop: NormalizedSavePayload["workshop"];
   keyItems: unknown[];
   dungeonMemory: NormalizedSavePayload["dungeonMemory"];
+  lastPreparation: unknown;
   logs: string[];
   sessionMaxFloor: number;
   activeTrapState: unknown;
@@ -251,6 +253,7 @@ export function createSavePayload(): SavePayload {
     workshop: state.workshop,
     keyItems: state.keyItems,
     dungeonMemory: state.dungeonMemory,
+    lastPreparation: normalizeLastPreparation(state.lastPreparation),
     logs: state.logs.slice(-30)
   };
 }
@@ -332,6 +335,7 @@ export function applySavePayload(data: unknown): void {
   state.metaMaterials = normalized.metaMaterials;
   state.workshop = normalized.workshop;
   state.keyItems = normalized.keyItems ?? [];
+  state.lastPreparation = normalized.lastPreparation;
   state.dungeonMemory = {
     mapFragments: normalized.dungeonMemory?.mapFragments || {},
     visitedFloors: normalized.dungeonMemory?.visitedFloors || [1]

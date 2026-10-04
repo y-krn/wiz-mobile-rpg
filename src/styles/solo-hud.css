@@ -288,6 +288,26 @@
   font-size: var(--fs-sm);
 }
 
+.solo-preparation-dropped {
+  display: grid;
+  gap: var(--sp-xxs);
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--neon-amber);
+  border-radius: var(--sp-sm);
+  color: var(--text-main);
+  font-size: var(--fs-md);
+  line-height: 1.4;
+}
+
+.solo-preparation-dropped strong {
+  color: var(--neon-amber);
+}
+
+.solo-preparation-dropped ul {
+  margin: 0;
+  padding-left: var(--sp-xl);
+}
+
 .solo-start-floor-heading {
   display: grid;
   grid-column: 1 / -1;

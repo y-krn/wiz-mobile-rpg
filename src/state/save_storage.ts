@@ -55,6 +55,7 @@ interface SaveStorageState extends Record<string, unknown> {
   metaMaterials: Record<string, number>;
   workshop: { ranks: Record<string, number>; lateralUnlocks: unknown[] };
   keyItems: unknown[];
+  lastPreparation: unknown;
   logs: string[];
 }
 
@@ -166,6 +167,7 @@ export function initNewGame({ preserveSeed = false }: InitNewGameOptions = {}): 
   state.metaMaterials = {};
   state.workshop = { ranks: {}, lateralUnlocks: [] };
   state.keyItems = [];
+  state.lastPreparation = null;
     state.logs = ["開始キットを選び、ひとりで迷宮へ潜ろう。"];
   markMapChanged();
   saveAutosave();

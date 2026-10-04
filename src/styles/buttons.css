@@ -159,7 +159,6 @@
 /* One filled primary action per decision surface. */
 .btn-primary,
 #btn-departure-start,
-#btn-result-castle,
 .solo-start-confirm {
   --btn-edge: #17707e;
   border-color: #17707e;
@@ -172,8 +171,7 @@
 }
 
 .btn-primary:active,
-#btn-departure-start:active,
-#btn-result-castle:active {
+#btn-departure-start:active {
   background: var(--neon-cyan);
 }
 

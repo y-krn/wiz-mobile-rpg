@@ -63,6 +63,7 @@ import {
 import { createDefaultWorkshopState, normalizeWorkshopState } from "../systems/workshop.js";
 
 import { decodeSaveMaps, decodeVisitedMaps } from "./map_codec.js";
+import { normalizeLastPreparation } from "./last_preparation.js";
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
 
 // Exact-version save contract. Incompatible saves reset; no migration path.
@@ -879,6 +880,7 @@ export function normalizeSavePayload(data) {
     ranks: { ...recordOr(rawWorkshop.ranks, {}) }
   };
   normalized.keyItems = arrayOr(data.keyItems);
+  normalized.lastPreparation = normalizeLastPreparation(data.lastPreparation);
   refundRetiredWorkshopNodes(normalized);
   normalized.workshop = normalizeWorkshopState(normalized.workshop);
   normalized.dungeonMemory = {
