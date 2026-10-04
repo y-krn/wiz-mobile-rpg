@@ -87,6 +87,30 @@ for (let seed = 1; seed <= 200; seed++) {
   assert.ok(!item.affixes.some(affix => trialOnlyIds.has(affix.id)));
 }
 
+// Fixed-seed generator regression: unusable solo affixes are absent, and
+// spell-related equipment effects stay on compatible weapon bases.
+const forbiddenVNextSupports = new Set(["rearEvasion", "escapeChance", "followUpMp"]);
+const mediumWeaponIds = new Set(["WAND", "SAGE_STAFF"]);
+for (const floor of [1, 3, 6, 11, 16, 26]) {
+  for (let seed = 1; seed <= 250; seed++) {
+    const item = generateRandomEquipment(floor, {
+      rng: lcg(seed + floor * 1000), forceRarity: "epic", trialProfile: TRIAL
+    });
+    assert.ok(item);
+    assert.ok(!item.affixes.some(affix => forbiddenVNextSupports.has(affix.type)), `${item.baseId} has no inert solo Support`);
+    assert.ok(!item.affixes.some(affix => affix.id === "CORE_KEEN_EYE"), "KEEN_EYE stays out of Build vNext");
+    if (item.affixes.some(affix => affix.type === "devotion")) {
+      assert.ok(mediumWeaponIds.has(item.baseId), `devotion stays on vNext media: ${item.baseId}`);
+    }
+    if (!mediumWeaponIds.has(item.baseId)) {
+      assert.ok(!item.affixes.some(affix => affix.id === "CORE_BLOOD_WAND"), `${item.baseId} cannot use BLOOD_WAND`);
+      assert.ok(!item.affixes.some(affix => affix.type === "spellAccuracy"), `${item.baseId} cannot use spellAccuracy`);
+    } else {
+      assert.ok(!item.affixes.some(affix => affix.id === "CORE_TECH_CHAIN"), `${item.baseId} cannot use TECH_CHAIN`);
+    }
+  }
+}
+
 // Depth raises the grade of found weapon/armor/shield pieces.
 const deepGrades = Array.from({ length: 60 }, (_, index) =>
   generateRandomEquipment(5, { rng: lcg(900 + index), trialProfile: TRIAL }).enhanceLevel || 0);
@@ -98,6 +122,18 @@ const forced = generateRandomEquipment(1, {
 });
 assert.equal(forced.baseId, "MACE");
 assert.equal(forced.affixes[0].id, "CORE_TECH_CHAIN");
+const forcedBloodWandOnMace = generateRandomEquipment(1, {
+  rng: lcg(9), trialProfile: TRIAL, forceRarity: "magic", forceBaseId: "MACE", forceCoreId: "CORE_BLOOD_WAND"
+});
+assert.ok(!forcedBloodWandOnMace.affixes.some(affix => affix.id === "CORE_BLOOD_WAND"));
+const forcedBloodWandOnMedium = generateRandomEquipment(1, {
+  rng: lcg(10), trialProfile: TRIAL, forceRarity: "magic", forceBaseId: "WAND", forceCoreId: "CORE_BLOOD_WAND"
+});
+assert.equal(forcedBloodWandOnMedium.affixes[0].id, "CORE_BLOOD_WAND");
+const forcedChainOnMedium = generateRandomEquipment(1, {
+  rng: lcg(11), trialProfile: TRIAL, forceRarity: "magic", forceBaseId: "SAGE_STAFF", forceCoreId: "CORE_TECH_CHAIN"
+});
+assert.ok(!forcedChainOnMedium.affixes.some(affix => affix.id === "CORE_TECH_CHAIN"));
 const ignored = generateRandomEquipment(1, { rng: lcg(7), forceRarity: "magic", forceBaseId: "MACE", forceCoreId: "CORE_TECH_CHAIN" });
 assert.ok(!ignored.affixes.some(affix => affix.id === "CORE_TECH_CHAIN"), "normal profile ignores forced Cores");
 const forcedAccessory = generateRandomAccessory(1, {

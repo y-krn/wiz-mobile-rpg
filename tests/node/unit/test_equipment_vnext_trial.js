@@ -25,6 +25,13 @@ function lcg(seed) {
 
 assert.equal(Object.keys(VNEXT_SUPPORT_AUDIT).length, 47);
 assert.equal(Object.keys(VNEXT_CORE_AUDIT).length, 13);
+assert.equal(VNEXT_SUPPORT_AUDIT.escapeChance.disposition, "retire");
+assert.equal(VNEXT_SUPPORT_AUDIT.rearEvasion.disposition, "retire");
+assert.equal(VNEXT_SUPPORT_AUDIT.followUpMp.disposition, "retire");
+assert.equal(VNEXT_SUPPORT_AUDIT.devotion.vnextSupplyConstraint, "medium_weapon_only");
+assert.equal(VNEXT_SUPPORT_AUDIT.spellAccuracy.vnextSupplyConstraint, "weapon_slot_requires_medium");
+assert.equal(VNEXT_CORE_AUDIT.CORE_KEEN_EYE.disposition, "retire");
+assert.equal(VNEXT_CORE_AUDIT.CORE_BLOOD_WAND.vnextSupplyConstraint, "medium_weapon_only");
 assert.equal(Object.keys(VNEXT_BASE_ITEM_AUDIT).length, 50);
 assert.deepEqual(
   Object.values(ITEMS).filter(item => item.trialOnly).map(item => item.id).sort(),
@@ -61,11 +68,32 @@ for (const [floor, candidates] of Object.entries(ACCESSORY_CANDIDATES_BY_FLOOR))
   assert.ok(canonical.every(id => id === "VNEXT_RING" || id === "VNEXT_AMULET"));
 }
 for (const floor of [1, 3, 5, 11, 30]) {
-  const candidates = getVNextTrialChestCandidates(getChestItemCandidatesByFloor(floor, { includeRunes: true }));
+  const legacyCandidates = getChestItemCandidatesByFloor(floor, { includeRunes: true });
+  const candidates = getVNextTrialChestCandidates(legacyCandidates);
+  for (const unavailable of ["WAKE_POWDER", "PARALYZE_CURE", "RUNE_DIALKO"]) {
+    assert.ok(!candidates.includes(unavailable), `${unavailable} stays out of Build vNext chest supply`);
+  }
   const equipmentCandidates = candidates.filter(id => ITEMS[id]?.type === "weapon" || ITEMS[id]?.type === "armor" || ITEMS[id]?.type === "shield" || ITEMS[id]?.type === "accessory");
   assert.ok(candidates.some(id => !VNEXT_BASE_ITEM_AUDIT[id]), `non-equipment reward retained at B${floor}`);
   assert.ok(equipmentCandidates.length > 0, `canonical chest gear remains at B${floor}`);
   assert.ok(equipmentCandidates.every(id => id === "VNEXT_RING" || id === "VNEXT_AMULET" || Object.values(VNEXT_CANONICAL_BASE_REPRESENTATIVES).includes(id)));
+}
+assert.ok(getChestItemCandidatesByFloor(1, { includeRunes: true }).includes("WAKE_POWDER"));
+assert.ok(getChestItemCandidatesByFloor(2, { includeRunes: true }).includes("PARALYZE_CURE"));
+assert.ok(getChestItemCandidatesByFloor(3, { includeRunes: true }).includes("RUNE_DIALKO"));
+for (const [floor, excluded] of [[2, "WAKE_POWDER"], [2, "PARALYZE_CURE"], [3, "RUNE_DIALKO"]]) {
+  const legacyReward = rollChestReward({
+    floor, rng: () => 0.1, party: [], currentRun: { trialProfile: TRIAL_PROFILES.NORMAL },
+    trap: "none", itemCandidates: [excluded], itemCandidateFilter: candidate => candidate === excluded,
+    includeRunes: excluded === "RUNE_DIALKO"
+  });
+  assert.equal(legacyReward.item, excluded, `${excluded} remains available to an in-progress legacy run`);
+  const trialReward = rollChestReward({
+    floor, rng: () => 0.1, party: [], currentRun: { trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT },
+    trap: "none", itemCandidates: [excluded], includeRunes: true,
+    itemCandidateFilter: candidate => candidate === excluded
+  });
+  assert.equal(trialReward.item, null, `${excluded} is filtered from Build vNext chest rolls`);
 }
 
 assert.equal(ITEMS.VNEXT_RING.hpBonus, undefined);

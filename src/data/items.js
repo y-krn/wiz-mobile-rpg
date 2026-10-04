@@ -72,7 +72,7 @@ export const ITEMS = {
   HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", desc: "使用するとHPを15回復し、毒状態も治療する。[全員用]" },
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還の翼", type: "usable", desc: "任意のフロアから翼で帰還し、選んだ戦果を持ち帰る。素材は100%持ち帰る。" },
   ESCAPE_SCROLL: { id: "ESCAPE_SCROLL", name: "離脱のスクロール", type: "usable", desc: "使用すると戦闘から逃れ、その場に留まる。[戦闘専用]", combatOnly: true },
-  PANACEA: { id: "PANACEA", name: "万能薬", type: "usable", desc: "毒・盲目・麻痺・睡眠を治療する。[全員用]" },
+  PANACEA: { id: "PANACEA", name: "万能薬", type: "usable", desc: "毒・盲目を治療する。[全員用]" },
   ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]" },
   LEGENDARY_SWORD: { id: "LEGENDARY_SWORD", name: "神剣エクスカリバー", type: "weapon", loadClass: "heavy", hands: 2, behaviorProfile: "heavy", atk: 60, randRange: [0, 4], desc: "聖なる光を放つ伝説の神剣。攻撃力+60 [全員用]", tags: ["holy", "blade"] },
   LEGENDARY_SHIELD: { id: "LEGENDARY_SHIELD", name: "イージスの盾", type: "shield", loadClass: "heavy", hands: 1, guardProfile: "aegis", def: 15, desc: "あらゆる厄災を払う神の盾。防御力+15 [全員用]", tags: ["holy", "ward"] },

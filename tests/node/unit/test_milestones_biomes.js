@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { BIOMES, getBiomeCycle, getBiomeForFloor } from "../../../src/data/biomes.js";
 import { ITEMS } from "../../../src/data/items.js";
 import { MILESTONE_MERCHANT_STOCK, MILESTONE_UNCURSE_COST } from "../../../src/data/milestone_merchant.js";
+import { TRIAL_PROFILES } from "../../../src/trial_profiles.js";
 import { MATERIAL_DROP_BALANCE } from "../../../src/data/materials.js";
 import { getMilestoneEventCounts, generateRunFloor } from "../../../src/run_map_generator.js";
 import { getDepthMaterialExpectedQuantity } from "../../../src/rules/material_rules.js";
 import { revealEquipmentOnEquip } from "../../../src/systems/identification.js";
-import { purchaseMilestoneStock, purchaseMilestoneUncurse } from "../../../src/systems/milestone_merchant.js";
+import { getMilestoneMerchantStock, purchaseMilestoneStock, purchaseMilestoneUncurse } from "../../../src/systems/milestone_merchant.js";
 import { getAdditionalPurchaseCount } from "../../../src/menu/milestone_merchant.js";
 import { recordMilestoneVictory } from "../../../src/state/run_state.js";
 
@@ -75,6 +76,25 @@ check("深層商人は装備を売らず、素材で補給品を購入する", (
   assert.equal(purchaseMilestoneStock(state, "identify_powder").ok, true);
   assert.equal(state.identifyTickets, 1);
   assert.equal(state.currentRun.materials["霊粉"], 0);
+});
+
+check("Build vNext商人は睡眠・麻痺治療品を外し、旧プロファイル在庫を維持する", () => {
+  for (const profile of [TRIAL_PROFILES.NORMAL, TRIAL_PROFILES.PROGRESSION_EXP]) {
+    const legacyStock = getMilestoneMerchantStock(profile);
+    assert.ok(legacyStock.some(entry => entry.itemId === "WAKE_POWDER"));
+    assert.ok(legacyStock.some(entry => entry.itemId === "PARALYZE_CURE"));
+  }
+  const vnextStock = getMilestoneMerchantStock(TRIAL_PROFILES.PHASE3_EQUIPMENT);
+  assert.ok(!vnextStock.some(entry => entry.itemId === "WAKE_POWDER"));
+  assert.ok(!vnextStock.some(entry => entry.itemId === "PARALYZE_CURE"));
+  const vnextState = {
+    currentRun: { trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT, materials: { "霊粉": 1, "硬い皮": 1 } },
+    inventory: [],
+    identifyTickets: 0
+  };
+  assert.deepEqual(purchaseMilestoneStock(vnextState, "wake_powder"), { ok: false, reason: "unknown_stock" });
+  assert.deepEqual(purchaseMilestoneStock(vnextState, "paralyze_cure"), { ok: false, reason: "unknown_stock" });
+  assert.deepEqual(vnextState.currentRun.materials, { "霊粉": 1, "硬い皮": 1 });
 });
 
 check("深層商人の追加購入数は素材とバッグ容量の厳しい方に揃える", () => {

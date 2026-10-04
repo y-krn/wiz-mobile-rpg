@@ -5,6 +5,12 @@ import {
 } from "../data/equipment_vnext.js";
 import { ITEMS } from "../data/items.js";
 
+const VNEXT_UNAVAILABLE_ITEM_IDS = new Set([
+  "WAKE_POWDER",
+  "PARALYZE_CURE",
+  "RUNE_DIALKO"
+]);
+
 export const VNEXT_CANONICAL_BASE_REPRESENTATIVES = Object.freeze({
   dagger: "DAGGER",
   sword: "SHORT_SWORD",
@@ -41,7 +47,7 @@ export function getVNextTrialCandidates(productionIds) {
 }
 
 export function getVNextTrialChestCandidates(itemIds) {
-  return [...new Set(itemIds.map(itemId => {
+  return [...new Set(itemIds.filter(itemId => !VNEXT_UNAVAILABLE_ITEM_IDS.has(itemId)).map(itemId => {
     const type = ITEMS[itemId]?.type;
     return ["weapon", "armor", "shield", "accessory"].includes(type)
       ? getVNextTrialBaseId(itemId)

@@ -38,11 +38,11 @@ test("workshop purchase spends declared materials and records unlock", () => {
   assert.equal(result.workshop.ranks.gear_rapier, 1);
 });
 
-test("abyss workshop branches require a non-consumable key and keep it", () => {
+test("Build vNext-disabled Core node stays unavailable with or without its key", () => {
   const materials = { "黒角": 7, "竜鱗": 3 };
   const locked = purchaseWorkshopNode(materials, { ranks: {} }, "pool_thin_ice_pact");
   assert.equal(locked.ok, false);
-  assert.equal(locked.reason, "missing_key_item");
+  assert.equal(locked.reason, "not_available_in_vnext");
   assert.deepEqual(materials, { "黒角": 7, "竜鱗": 3 });
 
   const keyItems = ["ABYSS_SEAL"];
@@ -52,11 +52,9 @@ test("abyss workshop branches require a non-consumable key and keep it", () => {
     "pool_thin_ice_pact",
     keyItems
   );
-  assert.equal(result.ok, true);
+  assert.deepEqual(result, { ok: false, reason: "not_available_in_vnext" });
   assert.deepEqual(keyItems, ["ABYSS_SEAL"]);
-  assert.equal(result.metaMaterials["黒角"], 0);
-  assert.equal(result.metaMaterials["竜鱗"], 0);
-  assert.equal(result.workshop.ranks.pool_thin_ice_pact, 1);
+  assert.deepEqual(materials, { "黒角": 7, "竜鱗": 3 });
 });
 
 if (failures > 0) process.exit(1);

@@ -6,6 +6,7 @@ import { SPELLS } from "../data/spells.js";
 import {
   getWorkshopNodeCost,
   getWorkshopRank,
+  isWorkshopNodeAvailableInVNext,
   isWorkshopNodeUnlocked,
   purchaseWorkshopNode
 } from "../systems/workshop.js";
@@ -68,6 +69,7 @@ export function renderWorkshop(optGrid) {
     const nodes = WORKSHOP_NODES.filter(node => (
       node.category === category
       && isWorkshopVnextNode(node)
+      && isWorkshopNodeAvailableInVNext(node)
       && isWorkshopNodeUnlocked(node, state.keyItems)
     ));
     if (nodes.length === 0) return;

@@ -17,6 +17,8 @@ import { reduceIncomingDamage } from "../../../src/combat_logic/damage.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
 import { state } from "../../../src/state.js";
 
+assert.equal(ITEMS.PANACEA.desc, "毒・盲目を治療する。[全員用]");
+
 (async () => {
 
   // ========================================================================

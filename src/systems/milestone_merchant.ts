@@ -9,6 +9,7 @@ import { isCurseLocked } from "../rules/identification_rules.js";
 import { purifyEquipmentCurse } from "./identification.js";
 import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
+import { TRIAL_PROFILES } from "../trial_profiles.js";
 
 type MerchantStockKind = "identify" | "item";
 
@@ -39,6 +40,7 @@ type MerchantInventoryItem = RuntimeItemRef | MerchantInventoryObject;
 
 interface MerchantCurrentRunLike {
   materials?: NormalizedRunMaterials;
+  trialProfile?: string;
   [key: string]: unknown;
 }
 
@@ -80,8 +82,17 @@ function isMerchantStockEntry(value: unknown): value is MerchantStockEntry {
   );
 }
 
-function findStockEntry(stockId: string): MerchantStockEntry | null {
-  const entry = MILESTONE_MERCHANT_STOCK.find((candidate: unknown) =>
+const VNEXT_UNAVAILABLE_STOCK_ITEM_IDS = new Set(["WAKE_POWDER", "PARALYZE_CURE"]);
+
+export function getMilestoneMerchantStock(trialProfile?: string): MerchantStockEntry[] {
+  if (trialProfile !== TRIAL_PROFILES.PHASE3_EQUIPMENT) return [...MILESTONE_MERCHANT_STOCK];
+  return MILESTONE_MERCHANT_STOCK.filter(entry =>
+    !("itemId" in entry) || !VNEXT_UNAVAILABLE_STOCK_ITEM_IDS.has(entry.itemId)
+  );
+}
+
+function findStockEntry(stockId: string, trialProfile?: string): MerchantStockEntry | null {
+  const entry = getMilestoneMerchantStock(trialProfile).find((candidate: unknown) =>
     isMerchantStockEntry(candidate) && candidate.id === stockId
   );
   return isMerchantStockEntry(entry) ? entry : null;
@@ -99,9 +110,9 @@ export function purchaseMilestoneStock(
   ok: true;
   entry: MerchantStockEntry;
 } {
-  const entry = findStockEntry(stockId);
-  if (!entry) return { ok: false, reason: "unknown_stock" };
   const currentRun = stateLike.currentRun;
+  const entry = findStockEntry(stockId, currentRun?.trialProfile);
+  if (!entry) return { ok: false, reason: "unknown_stock" };
   const materials = currentRun?.materials;
   if (!currentRun || !materials || !canAffordMaterials(materials, entry.cost)) {
     return { ok: false, reason: "insufficient_materials" };

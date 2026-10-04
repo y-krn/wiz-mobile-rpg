@@ -59,15 +59,6 @@ export function getPartyCoreParams(party, coreId) {
   return wearer ? getCharCoreParams(wearer, coreId) : null;
 }
 
-export function canEquipUnidentifiedItem(char, item) {
-  return Boolean(char) && Boolean(item);
-}
-
-export function hasHiddenEquipmentEffects(char) {
-  if (!getCharCoreParams(char, "CORE_KEEN_EYE")) return false;
-  return Object.values(char?.equipment || {}).some(item => item && typeof item === "object" && !item.identified);
-}
-
 export function getContractProgressIncrement(party, baseCount = 1) {
   const params = getPartyCoreParams(party, "CORE_BOUNTY_HUNTER");
   return baseCount * (params?.contractCountMultiplier || 1);

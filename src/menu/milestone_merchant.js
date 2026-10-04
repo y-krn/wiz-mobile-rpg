@@ -1,8 +1,8 @@
 import { ITEMS } from "../data/items.js";
-import { MILESTONE_MERCHANT_STOCK, MILESTONE_UNCURSE_COST } from "../data/milestone_merchant.js";
+import { MILESTONE_UNCURSE_COST } from "../data/milestone_merchant.js";
 import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { addLog, saveAutosave, state } from "../state.js";
-import { getCursedEquipment, purchaseMilestoneStock, purchaseMilestoneUncurse } from "../systems/milestone_merchant.js";
+import { getCursedEquipment, getMilestoneMerchantStock, purchaseMilestoneStock, purchaseMilestoneUncurse } from "../systems/milestone_merchant.js";
 import { getItemData } from "../rules/item_rules.js";
 import { MATERIAL_TYPES } from "../data/materials.js";
 import { canAffordMaterials, spendMaterials } from "../rules/material_rules.js";
@@ -57,14 +57,14 @@ function getSelectedLabel() {
   if (selectedOffer.kind === "uncurse") {
     return `${getItemData(selectedOffer.item).name}の呪いを解く`;
   }
-  const entry = MILESTONE_MERCHANT_STOCK.find(item => item.id === selectedOffer.id);
+  const entry = getMilestoneMerchantStock(state.currentRun?.trialProfile).find(item => item.id === selectedOffer.id);
   return entry ? `${getEntryDisplayName(entry)}を購入` : "商品を選択してください";
 }
 
 function getSelectedCost() {
   if (!selectedOffer) return null;
   if (selectedOffer.kind === "uncurse") return MILESTONE_UNCURSE_COST;
-  return MILESTONE_MERCHANT_STOCK.find(item => item.id === selectedOffer.id)?.cost || null;
+  return getMilestoneMerchantStock(state.currentRun?.trialProfile).find(item => item.id === selectedOffer.id)?.cost || null;
 }
 
 function renderMaterialBalance(materials) {
@@ -146,7 +146,7 @@ export function renderMilestoneMerchant(optGrid) {
   optGrid.appendChild(renderMaterialBalance(materials));
   optGrid.appendChild(createSection("購入できる品"));
 
-  MILESTONE_MERCHANT_STOCK.forEach(entry => {
+  getMilestoneMerchantStock(state.currentRun?.trialProfile).forEach(entry => {
     const inventorySlots = entry.kind === "item"
       ? Math.max(0, INVENTORY_CAPACITY - state.inventory.length)
       : Infinity;

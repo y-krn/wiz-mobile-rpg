@@ -12,6 +12,7 @@ import {
   spendDepartureCraftRecipes
 } from "../rules/craft_rules.js";
 import { spendMaterials } from "../rules/material_rules.js";
+import { isVNextTrialCore, isVNextTrialSupport } from "../rules/equipment_vnext_trial.js";
 
 export interface NormalizedWorkshopState {
   ranks: Record<string, number>;
@@ -170,6 +171,20 @@ function getWorkshopNode(nodeId: string): WorkshopNode | undefined {
   return isWorkshopNode(node) ? node : undefined;
 }
 
+export function isWorkshopNodeAvailableInVNext(node: unknown): boolean {
+  if (!isRecord(node) || !isRecord(node.grants)) return false;
+  const affixIds = node.grants.affixIds;
+  if (!Array.isArray(affixIds)) return true;
+  return affixIds.every((id: unknown) => {
+    if (typeof id !== "string") return false;
+    const definition = getAffixDefinition(id);
+    if (!definition) return false;
+    if (definition.kind === "core") return isVNextTrialCore(id);
+    if (definition.kind === "support") return isVNextTrialSupport(id);
+    return false;
+  });
+}
+
 function getWorkshopNodes(): WorkshopNode[] {
   return WORKSHOP_NODES.filter(isWorkshopNode);
 }
@@ -200,6 +215,7 @@ export function purchaseWorkshopNode(
 } {
   const node = getWorkshopNode(nodeId);
   if (!node) return { ok: false, reason: "unknown_node" };
+  if (!isWorkshopNodeAvailableInVNext(node)) return { ok: false, reason: "not_available_in_vnext" };
   const normalized = normalizeWorkshopState(workshop);
   if (normalized.lateralUnlocks.includes(nodeId)) return { ok: false, reason: "already_unlocked" };
   if (!isWorkshopNodeUnlocked(node, keyItems)) return { ok: false, reason: "missing_key_item" };
