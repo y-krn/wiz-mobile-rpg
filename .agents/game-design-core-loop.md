@@ -316,6 +316,16 @@ before or after the boss, and B6 transition.
     Supply and blast are exclusive, and the outpost appears nowhere else.
   - Forgotten catacomb — altar: a material-priced cleanse of status effects,
     or a blood blessing that converts a share of max HP into full MP.
+    On the band's third floor the altar's cell holds the sealed priest until
+    he has been brought home; the seal takes a share of max HP, never the
+    last point. Once the chapel tends that altar it also takes an offering:
+    one kind of carried material, up to a limit, is sent home and arrives
+    whatever the run's outcome. If the chapel has raised the grave, a death
+    leaves part of the materials it lost there; the grave fills up to a limit
+    across deaths and keeps them until a visit to that altar takes them back
+    into the run's carried materials. The altar
+    answers once per run, so cleanse, blessing, offering, and grave are
+    exclusive.
   - Rift nest — brood chamber: breaking the eggs starts an elite-strength fight
     whose victory leaves an ordinary dropped chest. Fleeing still spends the room.
   - Sunken library — reading room: a few turns of study mark the down stairs

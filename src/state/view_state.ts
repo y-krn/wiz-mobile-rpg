@@ -99,7 +99,10 @@ const SUBMENU_OVERLAY_TYPES = new Set([
   "spell_target_ally"
 ]);
 const SPELL_OVERLAY_TYPES = new Set(["spell_caster_select", "spell_select", "spell_target_ally"]);
-const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main", "feats_main", "facility_miner_guild", "guidebook_main"]);
+const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main", "feats_main", "guidebook_main"]);
+/** Facility screens are town submenus; their ids come from the facility data. */
+const isTownSubmenuType = (menuType: string): boolean =>
+  TOWN_SUBMENU_TYPES.has(menuType) || menuType.startsWith("facility_");
 const SAFE_PREVIOUS_STATES = new Set<NonSubmenuGameState>(GAME_STATES.filter(
   (gameState): gameState is NonSubmenuGameState => gameState !== "submenu"
 ));
@@ -319,7 +322,7 @@ export function getScreenViewState(
     isSubmenu,
     isDeparturePrepSubmenu: isSubmenu && menuType === "solo_start",
     isWorkshopSubmenu: isSubmenu && menuType === "workshop_main",
-    isTownSubmenu: isSubmenu && TOWN_SUBMENU_TYPES.has(menuType),
+    isTownSubmenu: isSubmenu && isTownSubmenuType(menuType),
     isCombatOverlaySubmenu,
     isUsableCombatOverlaySubmenu,
     isSpellOverlaySubmenu,

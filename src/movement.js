@@ -51,7 +51,7 @@ import {
   refreshHeatHazards
 } from "./rules/traversal_gimmicks.js";
 import { getSpecialRoomInfo } from "./rules/special_rooms.js";
-import { hasWaitingKeeper } from "./systems/facility_rooms.js";
+import { getWaitingKeeperFacility } from "./systems/facility_rooms.js";
 import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 
@@ -543,9 +543,8 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     } else {
       addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
     }
-    if (hasWaitingKeeper(state.maps[nextFloor - 1])) {
-      addLog("[気配] この階のどこかで、岩を叩く音と人の声がする。");
-    }
+    const waitingKeeper = getWaitingKeeperFacility(state.maps[nextFloor - 1]);
+    if (waitingKeeper) addLog(`[気配] ${waitingKeeper.site.omen}`);
 
     checkFloorOmenMessage();
     

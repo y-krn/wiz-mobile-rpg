@@ -62,9 +62,9 @@ const {
 const { createDefaultFeatsState } = await import("../../../src/state/feats_state.js");
 const {
   createDefaultFacilitiesState,
-  isNormalizedCompanion,
+  isNormalizedCompanions,
   isNormalizedFacilitiesState,
-  normalizeCompanion,
+  normalizeCompanions,
   normalizeFacilitiesState
 } = await import("../../../src/state/facilities_state.js");
 const {
@@ -117,11 +117,11 @@ console.log("[PASS] every facility opens through a feat and its nodes cost exist
 // --- Rescue: only a safe return counts ------------------------------------------
 
 const fresh = createDefaultFeatsState();
-const escort = { startFloor: 1, deepestFloor: 3, companion: "foreman" };
+const escort = { startFloor: 1, deepestFloor: 3, companions: ["foreman"] };
 assert.equal(addRunToFeatCounters(fresh.counters, escort, "retreat").foremanRescued, 1);
 assert.equal(addRunToFeatCounters(fresh.counters, escort, "death").foremanRescued, 0, "death leaves him in the dungeon");
 assert.equal(addRunToFeatCounters(fresh.counters, escort, "abandon").foremanRescued, 0, "so does abandoning the run");
-assert.equal(addRunToFeatCounters(fresh.counters, { ...escort, companion: null }, "retreat").foremanRescued, 0);
+assert.equal(addRunToFeatCounters(fresh.counters, { ...escort, companions: [] }, "retreat").foremanRescued, 0);
 assert.equal(addRunToFeatCounters(fresh.counters, escort).foremanRescued, 0, "a run still going has rescued nobody yet");
 
 const progress = getFeatProgress(rescueFeat, fresh.counters);
@@ -137,15 +137,16 @@ assert.equal(rescued.result.completed.includes("foreman_rescue"), true);
 assert.equal(isFacilityOpen(rescued.feats, "miner_guild"), true);
 assert.equal(isFacilityOpen(fresh, "miner_guild"), false);
 assert.equal(isFacilityOpen(settleRunFeats(fresh, escort, "death", 4).feats, "miner_guild"), false);
-assert.deepEqual(listFacilities(fresh).map(entry => [entry.facility.id, entry.open]), [["miner_guild", false]]);
+assert.deepEqual(listFacilities(fresh).map(entry => [entry.facility.id, entry.open]),
+  FACILITIES.map(facility => [facility.id, false]));
 
-assert.deepEqual(getFeatResultRows(null, { companion: "foreman", outcome: "death" }), [{
+assert.deepEqual(getFeatResultRows(null, { companions: ["foreman"], outcome: "death" }), [{
   id: "foreman_rescue", status: "失敗", completed: false, failed: true, name: "鉱夫頭を連れ帰る", detail: "鉱夫頭は迷宮に残された"
 }]);
-assert.equal(getFeatResultRows(rescued.result, { companion: "foreman", outcome: "retreat" })
+assert.equal(getFeatResultRows(rescued.result, { companions: ["foreman"], outcome: "retreat" })
   .some(row => row.failed), false);
 assert.deepEqual(
-  getFeatResultRows(rescued.result, { companion: "foreman", outcome: "retreat" })
+  getFeatResultRows(rescued.result, { companions: ["foreman"], outcome: "retreat" })
     .find(row => row.id === "foreman_rescue"),
   { id: "foreman_rescue", status: "達成", completed: true, name: "鉱夫頭を連れ帰る", detail: "報酬 坑夫組合が開く" }
 );
@@ -157,7 +158,7 @@ assert.deepEqual([1, 2, 3, 4, 5, 8, 33, 63].map(isForemanFloor), [false, false, 
   "the third floor of the collapsed mine band, in every cycle");
 assert.equal(getFacilityRoomKind(3, { feats: fresh, run: {} }), SPECIAL_ROOMS.TRAPPED_FOREMAN);
 assert.equal(getFacilityRoomKind(3, { feats: rescued.feats, run: {} }), null, "the room is gone once he is home");
-assert.equal(getFacilityRoomKind(33, { feats: fresh, run: { companion: "foreman" } }), null,
+assert.equal(getFacilityRoomKind(33, { feats: fresh, run: { companions: ["foreman"] } }), null,
   "a run already leading him out does not meet him again");
 assert.equal(getFacilityRoomKind(2, { feats: fresh, run: {} }), null);
 assert.ok(getSpecialRoomInfo(SPECIAL_ROOMS.TRAPPED_FOREMAN).name);
@@ -183,7 +184,7 @@ const roomKindOnFloor = (floor, feats, companion = null) => {
   state.feats = feats;
   state.currentRun = createDefaultCurrentRun();
   state.currentRun.runSeed = "facility-room-test";
-  state.currentRun.companion = companion;
+  state.currentRun.companions = companion ? [companion] : [];
   state.maps = [];
   state.visitedMaps = [];
   state.floor = floor;
@@ -208,8 +209,8 @@ const bought = purchaseFacilityNode("miner_kit", openContext);
 assert.equal(bought.ok, true);
 assert.equal(bought.metaMaterials["獣の牙"], 3);
 assert.equal(bought.metaMaterials["鉄片"], 5);
-assert.deepEqual(bought.facilities, { nodes: ["miner_kit"], orders: {} });
-assert.deepEqual(closedContext.facilities, { nodes: [], orders: {} }, "a purchase does not mutate its inputs");
+assert.deepEqual(bought.facilities, { nodes: ["miner_kit"], orders: {}, grave: {} });
+assert.deepEqual(closedContext.facilities, { nodes: [], orders: {}, grave: {} }, "a purchase does not mutate its inputs");
 assert.equal(purchaseFacilityNode("miner_kit", { ...openContext, facilities: bought.facilities }).reason, "解放済み");
 assert.deepEqual(listFacilityNodes("miner_guild", { ...openContext, facilities: bought.facilities })
   .map(entry => [entry.node.id, entry.bought, entry.canBuy]),
@@ -270,7 +271,7 @@ const itemId = item => (typeof item === "string" ? item : item?.baseId);
 assert.equal(state.inventory.filter(item => itemId(item) === "TRAP_KIT").length, 3, "two from the kit, one crafted");
 assert.equal(state.inventory.filter(item => itemId(item) === "TRAP_SENSE_STONE").length, 1);
 assert.deepEqual(state.currentRun.departureCraftItems, ["TRAP_KIT"], "only the crafted tool is departure craft");
-assert.equal(state.currentRun.companion, null);
+assert.deepEqual(state.currentRun.companions, []);
 state.currentRun.deepestFloor = 2;
 triggerRunResult("milestone_portal");
 assert.equal(state.storage.filter(item => itemId(item) === "TRAP_KIT").length, 1,
@@ -322,7 +323,9 @@ assert.equal(getFacilityRoomKind(3, { feats: reached, run: {}, facilities: noNod
 assert.equal(getFacilityRoomKind(3, { feats: reached, run: {}, facilities: outpost.facilities }), SPECIAL_ROOMS.MINER_OUTPOST);
 assert.equal(getFacilityRoomKind(33, { feats: reached, run: {}, facilities: outpost.facilities }), SPECIAL_ROOMS.MINER_OUTPOST);
 assert.equal(getFacilityRoomKind(4, { feats: reached, run: {}, facilities: outpost.facilities }), null);
-assert.equal(getFacilityRoomKind(8, { feats: reached, run: {}, facilities: outpost.facilities }), null);
+assert.equal(getFacilityRoomKind(8, { feats: reached, run: {}, facilities: outpost.facilities }), SPECIAL_ROOMS.SEALED_PRIEST,
+  "the next band's third floor belongs to its own facility");
+assert.equal(getFacilityRoomKind(9, { feats: reached, run: {}, facilities: outpost.facilities }), null);
 assert.equal(getFacilityRoomKind(3, { feats: createDefaultFeatsState(), run: {}, facilities: outpost.facilities }),
   SPECIAL_ROOMS.TRAPPED_FOREMAN, "an unrescued foreman still comes first");
 assert.ok(getSpecialRoomInfo(SPECIAL_ROOMS.MINER_OUTPOST).name);
@@ -454,30 +457,36 @@ initNewGame();
 state.facilities = bought.facilities;
 state.party = [createStartingKitCharacter("miner")];
 state.currentRun = createDefaultCurrentRun();
-state.currentRun.companion = "foreman";
+state.currentRun.companions = ["foreman"];
 state.currentRun.startingKit = "miner";
 state.gameState = "explore";
 const reloaded = normalizeSavePayload(JSON.parse(JSON.stringify(createSavePayload())));
-assert.deepEqual(reloaded.facilities, { nodes: ["miner_kit"], orders: {} });
-assert.equal(reloaded.currentRun.companion, "foreman", "the escort survives a reload mid-run");
+assert.deepEqual(reloaded.facilities, { nodes: ["miner_kit"], orders: {}, grave: {} });
+assert.deepEqual(reloaded.currentRun.companions, ["foreman"], "the escort survives a reload mid-run");
 assert.equal(reloaded.currentRun.startingKit, "miner");
 assert.equal(reloaded.party[0].startingKit, "miner");
 assert.equal(isNormalizedCurrentRun(reloaded.currentRun), true);
 const legacy = JSON.parse(JSON.stringify(createSavePayload()));
 delete legacy.facilities;
-delete legacy.currentRun.companion;
+delete legacy.currentRun.companions;
+// A save from before #2018 stored a single `companion`.
+legacy.currentRun.companion = "foreman";
 const migrated = normalizeSavePayload(legacy);
-assert.deepEqual(migrated.facilities, { nodes: [], orders: {} }, "a save from before facilities has nothing bought");
-assert.equal(migrated.currentRun.companion, null);
+assert.deepEqual(migrated.currentRun.companions, ["foreman"], "the single escort of an older save is kept");
+assert.equal(Object.hasOwn(migrated.currentRun, "companion"), false);
+delete legacy.currentRun.companion;
+assert.deepEqual(migrated.facilities, { nodes: [], orders: {}, grave: {} }, "a save from before facilities has nothing bought");
+assert.deepEqual(normalizeSavePayload(legacy).currentRun.companions, []);
 assert.equal(isNormalizedFacilitiesState({ nodes: ["a", "a"] }), false);
-assert.deepEqual(normalizeFacilitiesState({ nodes: ["a", "a", 3, ""] }), { nodes: ["a"], orders: {} });
+assert.deepEqual(normalizeFacilitiesState({ nodes: ["a", "a", 3, ""] }), { nodes: ["a"], orders: {}, grave: {} });
 assert.deepEqual(
   normalizeFacilitiesState({ nodes: [], orders: { miner_guild: { orderId: "miner_trap_kits", items: ["TRAP_KIT", 4] }, empty: { orderId: "x", items: [] } } }),
-  { nodes: [], orders: { miner_guild: { orderId: "miner_trap_kits", items: ["TRAP_KIT"] } } }
+  { nodes: [], orders: { miner_guild: { orderId: "miner_trap_kits", items: ["TRAP_KIT"] } }, grave: {} }
 );
 state.facilities = placed.facilities;
 const orderReload = normalizeSavePayload(JSON.parse(JSON.stringify(createSavePayload())));
 assert.deepEqual(orderReload.facilities.orders, placed.facilities.orders, "an open order survives a reload");
-assert.equal(isNormalizedCompanion("foreman"), true);
-assert.equal(normalizeCompanion("stranger"), null);
+assert.equal(isNormalizedCompanions(["foreman", "priest"]), true);
+assert.equal(isNormalizedCompanions(["foreman", "foreman"]), false);
+assert.deepEqual(normalizeCompanions(["stranger", "priest", "priest"], "foreman"), ["priest", "foreman"]);
 console.log("[PASS] facility purchases and the escort survive a save round trip");

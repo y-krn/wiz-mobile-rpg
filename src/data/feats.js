@@ -61,14 +61,24 @@ export const FEATS = Object.freeze([
     metric: { kind: "counter", key: "bestDepth", target: 30, unit: "floor" },
     reward: { materials: { "竜鱗": 5 } }
   }),
-  // Leading the foreman out opens the miner guild (#2009).
+  // Leading a keeper out opens a town facility (#2009, #2018). The rescues
+  // share one chain so only the next one is put in front of the player; a
+  // keeper found out of order is still rescued.
   feat({
     id: "foreman_rescue",
-    chain: "foreman_rescue",
+    chain: "rescue",
     name: "鉱夫頭を連れ帰る",
     condition: "崩れた坑道の3階目で鉱夫頭を掘り出し、帰還の門か帰還の翼で生還する",
     metric: { kind: "counter", key: "foremanRescued", target: 1, unit: "rescue", companion: "foreman" },
     reward: { materials: {}, unlock: "坑夫組合が開く" }
+  }),
+  feat({
+    id: "priest_rescue",
+    chain: "rescue",
+    name: "司祭を連れ帰る",
+    condition: "忘れられた地下墓地の3階目で司祭の封印を解き、帰還の門か帰還の翼で生還する",
+    metric: { kind: "counter", key: "priestRescued", target: 1, unit: "rescue", companion: "priest" },
+    reward: { materials: {}, unlock: "礼拝堂が開く" }
   }),
   feat({
     id: "guardian_5",

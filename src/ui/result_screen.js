@@ -6,7 +6,8 @@ import { getFloorLabel } from "../data/floor_themes.js";
 import { setRepresentativeItem } from "../systems/run_return.js";
 import { clearPhase4cV1CharacterBaseline } from "../rules/phase4c_v1_trial.js";
 import { formatFeatProgress, formatFeatReward, getFeat } from "../systems/feats.js";
-import { COMPANIONS, FACILITY_BY_ID } from "../data/facilities.js";
+import { FACILITY_BY_ID } from "../data/facilities.js";
+import { listRunCompanions } from "../systems/facilities.js";
 
 const ACHIEVEMENT_LABELS = {
   first_b5_reached: "初めてB5Fへ到達",
@@ -315,19 +316,31 @@ export function getFeatResultRows(featResult, run = null) {
   const rows = [];
   // Someone who was being led out stays in the dungeon unless the run walked
   // out. Say so plainly: they can be found again on the next run.
-  const companion = COMPANIONS[run?.companion];
-  const leftBehind = companion && run.outcome !== "retreat"
-    ? FACILITY_BY_ID.get(companion.facilityId)?.featId
-    : null;
-  if (leftBehind) {
-    const feat = getFeat(leftBehind);
+  const leftBehind = new Set();
+  if (run && run.outcome !== "retreat") {
+    listRunCompanions(run).forEach(companion => {
+      const featId = FACILITY_BY_ID.get(companion.facilityId)?.featId;
+      if (!featId) return;
+      leftBehind.add(featId);
+      rows.push({
+        id: featId,
+        status: "失敗",
+        completed: false,
+        failed: true,
+        name: getFeat(featId)?.name || companion.name,
+        detail: `${companion.name}は迷宮に残された`
+      });
+    });
+  }
+  // The chapel grave (#2018): what this death added to it waits at the altar.
+  const graveTotal = Object.values(run?.graveResult || {}).reduce((sum, quantity) => sum + quantity, 0);
+  if (graveTotal > 0) {
     rows.push({
-      id: leftBehind,
-      status: "失敗",
+      id: "chapel_grave",
+      status: "墓標",
       completed: false,
-      failed: true,
-      name: feat?.name || companion.name,
-      detail: `${companion.name}は迷宮に残された`
+      name: `素材 ${graveTotal}個が墓標に残った`,
+      detail: "地下墓地の3階目、礼拝堂の祭壇で取り戻せる"
     });
   }
   // Orders placed at a facility: finished into storage by a safe return.
@@ -369,7 +382,7 @@ export function getFeatResultRows(featResult, run = null) {
   });
   (featResult.progress || []).forEach(entry => {
     const feat = getFeat(entry.id);
-    if (!feat || entry.id === leftBehind) return;
+    if (!feat || leftBehind.has(entry.id)) return;
     const progress = formatFeatProgress(feat, { current: entry.after, target: entry.target });
     const gained = entry.after - entry.before;
     rows.push({

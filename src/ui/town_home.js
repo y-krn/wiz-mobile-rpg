@@ -1,7 +1,7 @@
 import { state, getStartingKit } from "../state.js";
 import { getNearestFeats, listFeats } from "../systems/feats.js";
 import { createFeatCard } from "./feat_card.js";
-import { getOpenFacilityOrder, listFacilities, listFacilityNodes } from "../systems/facilities.js";
+import { getOpenFacilityOrder, listFacilityNodes, listTownFacilities } from "../systems/facilities.js";
 import { getNextGuidebookPage, listGuidebookPages } from "../systems/guidebook.js";
 
 function outcomeLabel(run) {
@@ -122,12 +122,12 @@ function renderFeatSummary() {
 
 let renderedFacilitySignature = null;
 
-// One slot per facility that exists. Until its keeper is brought home the
-// slot is a silhouette with a hint; afterwards it is the way in (#2009).
+// One slot per open facility, plus a silhouette with a hint for the next
+// keeper to look for; afterwards it is the way in (#2009, #2018).
 function renderFacilities() {
   const container = document.getElementById("town-facilities");
   if (!container) return;
-  const entries = listFacilities(state.feats);
+  const entries = listTownFacilities(state.feats);
   const signature = entries
     .map(({ facility, open }) => `${facility.id}:${open ? listFacilityNodes(facility.id, { facilities: state.facilities, feats: state.feats, metaMaterials: {} }).filter(entry => entry.bought).length : "locked"}:${getOpenFacilityOrder(state.facilities, facility.id) ? "order" : ""}`)
     .join("|");

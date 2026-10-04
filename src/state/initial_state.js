@@ -58,8 +58,11 @@ export const createDefaultCurrentRun = () => ({
   nearMiss: null,
   featResult: null,
   featsAnnounced: [],
-  // A person being led out of the dungeon; rescued only by a safe return (#2009).
-  companion: null,
+  // People being led out of the dungeon; rescued only by a safe return (#2009).
+  companions: [],
+  // Materials a chapel offering sent home, and what a death left on the grave (#2018).
+  offeredMaterials: {},
+  graveResult: null,
   // Guidebook fragments carried by this run, and what became of them (#2013).
   guideFragments: 0,
   guideResult: null,
@@ -135,6 +138,14 @@ export const UNLOCKABLE_STARTING_KITS = Object.freeze([
     description: "メイス・レザーアーマー・罠外しキット2個・探知石",
     gear: Object.freeze(["MACE", "LEATHER_ARMOR"]),
     items: Object.freeze(["TRAP_KIT", "TRAP_KIT", "TRAP_SENSE_STONE"])
+  }),
+  // The chapel's kit (#2018): a sword behind a spell-turning shield, in a robe.
+  Object.freeze({
+    id: "pilgrim",
+    name: "巡礼キット",
+    description: "ショートソード・魔法盾・ローブ・祝福の聖水",
+    gear: Object.freeze(["SHORT_SWORD", "MAGIC_SHIELD", "ROBE"]),
+    items: Object.freeze(["HOLY_WATER"])
   })
 ]);
 

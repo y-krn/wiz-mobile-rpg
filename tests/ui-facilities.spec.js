@@ -153,20 +153,20 @@ test('The foreman is dug out on B3F, shown as an escort, and rescued by a safe r
   const escort = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
-    if (state.currentRun.companion !== 'foreman') {
+    if (!state.currentRun.companions.includes('foreman')) {
       state.combatState = null;
       state.gameState = 'explore';
-      state.currentRun.companion = 'foreman';
+      state.currentRun.companions = ['foreman'];
       state.map[state.y][state.x].specialRoom.used = true;
     }
     updateUI();
     return {
-      companion: state.currentRun.companion,
+      companions: state.currentRun.companions,
       used: state.map[state.y][state.x].specialRoom.used,
       hud: [...document.querySelectorAll('#goal-banner .feat-hud-list span')].map(item => item.textContent)
     };
   });
-  expect(escort.companion).toBe('foreman');
+  expect(escort.companions).toEqual(['foreman']);
   expect(escort.used).toBe(true);
   expect(escort.hud[0]).toBe('同行：鉱夫頭生還で救出');
 
@@ -193,7 +193,7 @@ test('A foreman led into a death stays in the dungeon and waits on the next run'
     const { state } = await import('/src/state.js');
     const { closeSubmenu } = await import('/src/navigation.js');
     closeSubmenu();
-    state.currentRun.companion = 'foreman';
+    state.currentRun.companions = ['foreman'];
     state.party[0].hp = 0;
     (await import('/src/result.js')).triggerRunResult('gameover');
   });

@@ -3,7 +3,7 @@ import { MATERIAL_TYPES } from "../data/materials.js";
 import { getBankedMaterials } from "../rules/material_rules.js";
 import { getItemBaseId } from "../data.js";
 import { getItemData } from "../rules/item_rules.js";
-import { COMPANIONS } from "../data/facilities.js";
+import { getEscortNames } from "../systems/facilities.js";
 
 function getMaterialQuantity(materials, name) {
   return Math.max(0, Math.floor(Number(materials?.[name]) || 0));
@@ -111,12 +111,21 @@ export function createRunStakesSummary(
     overflow.textContent = `倉庫満杯のため未使用品 ${overflowCount}個は戻らない`;
     flow.appendChild(overflow);
   }
-  const companion = COMPANIONS[state.currentRun?.companion];
-  if (companion) {
+  const escortNames = getEscortNames(state.currentRun);
+  if (escortNames) {
     const companionLine = document.createElement("p");
     companionLine.className = "run-stakes-companion";
-    companionLine.textContent = `同行：${companion.name}。生還すれば街へ連れ帰る。死ねば・断念すれば連れ帰れない。`;
+    companionLine.textContent = `同行：${escortNames}。生還すれば街へ連れ帰る。死ねば・断念すれば連れ帰れない。`;
     flow.appendChild(companionLine);
+  }
+  // A chapel offering already sent these home (#2018): they are not at stake.
+  const offered = Object.values(state.currentRun?.offeredMaterials || {})
+    .reduce((sum, quantity) => sum + (Math.floor(Number(quantity)) || 0), 0);
+  if (offered > 0) {
+    const offeredLine = document.createElement("p");
+    offeredLine.className = "run-stakes-companion run-stakes-offered";
+    offeredLine.textContent = `献灯で送った素材 ${offered}個は確定。死んでも街に届く。`;
+    flow.appendChild(offeredLine);
   }
   const fragments = Math.max(0, Math.floor(Number(state.currentRun?.guideFragments) || 0));
   if (fragments > 0) {

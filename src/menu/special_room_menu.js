@@ -12,14 +12,14 @@ import { consumeExplorationTurn, createNoiseEvent, getCurrentExplorationCell } f
 import { generateChestMaterials } from "../chest.js";
 import { startCombat } from "../combat.js";
 import { applyMirrorVision } from "../state/run_floor_state.js";
-import { COMPANIONS } from "../data/facilities.js";
+import { CHAPEL_OFFERING_LIMIT, KEEPER_ROOM_FACILITY } from "../data/facilities.js";
 import { isFacilityNodeBought } from "../systems/facilities.js";
+import { normalizeCompanions, normalizeFacilitiesState } from "../state/facilities_state.js";
 import { ITEMS } from "../data/items.js";
 import {
   ALTAR_CLEANSE_MATERIAL_COST,
   FORGE_MATERIAL_COST,
   FORGE_TEMPER_BATTLES,
-  FOREMAN_DIG_TURNS,
   OUTPOST_BLAST_NOISE_TTL,
   OUTPOST_SUPPLY_ITEM_IDS,
   READING_TURNS,
@@ -28,13 +28,16 @@ import {
   VEIN_DIG_TURNS,
   VEIN_MATERIAL_BONUS,
   applyForgeTemper,
+  applyOffering,
   cleanseAltarStatuses,
   clearFloorRubble,
   describeDirection,
   getAltarBloodCost,
   getForgeTemperAmount,
   getMirrorHpCost,
+  getOfferingChoices,
   getReadingRoomTargets,
+  getRescueBloodCost,
   getSpecialRoom,
   getSpecialRoomInfo,
   markSpecialRoomUsed,
@@ -136,14 +139,13 @@ function renderMineVein(optGrid, cell) {
 }
 
 // Altar: a material-priced cleanse, or the blood blessing (HP into MP).
-function renderAltar(optGrid, cell) {
+function addAltarOptions(optGrid, cell) {
   const hero = getHero();
   const statuses = hero ? CLEANSABLE_STATUSES.filter(id => hasStatusEffect(hero, id)) : [];
   const materials = runMaterialCount();
   const maxHp = hero ? getCharMaxHp(hero) : 0;
   const maxMp = hero ? getCharMaxMp(hero) : 0;
   const bloodCost = hero ? getAltarBloodCost(hero, maxHp) : 0;
-  addDescription(optGrid, `浄め：素材${ALTAR_CLEANSE_MATERIAL_COST}個を捧げて状態異常を消す。血の祝福：HP${bloodCost}を捧げてMPを満たす。祭壇は一度しか応えない。`);
   addButton(optGrid, `浄めを願う（素材${ALTAR_CLEANSE_MATERIAL_COST}個）`, () => {
     const paid = payRunMaterials(ALTAR_CLEANSE_MATERIAL_COST);
     if (!paid) return;
@@ -161,6 +163,51 @@ function renderAltar(optGrid, cell) {
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !hero || maxMp <= 0 || bloodCost <= 0 || hero.mp >= maxMp });
+  return bloodCost;
+}
+
+function renderAltar(optGrid, cell) {
+  const hero = getHero();
+  const bloodCost = hero ? getAltarBloodCost(hero, getCharMaxHp(hero)) : 0;
+  addDescription(optGrid, `浄め：素材${ALTAR_CLEANSE_MATERIAL_COST}個を捧げて状態異常を消す。血の祝福：HP${bloodCost}を捧げてMPを満たす。祭壇は一度しか応えない。`);
+  addAltarOptions(optGrid, cell);
+}
+
+// Chapel altar (#2018): the altar's own options, an offering that sends one
+// kind of carried material home for good, and (once bought) the grave that
+// returns part of what the last death lost. One answer per run, like the altar.
+function renderChapelAltar(optGrid, cell) {
+  const run = state.currentRun;
+  const hasGrave = isFacilityNodeBought(state.facilities, "chapel_grave");
+  addDescription(optGrid, `浄め・血の祝福に加えて、献灯を選べる。献灯：手持ちの素材から1種類を最大${CHAPEL_OFFERING_LIMIT}個、街へ送る。送った素材は、その後に死んでも街に届く。${hasGrave ? "墓標に祈ると、前の死で失った素材の一部が戻る。" : ""}祭壇が応じるのは潜行ごとに1回だけ。`);
+  addAltarOptions(optGrid, cell);
+  const choices = getOfferingChoices(run?.materials, CHAPEL_OFFERING_LIMIT);
+  choices.forEach(choice => {
+    const button = addButton(optGrid, `献灯：${choice.name} ${choice.quantity}個を街へ送る`, () => {
+      const offering = applyOffering(run.materials, run.offeredMaterials, choice.name, CHAPEL_OFFERING_LIMIT);
+      if (!offering) return;
+      run.materials = offering.materials;
+      run.offeredMaterials = offering.offered;
+      playSound("item");
+      addLog(`献灯台に${choice.name}を${offering.sent}個供えた。灯とともに街へ届けられる（確定）。`);
+      finishRoom(cell);
+      closeSubmenu();
+    });
+    button.setAttribute?.("data-offering-material", choice.name);
+  });
+  if (choices.length === 0) addDescription(optGrid, "手持ちの素材がなく、献灯はできない。");
+  if (!hasGrave) return;
+  const grave = normalizeFacilitiesState(state.facilities).grave;
+  const graveText = Object.entries(grave).map(([name, quantity]) => `${name} x${quantity}`).join(", ");
+  const graveButton = addButton(optGrid, graveText ? `墓標に祈る（${graveText}）` : "墓標に祈る（何も残っていない）", () => {
+    grantRunMaterials(grave);
+    state.facilities = { ...normalizeFacilitiesState(state.facilities), grave: {} };
+    playSound("item");
+    addLog(`墓標に祈った。前の死で失った素材が手元に戻った。 [${graveText}]`);
+    finishRoom(cell);
+    closeSubmenu();
+  }, { disabled: !graveText });
+  graveButton.setAttribute?.("data-chapel-grave", graveText ? "filled" : "empty");
 }
 
 // Brood chamber: smash the eggs to wake the keeper; its hoard is a chest.
@@ -225,39 +272,71 @@ function renderMirrorHall(optGrid, cell) {
   }, { disabled: !hero || cost <= 0 });
 }
 
-// Trapped foreman (#2009): dig him out and he follows. Digging costs turns
-// and noise like a vein and can be interrupted; progress stays on the room.
-// He only counts as rescued once the run walks out by the Portal or the Wing.
-function digOutForeman(cell) {
+// A waiting keeper (#2009, #2018): free them and they follow. They only count
+// as rescued once the run walks out by the Portal or the Wing.
+function addCompanion(facility) {
+  const run = state.currentRun;
+  if (run) run.companions = normalizeCompanions([...(run.companions || []), facility.companion.id]);
+  playSound("item");
+  addLog(`${facility.companion.name}が同行する。帰還の門か帰還の翼で生還すれば、街に${facility.name}が開く。`);
+}
+
+// Digging costs turns and noise like a vein and can be interrupted; progress
+// stays on the room.
+function digOutKeeper(cell, facility) {
   const room = getSpecialRoom(cell);
+  const turns = facility.site.rescue.turns;
   createNoiseEvent(state.x, state.y);
   addLog("崩れた岩を掘り始めた。つるはしの音が坑道に響く…");
-  while ((room.progress || 0) < FOREMAN_DIG_TURNS) {
+  while ((room.progress || 0) < turns) {
     const turn = consumeExplorationTurn();
     room.progress = (room.progress || 0) + 1;
     markMapChanged();
-    if (room.progress >= FOREMAN_DIG_TURNS) break;
+    if (room.progress >= turns) break;
     if (!turn.ok || turn.wiped || turn.encounter || state.gameState !== "explore") {
-      addLog(`掘り出しが中断された。残りは${FOREMAN_DIG_TURNS - room.progress}手番分だ。`);
+      addLog(`掘り出しが中断された。残りは${turns - room.progress}手番分だ。`);
       saveAutosave();
       return;
     }
   }
-  if (state.currentRun) state.currentRun.companion = COMPANIONS.foreman.id;
-  playSound("item");
-  addLog(`${COMPANIONS.foreman.name}を掘り出した！「恩に着る。街まで連れて行ってくれ」`);
-  addLog(`${COMPANIONS.foreman.name}が同行する。帰還の門か帰還の翼で生還すれば、街に坑夫組合が開く。`);
+  addLog(`${facility.companion.name}を掘り出した！「恩に着る。街まで連れて行ってくれ」`);
+  addCompanion(facility);
   finishRoom(cell);
 }
 
-function renderTrappedForeman(optGrid, cell) {
+function renderDigRescue(optGrid, cell, facility) {
   const room = getSpecialRoom(cell);
-  const left = FOREMAN_DIG_TURNS - (room.progress || 0);
-  addDescription(optGrid, `崩れた岩の向こうに鉱夫頭が閉じ込められている。掘り出すと${left}手番かかり、物音が立つ。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
+  const left = facility.site.rescue.turns - (room.progress || 0);
+  addDescription(optGrid, `崩れた岩の向こうに${facility.companion.name}が閉じ込められている。掘り出すと${left}手番かかり、物音が立つ。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
   addButton(optGrid, `岩を掘って助け出す（${left}手番）`, () => {
     closeSubmenu();
-    digOutForeman(cell);
+    digOutKeeper(cell, facility);
   });
+}
+
+// A seal takes blood: a share of max HP, never the last point.
+function renderBloodRescue(optGrid, cell, facility) {
+  const hero = getHero();
+  const cost = hero ? getRescueBloodCost(hero, getCharMaxHp(hero), facility.site.rescue.hpRate) : 0;
+  addDescription(optGrid, `祭壇の封印の奥に${facility.companion.name}が閉じ込められている。封印は血でしか解けない（HP${cost}）。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
+  addButton(optGrid, `血を捧げて封印を解く（HP${cost}）`, () => {
+    hero.hp -= cost;
+    addLog(`封印に血を捧げた（HP-${cost}）。${facility.companion.name}が祭壇の奥から歩み出た。「助かりました。街までお連れください」`);
+    addCompanion(facility);
+    finishRoom(cell);
+    closeSubmenu();
+  }, { disabled: !hero || cost <= 0 });
+  if (hero && cost <= 0) addDescription(optGrid, "いまのHPでは、封印に捧げる血が足りない。");
+}
+
+const RESCUE_RENDERERS = {
+  dig: renderDigRescue,
+  blood: renderBloodRescue
+};
+
+function renderKeeperRoom(optGrid, cell) {
+  const facility = KEEPER_ROOM_FACILITY.get(getSpecialRoom(cell).kind);
+  RESCUE_RENDERERS[facility.site.rescue.kind]?.(optGrid, cell, facility);
 }
 
 // Miner outpost (#2010): one supply per run, or a blast once the guild sells
@@ -302,8 +381,10 @@ const ROOM_RENDERERS = {
   [SPECIAL_ROOMS.READING_ROOM]: renderReadingRoom,
   [SPECIAL_ROOMS.FORGE]: renderForge,
   [SPECIAL_ROOMS.MIRROR_HALL]: renderMirrorHall,
-  [SPECIAL_ROOMS.TRAPPED_FOREMAN]: renderTrappedForeman,
-  [SPECIAL_ROOMS.MINER_OUTPOST]: renderMinerOutpost
+  [SPECIAL_ROOMS.TRAPPED_FOREMAN]: renderKeeperRoom,
+  [SPECIAL_ROOMS.MINER_OUTPOST]: renderMinerOutpost,
+  [SPECIAL_ROOMS.SEALED_PRIEST]: renderKeeperRoom,
+  [SPECIAL_ROOMS.CHAPEL_ALTAR]: renderChapelAltar
 };
 
 export function renderSpecialRoom(optGrid) {
