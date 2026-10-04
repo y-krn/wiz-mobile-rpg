@@ -1,4 +1,4 @@
-import { STARTING_KITS, addLog, getStartingKit, state } from "../state.js";
+import { addLog, getStartingKit, getStartingKitItems, state } from "../state.js";
 import { executeEnterDungeon } from "../movement.js";
 import { ITEMS } from "../data/items.js";
 import { getCharMaxMp } from "../data.js";
@@ -15,8 +15,10 @@ import {
   createDepartureCharacter as buildDepartureCharacter,
   describeDroppedPreparation,
   getCraftSelectionBlockReason as getSelectionBlockReason,
+  getAvailableStartingKits,
   getDepartureBagItems,
   getStartingGearName,
+  isStartingKitAvailable,
   getStartingGearOptions as listStartingGearOptions,
   resolveLastPreparation
 } from "../systems/departure_preparation.js";
@@ -95,7 +97,7 @@ function createDepartureCharacter(startingKitId, startingGear = null) {
 // departure from the result screen pay and start by the same steps.
 function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
   const kit = getStartingKit(startingKitId);
-  if (!kit) return false;
+  if (!kit || !isStartingKitAvailable(startingKitId, state.facilities)) return false;
   const { character, handConflict } = createDepartureCharacter(startingKitId, startingGear);
   if (handConflict) {
     addLog(`[開始不可] ${handConflict.message}`);
@@ -173,11 +175,16 @@ function getSelectedRecipeIds() {
 }
 
 function getSelectedBagItems(recipeIds = getSelectedRecipeIds()) {
-  return getDepartureBagItems(recipeIds, state.workshop);
+  return getDepartureBagItems(recipeIds, state.workshop, selectedKitId);
 }
 
 function getCraftSelectionBlockReason(recipe, selectedRecipeIds) {
-  return getSelectionBlockReason(recipe, selectedRecipeIds, state);
+  return getSelectionBlockReason(recipe, selectedRecipeIds, {
+    workshop: state.workshop,
+    metaMaterials: state.metaMaterials,
+    storage: state.storage,
+    startingKitId: selectedKitId
+  });
 }
 
 function getCraftAvailability(recipe, selectedRecipeIds) {
@@ -617,6 +624,15 @@ function renderKitDetail(optGrid, kit) {
     .map(itemId => ITEMS[itemId]?.name || itemId)
     .join("・") || "なし";
   appendKitDetailRow(detail, "装備", equipment, "solo-kit-equipment");
+  const kitItems = getStartingKitItems(kit.id);
+  if (kitItems.length > 0) {
+    const counts = new Map();
+    kitItems.forEach(itemId => counts.set(itemId, (counts.get(itemId) || 0) + 1));
+    const supplies = [...counts.entries()]
+      .map(([itemId, count]) => `${ITEMS[itemId]?.name || itemId}${count > 1 ? `×${count}` : ""}`)
+      .join("・");
+    appendKitDetailRow(detail, "持ち物", `${supplies}（毎回支給・倉庫には戻らない）`, "solo-kit-items");
+  }
   const runes = getActiveRuneSpellKeys(character)
     .map(spellKey => ITEMS[getRuneItemId(spellKey)]?.name || spellKey);
   if (runes.length > 0) appendKitDetailRow(detail, "ルーン", runes.join("・"), "solo-kit-runes");
@@ -705,8 +721,9 @@ function renderKitChoice(optGrid, focusSelector = null) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-grid";
   clearDepartureStartFooter();
-  if (!getStartingKit(selectedKitId)) {
-    selectedKitId = STARTING_KITS[0]?.id || null;
+  const availableKits = getAvailableStartingKits(state.facilities);
+  if (!availableKits.some(kit => kit.id === selectedKitId)) {
+    selectedKitId = availableKits[0]?.id || null;
     selectedStartingGear = null;
   }
   if (selectedStartingGear && !getStartingGearOptions(selectedKitId)
@@ -718,7 +735,7 @@ function renderKitChoice(optGrid, focusSelector = null) {
   kitList.className = "solo-kit-list";
   kitList.setAttribute("role", "group");
   kitList.setAttribute("aria-label", "開始キット");
-  STARTING_KITS.forEach(kit => {
+  availableKits.forEach(kit => {
     const copy = getStartingKitCopy(kit.id);
     const load = getEquipmentLoadPlayerCopy(createDeparturePreviewCharacter(kit.id));
     const selected = kit.id === selectedKitId;

@@ -1,3 +1,5 @@
+import { FACILITY_BY_ID } from "../data/facilities.js";
+import { isFacilityOpen } from "../systems/facilities.js";
 import { state, saveAutosave, addLog, clearSave, DEATH_TYPE_LABELS, summarizeDeathLogs } from "../state.js";
 import { playSound } from "../audio.js";
 import { openArchivesOverlay, updateUI } from "../ui.js";
@@ -19,6 +21,11 @@ export function handleTownOption(option) {
     openSubmenu("castle_main", "おしろ - 記録");
   } else if (option === "feats") {
     openSubmenu("feats_main", "偉業 - 条件と進み具合");
+  } else if (typeof option === "string" && option.startsWith("facility:")) {
+    const facility = FACILITY_BY_ID.get(option.slice("facility:".length));
+    if (facility && isFacilityOpen(state.feats, facility.id)) {
+      openSubmenu(`facility_${facility.id}`, `${facility.name} - ${facility.keeper}の施設`);
+    }
   } else if (option === "workshop") {
     openSubmenu("workshop_main", "工房 - 広がった可能性");
   } else if (option === "archives") {

@@ -18,7 +18,9 @@ export {
   createDefaultCodex,
   createDefaultCurrentRun,
   STARTING_KITS,
+  UNLOCKABLE_STARTING_KITS,
   getStartingKit,
+  getStartingKitItems,
   createStartingKitCharacter
 } from "./state/initial_state.js";
 

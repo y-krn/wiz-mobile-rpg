@@ -251,6 +251,11 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // the town balance at settlement.
     { pattern: "src/systems/feats.js", domains: ["economy", "progression"] },
     { pattern: "src/data/feats.js", domains: ["economy", "progression"] },
+    // Town facilities (#2009): material-priced horizontal unlocks, and the
+    // special room a facility keeper occupies until rescued.
+    { pattern: "src/data/facilities.js", domains: ["workshop"] },
+    { pattern: "src/systems/facilities.js", domains: ["workshop"] },
+    { pattern: "src/systems/facility_rooms.js", domains: ["maps"] },
     // The removed run-quest modules stay mapped so their deletion diff is
     // classified; drop these once the deletion is on main.
     { pattern: "src/systems/run_quests.js", domains: ["economy", "progression"] },
@@ -302,7 +307,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/equipment_ui_loader.js", "src/equipment_ui_state.js",
     "src/data/starting_kit_copy.js",
     "src/state/last_preparation.ts", "src/systems/departure_preparation.js",
-    "src/state/feats_state.ts"
+    "src/state/feats_state.ts", "src/state/facilities_state.ts"
   ]),
   // A one-off no-impact declaration is recognized only when its marker is
   // added in the same production diff. This keeps mapped modules such as

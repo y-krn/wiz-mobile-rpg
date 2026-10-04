@@ -4,7 +4,7 @@
 // of which feats were achieved. The feat definitions and the rules that read
 // these counters live in `src/data/feats.js` and `src/systems/feats.js`.
 
-import { STARTING_KIT_IDS, type StartingKitId } from "./starting_kit.js";
+import { STARTING_KIT_IDS, type BaseStartingKitId } from "./starting_kit.js";
 
 export interface FeatCounters {
   /** Deepest floor ever reached. */
@@ -18,8 +18,10 @@ export interface FeatCounters {
   safeReturns: number;
   /** Deepest floor reached from B1F in a run that triggered no trap. */
   traplessDepth: number;
+  /** 1 once the foreman has been led out by a safe return. */
+  foremanRescued: number;
   /** Deepest floor reached from B1F with each starting kit. */
-  kitDepths: Record<StartingKitId, number>;
+  kitDepths: Record<BaseStartingKitId, number>;
 }
 
 export interface FeatCompletion {
@@ -42,7 +44,7 @@ export type NormalizedRunFeatResult = RunFeatResult | null;
 
 const SCALAR_COUNTER_KEYS = Object.freeze([
   "bestDepth", "guardianDepth", "elitesKilled", "disruptorsKilled",
-  "amplifiersKilled", "chestsOpened", "safeReturns", "traplessDepth"
+  "amplifiersKilled", "chestsOpened", "safeReturns", "traplessDepth", "foremanRescued"
 ] as const);
 
 const FEAT_ID_LIMIT = 200;
@@ -71,7 +73,8 @@ export function createDefaultFeatCounters(): FeatCounters {
     chestsOpened: 0,
     safeReturns: 0,
     traplessDepth: 0,
-    kitDepths: Object.fromEntries(STARTING_KIT_IDS.map(kitId => [kitId, 0])) as Record<StartingKitId, number>
+    foremanRescued: 0,
+    kitDepths: Object.fromEntries(STARTING_KIT_IDS.map(kitId => [kitId, 0])) as Record<BaseStartingKitId, number>
   };
 }
 

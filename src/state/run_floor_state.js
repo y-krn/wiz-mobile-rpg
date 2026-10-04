@@ -4,6 +4,7 @@ import { getFloorTemplate } from "../data/floor_templates.js";
 import { getBandIndexForFloor, getBandTrialForFloor, getStoredBandTrial } from "../rules/floor_trials.js";
 import { markMapChanged } from "./state_core.js";
 import { getMirrorVisionCells, hasMirrorVisionFor, revealCells } from "../rules/special_rooms.js";
+import { applyFacilityRoom } from "../systems/facility_rooms.js";
 
 function createVisitedGrid(grid) {
   return grid.map(row => row.map(() => false));
@@ -176,6 +177,9 @@ export function ensureRunFloor(stateLike, floor) {
   const runSeed = stateLike.currentRun?.runSeed;
   if (!runSeed) throw new Error("currentRun.runSeed is required before floor generation");
   const generated = generateRunFloor({ runSeed, floor });
+  // A facility keeper still in the dungeon takes over this floor's special
+  // room. Only the kind on the placed cell changes (#2009).
+  applyFacilityRoom(generated.grid, floor, { feats: stateLike.feats, run: stateLike.currentRun });
   stateLike.maps ||= [];
   stateLike.visitedMaps ||= [];
   stateLike.floorChestsOpened ||= [];

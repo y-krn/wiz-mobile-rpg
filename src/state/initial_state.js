@@ -58,6 +58,8 @@ export const createDefaultCurrentRun = () => ({
   nearMiss: null,
   featResult: null,
   featsAnnounced: [],
+  // A person being led out of the dungeon; rescued only by a safe return (#2009).
+  companion: null,
   lootSequence: 0,
   itemsFound: [],
   equipmentFound: [],
@@ -117,8 +119,29 @@ export const STARTING_KITS = Object.freeze([
   })
 ]);
 
+// Kits opened by a town facility (#2009). They are kept apart from the four
+// base kits so every tool that sweeps STARTING_KITS keeps measuring the same
+// set. `items` are supplies handed out at every departure with the kit; like
+// the Workshop's fixed items they are not crafted and never return to storage.
+export const UNLOCKABLE_STARTING_KITS = Object.freeze([
+  Object.freeze({
+    id: "miner",
+    name: "坑夫キット",
+    description: "メイス・レザーアーマー・罠外しキット2個・探知石",
+    gear: Object.freeze(["MACE", "LEATHER_ARMOR"]),
+    items: Object.freeze(["TRAP_KIT", "TRAP_KIT", "TRAP_SENSE_STONE"])
+  })
+]);
+
 export function getStartingKit(startingKitId) {
-  return STARTING_KITS.find(kit => kit.id === startingKitId) || null;
+  return STARTING_KITS.find(kit => kit.id === startingKitId) ||
+    UNLOCKABLE_STARTING_KITS.find(kit => kit.id === startingKitId) ||
+    null;
+}
+
+/** Supplies a kit carries into every run (empty for the base kits). */
+export function getStartingKitItems(startingKitId) {
+  return [...(getStartingKit(startingKitId)?.items || [])];
 }
 
 // Starting kits are the vNext ownership boundary for departure choices. This

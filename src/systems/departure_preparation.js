@@ -2,7 +2,12 @@
 // plus restoring the previous preparation (#2002). No rule, cost, or reward
 // changes: the same checks the preparation screen has always applied.
 
-import { createStartingKitCharacter, getStartingKit } from "../state/initial_state.js";
+import {
+  STARTING_KITS,
+  createStartingKitCharacter,
+  getStartingKit,
+  getStartingKitItems
+} from "../state/initial_state.js";
 import { ITEMS } from "../data/items.js";
 import { getCharMaxMp } from "../data.js";
 import {
@@ -19,6 +24,7 @@ import { isMedium, syncMediumState } from "../rules/magic_rules.js";
 import { getVNextTrialBaseId } from "../rules/equipment_vnext_trial.js";
 import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { normalizeLastPreparation } from "../state/last_preparation.js";
+import { getUnlockedStartingKitIds } from "./facilities.js";
 
 export const DEPARTURE_BAG_CAPACITY = INVENTORY_CAPACITY;
 export const DEPARTURE_ITEM_LIMITS = Object.freeze({ TOWN_PORTAL: 1 });
@@ -74,13 +80,27 @@ export function getStartingGearOptions(startingKitId, workshop = null) {
     });
 }
 
-/** Bag contents at departure: the Workshop's fixed items, then crafted tools. */
-export function getDepartureBagItems(recipeIds, workshop = null) {
+/** The four base kits plus the kits opened by town facilities, in that order. */
+export function getAvailableStartingKits(facilities = null) {
+  const unlocked = getUnlockedStartingKitIds(facilities).map(getStartingKit).filter(Boolean);
+  return [...STARTING_KITS, ...unlocked];
+}
+
+export function isStartingKitAvailable(startingKitId, facilities = null) {
+  return getAvailableStartingKits(facilities).some(kit => kit.id === startingKitId);
+}
+
+/**
+ * Bag contents at departure: the Workshop's fixed items, the kit's own
+ * supplies, then crafted tools. Only the crafted tools are departure craft;
+ * the rest are handed out every run and never return to storage.
+ */
+export function getDepartureBagItems(recipeIds, workshop = null, startingKitId = null) {
   const fixedItems = getWorkshopGrants(workshop).returnItems || [];
   const craftedItems = getDepartureCraftRecipes(recipeIds)
     .filter(recipe => !recipe.identifyPowder)
     .map(recipe => recipe.resultId);
-  return [...fixedItems, ...craftedItems];
+  return [...fixedItems, ...getStartingKitItems(startingKitId), ...craftedItems];
 }
 
 /**
@@ -90,9 +110,10 @@ export function getDepartureBagItems(recipeIds, workshop = null) {
 export function getCraftSelectionBlockReason(recipe, selectedRecipeIds, {
   workshop = null,
   metaMaterials = {},
-  storage = []
+  storage = [],
+  startingKitId = null
 } = {}) {
-  const selectedItems = getDepartureBagItems(selectedRecipeIds, workshop);
+  const selectedItems = getDepartureBagItems(selectedRecipeIds, workshop, startingKitId);
   if (!recipe.identifyPowder && selectedItems.length >= DEPARTURE_BAG_CAPACITY) {
     return "バッグ上限（20枠）";
   }
@@ -134,10 +155,11 @@ export function resolveLastPreparation(lastPreparation, {
   workshop = null,
   metaMaterials = {},
   storage = [],
-  unlockedMilestones = []
+  unlockedMilestones = [],
+  facilities = null
 } = {}) {
   const last = normalizeLastPreparation(lastPreparation);
-  if (!last || !getStartingKit(last.kitId)) return null;
+  if (!last || !isStartingKitAvailable(last.kitId, facilities)) return null;
   const dropped = [];
 
   let startingGear = null;
@@ -162,7 +184,7 @@ export function resolveLastPreparation(lastPreparation, {
   last.recipeIds.forEach(recipeId => {
     const recipe = CRAFT_RECIPES.find(candidate => candidate.resultId === recipeId);
     const reason = recipe
-      ? getCraftSelectionBlockReason(recipe, recipeIds, { workshop, metaMaterials, storage })
+      ? getCraftSelectionBlockReason(recipe, recipeIds, { workshop, metaMaterials, storage, startingKitId: last.kitId })
       : "今は作れない";
     if (reason) {
       dropped.push({ kind: "item", itemId: recipeId, reason });

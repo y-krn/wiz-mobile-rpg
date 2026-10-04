@@ -23,7 +23,10 @@ export const SPECIAL_ROOMS = Object.freeze({
   BROOD_CHAMBER: "brood_chamber",
   READING_ROOM: "reading_room",
   FORGE: "forge",
-  MIRROR_HALL: "mirror_hall"
+  MIRROR_HALL: "mirror_hall",
+  // Not a biome room: it stands in for the mine vein while the foreman is
+  // still trapped (#2009, `src/systems/facility_rooms.js`).
+  TRAPPED_FOREMAN: "trapped_foreman"
 });
 
 /** Player-facing names and the short line shown when the room is found. */
@@ -33,7 +36,8 @@ export const SPECIAL_ROOM_INFO = Object.freeze({
   brood_chamber: Object.freeze({ name: "巣の卵室", glyph: "卵", intro: "脈打つ卵が並んでいる。巣の主が近くで眠っている気配がする。" }),
   reading_room: Object.freeze({ name: "閲覧室", glyph: "書", intro: "水を免れた閲覧机に、この階の見取り図が残っている。" }),
   forge: Object.freeze({ name: "竜火の炉", glyph: "炉", intro: "炉にまだ竜火が残っている。素材をくべれば武器を鍛え直せる。" }),
-  mirror_hall: Object.freeze({ name: "鏡の間", glyph: "鏡", intro: "鏡の奥に、さらに深い階の景色が揺れている。覗けば何かを奪われる。" })
+  mirror_hall: Object.freeze({ name: "鏡の間", glyph: "鏡", intro: "鏡の奥に、さらに深い階の景色が揺れている。覗けば何かを奪われる。" }),
+  trapped_foreman: Object.freeze({ name: "崩落した詰所", glyph: "人", intro: "崩れた岩の向こうから、人の声がする。鉱夫が閉じ込められている。" })
 });
 
 // Mine vein: digging spends exploration turns and makes noise, like rubble.
@@ -41,6 +45,8 @@ export const VEIN_DIG_TURNS = 3;
 export const VEIN_MATERIAL_BONUS = 1;
 /** Chance that a finished dig draws an ordinary ambush. */
 export const VEIN_AMBUSH_CHANCE = 0.35;
+// Trapped foreman: digging him out costs the same turns and noise as a vein.
+export const FOREMAN_DIG_TURNS = 3;
 // Altar: a cleanse costs materials; the blood blessing converts HP into MP.
 export const ALTAR_CLEANSE_MATERIAL_COST = 2;
 export const ALTAR_BLOOD_HP_RATE = 0.25;

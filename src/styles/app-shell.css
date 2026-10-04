@@ -241,6 +241,7 @@
 
 .feat-hud-list small { flex-shrink: 0; font-size: inherit; }
 .feat-hud-list span.completed { color: var(--neon-green); }
+.feat-hud-list span.companion { color: var(--neon-amber); }
 
 #game-container.result-mode #goal-banner,
 #game-container.result-mode #log-panel,

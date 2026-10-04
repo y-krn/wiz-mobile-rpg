@@ -35,6 +35,12 @@ export const STARTING_KIT_COPY = Object.freeze({
     playstyle: "ルーンの呪文で戦う。MPの使いどころが勝負。",
     strengths: ["最初から呪文を使える", "MPが多い"],
     weaknesses: ["最も打たれ弱い", "杖で殴っても弱い"]
+  }),
+  miner: kitCopy({
+    role: "探索",
+    playstyle: "罠外しと探知の道具を持って潜る。盾はなく、道具で切り抜ける。",
+    strengths: ["罠外しキット2個と探知石を毎回持って始まる", "硬い相手の守りを崩せる"],
+    weaknesses: ["盾がない", "呪文は使えない"]
   })
 });
 

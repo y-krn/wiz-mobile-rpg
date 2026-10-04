@@ -12,10 +12,12 @@ import { consumeExplorationTurn, createNoiseEvent, getCurrentExplorationCell } f
 import { generateChestMaterials } from "../chest.js";
 import { startCombat } from "../combat.js";
 import { applyMirrorVision } from "../state/run_floor_state.js";
+import { COMPANIONS } from "../data/facilities.js";
 import {
   ALTAR_CLEANSE_MATERIAL_COST,
   FORGE_MATERIAL_COST,
   FORGE_TEMPER_BATTLES,
+  FOREMAN_DIG_TURNS,
   READING_TURNS,
   SPECIAL_ROOMS,
   VEIN_AMBUSH_CHANCE,
@@ -218,13 +220,49 @@ function renderMirrorHall(optGrid, cell) {
   }, { disabled: !hero || cost <= 0 });
 }
 
+// Trapped foreman (#2009): dig him out and he follows. Digging costs turns
+// and noise like a vein and can be interrupted; progress stays on the room.
+// He only counts as rescued once the run walks out by the Portal or the Wing.
+function digOutForeman(cell) {
+  const room = getSpecialRoom(cell);
+  createNoiseEvent(state.x, state.y);
+  addLog("崩れた岩を掘り始めた。つるはしの音が坑道に響く…");
+  while ((room.progress || 0) < FOREMAN_DIG_TURNS) {
+    const turn = consumeExplorationTurn();
+    room.progress = (room.progress || 0) + 1;
+    markMapChanged();
+    if (room.progress >= FOREMAN_DIG_TURNS) break;
+    if (!turn.ok || turn.wiped || turn.encounter || state.gameState !== "explore") {
+      addLog(`掘り出しが中断された。残りは${FOREMAN_DIG_TURNS - room.progress}手番分だ。`);
+      saveAutosave();
+      return;
+    }
+  }
+  if (state.currentRun) state.currentRun.companion = COMPANIONS.foreman.id;
+  playSound("item");
+  addLog(`${COMPANIONS.foreman.name}を掘り出した！「恩に着る。街まで連れて行ってくれ」`);
+  addLog(`${COMPANIONS.foreman.name}が同行する。帰還の門か帰還の翼で生還すれば、街に坑夫組合が開く。`);
+  finishRoom(cell);
+}
+
+function renderTrappedForeman(optGrid, cell) {
+  const room = getSpecialRoom(cell);
+  const left = FOREMAN_DIG_TURNS - (room.progress || 0);
+  addDescription(optGrid, `崩れた岩の向こうに鉱夫頭が閉じ込められている。掘り出すと${left}手番かかり、物音が立つ。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
+  addButton(optGrid, `岩を掘って助け出す（${left}手番）`, () => {
+    closeSubmenu();
+    digOutForeman(cell);
+  });
+}
+
 const ROOM_RENDERERS = {
   [SPECIAL_ROOMS.MINE_VEIN]: renderMineVein,
   [SPECIAL_ROOMS.ALTAR]: renderAltar,
   [SPECIAL_ROOMS.BROOD_CHAMBER]: renderBroodChamber,
   [SPECIAL_ROOMS.READING_ROOM]: renderReadingRoom,
   [SPECIAL_ROOMS.FORGE]: renderForge,
-  [SPECIAL_ROOMS.MIRROR_HALL]: renderMirrorHall
+  [SPECIAL_ROOMS.MIRROR_HALL]: renderMirrorHall,
+  [SPECIAL_ROOMS.TRAPPED_FOREMAN]: renderTrappedForeman
 };
 
 export function renderSpecialRoom(optGrid) {
