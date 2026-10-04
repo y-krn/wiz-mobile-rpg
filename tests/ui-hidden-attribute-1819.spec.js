@@ -55,11 +55,14 @@ test('hidden attribute always wins over author display rules @smoke', async ({ p
     expect(await visibleHiddenElements(page), gameState).toEqual([]);
   }
 
-  // The default run profile gives no weapon technique, so the button must
+  // Without an active run no weapon technique is granted, so the button must
   // stay hidden instead of rendering as an empty, inert `.btn`.
   const hasTechnique = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
     const { getTechniqueStatus } = await import('/src/rules/technique_rules.js');
+    state.currentRun = null;
+    updateUI();
     return Boolean(getTechniqueStatus(state, 0).technique);
   });
   expect(hasTechnique).toBe(false);

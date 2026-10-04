@@ -112,6 +112,9 @@ for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await seedCombat(page);
 
+    // Let the first combat layout settle before taking the reference rects.
+    await applyTurn(page, TURNS[0]);
+    await page.waitForTimeout(150);
     const baseline = await applyTurn(page, TURNS[0]);
     const techniqueRects = [];
     for (const turn of TURNS) {
