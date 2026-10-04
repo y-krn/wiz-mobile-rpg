@@ -48,7 +48,13 @@ import {
 import { normalizeRunRecordResult } from "./run_record_result.js";
 import { normalizeRunNearMiss } from "./run_near_miss.js";
 import { normalizeAnnouncedFeatIds, normalizeFeatsState, normalizeRunFeatResult } from "./feats_state.js";
-import { normalizeCompanion, normalizeFacilitiesState, normalizeRunOrderResult } from "./facilities_state.js";
+import {
+  normalizeCompanions,
+  normalizeFacilitiesState,
+  normalizeRunGraveResult,
+  normalizeRunOfferedMaterials,
+  normalizeRunOrderResult
+} from "./facilities_state.js";
 import { normalizeGuidebookState, normalizeRunGuideFragments, normalizeRunGuideResult } from "./guidebook_state.js";
 import { normalizeStartingKitId } from "./starting_kit.js";
 import {
@@ -671,7 +677,10 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.nearMiss = normalizeRunNearMiss(normalized.nearMiss);
   normalized.featResult = normalizeRunFeatResult(normalized.featResult);
   normalized.featsAnnounced = normalizeAnnouncedFeatIds(normalized.featsAnnounced);
-  normalized.companion = normalizeCompanion(normalized.companion);
+  normalized.companions = normalizeCompanions(normalized.companions, normalized.companion);
+  delete normalized.companion;
+  normalized.offeredMaterials = normalizeRunOfferedMaterials(normalized.offeredMaterials);
+  normalized.graveResult = normalizeRunGraveResult(normalized.graveResult);
   normalized.guideFragments = normalizeRunGuideFragments(normalized.guideFragments);
   normalized.guideResult = normalizeRunGuideResult(normalized.guideResult);
   normalized.orderResult = normalizeRunOrderResult(normalized.orderResult);

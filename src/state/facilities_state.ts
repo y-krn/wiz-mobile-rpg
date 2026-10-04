@@ -14,6 +14,8 @@ export interface NormalizedFacilitiesState {
   nodes: string[];
   /** At most one open order per facility, keyed by facility id (#2014). */
   orders?: Record<string, FacilityOrderState>;
+  /** Materials the chapel grave keeps from the last death (#2018). */
+  grave?: Record<string, number>;
 }
 
 /** What the end of a run did with the open orders, for the result screen. */
@@ -31,8 +33,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+const GRAVE_TYPE_LIMIT = 40;
+const GRAVE_QUANTITY_LIMIT = 999;
+
 export function createDefaultFacilitiesState(): NormalizedFacilitiesState {
-  return { nodes: [], orders: {} };
+  return { nodes: [], orders: {}, grave: {} };
+}
+
+function isGrave(value: unknown): value is Record<string, number> {
+  if (!isRecord(value)) return false;
+  const entries = Object.entries(value);
+  return entries.length <= GRAVE_TYPE_LIMIT && entries.every(([name, quantity]) =>
+    name.length > 0 && typeof quantity === "number" && Number.isInteger(quantity) &&
+    quantity > 0 && quantity <= GRAVE_QUANTITY_LIMIT);
+}
+
+function normalizeGrave(value: unknown): Record<string, number> {
+  const grave: Record<string, number> = {};
+  if (!isRecord(value)) return grave;
+  Object.entries(value).slice(0, GRAVE_TYPE_LIMIT).forEach(([name, quantity]) => {
+    const count = Math.min(GRAVE_QUANTITY_LIMIT, Math.floor(Number(quantity)));
+    if (name && Number.isFinite(count) && count > 0) grave[name] = count;
+  });
+  return grave;
 }
 
 function isItemIdList(value: unknown): value is string[] {
@@ -49,6 +72,7 @@ export function isNormalizedFacilitiesState(value: unknown): value is Normalized
   if (!isRecord(value) || !Array.isArray(value.nodes) || value.nodes.length > NODE_LIMIT) return false;
   if (!value.nodes.every(nodeId => typeof nodeId === "string" && nodeId.length > 0)) return false;
   if (new Set(value.nodes).size !== value.nodes.length) return false;
+  if (value.grave !== undefined && !isGrave(value.grave)) return false;
   if (value.orders === undefined) return true;
   return isRecord(value.orders) &&
     Object.entries(value.orders).every(([facilityId, order]) => facilityId.length > 0 && isOrderState(order));
@@ -70,7 +94,8 @@ export function normalizeFacilitiesState(value: unknown): NormalizedFacilitiesSt
   return {
     nodes: [...new Set(source.filter((nodeId): nodeId is string => typeof nodeId === "string" && nodeId.length > 0))]
       .slice(0, NODE_LIMIT),
-    orders
+    orders,
+    grave: normalizeGrave(isRecord(value) ? value.grave : null)
   };
 }
 
@@ -90,15 +115,48 @@ export function normalizeRunOrderResult(value: unknown): NormalizedRunOrderResul
   return delivered.length > 0 || waiting > 0 ? { delivered, waiting } : null;
 }
 
-/** People who can be led out of the dungeon. */
-export const COMPANION_IDS = Object.freeze(["foreman"] as const);
+/** People who can be led out of the dungeon, one per facility. */
+export const COMPANION_IDS = Object.freeze(["foreman", "priest"] as const);
 export type CompanionId = typeof COMPANION_IDS[number];
-export type NormalizedCompanion = CompanionId | null;
+/** Everyone the run is leading out right now, in the order they joined. */
+export type NormalizedCompanions = CompanionId[];
 
-export function isNormalizedCompanion(value: unknown): value is NormalizedCompanion {
-  return value === null || (typeof value === "string" && COMPANION_IDS.includes(value as CompanionId));
+function isCompanionId(value: unknown): value is CompanionId {
+  return typeof value === "string" && COMPANION_IDS.includes(value as CompanionId);
 }
 
-export function normalizeCompanion(value: unknown): NormalizedCompanion {
-  return isNormalizedCompanion(value) ? value : null;
+export function isNormalizedCompanions(value: unknown): value is NormalizedCompanions {
+  return Array.isArray(value) && value.every(isCompanionId) && new Set(value).size === value.length;
+}
+
+/**
+ * Normalize the escort list. `legacy` is the single `companion` id a save
+ * from before #2018 stored; it is folded into the list.
+ */
+export function normalizeCompanions(value: unknown, legacy: unknown = null): NormalizedCompanions {
+  const source = [...(Array.isArray(value) ? value : []), legacy];
+  return [...new Set(source.filter(isCompanionId))];
+}
+
+/** Materials an offering sent home during the run (#2018): safe whatever the outcome. */
+export type NormalizedRunOfferedMaterials = Record<string, number>;
+
+export function isNormalizedRunOfferedMaterials(value: unknown): value is NormalizedRunOfferedMaterials {
+  return isGrave(value);
+}
+
+export function normalizeRunOfferedMaterials(value: unknown): NormalizedRunOfferedMaterials {
+  return normalizeGrave(value);
+}
+
+/** What a death left on the chapel grave, for the result screen (#2018). */
+export type NormalizedRunGraveResult = Record<string, number> | null;
+
+export function isNormalizedRunGraveResult(value: unknown): value is NormalizedRunGraveResult {
+  return value === null || (isGrave(value) && Object.keys(value).length > 0);
+}
+
+export function normalizeRunGraveResult(value: unknown): NormalizedRunGraveResult {
+  const grave = normalizeGrave(value);
+  return Object.keys(grave).length > 0 ? grave : null;
 }

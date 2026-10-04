@@ -1,8 +1,14 @@
 // Facility state queries and node purchases (#2009). A purchase spends town
 // materials on a horizontal unlock; it is mapped to the workshop domain.
 
-import { FACILITIES, FACILITY_BY_ID, FACILITY_NODE_BY_ID, FACILITY_ORDER_BY_ID } from "../data/facilities.js";
-import { normalizeFacilitiesState } from "../state/facilities_state.js";
+import {
+  COMPANIONS,
+  FACILITIES,
+  FACILITY_BY_ID,
+  FACILITY_NODE_BY_ID,
+  FACILITY_ORDER_BY_ID
+} from "../data/facilities.js";
+import { normalizeCompanions, normalizeFacilitiesState } from "../state/facilities_state.js";
 import { normalizeFeatsState } from "../state/feats_state.js";
 import { getFeat, getFeatProgress, formatFeatProgress } from "./feats.js";
 import { spendMaterials } from "../rules/material_rules.js";
@@ -19,6 +25,27 @@ export function isFacilityOpen(featsState, facilityId) {
 
 export function listFacilities(featsState) {
   return FACILITIES.map(facility => ({ facility, open: isFacilityOpen(featsState, facility.id) }));
+}
+
+/**
+ * What the town shows: every open facility, plus the shallowest one that is
+ * still closed, as the next person to look for (#2018). The deeper closed
+ * ones stay hidden until then.
+ */
+export function listTownFacilities(featsState) {
+  const entries = listFacilities(featsState);
+  const nextClosed = entries.find(entry => !entry.open);
+  return entries.filter(entry => entry.open || entry === nextClosed);
+}
+
+/** Everyone the run is leading out, in the order they joined. */
+export function listRunCompanions(run) {
+  return normalizeCompanions(run?.companions).map(companionId => COMPANIONS[companionId]);
+}
+
+/** "鉱夫頭・司祭", or "" when the run leads no one. */
+export function getEscortNames(run) {
+  return listRunCompanions(run).map(companion => companion.name).join("・");
 }
 
 export function isFacilityNodeBought(facilitiesState, nodeId) {

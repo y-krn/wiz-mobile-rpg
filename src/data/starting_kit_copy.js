@@ -41,6 +41,12 @@ export const STARTING_KIT_COPY = Object.freeze({
     playstyle: "罠外しと探知の道具を持って潜る。盾はなく、道具で切り抜ける。",
     strengths: ["罠外しキット2個と探知石を毎回持って始まる", "硬い相手の守りを崩せる"],
     weaknesses: ["盾がない", "呪文は使えない"]
+  }),
+  pilgrim: kitCopy({
+    role: "対呪文",
+    playstyle: "魔法盾で呪文を受け流し、剣で斬る。聖水が1度の立て直しになる。",
+    strengths: ["呪文を使う敵に強い", "祝福の聖水を毎回持って始まる"],
+    weaknesses: ["鎧が薄く、殴り合いに弱い", "呪文は使えない"]
   })
 });
 

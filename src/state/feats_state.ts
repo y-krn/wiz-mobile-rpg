@@ -20,6 +20,8 @@ export interface FeatCounters {
   traplessDepth: number;
   /** 1 once the foreman has been led out by a safe return. */
   foremanRescued: number;
+  /** 1 once the priest has been led out by a safe return (#2018). */
+  priestRescued: number;
   /** Guidebook pages decoded in the town. */
   guidePagesDecoded: number;
   /** Deepest floor reached from B1F with each starting kit. */
@@ -46,7 +48,7 @@ export type NormalizedRunFeatResult = RunFeatResult | null;
 
 const SCALAR_COUNTER_KEYS = Object.freeze([
   "bestDepth", "guardianDepth", "elitesKilled", "disruptorsKilled",
-  "amplifiersKilled", "chestsOpened", "safeReturns", "traplessDepth", "foremanRescued",
+  "amplifiersKilled", "chestsOpened", "safeReturns", "traplessDepth", "foremanRescued", "priestRescued",
   "guidePagesDecoded"
 ] as const);
 
@@ -77,6 +79,7 @@ export function createDefaultFeatCounters(): FeatCounters {
     safeReturns: 0,
     traplessDepth: 0,
     foremanRescued: 0,
+    priestRescued: 0,
     guidePagesDecoded: 0,
     kitDepths: Object.fromEntries(STARTING_KIT_IDS.map(kitId => [kitId, 0])) as Record<BaseStartingKitId, number>
   };

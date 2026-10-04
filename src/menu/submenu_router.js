@@ -5,6 +5,7 @@ import { renderCastleMain, renderCastleDeathLogs } from "./town_actions.js";
 import { renderWorkshop } from "./workshop_view.js";
 import { renderFeatList } from "./feat_list.js";
 import { renderFacility } from "./facility_view.js";
+import { FACILITIES } from "../data/facilities.js";
 import { renderGuidebook } from "./guidebook_view.js";
 import { renderMilestoneMerchant } from "./milestone_merchant.js";
 import { renderMilestonePortal } from "./milestone_portal.js";
@@ -21,7 +22,10 @@ const SUBMENU_RENDERERS = {
   workshop_main: (optGrid) => renderWorkshop(optGrid),
   feats_main: (optGrid) => renderFeatList(optGrid),
   guidebook_main: (optGrid) => renderGuidebook(optGrid),
-  facility_miner_guild: (optGrid) => renderFacility(optGrid, "miner_guild"),
+  ...Object.fromEntries(FACILITIES.map(facility => [
+    `facility_${facility.id}`,
+    (optGrid) => renderFacility(optGrid, facility.id)
+  ])),
   milestone_merchant: (optGrid) => renderMilestoneMerchant(optGrid),
   milestone_portal: (optGrid) => renderMilestonePortal(optGrid),
   stairs_down: (optGrid) => renderStairsDown(optGrid),

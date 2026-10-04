@@ -18,7 +18,7 @@ import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
 import { getDepthCorruption, getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
 import { formatFeatProgress, getFeat, getLiveFeatCounters, getNearestFeats } from "../systems/feats.js";
-import { COMPANIONS } from "../data/facilities.js";
+import { getEscortNames } from "../systems/facilities.js";
 import { updateRecordsStrip } from "./records_view.js";
 import { renderTownHome } from "./town_home.js";
 import { getScreenViewState } from "../state/view_state.js";
@@ -297,9 +297,9 @@ function getHudFeats() {
   const nearest = getNearestFeats(state.feats, getLiveFeatCounters(state.feats, run), 2)
     .map(({ feat, progress }) => ({ name: feat.name, progress: formatFeatProgress(feat, progress, run), completed: false }));
   // Someone being led out comes first: it is what this run now stands to lose.
-  const companion = COMPANIONS[run.companion];
-  const escort = companion
-    ? [{ name: `同行：${companion.name}`, progress: "生還で救出", completed: false, companion: true }]
+  const escortNames = getEscortNames(run);
+  const escort = escortNames
+    ? [{ name: `同行：${escortNames}`, progress: "生還で救出", completed: false, companion: true }]
     : [];
   // Fragments are lost unless the run walks out: show them with the escort.
   const fragments = Math.max(0, Math.floor(Number(run.guideFragments) || 0));
@@ -546,8 +546,9 @@ export function updateUI() {
       statsContainer.className = "goal-stats-container";
       statsContainer.appendChild(createGoalStat("🗺️", "探索率: ", `${expRate}%`));
       const hudFeatsForSummary = getHudFeats();
-      if (isExploreHud && COMPANIONS[state.currentRun?.companion]) {
-        const escortSummary = createGoalStat("👤", "同行 ", COMPANIONS[state.currentRun.companion].name);
+      const escortNames = getEscortNames(state.currentRun);
+      if (isExploreHud && escortNames) {
+        const escortSummary = createGoalStat("👤", "同行 ", escortNames);
         escortSummary.className = "goal-feat-summary goal-companion-summary";
         statsContainer.appendChild(escortSummary);
       }

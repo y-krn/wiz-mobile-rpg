@@ -10,6 +10,8 @@ import {
   normalizeFeatsState
 } from "../state/feats_state.js";
 import { STARTING_KIT_IDS } from "../state/starting_kit.js";
+import { normalizeCompanions } from "../state/facilities_state.js";
+import { COMPANIONS } from "../data/facilities.js";
 
 const count = value => Math.max(0, Math.floor(Number(value) || 0));
 
@@ -50,7 +52,9 @@ export function addRunToFeatCounters(counters, run, outcome = null) {
   if (outcome === "retreat") {
     next.safeReturns += 1;
     // A companion is rescued only by walking out: the Portal or the Wing.
-    if (run.companion === "foreman") next.foremanRescued = 1;
+    normalizeCompanions(run.companions).forEach(companionId => {
+      next[COMPANIONS[companionId].counterKey] = 1;
+    });
   }
   // Starting from a milestone floor would hand these out for free, so only
   // descents from B1F count.
@@ -84,7 +88,9 @@ export function getFeatProgress(feat, counters) {
 export function formatFeatProgress(feat, progress, run = null) {
   if (feat.metric.unit === "rescue") {
     if (progress.current >= progress.target) return "救出";
-    return run && !run.returnReason && run.companion === feat.metric.companion ? "同行中" : "未救出";
+    return run && !run.returnReason && normalizeCompanions(run.companions).includes(feat.metric.companion)
+      ? "同行中"
+      : "未救出";
   }
   if (feat.metric.unit === "floor") {
     return `${progress.current > 0 ? `B${progress.current}F` : "未到達"} / B${progress.target}F`;

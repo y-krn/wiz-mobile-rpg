@@ -28,7 +28,11 @@ export const SPECIAL_ROOMS = Object.freeze({
   // still trapped (#2009, `src/systems/facility_rooms.js`).
   TRAPPED_FOREMAN: "trapped_foreman",
   // The same cell once the miner guild has built its outpost there (#2010).
-  MINER_OUTPOST: "miner_outpost"
+  MINER_OUTPOST: "miner_outpost",
+  // The catacomb altar while the priest is sealed in it, and once the chapel
+  // tends it (#2018).
+  SEALED_PRIEST: "sealed_priest",
+  CHAPEL_ALTAR: "chapel_altar"
 });
 
 /** Player-facing names and the short line shown when the room is found. */
@@ -40,7 +44,9 @@ export const SPECIAL_ROOM_INFO = Object.freeze({
   forge: Object.freeze({ name: "竜火の炉", glyph: "炉", intro: "炉にまだ竜火が残っている。素材をくべれば武器を鍛え直せる。" }),
   mirror_hall: Object.freeze({ name: "鏡の間", glyph: "鏡", intro: "鏡の奥に、さらに深い階の景色が揺れている。覗けば何かを奪われる。" }),
   trapped_foreman: Object.freeze({ name: "崩落した詰所", glyph: "人", intro: "崩れた岩の向こうから、人の声がする。鉱夫が閉じ込められている。" }),
-  miner_outpost: Object.freeze({ name: "坑夫の詰所", glyph: "詰", intro: "組合の坑夫が詰めている。補給を分けてくれるという。" })
+  miner_outpost: Object.freeze({ name: "坑夫の詰所", glyph: "詰", intro: "組合の坑夫が詰めている。補給を分けてくれるという。" }),
+  sealed_priest: Object.freeze({ name: "封じられた祭壇", glyph: "人", intro: "祭壇の奥から、かすかな祈りの声がする。誰かが封じられている。" }),
+  chapel_altar: Object.freeze({ name: "礼拝堂の祭壇", glyph: "灯", intro: "礼拝堂の灯が祭壇にともっている。浄め、血の祝福、そして献灯。" })
 });
 
 // Mine vein: digging spends exploration turns and makes noise, like rubble.
@@ -48,8 +54,6 @@ export const VEIN_DIG_TURNS = 3;
 export const VEIN_MATERIAL_BONUS = 1;
 /** Chance that a finished dig draws an ordinary ambush. */
 export const VEIN_AMBUSH_CHANCE = 0.35;
-// Trapped foreman: digging him out costs the same turns and noise as a vein.
-export const FOREMAN_DIG_TURNS = 3;
 // Miner outpost: one supply per run, or (once bought) a blast that clears the
 // floor's rubble. The blast is loud: its noise lingers longer than a dig's.
 export const OUTPOST_SUPPLY_ITEM_IDS = Object.freeze(["HEAL_POTION", "ANTIDOTE", "TRAP_KIT"]);
@@ -98,6 +102,56 @@ export function getAltarBloodCost(char, maxHp) {
   const hp = Math.max(0, Math.floor(Number(char?.hp) || 0));
   const cost = Math.max(1, Math.ceil((Number(maxHp) || 1) * ALTAR_BLOOD_HP_RATE));
   return Math.min(cost, Math.max(0, hp - 1));
+}
+
+/** HP a keeper's seal takes: a share of max HP, never the last point (#2018). */
+export function getRescueBloodCost(char, maxHp, rate) {
+  const hp = Math.max(0, Math.floor(Number(char?.hp) || 0));
+  const cost = Math.max(1, Math.ceil((Number(maxHp) || 1) * (Number(rate) || 0)));
+  return Math.min(cost, Math.max(0, hp - 1));
+}
+
+/**
+ * What a chapel offering can send home: for each material the run carries,
+ * the whole stack up to the limit. Pure.
+ */
+export function getOfferingChoices(runMaterials, limit) {
+  return Object.entries(runMaterials || {})
+    .map(([name, quantity]) => ({ name, quantity: Math.min(limit, Math.max(0, Math.floor(Number(quantity) || 0))) }))
+    .filter(choice => choice.quantity > 0);
+}
+
+/**
+ * Move one offering from the carried materials to the offered ones. Pure:
+ * returns the next balances, or null when the run does not carry the material.
+ */
+export function applyOffering(runMaterials, offeredMaterials, name, limit) {
+  const choice = getOfferingChoices(runMaterials, limit).find(candidate => candidate.name === name);
+  if (!choice) return null;
+  const materials = { ...runMaterials, [name]: Math.floor(Number(runMaterials[name]) || 0) - choice.quantity };
+  if (materials[name] <= 0) delete materials[name];
+  return {
+    materials,
+    offered: { ...offeredMaterials, [name]: (Math.floor(Number(offeredMaterials?.[name]) || 0)) + choice.quantity },
+    sent: choice.quantity
+  };
+}
+
+/**
+ * What the grave keeps of the materials a death lost: a share of each type,
+ * rounded down, up to a total limit in the order the materials are given.
+ * Pure.
+ */
+export function getGraveMaterials(lostMaterials, rate, limit) {
+  const grave = {};
+  let room = Math.max(0, Math.floor(Number(limit) || 0));
+  Object.entries(lostMaterials || {}).forEach(([name, quantity]) => {
+    const kept = Math.min(room, Math.floor(Math.max(0, Number(quantity) || 0) * rate));
+    if (kept <= 0) return;
+    grave[name] = kept;
+    room -= kept;
+  });
+  return grave;
 }
 
 /** HP the mirror takes: a share of max HP, never the last point. */

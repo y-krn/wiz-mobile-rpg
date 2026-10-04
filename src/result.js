@@ -5,8 +5,16 @@ import { bankRunMaterials } from "./rules/material_rules.js";
 import { settleRunFeats } from "./systems/feats.js";
 import { normalizeRunFeatResult } from "./state/feats_state.js";
 import { settleRunFragments } from "./systems/guidebook.js";
-import { settleFacilityOrders } from "./systems/facilities.js";
-import { normalizeRunOrderResult } from "./state/facilities_state.js";
+import { isFacilityNodeBought, settleFacilityOrders } from "./systems/facilities.js";
+import {
+  normalizeFacilitiesState,
+  normalizeRunGraveResult,
+  normalizeRunOfferedMaterials,
+  normalizeRunOrderResult
+} from "./state/facilities_state.js";
+import { CHAPEL_GRAVE_LIMIT, CHAPEL_GRAVE_RATE } from "./data/facilities.js";
+import { MATERIAL_TYPES } from "./data/materials.js";
+import { getGraveMaterials } from "./rules/special_rooms.js";
 import { normalizeRunGuideResult } from "./state/guidebook_state.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry.js";
@@ -82,7 +90,17 @@ export function triggerRunResult(reason) {
   run.workshopDiscoveries = normalizeRunWorkshopDiscoveries(
     normalizeRunKeyItemsBefore(state.keyItems).filter(keyItem => !previousKeyItems.has(keyItem))
   );
-  run.materialsBeforeBanking = { ...(run.materials || {}) };
+  // A chapel offering sent these home during the run (#2018): they count as
+  // found and as banked whatever the outcome, and are never at stake.
+  const offered = normalizeRunOfferedMaterials(run.offeredMaterials);
+  const addOffered = balance => {
+    const total = { ...(balance || {}) };
+    Object.entries(offered).forEach(([name, quantity]) => {
+      total[name] = (total[name] || 0) + quantity;
+    });
+    return total;
+  };
+  run.materialsBeforeBanking = addOffered(run.materials);
   run.goldEarned = Number(run.goldEarned ?? run.gold) || 0;
   run.lootCount = Number(run.lootCount) || Object.values(run.materialsBeforeBanking)
     .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
@@ -91,8 +109,26 @@ export function triggerRunResult(reason) {
     run.materials,
     outcome
   );
-  state.metaMaterials = banking.balance;
-  run.bankedMaterials = banking.banked;
+  state.metaMaterials = addOffered(banking.balance);
+  run.bankedMaterials = addOffered(banking.banked);
+  // The chapel grave (#2018) keeps part of what a death lost, for a later run
+  // to take back at the chapel altar. It stays until taken and fills up to
+  // its limit across deaths.
+  if (isDeath && isFacilityNodeBought(state.facilities, "chapel_grave")) {
+    const facilities = normalizeFacilitiesState(state.facilities);
+    const lost = Object.fromEntries(MATERIAL_TYPES.map(name => [
+      name,
+      (Number(run.materials?.[name]) || 0) - (Number(banking.banked?.[name]) || 0)
+    ]));
+    const held = Object.values(facilities.grave).reduce((sum, quantity) => sum + quantity, 0);
+    const added = getGraveMaterials(lost, CHAPEL_GRAVE_RATE, CHAPEL_GRAVE_LIMIT - held);
+    const grave = { ...facilities.grave };
+    Object.entries(added).forEach(([name, quantity]) => {
+      grave[name] = (grave[name] || 0) + quantity;
+    });
+    state.facilities = { ...facilities, grave };
+    run.graveResult = normalizeRunGraveResult(added);
+  }
   const recordResult = finalizeRunRecords(
     state.records,
     run,

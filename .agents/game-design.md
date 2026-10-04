@@ -175,6 +175,20 @@ existing room. A node may name a feat as its condition; the condition and its
 progress are shown before it can be bought. Supplies a kit carries are handed
 out at every departure and never return to storage.
 
+Every biome band can hold one facility. Its keeper waits on the band's third
+floor, in place of the biome's special room, and freeing them costs what that
+room already trades in (turns and noise, HP, materials, or a fight). A run may
+lead several keepers at once; all are rescued by a safe return and all stay
+behind after a death or an abandoned run. The town shows the open facilities
+and only the shallowest closed one, so there is always one next person to look
+for and the deeper ones are not spelled out in advance.
+
+A facility may soften the cost of dying only inside the materials economy and
+only at its own room: the chapel's offering makes a bounded share of the
+carried materials safe, and its grave turns part of a death's loss into the
+next run's destination. Neither adds a currency, protects object loot, or
+removes the gap between a safe return and a death.
+
 A facility may also take an order (仕込み): materials are paid when it is
 placed, and the goods enter storage at the next safe return. An order costs
 less than departure craft because it only pays off for a run that walks out;
