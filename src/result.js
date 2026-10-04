@@ -6,6 +6,7 @@ import { updateRunQuests } from "./systems/run_quests.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry.js";
 import { processRunReturn } from "./systems/run_return.js";
+import { buildDeathNearMiss } from "./rules/near_miss.js";
 import { normalizeRunRecordResult } from "./state/run_record_result.js";
 import { normalizeStartingKitId } from "./state/starting_kit.js";
 import { normalizeDeathHistory, normalizeDeathHistoryEntry } from "./state/death_logs.js";
@@ -33,6 +34,19 @@ export function triggerRunResult(reason) {
   const objectLootOutcome = reason === "escape_scroll"
     ? "wing"
     : isSuccess ? "retreat" : "loss";
+  // Capture the death facts before settlement clears the bag and before the
+  // records absorb this run, so the gap is measured against the prior best.
+  run.nearMiss = isDeath
+    ? buildDeathNearMiss({
+      floor: state.floor,
+      deepestFloor: run.deepestFloor,
+      previousBestFloor: state.records?.personalBests?.deepestFloor,
+      defeatedMilestones: run.defeatedMilestones,
+      deathLog: run.deathLogs?.at(-1) || null,
+      combat: state.combatState,
+      inventory: state.inventory
+    })
+    : null;
   const settlementSnapshotPoint = "terminal_settlement_before";
   trackLootStakeSnapshot(settlementSnapshotPoint, {
     state,

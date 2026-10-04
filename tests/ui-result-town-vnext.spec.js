@@ -151,6 +151,71 @@ test('Death result loses unused departure supplies and dungeon loot', async ({ p
   expect(loot.loot).not.toContain('倉庫へ戻った持込品');
 });
 
+test('Death result states how close the run was', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const facts = await page.evaluate(async () => {
+    const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
+    const { triggerRunResult } = await import('/src/result.js');
+    initNewGame();
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.inventory = ['TOWN_PORTAL', 'HEAL_POTION', 'HEAL_POTION'];
+    state.currentRun = createDefaultCurrentRun();
+    state.currentRun.townInventory = state.inventory.slice();
+    state.currentRun.departureCraftItems = state.inventory.slice();
+    state.currentRun.deepestFloor = 5;
+    state.floor = 5;
+    state.records.personalBests.deepestFloor = 7;
+    state.combatState = { isBoss: true, monsters: [{ name: 'デーモンガード', hp: 20, maxHp: 120 }] };
+    state.gameState = 'combat';
+    triggerRunResult('gameover');
+    const section = document.querySelector('[data-result-near-miss]');
+    return {
+      heading: section?.querySelector('h2')?.textContent || '',
+      items: [...(section?.querySelectorAll('li') || [])].map(item => item.textContent),
+      text: section?.textContent || ''
+    };
+  });
+
+  expect(facts.heading).toContain('あと少しだった点');
+  expect(facts.items).toEqual([
+    '階層守護者・デーモンガードを重傷まで追い込んでいた',
+    '自己最深 B7F まであと2階だった',
+    '帰還の門は、この階の階層守護者の先にあった',
+    '使わずに残っていた物：帰還の翼×1、傷薬×2'
+  ]);
+  expect(facts.text).not.toMatch(/%/);
+
+  await page.reload();
+  await expect(page.locator('[data-result-near-miss] li').first())
+    .toHaveText('階層守護者・デーモンガードを重傷まで追い込んでいた');
+});
+
+test('Return result shows no near-miss section', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const sections = await page.evaluate(async () => {
+    const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
+    const { triggerRunResult } = await import('/src/result.js');
+    const counts = [];
+    for (const reason of ['milestone_portal', 'abandon']) {
+      initNewGame();
+      state.party = [createStartingKitCharacter('vanguard')];
+      state.inventory = ['TOWN_PORTAL'];
+      state.currentRun = createDefaultCurrentRun();
+      state.currentRun.deepestFloor = 3;
+      state.floor = 3;
+      state.records.personalBests.deepestFloor = 7;
+      state.gameState = 'explore';
+      triggerRunResult(reason);
+      counts.push(document.querySelectorAll('[data-result-near-miss]').length);
+    }
+    return counts;
+  });
+
+  expect(sections).toEqual([0, 0]);
+});
+
 test('Town home is organized as previous run, next descent, and accumulated knowledge', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

@@ -46,6 +46,7 @@ import {
   normalizeReturnProcessing
 } from "./run_return_state.js";
 import { normalizeRunRecordResult } from "./run_record_result.js";
+import { normalizeRunNearMiss } from "./run_near_miss.js";
 import { normalizeStartingKitId } from "./starting_kit.js";
 import {
   normalizeRunFirstKillsBefore,
@@ -661,6 +662,7 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.codexInsights = normalizeRunInsights(normalized.codexInsights);
   normalized.workshopUnlocks = normalizeWorkshopUnlocks(normalized.workshopUnlocks);
   normalized.returnProcessing = normalizeReturnProcessing(normalized.returnProcessing);
+  normalized.nearMiss = normalizeRunNearMiss(normalized.nearMiss);
   normalized.recordResult = normalizeRunRecordResult(normalized.recordResult);
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);
