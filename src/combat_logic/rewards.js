@@ -8,6 +8,7 @@ import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { createMonsterCodexRecord, recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
 import { getFeatAnnouncementLines, recordRoleDefeats } from "../systems/feats.js";
 import { addRunFragments, getVictoryFragments } from "../systems/guidebook.js";
+import { freeKeeperAfterFight } from "../systems/facility_rooms.js";
 import { settlePhase4jBExpOwnership } from "../rules/phase4j_b_trial.js";
 
 function rollCombatAccessoryDrop(state, rng) {
@@ -382,8 +383,20 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
       triggerChest: true
     });
   } else if (state.combatState.isBrood) {
+    // A keeper cocooned in this brood chamber is freed by the victory (#2019).
+    const freed = freeKeeperAfterFight(state.map?.[state.y]?.[state.x], state.currentRun);
+    if (freed) {
+      state.mapRevision = (state.mapRevision ?? 0) + 1;
+      logQueue.push({
+        msg: `巣の主を倒した！繭を切り開くと、${freed.companion.name}が這い出してきた。「ありがとう。街まで連れて行って」`,
+        sound: "item"
+      });
+      logQueue.push({
+        msg: `${freed.companion.name}が同行する。帰還の門か帰還の翼で生還すれば、街に${freed.name}が開く。`
+      });
+    }
     logQueue.push({
-      msg: "巣の主を倒した！卵室の奥に、獲物の遺した荷が積まれている。",
+      msg: freed ? "卵室の奥に、獲物の遺した荷が積まれている。" : "巣の主を倒した！卵室の奥に、獲物の遺した荷が積まれている。",
       sound: "item"
     });
     logQueue.push({

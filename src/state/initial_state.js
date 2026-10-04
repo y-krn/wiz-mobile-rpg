@@ -123,7 +123,9 @@ export const STARTING_KITS = Object.freeze([
     id: "arcana",
     name: "術式の旅装キット",
     description: "魔術師の杖・ローブ",
-    gear: Object.freeze(["WAND", "ROBE"])
+    gear: Object.freeze(["WAND", "ROBE"]),
+    // The medium starts with the basic rune set, so spells work from turn one.
+    startsWithRune: true
   })
 ]);
 
@@ -146,6 +148,25 @@ export const UNLOCKABLE_STARTING_KITS = Object.freeze([
     description: "ショートソード・魔法盾・ローブ・祝福の聖水",
     gear: Object.freeze(["SHORT_SWORD", "MAGIC_SHIELD", "ROBE"]),
     items: Object.freeze(["HOLY_WATER"])
+  }),
+  // The weaving house's kit (#2019): light and quiet, with the tools to
+  // slip past ordinary monsters instead of a shield.
+  Object.freeze({
+    id: "stalker",
+    name: "忍び足キット",
+    description: "ダガー・探索者の外套・静寂の香2個・鳴らし玉",
+    gear: Object.freeze(["DAGGER", "EXPLORER_CLOAK"]),
+    items: Object.freeze(["SILENCE_INCENSE", "SILENCE_INCENSE", "NOISE_BALL"])
+  }),
+  // The scriptorium's kit (#2019): a two-handed staff with the basic rune
+  // already set, and mana to spend.
+  Object.freeze({
+    id: "scribe",
+    name: "写本師キット",
+    description: "賢者の杖・ローブ・魔力草2個",
+    gear: Object.freeze(["SAGE_STAFF", "ROBE"]),
+    items: Object.freeze(["MANA_POTION", "MANA_POTION"]),
+    startsWithRune: true
   })
 ]);
 
@@ -193,7 +214,7 @@ export function createStartingKitCharacter(startingKitId) {
       character.equipment[slot] = itemId;
     }
   });
-  if (kit.id === "arcana") {
+  if (kit.startsWithRune) {
     character.mediumState = {
       mediumKey: character.equipment.weapon,
       socketedRunes: [BASIC_RUNE_ITEM_ID]

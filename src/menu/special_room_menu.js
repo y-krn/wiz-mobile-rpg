@@ -5,7 +5,8 @@ import { state, addLog, saveAutosave, markMapChanged, addInventoryItem, hasInven
 import { playSound } from "../audio.js";
 import { closeSubmenu } from "../navigation.js";
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
-import { getCharWeaponAtk } from "../rules/character_stats.js";
+import { getCharEquipmentDef, getCharWeaponAtk } from "../rules/character_stats.js";
+import { addRunFragments } from "../systems/guidebook.js";
 import { getTotalMaterialCount, spendAnyMaterials } from "../rules/material_rules.js";
 import { hasStatusEffect, removeStatusEffect, STATUS_EFFECT_IDS } from "../combat_logic/status_effects.js";
 import { consumeExplorationTurn, createNoiseEvent, getCurrentExplorationCell } from "../movement.js";
@@ -18,6 +19,11 @@ import { normalizeCompanions, normalizeFacilitiesState } from "../state/faciliti
 import { ITEMS } from "../data/items.js";
 import {
   ALTAR_CLEANSE_MATERIAL_COST,
+  COPY_FRAGMENTS,
+  COPY_TURNS,
+  HAMMOCK_REST_TURNS,
+  MENDING_BATTLES,
+  MENDING_MATERIAL_COST,
   FORGE_MATERIAL_COST,
   FORGE_TEMPER_BATTLES,
   OUTPOST_BLAST_NOISE_TTL,
@@ -27,12 +33,15 @@ import {
   VEIN_AMBUSH_CHANCE,
   VEIN_DIG_TURNS,
   VEIN_MATERIAL_BONUS,
+  applyArmorMend,
   applyForgeTemper,
   applyOffering,
   cleanseAltarStatuses,
   clearFloorRubble,
   describeDirection,
   getAltarBloodCost,
+  getArmorMendAmount,
+  getHammockRestAmount,
   getForgeTemperAmount,
   getMirrorHpCost,
   getOfferingChoices,
@@ -329,14 +338,152 @@ function renderBloodRescue(optGrid, cell, facility) {
   if (hero && cost <= 0) addDescription(optGrid, "いまのHPでは、封印に捧げる血が足りない。");
 }
 
+// Draining a flooded room is quiet work: turns only, and it can be
+// interrupted; progress stays on the room.
+function drainForKeeper(cell, facility) {
+  const room = getSpecialRoom(cell);
+  const turns = facility.site.rescue.turns;
+  addLog("水門の輪を回し始めた。水がゆっくりと引いていく…");
+  while ((room.progress || 0) < turns) {
+    const turn = consumeExplorationTurn();
+    room.progress = (room.progress || 0) + 1;
+    markMapChanged();
+    if (room.progress >= turns) break;
+    if (!turn.ok || turn.wiped || turn.encounter || state.gameState !== "explore") {
+      addLog(`水抜きが中断された。残りは${turns - room.progress}手番分だ。`);
+      saveAutosave();
+      return;
+    }
+  }
+  addLog(`水が引き、${facility.companion.name}が書棚から降りてきた。「助かった。街まで連れて行ってほしい」`);
+  addCompanion(facility);
+  finishRoom(cell);
+}
+
+function renderDrainRescue(optGrid, cell, facility) {
+  const room = getSpecialRoom(cell);
+  const left = facility.site.rescue.turns - (room.progress || 0);
+  addDescription(optGrid, `水の引かない閲覧室に${facility.companion.name}が取り残されている。水門を回して水を抜くと${left}手番かかる。物音は立たない。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
+  addButton(optGrid, `水門を回して水を抜く（${left}手番）`, () => {
+    closeSubmenu();
+    drainForKeeper(cell, facility);
+  });
+}
+
+// The cocoon hangs in the brood chamber: cutting it wakes the keeper of the
+// nest. The room is spent only by winning; `freeKeeperAfterFight` finishes
+// the rescue from the victory.
+function renderFightRescue(optGrid, cell, facility) {
+  addDescription(optGrid, `繭の中に${facility.companion.name}が囚われている。繭を切れば巣の主（この階のエリート級）が目を覚ます。倒せば${facility.companion.name}は自由になり、卵室の荷（宝箱）も手に入る。逃げた場合は、繭は残り、もう一度挑める。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
+  addButton(optGrid, "繭を切る（強敵と戦う）", () => {
+    closeSubmenu();
+    addLog("繭に刃を入れた。奥で巨大な影が身を起こす！");
+    startCombat(false, false, false, null, { broodChamber: true });
+  });
+}
+
 const RESCUE_RENDERERS = {
   dig: renderDigRescue,
-  blood: renderBloodRescue
+  blood: renderBloodRescue,
+  drain: renderDrainRescue,
+  fight: renderFightRescue
 };
 
 function renderKeeperRoom(optGrid, cell) {
   const facility = KEEPER_ROOM_FACILITY.get(getSpecialRoom(cell).kind);
   RESCUE_RENDERERS[facility.site.rescue.kind]?.(optGrid, cell, facility);
+}
+
+// Weaver's hammock (#2019): a rest that takes turns, or (once bought) a mend
+// that patches the armor for a few battles. Either one spends the room.
+function restInHammock(cell) {
+  const room = getSpecialRoom(cell);
+  addLog("吊り寝床に体を預けた。糸がゆっくりと揺れる…");
+  while ((room.progress || 0) < HAMMOCK_REST_TURNS) {
+    const turn = consumeExplorationTurn();
+    room.progress = (room.progress || 0) + 1;
+    markMapChanged();
+    if (room.progress >= HAMMOCK_REST_TURNS) break;
+    if (!turn.ok || turn.wiped || turn.encounter || state.gameState !== "explore") {
+      addLog(`休息が中断された。残りは${HAMMOCK_REST_TURNS - room.progress}手番分だ。`);
+      saveAutosave();
+      return;
+    }
+  }
+  const hero = getHero();
+  const healed = hero ? getHammockRestAmount(hero, getCharMaxHp(hero)) : 0;
+  if (hero) hero.hp += healed;
+  playSound("heal");
+  addLog(`吊り寝床で休んだ。HPが${healed}回復した。`);
+  finishRoom(cell);
+}
+
+function renderWeaverHammock(optGrid, cell) {
+  const room = getSpecialRoom(cell);
+  const hero = getHero();
+  const left = HAMMOCK_REST_TURNS - (room.progress || 0);
+  const healed = hero ? getHammockRestAmount(hero, getCharMaxHp(hero)) : 0;
+  const canMend = isFacilityNodeBought(state.facilities, "weaver_mending");
+  const materials = runMaterialCount();
+  const equipmentDef = hero ? getCharEquipmentDef(hero) : 0;
+  const mendBonus = getArmorMendAmount(equipmentDef);
+  addDescription(optGrid, canMend
+    ? `休む（${left}手番、HP+${healed}）か、防具を繕う（素材${MENDING_MATERIAL_COST}個、次の${MENDING_BATTLES}戦のあいだ防御力+${mendBonus}）か、どちらか一方を選べる。寝床が使えるのは潜行ごとに1回だけ。所持素材：${materials}個`
+    : `休むと${left}手番かかり、HPが${healed}回復する。途中で魔物に襲われると中断する。寝床が使えるのは潜行ごとに1回だけ。`);
+  addButton(optGrid, `吊り寝床で休む（${left}手番・HP+${healed}）`, () => {
+    closeSubmenu();
+    restInHammock(cell);
+  }, { disabled: !hero || healed <= 0 });
+  if (!canMend) return;
+  const mendButton = addButton(optGrid, `防具を繕う（素材${MENDING_MATERIAL_COST}個・防御力+${mendBonus}）`, () => {
+    const paid = payRunMaterials(MENDING_MATERIAL_COST);
+    if (!paid) return;
+    const mend = applyArmorMend(hero, equipmentDef);
+    playSound("item");
+    addLog(`繕い台に [${paid}] を渡した。防具の綻びが繕われた！（防御力+${mend.bonus}、${mend.battles}戦）`);
+    finishRoom(cell);
+    closeSubmenu();
+  }, { disabled: !hero || Boolean(hero.armorMend) || materials < MENDING_MATERIAL_COST || (room.progress || 0) > 0 });
+  mendButton.setAttribute?.("data-hammock-mend", "true");
+}
+
+// Scribe's reading room (#2019): the floor plan also shows the next floor's
+// down stairs, or (once bought) a manuscript is copied for a fragment.
+function renderScribeReadingRoom(optGrid, cell) {
+  const canCopy = isFacilityNodeBought(state.facilities, "scribe_copy_desk");
+  addDescription(optGrid, canCopy
+    ? `見取り図を読む（${READING_TURNS}手番）か、写本を写す（${COPY_TURNS}手番、手引き書の断片${COPY_FRAGMENTS}枚）か、どちらか一方を選べる。見取り図には、この階の下り階段と宝箱に加えて、次の階の下り階段も記されている。`
+    : `見取り図を読むと${READING_TURNS}手番かかる。この階の下り階段と、まだ開けていない宝箱の位置に加えて、次の階の下り階段も地図に記される。`);
+  addButton(optGrid, `見取り図を読む（${READING_TURNS}手番）`, () => {
+    closeSubmenu();
+    for (let turn = 0; turn < READING_TURNS; turn++) {
+      const result = consumeExplorationTurn();
+      if (!result.ok || result.wiped || state.gameState !== "explore") break;
+    }
+    const { stairs, chests } = getReadingRoomTargets(state.map);
+    revealCells(state.visitedMap, [...stairs, ...chests]);
+    // The next floor's stairs are shown when that floor is entered, the way
+    // a mirror's vision is.
+    getSpecialRoom(cell).vision = true;
+    finishRoom(cell);
+    applyMirrorVision(state, state.floor + 1);
+    playSound("item");
+    const stairsText = stairs[0] ? `下り階段は${describeDirection(state, stairs[0])}にある。` : "";
+    addLog(`見取り図を写し取った。${stairsText}宝箱${chests.length}個の位置が地図に記された。次の階の下り階段も書き留めた。`);
+  });
+  if (!canCopy) return;
+  const copyButton = addButton(optGrid, `写本を写す（${COPY_TURNS}手番・断片${COPY_FRAGMENTS}枚）`, () => {
+    closeSubmenu();
+    for (let turn = 0; turn < COPY_TURNS; turn++) {
+      const result = consumeExplorationTurn();
+      if (!result.ok || result.wiped || state.gameState !== "explore") break;
+    }
+    const fragments = addRunFragments(state.currentRun, COPY_FRAGMENTS);
+    finishRoom(cell);
+    playSound("item");
+    addLog(`写本台で頁を写し取った。手引き書の断片を${fragments}枚手に入れた（生還すれば持ち帰れる）。`);
+  });
+  copyButton.setAttribute?.("data-scribe-copy", "true");
 }
 
 // Miner outpost (#2010): one supply per run, or a blast once the guild sells
@@ -384,7 +531,11 @@ const ROOM_RENDERERS = {
   [SPECIAL_ROOMS.TRAPPED_FOREMAN]: renderKeeperRoom,
   [SPECIAL_ROOMS.MINER_OUTPOST]: renderMinerOutpost,
   [SPECIAL_ROOMS.SEALED_PRIEST]: renderKeeperRoom,
-  [SPECIAL_ROOMS.CHAPEL_ALTAR]: renderChapelAltar
+  [SPECIAL_ROOMS.CHAPEL_ALTAR]: renderChapelAltar,
+  [SPECIAL_ROOMS.COCOONED_WEAVER]: renderKeeperRoom,
+  [SPECIAL_ROOMS.WEAVER_HAMMOCK]: renderWeaverHammock,
+  [SPECIAL_ROOMS.STRANDED_SCRIBE]: renderKeeperRoom,
+  [SPECIAL_ROOMS.SCRIBE_READING_ROOM]: renderScribeReadingRoom
 };
 
 export function renderSpecialRoom(optGrid) {

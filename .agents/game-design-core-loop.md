@@ -328,8 +328,22 @@ before or after the boss, and B6 transition.
     exclusive.
   - Rift nest — brood chamber: breaking the eggs starts an elite-strength fight
     whose victory leaves an ordinary dropped chest. Fleeing still spends the room.
+    On the band's third floor the chamber holds the cocooned weaver until she
+    has been brought home: cutting the cocoon is that same fight, winning it
+    frees her (and still pays the chest), and fleeing leaves the room to be
+    tried again. Once the weaving house has strung its hammock there, the room
+    offers a rest instead: a few turns restore a share of max HP, once per
+    run. If the weaving house also keeps a mending bench, materials can patch
+    the armor instead, adding a share of equipment DEF for a few battles. Rest
+    and mend are exclusive.
   - Sunken library — reading room: a few turns of study mark the down stairs
     and every unopened chest on this floor's map.
+    On the band's third floor the room holds the stranded scribe until he has
+    been brought home; draining the room takes turns and makes no noise. Once
+    the scriptorium keeps that room, its floor plan also marks the next
+    floor's down stairs. If the scriptorium has a copy desk, a few turns can
+    instead copy a manuscript for a guidebook fragment, which is kept only by
+    a safe return like any other fragment. Floor plan and copy are exclusive.
   - Dragon forge — forge: a material-priced temper adds a share of weapon ATK
     for the next few battles, then cools.
   - Abyssal throne — mirror hall: paying a share of max HP marks the next

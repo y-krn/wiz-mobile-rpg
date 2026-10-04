@@ -47,6 +47,18 @@ export const STARTING_KIT_COPY = Object.freeze({
     playstyle: "魔法盾で呪文を受け流し、剣で斬る。聖水が1度の立て直しになる。",
     strengths: ["呪文を使う敵に強い", "祝福の聖水を毎回持って始まる"],
     weaknesses: ["鎧が薄く、殴り合いに弱い", "呪文は使えない"]
+  }),
+  stalker: kitCopy({
+    role: "回避",
+    playstyle: "香で気配を消し、鳴らし玉で魔物を逸らして、戦わずに階を抜ける。",
+    strengths: ["静寂の香2個と鳴らし玉を毎回持って始まる", "行動が速く、先手を取りやすい"],
+    weaknesses: ["盾がなく、打たれ弱い", "一撃が軽い"]
+  }),
+  scribe: kitCopy({
+    role: "術師",
+    playstyle: "両手の杖で呪文を撃つ。魔力草でMPを継ぎ足しながら戦う。",
+    strengths: ["最初から呪文を使える", "魔力草2個を毎回持って始まる"],
+    weaknesses: ["盾を持てない", "杖で殴っても弱い"]
   })
 });
 

@@ -3,7 +3,7 @@ import { getCharCoreParams } from "./affix_rules.js";
 import { calculateDisarmRate } from "./trap_rules.js";
 import { getMediumMaxMpBonus } from "./magic_rules.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
-import { getForgeTemperBonus } from "./special_rooms.js";
+import { getArmorMendBonus, getForgeTemperBonus } from "./special_rooms.js";
 
 export const PHYSICAL_HIT_CHANCE_MIN = 0.50;
 
@@ -130,7 +130,8 @@ export function getCharAttackBreakdown(char) {
   };
 }
 
-export function getCharDef(char) {
+/** DEF owned by the equipped items alone. */
+export function getCharEquipmentDef(char) {
   let def = 0;
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
@@ -140,6 +141,11 @@ export function getCharDef(char) {
     });
   }
   return def;
+}
+
+export function getCharDef(char) {
+  // A mended armor (#2019) is a short, battle-counted patch, like the forge temper.
+  return getCharEquipmentDef(char) + getArmorMendBonus(char);
 }
 
 // Monster DEF is mutable during combat because DEF buffs/debuffs are stored

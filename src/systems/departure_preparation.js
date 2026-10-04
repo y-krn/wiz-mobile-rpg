@@ -50,7 +50,7 @@ export function createDepartureCharacter(startingKitId, startingGear = null, wor
   if (startingGear && slot && !handConflict) {
     character.equipment[slot] = trialStartingGear;
     syncMediumState(character, {
-      preserveRunes: startingKitId === "arcana" && isMedium(trialStartingGear)
+      preserveRunes: Boolean(getStartingKit(startingKitId)?.startsWithRune) && isMedium(trialStartingGear)
     });
   }
   return { character, handConflict };
