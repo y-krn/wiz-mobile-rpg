@@ -182,6 +182,9 @@ page. The runner retries a seed once after such a reload.
   tapping through the equipment overlay.
 - No Guard in ordinary fights; in guardian fights it guards once per telegraph.
 - HP ≤ 30%: potion, else flee. Always disarms, always drinks from springs.
+- Routes around unresolved traversal obstacles (rubble, closed seals, collapsed
+  ledges) instead of digging or pulling levers, and always leaves biome special
+  rooms without using them.
 - `--boss` is not a full-run result: level/HP are set by hand and the walk to
   the guardian uses a repel effect.
 

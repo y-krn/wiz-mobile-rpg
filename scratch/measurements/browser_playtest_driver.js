@@ -13,6 +13,7 @@
 const S = await import('/src/state.js');
 const M = await import('/src/movement.js');
 const MAPU = await import('/src/rules/map_movement.ts');
+const GIMMICKS = await import('/src/rules/traversal_gimmicks.js');
 const DATA = await import('/src/data.js');
 const PREVIEW = await import('/src/rules/equipment_preview.js');
 const LOADOUT = await import('/src/rules/loadout_transaction.js');
@@ -86,6 +87,9 @@ W.__bfs = (goal, allowTraps = false) => {
       if (!c.walls[d] && MAPU.isMapDirectionBlocked(s.map, x, y, d)) continue;
       const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= Wd || ny >= H) continue;
       const t = s.map[ny][nx].trap; if (t && t.state === 'discovered' && !allowTraps && !goal(nx, ny)) continue;
+      // Rubble, a closed seal or a collapsed ledge stops the step; every required
+      // cell stays reachable around them, so route past instead of digging.
+      if (GIMMICKS.isTraversalObstacleBlocking(s.map[ny][nx])) continue;
       if (nearElite(nx, ny) && !goal(nx, ny)) continue;
       if (s.map[ny][nx].event === 'boss' && !goal(nx, ny)) continue;
       if (prev.has(key(nx, ny))) continue; prev.set(key(nx, ny), key(x, y)); q.push([nx, ny]);
@@ -424,6 +428,8 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
       if (s.gameState !== 'submenu' || (W.__backTries = (W.__backTries || 0) + 1) <= 5) continue;
       W.__journal.push('!! submenu back x' + W.__backTries + ' ' + W.__log(3));
     }
+    // Biome special rooms (ore vein, altar, ...) are optional: leave them.
+    if (s.gameState === 'submenu' && b.includes('立ち去る') && !b.includes('開ける')) { await W.__click('立ち去る'); await sl(300); continue; }
     if (s.gameState === 'equip_overlay') { await W.__click('キャンセル'); await W.__click('閉じる'); await sl(200); continue; }
     if (s.gameState !== 'explore') { W.__journal.push('!! stuck gs=' + s.gameState + ' ' + b.join('|')); return 'stuck'; }
     W.__backTries = 0;
