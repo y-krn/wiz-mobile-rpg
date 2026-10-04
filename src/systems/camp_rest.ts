@@ -1,5 +1,6 @@
 import { getCharCoreParams } from "../rules/affix_rules.js";
 import { getCharMaxHp, getCharMaxMp } from "../rules/character_stats.js";
+import { getEffectiveHealAmount } from "../rules/item_rules.js";
 import { floorHasCampEvent } from "../run_map_generator.js";
 import type { CharacterEquipment } from "../state/equipment.js";
 import type {
@@ -96,7 +97,8 @@ export function restAtCamp(stateObj: CampState): CampRestResult {
     const params = getCharCoreParams(char, "CORE_CAMP_MASTER");
     const multiplier = params?.recoveryMultiplier || 1;
     if (params) coreUsers.push(char.name);
-    const hpGain = Math.min(maxHp - char.hp, Math.ceil((maxHp - char.hp) * 0.4 * multiplier));
+    const baseHpGain = Math.ceil((maxHp - char.hp) * 0.4 * multiplier);
+    const hpGain = Math.min(maxHp - char.hp, getEffectiveHealAmount(char, baseHpGain));
     const mpGain = Math.min(maxMp - char.mp, Math.ceil((maxMp - char.mp) * 0.4 * multiplier));
     char.hp = Math.min(maxHp, char.hp + hpGain);
     char.mp = Math.min(maxMp, char.mp + mpGain);

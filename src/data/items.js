@@ -114,9 +114,9 @@ export const CURSE_EFFECTS = {
   curse_poisonous_vein: {
     id: "curse_poisonous_vein",
     name: "毒脈の呪い",
-    desc: "攻撃時に15%で毒付与 / 毒耐性-30%",
+    desc: "攻撃時に15%で毒付与 / 状態異常耐性-30%",
     tags: ["curse", "poison"],
-    mod: { poisonAtk: 15, poisonWard: -30 }
+    mod: { poisonAtk: 15, statusResistance: -30 }
   },
   curse_cowardly_shield: {
     id: "curse_cowardly_shield",
@@ -166,9 +166,9 @@ export const CURSE_EFFECTS = {
   curse_dulled_senses: {
     id: "curse_dulled_senses",
     name: "鈍麻の呪い",
-    desc: "先制-5 / 毒耐性-20%",
+    desc: "先制-5 / 状態異常耐性-20%",
     tags: ["curse", "poison"],
-    mod: { firstStrike: -5, poisonWard: -20 },
+    mod: { firstStrike: -5, statusResistance: -20 },
     heavy: true
   }
 };

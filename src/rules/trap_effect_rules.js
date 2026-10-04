@@ -49,6 +49,7 @@ export function resolveChestTrapEffect({
   character = null,
   inventory = [],
   poisonWard = 0,
+  statusResistance = 0,
   rng = Math.random
 }) {
   const effect = {
@@ -67,7 +68,11 @@ export function resolveChestTrapEffect({
     effect.damage = CHEST_POISON_NEEDLE_DAMAGE;
     effect.poisonTriggered = true;
     const hpAfter = Math.max(0, (character?.hp || 0) - effect.damage);
-    effect.poisonResisted = hpAfter > 0 && poisonWard > 0 && rng() * 100 < poisonWard;
+    const poisonChance = Math.max(0, Math.min(1,
+      (1 - Number(statusResistance) / 100)
+        * (1 - Math.max(0, Math.min(100, Number(poisonWard) || 0)) / 100)
+    ));
+    effect.poisonResisted = hpAfter > 0 && poisonChance < 1 && rng() >= poisonChance;
   } else if (trap === "corrosion") {
     const candidates = getCorrosionCandidateIndexes(inventory);
     if (candidates.length > 0) {
@@ -96,7 +101,8 @@ export function calculateChestTrapExpectedRisk({
   trap,
   character = null,
   inventory = [],
-  poisonWard = 0
+  poisonWard = 0,
+  statusResistance = 0
 } = {}) {
   const effect = {
     trap,
@@ -121,7 +127,10 @@ export function calculateChestTrapExpectedRisk({
       const hpAfter = Math.max(0, character.hp - damage);
       effect.expectedDamageHp = damage;
       effect.poisonProbability = hpAfter > 0
-        ? 1 - Math.max(0, Math.min(100, Number(poisonWard) || 0)) / 100
+        ? Math.max(0, Math.min(1,
+          (1 - Number(statusResistance) / 100)
+            * (1 - Math.max(0, Math.min(100, Number(poisonWard) || 0)) / 100)
+        ))
         : 0;
       effect.fatalityProbability = hpAfter <= 0 ? 1 : 0;
     }

@@ -10,6 +10,7 @@ import {
 import { getCharAffixSum } from "../../../src/rules/item_rules.js";
 import { calculateDisarmRate } from "../../../src/rules/trap_rules.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
+import { getUnequipPreview } from "../../../src/rules/equipment_preview.js";
 
 const failures = [];
 
@@ -339,6 +340,32 @@ check(
   speedTreasureStats.treasure,
   getCharAffixSum(speedTreasureChar, "treasureSense")
 );
+
+const cursedPreviewChar = makeChar({
+  equipment: {
+    weapon: {
+      ...makeItem("LONG_SWORD"),
+      curseEffectId: "curse_blood_thirst",
+      cursePower: 1
+    },
+    armor: {
+      ...makeItem("LEATHER_ARMOR"),
+      curseEffectId: "curse_poisonous_vein",
+      cursePower: 1
+    },
+    accessory: {
+      ...makeItem("RING_AGI"),
+      curseEffectId: "curse_cowardly_shield",
+      cursePower: 1
+    }
+  }
+});
+const cursedPreviewRows = getUnequipPreview(cursedPreviewChar, "armor").rows;
+check("curse comparison exposes negative status resistance", cursedPreviewRows.find(row => row.key === "statusResistance").current, -30);
+check("curse comparison names status resistance", cursedPreviewRows.find(row => row.key === "statusResistance").label, "状態異常耐性");
+check("curse comparison exposes low-HP guardian penalty", cursedPreviewRows.find(row => row.key === "guardian").current, -15);
+check("curse comparison describes recovery effects", cursedPreviewRows.find(row => row.key === "healing").label, "回復効果");
+check("curse comparison includes recovery penalty", cursedPreviewRows.find(row => row.key === "healing").current, -20);
 
 if (failures.length > 0) {
   console.error(failures.map(failure => `FAIL: ${failure}`).join("\n"));

@@ -1,6 +1,6 @@
 import { state, saveAutosave, scheduleAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
-import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum, getEffectiveHealAmount } from "./data.js";
 import { playSound } from "./audio.js";
 import { showMoveBlockedCue } from "./ui/move_blocked_cue.js";
 import { dungeonRenderer as renderer } from "./renderer_runtime.js";
@@ -587,7 +587,8 @@ export function applyFloorTransitionHeal() {
   const char = state.party[0];
   if (!char || char.hp <= 0 || char.status === "dead") return 0;
   const maxHp = getCharMaxHp(char);
-  const healed = Math.min(maxHp - char.hp, Math.max(1, Math.floor(maxHp * 0.5)));
+  const baseHeal = Math.max(1, Math.floor(maxHp * 0.5));
+  const healed = Math.min(maxHp - char.hp, getEffectiveHealAmount(char, baseHeal));
   // MP gets the same breather so a medium-based run is not one fight long.
   const maxMp = getCharMaxMp(char);
   const mpHealed = maxMp > 0 ? Math.min(maxMp - char.mp, Math.max(1, Math.floor(maxMp * 0.5))) : 0;
@@ -739,7 +740,7 @@ export function applyStairsHeal(cell) {
     const amount = getCharAffixSum(char, "stairsHeal");
     if (amount <= 0) return;
     const before = char.hp;
-    char.hp = Math.min(getCharMaxHp(char), char.hp + amount);
+    char.hp = Math.min(getCharMaxHp(char), char.hp + getEffectiveHealAmount(char, amount));
     total += char.hp - before;
   });
   if (total > 0) addLog(`[踏破の息吹] 階段の発見でHPを${total}回復した！`);
