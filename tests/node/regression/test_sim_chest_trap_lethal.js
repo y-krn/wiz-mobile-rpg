@@ -53,8 +53,9 @@ assert.deepEqual(summarize(simulateRun(runConfig(2))), summarize(lethal));
 
 // When opening is more likely than not to kill, the simulated player leaves,
 // and a left chest grants neither materials nor rewards. The run index is a
-// fixture: floor layouts (#1962) decide which chest is met first.
-const cautious = simulateRun(runConfig(0));
+// fixture: floor layouts (#1962) decide which chest is met first. Index 0 -> 1
+// after the normal run profile was removed (runs use the unified rules).
+const cautious = simulateRun(runConfig(1));
 assert.ok(cautious.chestPath.ordinary.actions.leave > 0, "a likely-lethal chest is left");
 const ordinaryEvents = cautious.chestLootEvents.filter(event => event.source === "ordinary");
 assert.ok(ordinaryEvents.some(event => event.action === "leave" && event.generatedItems.length > 0));
@@ -65,6 +66,6 @@ assert.equal(
     .reduce((sum, event) => sum + event.generatedItems.length, 0),
   "only opened chests award their generated rewards"
 );
-assert.deepEqual(summarize(simulateRun(runConfig(0))), summarize(cautious));
+assert.deepEqual(summarize(simulateRun(runConfig(1))), summarize(cautious));
 
 console.log("[PASS] deterministic lethal chest traps resolve on opening and likely-lethal chests are left");

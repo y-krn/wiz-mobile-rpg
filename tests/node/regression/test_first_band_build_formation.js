@@ -168,7 +168,9 @@ const fleeScenario = {
   fleeHpThreshold: 0.9,
   milestonePortalPolicy: "continue"
 };
-resetSimulationRandom(2);
+// Seed 2 -> 3: the unified Build vNext rules (normal profile removed) change
+// the seeded B1-B5 route, and seed 2 no longer reaches the B5 guardian.
+resetSimulationRandom(3);
 const fleeBoss = simulateRun({
   className: "Thief",
   startFloor: 1,

@@ -142,6 +142,9 @@ for (const condition of result.conditions) {
   // #1801 solo HP budget: with seed 8 the W0R12 run returned voluntarily
   // instead of reaching the B6 synthetic cutoff. #1963 biome gimmicks reshape
   // its B1-B5 route, and that run reaches the cutoff again.
-  assert.equal(condition.outcome.b6Cutoff, condition.id === "W0R12" ? 1 : 0);
+  // Removing the normal run profile moves these seeded runs onto the unified
+  // Build vNext rules: the Workshop-gear + 12-potion condition now reaches the
+  // B6 cutoff in three of its four runs.
+  assert.equal(condition.outcome.b6Cutoff, { W0R0: 0, W1R0: 0, W0R12: 1, W1R12: 3 }[condition.id]);
   assert.ok(condition.outcome.b6Cutoff + condition.outcome.voluntaryReturn <= condition.runs);
 }
