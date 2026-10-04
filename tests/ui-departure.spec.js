@@ -21,7 +21,7 @@ for (const width of [320, 360, 390, 430]) {
     await expect(cards.nth(0)).toHaveAttribute('aria-pressed', 'true');
 
     const detail = page.locator('.solo-kit-detail');
-    await expect(detail).toHaveAttribute('data-kit-id', 'vanguard');
+    await expect(detail).toHaveAttribute('data-detail-kit-id', 'vanguard');
     await expect(detail.locator('.solo-kit-load')).toContainText('標準（速くも遅くもない）');
     await expect(detail.locator('.solo-kit-equipment')).toContainText('ショートソード・バックラー・レザーアーマー');
     await expect(detail.locator('.solo-kit-technique')).toContainText('見切り斬り');
@@ -30,7 +30,7 @@ for (const width of [320, 360, 390, 430]) {
 
     await cards.nth(1).click();
     await expect(cards.nth(1)).toHaveAttribute('aria-pressed', 'true');
-    await expect(detail).toHaveAttribute('data-kit-id', 'scout');
+    await expect(detail).toHaveAttribute('data-detail-kit-id', 'scout');
     await expect(detail.locator('.solo-kit-load')).toContainText('速い（先に動きやすい）');
     await expect(detail.locator('.solo-kit-technique')).toContainText('二連突き');
     const screenText = (await page.locator('#submenu-controls').textContent()) || '';
