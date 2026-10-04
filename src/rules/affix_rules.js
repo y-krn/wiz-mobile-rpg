@@ -59,11 +59,6 @@ export function getPartyCoreParams(party, coreId) {
   return wearer ? getCharCoreParams(wearer, coreId) : null;
 }
 
-export function getContractProgressIncrement(party, baseCount = 1) {
-  const params = getPartyCoreParams(party, "CORE_BOUNTY_HUNTER");
-  return baseCount * (params?.contractCountMultiplier || 1);
-}
-
 export function getEquippedCurseCount(char) {
   if (!char?.equipment) return 0;
   return Object.values(char.equipment).filter(item => {

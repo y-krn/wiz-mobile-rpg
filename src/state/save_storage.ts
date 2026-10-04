@@ -8,6 +8,7 @@ import { START_X, START_Y, DIR_N } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
 import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 import { createDefaultRecords } from "./records_state.js";
+import { createDefaultFeatsState } from "./feats_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
 import { ensureRunFloor, isUsableFloorMap } from "./run_floor_state.js";
 
@@ -56,6 +57,7 @@ interface SaveStorageState extends Record<string, unknown> {
   workshop: { ranks: Record<string, number>; lateralUnlocks: unknown[] };
   keyItems: unknown[];
   lastPreparation: unknown;
+  feats: unknown;
   logs: string[];
 }
 
@@ -168,6 +170,7 @@ export function initNewGame({ preserveSeed = false }: InitNewGameOptions = {}): 
   state.workshop = { ranks: {}, lateralUnlocks: [] };
   state.keyItems = [];
   state.lastPreparation = null;
+  state.feats = createDefaultFeatsState();
     state.logs = ["開始キットを選び、ひとりで迷宮へ潜ろう。"];
   markMapChanged();
   saveAutosave();

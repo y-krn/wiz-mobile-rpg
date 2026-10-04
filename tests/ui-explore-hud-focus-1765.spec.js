@@ -20,12 +20,10 @@ async function seedExplore(page) {
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
   await page.evaluate(async (map) => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter, addEventLog, addLog } = await import('/src/state.js');
-    const { assignRunQuests } = await import('/src/systems/run_quests.js');
     const { menuContext } = await import('/src/navigation.js');
     const { updateUI } = await import('/src/ui.js');
     state.party = [createStartingKitCharacter('vanguard'), createStartingKitCharacter('vanguard')];
     state.currentRun = createDefaultCurrentRun();
-    assignRunQuests(state.currentRun, () => 0);
     state.floor = 1;
     state.x = 4;
     state.y = 4;
@@ -145,7 +143,7 @@ test('Explore HUD folds after two actions and keeps active facts reachable at 39
   // Folded facts stay visible: goal name, exploration rate, unresolved line, full-log entry point.
   await expect(page.locator('#goal-banner .goal-text')).toBeVisible();
   await expect(page.locator('#goal-banner .goal-stats-container')).toContainText('探索率');
-  await expect(page.locator('#goal-banner .quest-hud-list')).toBeHidden();
+  await expect(page.locator('#goal-banner .feat-hud-list')).toBeHidden();
   await expect(page.locator('#log-content .event-strip-item--unresolved')).toBeVisible();
   await expect(page.locator('#log-content .event-strip-item').last()).toBeVisible();
   await expect(page.locator('#btn-log-expand')).toBeVisible();
@@ -165,7 +163,7 @@ test('Explore HUD folds after two actions and keeps active facts reachable at 39
   await expect(container).toHaveAttribute('data-goal-expanded', 'true');
   await expect(goalToggle).toHaveAttribute('aria-expanded', 'true');
   await expect(goalToggle).toHaveAttribute('aria-label', /^目標の詳細を畳む/);
-  await expect(page.locator('#goal-banner .quest-hud-list')).toBeVisible();
+  await expect(page.locator('#goal-banner .feat-hud-list')).toBeVisible();
   // A manual expansion persists through roam.
   await turn(page);
   await expect(container).toHaveAttribute('data-explore-hud', 'roam');

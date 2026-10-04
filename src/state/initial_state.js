@@ -56,6 +56,8 @@ export const createDefaultCurrentRun = () => ({
   workshopUnlocks: [],
   returnProcessing: null,
   nearMiss: null,
+  featResult: null,
+  featsAnnounced: [],
   lootSequence: 0,
   itemsFound: [],
   equipmentFound: [],

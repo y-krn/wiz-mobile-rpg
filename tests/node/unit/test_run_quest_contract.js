@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
 
-import { RUN_QUEST_TEMPLATES } from "../../../src/data/run_quests.js";
-import { createRunQuest, updateRunQuests } from "../../../src/systems/run_quests.js";
 import { createDefaultCurrentRun } from "../../../src/state/initial_state.js";
 import { state } from "../../../src/state/state_core.js";
 import { normalizeSavePayload, SAVE_VERSION } from "../../../src/state/save_migrations.js";
@@ -45,16 +43,24 @@ assert.deepEqual(normalizeDefeatsByRole(normalizeDefeatsByRole({ disruptor: 3, "
 assert.equal(isNormalizedDefeatsByRole({ disruptor: 1.5 }), false, "fractional role progress rejected by guard");
 assert.equal(isNormalizedDefeatsByRole({ disruptor: "1" }), false, "numeric role progress rejected by guard");
 
-const generatedQuests = RUN_QUEST_TEMPLATES.map(template => createRunQuest(template, 3));
-assert.ok(generatedQuests.every(isNormalizedRunQuest), "every authored template creates a canonical quest");
-
+// Run quests were replaced by feats (#2007). The quest shape is only kept so
+// that a run saved with quests still loads; the quests are dropped on load.
 const baseQuest = {
-  ...generatedQuests[0],
   id: "historical-quest:3:9",
   templateId: "removed-template",
+  type: "depth",
+  name: "次の深みへ",
+  description: "次の階層守護者が待つ階まで到達する。",
+  role: null,
+  targetValue: 5,
+  currentValue: 0,
+  completed: false,
+  rewardClaimed: false,
+  completedAtDepth: null,
   reward: { materials: { "removed-material": 4 } },
   extra: { retained: true }
 };
+assert.equal(isNormalizedRunQuest(baseQuest), true, "a quest saved before the change is still a valid shape");
 
 assert.equal(isNormalizedRunQuestCollection([baseQuest]), true, "valid collection accepted");
 assert.equal(isNormalizedRunQuestCollection([]), true, "empty collection accepted");
@@ -100,61 +106,13 @@ const normalized = normalizeSavePayload({
   }
 });
 
-assert.deepEqual(normalized.currentRun.quests, [{ ...baseQuest, id: "ordered-second" }, baseQuest],
-  "malformed entry drops without changing order or duplicates");
+assert.deepEqual(normalized.currentRun.quests, [], "run quests saved before the change are dropped on load");
 assert.equal(normalized.currentRun.deepestFloor, 7, "valid run state is preserved");
 assert.deepEqual(normalized.currentRun.defeatsByRole, { disruptor: 3, "removed-role": 4 },
   "save boundary canonicalizes role progress without current-role filtering");
-assert.equal(normalized.currentRun.quests.length, 2, "two valid quests are not clamped");
-assert.equal(normalized.currentRun.quests[0].templateId, "removed-template", "historical template id accepted");
-assert.equal(normalized.currentRun.quests[0].reward.materials["removed-material"], 4,
-  "historical material name and saved quantity accepted");
-assert.equal(isNormalizedRunQuestCollection(JSON.parse(JSON.stringify(normalized.currentRun.quests))), true,
-  "normalized quest collection survives JSON roundtrip");
-
-const sparseQuests = [];
-sparseQuests[1] = baseQuest;
-const normalizedSparse = normalizeSavePayload({
-  ...payload,
-  currentRun: { ...createDefaultCurrentRun(), quests: sparseQuests }
-}).currentRun;
-assert.deepEqual(normalizedSparse.quests, [baseQuest], "sparse persisted collection becomes dense after normalization");
-
-const completed = createRunQuest(RUN_QUEST_TEMPLATES[1], 1);
-completed.currentValue = completed.targetValue;
-completed.completed = true;
-completed.completedAtDepth = 7;
-completed.rewardClaimed = true;
-const claimedRun = normalizeSavePayload({
-  ...payload,
-  currentRun: { ...createDefaultCurrentRun(), materials: {}, quests: [completed] }
-}).currentRun;
-const materialsBeforeReloadUpdate = structuredClone(claimedRun.materials);
-assert.deepEqual(updateRunQuests(claimedRun), [], "claimed completed quest is not awarded after load");
-assert.deepEqual(claimedRun.materials, materialsBeforeReloadUpdate, "claimed reward is not duplicated");
-
-const independentQuestState = {
-  ...createDefaultCurrentRun(),
-  defeatsByRole: { disruptor: 3 },
-  quests: [{ ...baseQuest, type: "role_kill", role: "disruptor", currentValue: 0, completed: false }]
-};
-const normalizedIndependentQuestState = normalizeSavePayload({ ...payload, currentRun: independentQuestState }).currentRun;
-assert.equal(normalizedIndependentQuestState.quests[0].currentValue, 0,
-  "save migration does not infer quest progress from defeats-by-role");
-assert.equal(normalizedIndependentQuestState.quests[0].completed, false,
-  "save migration does not complete quests from defeats-by-role");
-assert.deepEqual(normalizedIndependentQuestState.materials, {},
-  "save migration does not award quest rewards");
-
-const independentDefeatState = {
-  ...createDefaultCurrentRun(),
-  defeatsByRole: { disruptor: 3 },
-  quests: [{ ...baseQuest, type: "role_kill", role: "disruptor", currentValue: 2, completed: false }]
-};
-const normalizedIndependentDefeatState = normalizeSavePayload({ ...payload, currentRun: independentDefeatState }).currentRun;
-assert.equal(normalizedIndependentDefeatState.quests[0].currentValue, 2,
-  "save migration does not repair defeats-by-role from quest progress");
+assert.deepEqual(normalized.currentRun.materials, {}, "dropping the quests awards nothing");
+assert.equal(isNormalizedCurrentRun(normalized.currentRun), true, "the loaded run satisfies the current-run contract");
 
 assert.equal(SAVE_VERSION, 15, "stone-event reset boundary rejects older save versions");
 
-console.log("[PASS] canonical run quest contract, fail-safe normalization, roundtrip, and claim persistence");
+console.log("[PASS] role progress contract holds and legacy run quests are dropped on load");

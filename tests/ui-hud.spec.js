@@ -86,17 +86,14 @@ for (const vp of VIEWPORTS) {
       state.party = [createStartingKitCharacter('arcana')];
       state.currentRun = createDefaultCurrentRun();
       state.currentRun.deepestFloor = 6;
-      state.currentRun.quests = [{
-        id: 'depth:1:5', templateId: 'reach_milestone', type: 'depth', name: '次の深みへ',
-        description: '次の階層守護者が待つ階まで到達する。', targetValue: 5, currentValue: 5,
-        completed: true, rewardClaimed: true, reward: { materials: { '鉄片': 3 } },
-      }];
+      state.currentRun.featsAnnounced = ['depth_5'];
       state.gameState = 'explore';
       updateUI();
     });
-    const questHud = page.locator('.quest-hud-list');
-    await expect(questHud.getByText('次の深みへ')).toBeVisible();
+    const questHud = page.locator('.feat-hud-list');
+    await expect(questHud.getByText('坑道を抜ける')).toBeVisible();
     await expect(questHud.getByText('達成')).toBeVisible();
+    await expect(questHud.getByText('地下墓地の底へ')).toBeVisible();
     await expect(page.locator('#btn-run-quests')).toHaveCount(0);
     const questHudBox = await questHud.boundingBox();
     expect(questHudBox.x).toBeGreaterThanOrEqual(0);
@@ -121,7 +118,7 @@ for (const vp of VIEWPORTS) {
     await expect(result).toContainText('今回の深度 B13F');
     await expect(result).toContainText('NEW DEPTH RECORD');
     await expect(result).toContainText('素材収支');
-    await expect(result).toContainText('今回の依頼');
+    await expect(result.locator('[data-result-feats]')).toContainText('偉業');
     const button = page.locator('#btn-result-castle');
     const buttonBox = await button.boundingBox();
     expect(buttonBox.height).toBeGreaterThanOrEqual(44);

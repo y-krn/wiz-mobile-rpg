@@ -252,7 +252,7 @@ export const SUPPORT_AFFIXES = [
 
   support("identifyDiscount", "鑑定眼", "鑑定費用を軽減する。", "economy", { unit: "%" }),
   support("materialFind", "素材探し", "素材発見率が10%増加する。", "economy", { unit: "%" }),
-  support("contractReward", "任務巧者", "依頼報酬が10%増加する。", "economy", { unit: "%" }),
+  support("contractReward", "任務巧者", "偉業の報酬が10%増加する。", "economy", { unit: "%" }),
 ];
 
 export const CORE_AFFIXES = [
@@ -409,7 +409,7 @@ export const CORE_AFFIXES = [
     id: "CORE_BOUNTY_HUNTER",
     kind: "core",
     jpName: "賞金稼ぎ",
-    desc: "依頼対象の撃破数を2倍で数える。",
+    desc: "効果なし（依頼の撤去により廃止）。",
     slot: "accessory",
     cost: 10,
     params: { contractCountMultiplier: 2 },

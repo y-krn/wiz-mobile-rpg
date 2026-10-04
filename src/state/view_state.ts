@@ -99,7 +99,7 @@ const SUBMENU_OVERLAY_TYPES = new Set([
   "spell_target_ally"
 ]);
 const SPELL_OVERLAY_TYPES = new Set(["spell_caster_select", "spell_select", "spell_target_ally"]);
-const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main", "run_quest_board"]);
+const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main", "feats_main"]);
 const SAFE_PREVIOUS_STATES = new Set<NonSubmenuGameState>(GAME_STATES.filter(
   (gameState): gameState is NonSubmenuGameState => gameState !== "submenu"
 ));

@@ -36,6 +36,7 @@ import {
 import { createRng } from "./seed_rng.js";
 import { renderChestMenu } from "./chest/chest_view.js";
 import { recordEliteGreedAction } from "./systems/roaming_elites.js";
+import { getFeatAnnouncementLines } from "./systems/feats.js";
 import { openPendingRewardMenu, stagePendingRewardBundle } from "./pending_rewards.js";
 
 export { CHEST_PHASES, CHEST_PHASE_TRANSITIONS, generateChestMaterials };
@@ -563,6 +564,7 @@ function resolveChestRewards(opener, rng = Math.random) {
     if (state.currentRun) {
       state.currentRun.chestsOpened++;
       recordEliteGreedAction(state, "chest");
+      getFeatAnnouncementLines(state.feats, state.currentRun).forEach(line => addLog(line));
     }
 
     transitionChestPhase(chest, CHEST_PHASES.REWARD);

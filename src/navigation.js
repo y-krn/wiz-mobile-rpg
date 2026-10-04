@@ -113,7 +113,7 @@ export function closeSubmenu() {
       if (view.menuType.startsWith("castle") ||
           view.menuType.startsWith("solo_start") ||
           view.menuType.startsWith("workshop") ||
-          view.menuType.startsWith("run_quest")) {
+          view.menuType.startsWith("feats")) {
         state.gameState = "town";
       } else if (view.menuType.startsWith("combat")) {
         state.gameState = view.hasMap ? "explore" : "town";

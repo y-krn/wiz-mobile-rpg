@@ -1,12 +1,12 @@
 import {
   getItemData, checkCharLevelUp, getCharMaxHp,
-  getPartyMaxAffix, getPartyCoreParams, getContractProgressIncrement, getCoreLogText
+  getPartyMaxAffix, getPartyCoreParams, getCoreLogText
 } from "../data.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { createMonsterCodexRecord, recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
-import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
+import { getFeatAnnouncementLines, recordRoleDefeats } from "../systems/feats.js";
 import { settlePhase4jBExpOwnership } from "../rules/phase4j_b_trial.js";
 
 function rollCombatAccessoryDrop(state, rng) {
@@ -33,13 +33,11 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
   const nonFledMonsters = monsters.filter(m => !m.fled);
   const totalExp = nonFledMonsters.reduce((sum, m) => sum + m.exp, 0);
   const livingChars = state.party.filter(c => c.status !== "dead");
-  const bountyHunter = Boolean(getPartyCoreParams(state.party, "CORE_BOUNTY_HUNTER"));
   const scholarEye = Boolean(getPartyCoreParams(state.party, "CORE_SCHOLAR_EYE"));
   const uncataloguedNames = new Set(nonFledMonsters.filter(m => {
     const baseName = m.name.replace(/\s[A-Z]$/, "");
     return (state.codex?.monsters?.[baseName]?.killed || 0) === 0;
   }).map(m => m.name.replace(/\s[A-Z]$/, "")));
-  let bountyHunterActivated = false;
 
   // Check First Kill Bonuses
   const firstKilledNames = [];
@@ -120,13 +118,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
         }
       });
     }
-    const questIncrement = getContractProgressIncrement(state.party, 1);
-    recordRunQuestDefeats(state.currentRun, nonFledMonsters, questIncrement);
-    bountyHunterActivated = bountyHunter && questIncrement > 1 && state.currentRun.quests?.some(quest =>
-      quest.type === "role_kill" && nonFledMonsters.some(monster => !monster.hasSplit && monster.role === quest.role)
-    );
-    updateRunQuests(state.currentRun, getPartyMaxAffix(state.party, "contractReward")).forEach(quest => {
-      logQueue.push({ msg: `【依頼達成】${quest.name}：素材ボーナスを獲得した。`, sound: "item" });
+    recordRoleDefeats(state.currentRun, nonFledMonsters);
+    getFeatAnnouncementLines(state.feats, state.currentRun).forEach(msg => {
+      logQueue.push({ msg, sound: "item" });
     });
   }
 
@@ -198,9 +192,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
         msg: `  -> 素材を獲得した: [${matStr}]`,
         sound: "item"
       });
-    }
-    if (bountyHunterActivated) {
-      logQueue.push({ msg: getCoreLogText("CORE_BOUNTY_HUNTER") });
     }
     if (scholarActivated) {
       logQueue.push({ msg: getCoreLogText("CORE_SCHOLAR_EYE") });

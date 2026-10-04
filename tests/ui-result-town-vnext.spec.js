@@ -2,7 +2,7 @@ import { test, expect } from './fixtures/browser-health.js';
 
 const HOSTILE_RESULT_TEXT = '<b>evil result</b><img src=x onerror="globalThis.__xss = 1">';
 
-test('result screen renders save-derived names and quest text literally', async ({ page }) => {
+test('result screen renders save-derived names literally', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const evidence = await page.evaluate(async hostile => {
@@ -12,7 +12,6 @@ test('result screen renders save-derived names and quest text literally', async 
     run.returnReason = 'milestone_portal';
     run.deepestFloor = 3;
     run.meaningfulItemHistory = [{ name: hostile, status: 'returned', depth: 3 }];
-    run.quests = [{ name: hostile, completed: false, currentValue: 0, targetValue: 1, reward: { materials: {} } }];
     state.party = [createStartingKitCharacter('vanguard')];
     state.currentRun = run;
     state.gameState = 'result';
@@ -20,16 +19,14 @@ test('result screen renders save-derived names and quest text literally', async 
     updateUI();
     return {
       itemText: document.querySelector('.result-return-history span')?.textContent,
-      questText: document.querySelector('.result-quest-row strong')?.textContent,
       images: document.querySelectorAll('#result-overlay img').length,
-      boldNodes: document.querySelectorAll('.result-return-history b, .result-quest-row b').length,
+      boldNodes: document.querySelectorAll('.result-return-history b').length,
       xss: window.__xss,
     };
   }, HOSTILE_RESULT_TEXT);
 
   expect(evidence).toEqual({
     itemText: HOSTILE_RESULT_TEXT,
-    questText: HOSTILE_RESULT_TEXT,
     images: 0,
     boldNodes: 0,
     xss: 0,
@@ -264,7 +261,8 @@ for (const reason of ['gameover', 'abandon', 'milestone_portal']) {
         storage: state.storage.length,
         hide: state.metaMaterials['硬い皮'],
         fang: state.metaMaterials['獣の牙'],
-        questCount: state.currentRun?.quests?.length || 0
+        questCount: state.currentRun?.quests?.length || 0,
+        log: state.logs.join('\n')
       };
     });
     expect(after.gameState).toBe('explore');
@@ -274,6 +272,8 @@ for (const reason of ['gameover', 'abandon', 'milestone_portal']) {
     expect(after.storage).toBe(0);
     expect(after.hide).toBe(2);
     expect(after.fang).toBe(2);
+    expect(after.questCount).toBe(0);
+    expect(after.log).not.toContain('依頼');
     await expect(page.locator('#result-overlay')).toBeHidden();
     await expect(page.locator('#submenu-controls')).toBeHidden();
   });
@@ -348,6 +348,122 @@ test('Town preparation opens with the previous choices and still allows changing
   expect(remembered).toEqual({ kitId: 'scout', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 5 });
 });
 
+test('Town shows the three closest feats and opens the full list', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { initNewGame, state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    initNewGame();
+    state.gameState = 'town';
+    state.feats.counters.bestDepth = 7;
+    state.feats.counters.guardianDepth = 5;
+    state.feats.counters.elitesKilled = 4;
+    state.feats.counters.chestsOpened = 3;
+    state.feats.completed = { depth_5: { runNumber: 2 }, guardian_5: { runNumber: 3 } };
+    updateUI();
+  });
+
+  const cards = page.locator('#town-feat-summary .feat-card');
+  await expect(cards).toHaveCount(3);
+  await expect(cards.nth(0)).toHaveAttribute('data-feat-id', 'elite_5');
+  await expect(cards.nth(0)).toContainText('強敵狩り');
+  await expect(cards.nth(0)).toContainText('4 / 5');
+  await expect(cards.nth(0)).toContainText('強敵（精鋭・徘徊強敵）を累計5体倒す');
+  await expect(cards.nth(0)).toContainText('報酬 黒角×3');
+  await expect(cards.nth(1)).toHaveAttribute('data-feat-id', 'depth_10');
+  await expect(cards.nth(1)).toContainText('B7F / B10F');
+  await expect(cards.nth(2)).toHaveAttribute('data-feat-id', 'guardian_10');
+  await expect(page.locator('#btn-town-feats')).toContainText('達成 2 / 14');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+
+  await page.locator('#btn-town-feats').click();
+  await expect(page.locator('#submenu-title')).toContainText('偉業');
+  await expect(page.locator('.feat-list-summary')).toContainText('達成 2 / 14');
+  await expect(page.locator('.feat-list-grid .feat-card')).toHaveCount(14);
+  await expect(page.locator('.feat-card[data-feat-id="depth_5"]')).toHaveAttribute('data-feat-completed', 'true');
+  await expect(page.locator('.feat-card[data-feat-id="depth_5"]')).toContainText('受け取り済み');
+  await expect(page.locator('.feat-card[data-feat-id="kits_4"]')).toContainText('0 / 4');
+  await page.locator('#btn-submenu-back').click();
+  await expect(page.locator('#town-controls')).toBeVisible();
+});
+
+test('Result shows the feats achieved and how far the closest ones moved', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const outcome = await page.evaluate(async () => {
+    const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
+    const { triggerRunResult } = await import('/src/result.js');
+    initNewGame();
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.currentRun = createDefaultCurrentRun();
+    state.currentRun.startFloor = 1;
+    state.currentRun.startingKit = 'vanguard';
+    state.currentRun.deepestFloor = 5;
+    state.currentRun.elitesKilled = 2;
+    state.currentRun.trapsTriggered = 1;
+    state.floor = 5;
+    state.gameState = 'explore';
+    state.feats.counters.elitesKilled = 1;
+    state.metaMaterials = { '鉄片': 1 };
+    triggerRunResult('gameover');
+    return { iron: state.metaMaterials['鉄片'], completed: Object.keys(state.feats.completed) };
+  });
+  expect(outcome).toEqual({ iron: 5, completed: ['depth_5'] });
+
+  const rows = page.locator('[data-result-feats] .result-feat-row');
+  await expect(rows.nth(0)).toHaveText('達成坑道を抜ける報酬 鉄片×4');
+  await expect(page.locator('.result-feat-row[data-feat-id="elite_5"]')).toHaveText('前進強敵狩り3 / 5（今回 +2）');
+  await expect(page.locator('.result-feat-row[data-feat-id="depth_10"]')).toHaveText('前進地下墓地の底へB5F / B10F');
+  await expect(page.locator('#result-overlay')).not.toContainText('今回の依頼');
+
+  await page.reload();
+  await expect(page.locator('[data-result-feats] .result-feat-row').nth(0)).toContainText('坑道を抜ける');
+  await page.locator('#btn-result-castle').click();
+  await expect(page.locator('#town-feat-summary .feat-card').first()).toHaveAttribute('data-feat-id', 'elite_5');
+});
+
+test('Explore shows the closest feats with live progress and announces a feat once', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { initNewGame, state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    initNewGame();
+    state.gameState = 'town';
+    state.feats.counters.bestDepth = 4;
+    state.feats.counters.chestsOpened = 29;
+    updateUI();
+  });
+  await page.locator('#btn-town-dungeon').click();
+  await page.locator('.solo-starting-kit-option').first().click();
+  await page.locator('#btn-kit-confirm').click();
+  await page.locator('#btn-departure-start').click();
+  await expect(page.locator('#explore-controls')).toBeVisible();
+  await expect(page.locator('#log-content')).not.toContainText('依頼');
+
+  const live = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const { getFeatAnnouncementLines } = await import('/src/systems/feats.js');
+    state.currentRun.chestsOpened = 1;
+    const first = getFeatAnnouncementLines(state.feats, state.currentRun);
+    const second = getFeatAnnouncementLines(state.feats, state.currentRun);
+    updateUI();
+    return {
+      first,
+      second,
+      hud: [...document.querySelectorAll('#goal-banner .feat-hud-list span')].map(item => item.textContent),
+      storedChests: state.feats.counters.chestsOpened
+    };
+  });
+  expect(live.first).toEqual(['【偉業達成】宝箱あさり（宝箱を累計30個開ける）。報酬は街で受け取る。']);
+  expect(live.second).toEqual([]);
+  expect(live.hud).toEqual(['宝箱あさり達成', '坑道を抜けるB4F / B5F', '傷なき踏破B1F / B5F']);
+  expect(live.storedChests).toBe(29);
+});
+
 test('Town home is organized as previous run, next descent, and accumulated knowledge', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -366,12 +482,13 @@ test('Town home is organized as previous run, next descent, and accumulated know
   await expect(home.locator('.town-home-section').nth(0)).toContainText('死亡');
   await expect(home.locator('.town-home-section').nth(0)).toContainText('開始キット');
   await expect(home.locator('.town-home-section').nth(1)).toContainText('次の潜行');
-  await expect(home.locator('#town-next-run-title')).toHaveText('次の潜行に備える');
+  await expect(home.locator('#town-next-run-title')).toHaveText('あと少しで届く偉業');
   await expect(home.locator('.town-home-section').nth(2)).toContainText('蓄積した記録');
   await expect(page.locator('#btn-town-dungeon')).toContainText('準備を整える');
   await expect(page.locator('#btn-town-dungeon')).toContainText('開始キットと開始地点を選ぶ');
   await expect(page.locator('#btn-town-dungeon')).not.toContainText('クラス');
-  await expect(page.locator('#btn-town-quest-board')).toContainText('今回の依頼を選ぶ');
+  await expect(page.locator('#btn-town-quest-board')).toHaveCount(0);
+  await expect(page.locator('#btn-town-feats')).toContainText('偉業の一覧を見る');
   await expect(page.locator('#btn-town-archives')).toContainText('迷宮について分かったこと');
   await expect(page.locator('#btn-town-workshop')).toContainText('広がった可能性を見る');
 });

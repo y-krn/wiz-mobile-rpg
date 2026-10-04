@@ -26,8 +26,7 @@ import {
 } from "./systems/roaming_elites.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.js";
-import { RUN_QUEST_TEMPLATES } from "./data/run_quests.js";
-import { assignRunQuests, createRunQuest, updateRunQuests } from "./systems/run_quests.js";
+import { getFeatAnnouncementLines, getNearestFeats } from "./systems/feats.js";
 import { calculateFloorTrapSuccessRate, resolveTrapAction } from "./rules/trap_rules.js";
 import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
 import {
@@ -527,9 +526,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     state.sessionMaxFloor = Math.max(state.sessionMaxFloor, state.floor);
     if (state.currentRun) {
       state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
-      updateRunQuests(state.currentRun, getPartyMaxAffix(state.party, "contractReward")).forEach(quest => {
-        addLog(`【依頼達成】${quest.name}：素材ボーナスを獲得した。`);
-      });
+      getFeatAnnouncementLines(state.feats, state.currentRun).forEach(line => addLog(line));
     }
 
     const target = landingCoord || findCellCoordsByType(state.maps[nextFloor - 1], "stairs-up");
@@ -1033,21 +1030,7 @@ export function enterDungeon() {
   openSubmenu("solo_start", "開始キットを選択：潜行ごとにLv1から開始");
 }
 
-function assignSelectedRunQuests(run, templateIds) {
-  const selected = [...new Set(templateIds)]
-    .map(id => RUN_QUEST_TEMPLATES.find(template => template.id === id))
-    .filter(Boolean)
-    .slice(0, 2);
-  if (selected.length === 0) {
-    assignRunQuests(run);
-    return;
-  }
-  run.quests = selected.map(template => createRunQuest(template, run.startFloor || 1));
-  run.defeatsByRole ||= {};
-  updateRunQuests(run);
-}
-
-export function executeEnterDungeon(floor, { departureCraft = [], runQuestTemplateIds = null } = {}) {
+export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.party = state.party.slice(0, 1);
   state.gameState = "explore";
   menuContext.prevGameState = null;
@@ -1062,11 +1045,6 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   state.currentRun.deepestFloor = floor;
   state.currentRun.startingKit = normalizeStartingKitId(state.party[0]?.startingKit);
   state.currentRun.floorSteps = {};
-  if (Array.isArray(runQuestTemplateIds) && runQuestTemplateIds.length > 0) {
-    assignSelectedRunQuests(state.currentRun, runQuestTemplateIds);
-  } else {
-    assignRunQuests(state.currentRun);
-  }
   resetRunFloors(state);
   ensureRunFloor(state, floor);
   if (floor > 1) {
@@ -1112,7 +1090,8 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   const firstVisit = revealFloor(state, floor);
   addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
   addLog(`鑑定粉を${state.identifyTickets}個持って潜行を開始した。`);
-  addLog(`依頼：${state.currentRun.quests.map(quest => quest.name).join(" / ")}`);
+  const nearestFeat = getNearestFeats(state.feats, null, 1)[0];
+  if (nearestFeat) addLog(`近い偉業：${nearestFeat.feat.name}（${nearestFeat.feat.condition}）`);
   checkFloorOmenMessage();
   playSound("move");
   saveAutosave();

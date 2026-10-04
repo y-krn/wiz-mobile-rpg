@@ -21,12 +21,10 @@ async function seedExplore(page) {
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
   await page.evaluate(async (map) => {
     const { state, createDefaultCurrentRun, createStartingKitCharacter, addLog } = await import('/src/state.js');
-    const { assignRunQuests } = await import('/src/systems/run_quests.js');
     const { menuContext } = await import('/src/navigation.js');
     const { updateUI } = await import('/src/ui.js');
     state.party = [createStartingKitCharacter('vanguard'), createStartingKitCharacter('vanguard')];
     state.currentRun = createDefaultCurrentRun();
-    assignRunQuests(state.currentRun, () => 0);
     state.floor = 1;
     state.x = 4;
     state.y = 4;
@@ -104,8 +102,8 @@ test('Explore HUD leaves most of the dungeon view uncovered at 375x667 @smoke', 
   await expect(container).toHaveAttribute('data-goal-expanded', 'false');
   await expect(page.locator('#goal-banner .goal-text')).toBeVisible();
   await expect(page.locator('#goal-banner .goal-stats-container')).toContainText('探索率');
-  await expect(page.locator('#goal-banner .goal-quest-summary')).toHaveText(/^📜 依頼 0\/\d+$/);
-  await expect(page.locator('#goal-banner .quest-hud-list')).toBeHidden();
+  await expect(page.locator('#goal-banner .goal-feat-summary')).toHaveText('📜 偉業 B1F / B5F');
+  await expect(page.locator('#goal-banner .feat-hud-list')).toBeHidden();
 
   // Just after an event, only the newest line is shown.
   const newest = page.locator('#log-content .event-strip-item');
@@ -139,8 +137,8 @@ test('Explore HUD leaves most of the dungeon view uncovered at 375x667 @smoke', 
   // The full goal and quest list are one tap away.
   await page.locator('#btn-goal-toggle').click();
   await expect(container).toHaveAttribute('data-goal-expanded', 'true');
-  await expect(page.locator('#goal-banner .quest-hud-list')).toBeVisible();
-  await expect(page.locator('#goal-banner .goal-quest-summary')).toBeHidden();
+  await expect(page.locator('#goal-banner .feat-hud-list')).toBeVisible();
+  await expect(page.locator('#goal-banner .goal-feat-summary')).toBeHidden();
   await page.locator('#btn-log-expand').click();
   await expect(page.locator('#log-overlay-body')).toContainText('回復薬を手に入れた');
 });

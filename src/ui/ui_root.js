@@ -17,7 +17,7 @@ import { updateCombatPrompt } from "./combat_prompt.js";
 import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
 import { getDepthCorruption, getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
-import { formatRunQuestProgress } from "../systems/run_quests.js";
+import { formatFeatProgress, getFeat, getLiveFeatCounters, getNearestFeats } from "../systems/feats.js";
 import { updateRecordsStrip } from "./records_view.js";
 import { renderTownHome } from "./town_home.js";
 import { getScreenViewState } from "../state/view_state.js";
@@ -283,10 +283,24 @@ function createGoalStat(icon, label, value) {
   return stat;
 }
 
+// Feats shown during a run: the ones achieved in this run, then the closest
+// ones still ahead with live progress (#2007).
+function getHudFeats() {
+  const run = state.currentRun;
+  if (!run) return [];
+  const achieved = (run.featsAnnounced || [])
+    .slice(-2)
+    .map(getFeat)
+    .filter(Boolean)
+    .map(feat => ({ name: feat.name, progress: "達成", completed: true }));
+  const nearest = getNearestFeats(state.feats, getLiveFeatCounters(state.feats, run), 2)
+    .map(({ feat, progress }) => ({ name: feat.name, progress: formatFeatProgress(feat, progress), completed: false }));
+  return [...achieved, ...nearest];
+}
+
 function getExploreGoalSignature() {
-  const quests = (state.currentRun?.quests || [])
-    .map(quest => `${quest.name}:${quest.completed ? 1 : 0}:${formatRunQuestProgress(quest, state.currentRun)}`);
-  return [getCurrentGoal(), ...quests].join("|");
+  const feats = getHudFeats().map(feat => `${feat.name}:${feat.completed ? 1 : 0}:${feat.progress}`);
+  return [getCurrentGoal(), ...feats].join("|");
 }
 
 // The minimap opens the full-floor map (#1833); it closes when explore ends.
@@ -340,7 +354,9 @@ export function updateUI() {
         ? "choose_action"
         : "";
   const departurePrepSubmenu = view.isDeparturePrepSubmenu;
-  const workshopSubmenu = view.isWorkshopSubmenu;
+  // The feat list is a long town list like the Workshop: give it the same
+  // full-height layout (#2007).
+  const workshopSubmenu = view.isWorkshopSubmenu || view.menuType === "feats_main";
   const merchantSubmenu = view.isSubmenu && view.menuType === "milestone_merchant";
   const townSubmenu = view.isTownSubmenu;
   const isTownLikeGoal = gameState === "town" || departurePrepSubmenu;
@@ -517,12 +533,12 @@ export function updateUI() {
       const statsContainer = document.createElement("span");
       statsContainer.className = "goal-stats-container";
       statsContainer.appendChild(createGoalStat("🗺️", "探索率: ", `${expRate}%`));
-      const quests = state.currentRun?.quests || [];
-      if (isExploreHud && quests.length > 0) {
-        // The folded one-line goal still carries run-quest progress (#1832).
-        const questSummary = createGoalStat("📜", "依頼 ", `${quests.filter(quest => quest.completed).length}/${quests.length}`);
-        questSummary.className = "goal-quest-summary";
-        statsContainer.appendChild(questSummary);
+      const nextFeat = getHudFeats().find(feat => !feat.completed);
+      if (isExploreHud && nextFeat) {
+        // The folded one-line goal still carries the closest feat (#1832, #2007).
+        const featSummary = createGoalStat("📜", "偉業 ", nextFeat.progress);
+        featSummary.className = "goal-feat-summary";
+        statsContainer.appendChild(featSummary);
       }
       goalRow.appendChild(statsContainer);
     }
@@ -544,21 +560,22 @@ export function updateUI() {
       });
       goalBanner.appendChild(goalToggle);
     }
-    if (state.currentRun?.quests?.length && !["result", "gameover", "victory"].includes(gameState)) {
-      const questList = document.createElement("div");
-      questList.className = "quest-hud-list";
-      state.currentRun.quests.forEach(quest => {
+    const hudFeats = ["result", "gameover", "victory"].includes(gameState) || isTownLikeGoal ? [] : getHudFeats();
+    if (hudFeats.length > 0) {
+      const featList = document.createElement("div");
+      featList.className = "feat-hud-list";
+      hudFeats.forEach(feat => {
         const item = document.createElement("span");
-        item.className = quest.completed ? "completed" : "";
+        item.className = feat.completed ? "completed" : "";
         const name = document.createElement("strong");
-        name.textContent = quest.name;
+        name.textContent = feat.name;
         const progress = document.createElement("small");
-        progress.textContent = formatRunQuestProgress(quest, state.currentRun);
+        progress.textContent = feat.progress;
         item.appendChild(name);
         item.appendChild(progress);
-        questList.appendChild(item);
+        featList.appendChild(item);
       });
-      goalBanner.appendChild(questList);
+      goalBanner.appendChild(featList);
     }
   }
 

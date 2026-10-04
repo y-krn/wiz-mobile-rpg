@@ -21,16 +21,12 @@ import {
   resolveLastPreparation
 } from "../systems/departure_preparation.js";
 import { normalizeLastPreparation } from "../state/last_preparation.js";
+import { formatFeatProgress, getNearestFeats } from "../systems/feats.js";
 import { CRAFT_RECIPES } from "../craft.js";
 import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
 import { getEquipmentLoadPlayerCopy } from "../rules/equipment_load.js";
-import {
-  consumeSelectedRunQuestTemplateIds,
-  getPendingRunQuestTemplateIds
-} from "./run_quest_board.js";
 import { createActionCard } from "./action_card.js";
-import { RUN_QUEST_TEMPLATES } from "../data/run_quests.js";
 import { getFloorTheme } from "../data/floor_themes.js";
 import {
   getActiveRuneSpellKeys,
@@ -97,7 +93,7 @@ function createDepartureCharacter(startingKitId, startingGear = null) {
 
 // Every departure goes through here: the preparation screen and the repeat
 // departure from the result screen pay and start by the same steps.
-function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds, { useBoardQuests }) {
+function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
   const kit = getStartingKit(startingKitId);
   if (!kit) return false;
   const { character, handConflict } = createDepartureCharacter(startingKitId, startingGear);
@@ -106,8 +102,6 @@ function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds, {
     return false;
   }
   clearDepartureStartFooter();
-  const boardQuestTemplateIds = consumeSelectedRunQuestTemplateIds();
-  const runQuestTemplateIds = useBoardQuests ? boardQuestTemplateIds : null;
   let departureCraft = [];
   if (selectedRecipeIds.length > 0) {
     const purchase = purchaseDepartureCraft(state.metaMaterials, selectedRecipeIds, state.storage);
@@ -133,7 +127,7 @@ function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds, {
   droppedPreparationLines = [];
   state.party = [character];
   addLog(`${kit.name}で単独潜行を開始する。`);
-  executeEnterDungeon(startFloor, { departureCraft, runQuestTemplateIds });
+  executeEnterDungeon(startFloor, { departureCraft });
   return true;
 }
 
@@ -142,7 +136,7 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
   // exploration surface. Replayed events from the old button must not start
   // another run or charge its preparation choices twice.
   if (state.gameState !== "submenu") return false;
-  return launchRun(startingKitId, startingGear, startFloor, getSelectedRecipeIds(), { useBoardQuests: true });
+  return launchRun(startingKitId, startingGear, startFloor, getSelectedRecipeIds());
 }
 
 /** The previous preparation checked against what can be chosen right now. */
@@ -163,14 +157,13 @@ export function formatRepeatDepartureCost(plan) {
 /**
  * Start the next run from the town with the previous preparation, without
  * opening the preparation screen. Refuses unless every previous choice can
- * be made again, so it never leaves with less than last time. No quests are
- * picked, exactly like leaving the quest board without choosing.
+ * be made again, so it never leaves with less than last time.
  */
 export function repeatLastDeparture() {
   if (state.gameState !== "town") return false;
   const plan = getRepeatDeparturePlan();
   if (!plan?.canRepeat) return false;
-  return launchRun(plan.kitId, plan.startingGear, plan.startFloor, plan.recipeIds, { useBoardQuests: false });
+  return launchRun(plan.kitId, plan.startingGear, plan.startFloor, plan.recipeIds);
 }
 
 function getSelectedRecipeIds() {
@@ -310,11 +303,15 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
       .map(spellKey => ITEMS[getRuneItemId(spellKey)]?.name || spellKey)
       .join("・") || "なし"
   );
-  const pendingQuestIds = getPendingRunQuestTemplateIds();
-  const questNames = pendingQuestIds
-    .map(id => RUN_QUEST_TEMPLATES.find(template => template.id === id)?.name)
-    .filter(Boolean);
-  appendPreparationRow(conditions, "選択依頼", questNames.length > 0 ? questNames.join("・") : "自動で1〜2件");
+  const nearestFeat = getNearestFeats(state.feats, null, 1)[0];
+  if (nearestFeat) {
+    appendPreparationRow(
+      conditions,
+      "近い偉業",
+      `${nearestFeat.feat.name}（${formatFeatProgress(nearestFeat.feat, nearestFeat.progress)}）`,
+      "solo-preparation-feat"
+    );
+  }
   const startFloorLabel = selectedStartFloor === null
     ? "未選択"
     : `B${selectedStartFloor}F・${getFloorBand(selectedStartFloor)}（${getFloorTheme(selectedStartFloor).name}）`;

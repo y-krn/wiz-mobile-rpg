@@ -6,6 +6,7 @@ import { isNormalizedDeathHistory, type NormalizedDeathHistory } from "./death_l
 import { isNormalizedStartingKitId, type NormalizedStartingKitId } from "./starting_kit.js";
 import { isNormalizedRecords, type NormalizedRecords } from "./records_state.js";
 import { isNormalizedLastPreparation, type NormalizedLastPreparation } from "./last_preparation.js";
+import { isNormalizedFeatsState, type NormalizedFeatsState } from "./feats_state.js";
 import {
   isInventoryCollection,
   isRuntimeItemCollection,
@@ -85,6 +86,7 @@ export interface NormalizedSavePayload {
   keyItems: unknown[];
   dungeonMemory: NormalizedDungeonMemory;
   lastPreparation: NormalizedLastPreparation;
+  feats: NormalizedFeatsState;
   logs: string[];
 }
 
@@ -96,7 +98,7 @@ export const SAVE_PAYLOAD_FIELDS = Object.freeze([
   "deathLogs", "codex", "seed", "gameState", "combatState", "chestState",
   "prevX", "prevY", "roamingMonsters", "roamingMovementStepCount", "noiseEvents",
   "firstChestUnidentifiedGuaranteed", "storage", "storageMax", "storageMigrationVersion", "identifyTickets",
-  "cleared", "metaMaterials", "workshop", "keyItems", "dungeonMemory", "lastPreparation", "logs"
+  "cleared", "metaMaterials", "workshop", "keyItems", "dungeonMemory", "lastPreparation", "feats", "logs"
 ] as const);
 
 export const TRANSIENT_STATE_FIELDS = Object.freeze([
@@ -158,6 +160,7 @@ export function isNormalizedSavePayload(value: unknown): value is NormalizedSave
       typeof value.cleared !== "boolean" || !Array.isArray(value.logs) ||
       !value.logs.every(log => typeof log === "string")) return false;
   if (!isNormalizedLastPreparation(value.lastPreparation)) return false;
+  if (!isNormalizedFeatsState(value.feats)) return false;
   if (!isRecord(value.dungeonMemory) || !isRecord(value.dungeonMemory.mapFragments) ||
       !Array.isArray(value.dungeonMemory.visitedFloors)) return false;
   return true;

@@ -71,6 +71,7 @@ import {
 } from "./run_discovery_state.js";
 import { isNormalizedRunDeathLogs, type NormalizedRunDeathLogs } from "./death_logs.js";
 import { isNormalizedRunNearMiss, type NormalizedRunNearMiss } from "./run_near_miss.js";
+import { isAnnouncedFeatIds, isNormalizedRunFeatResult, type NormalizedRunFeatResult } from "./feats_state.js";
 import {
   isNormalizedRunObjectLootLedger,
   type NormalizedRunObjectLootLedger
@@ -113,6 +114,8 @@ export interface NormalizedCurrentRun {
   workshopUnlocks: NormalizedRunWorkshopUnlock[];
   returnProcessing: NormalizedRunReturnProcessing | null;
   nearMiss: NormalizedRunNearMiss | null;
+  featResult: NormalizedRunFeatResult;
+  featsAnnounced: string[];
   lootSequence: number;
   itemsFound: RuntimeItemCollection;
   equipmentFound: RuntimeItemCollection;
@@ -156,7 +159,7 @@ const ITEM_COLLECTION_FIELDS = [
 const REQUIRED_FIELDS = [
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
-  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing", "nearMiss",
+  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing", "nearMiss", "featResult", "featsAnnounced",
   "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
   "floorSteps", "eventObservations",
@@ -226,6 +229,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!isNormalizedWorkshopUnlocks(value.workshopUnlocks)) return false;
   if (value.returnProcessing !== null && !isNormalizedReturnProcessing(value.returnProcessing)) return false;
   if (value.nearMiss !== null && !isNormalizedRunNearMiss(value.nearMiss)) return false;
+  if (!isNormalizedRunFeatResult(value.featResult) || !isAnnouncedFeatIds(value.featsAnnounced)) return false;
   if (value.recordResult !== null && !isNormalizedRunRecordResult(value.recordResult)) return false;
   return true;
 }

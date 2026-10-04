@@ -496,12 +496,10 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
     state.metaMaterials = { '獣の牙': 10, '硬い皮': 10 };
     state.workshop = { ranks: { gear_fighter_saber: 1 } };
     state.unlockedMilestones = [5];
-    openSubmenu('run_quest_board', '依頼板 - 潜行の目的');
+    state.feats.counters.bestDepth = 4;
+    openSubmenu('solo_start', '開始キットを選択：潜行ごとにLv1から開始');
   });
 
-  const questName = await page.locator('.run-quest-card').first().locator('strong').textContent();
-  await page.locator('.run-quest-card').first().click();
-  await page.getByRole('button', { name: '選択した依頼で潜行準備へ' }).click();
   await page.getByRole('button', { name: /軽装探索キット/ }).click();
   await page.locator('[data-starting-gear="FIGHTER_SABER"]').click();
   await page.locator('#btn-kit-confirm').click();
@@ -516,7 +514,8 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(summary).toContainText('ルーン枠');
   await expect(summary).not.toContainText('Medium');
   await expect(summary).not.toContainText('active Rune');
-  await expect(summary).toContainText(questName);
+  await expect(summary.locator('.solo-preparation-feat')).toContainText('坑道を抜ける（B4F / B5F）');
+  await expect(summary).not.toContainText('依頼');
   await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
   await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(20);
   await expect(summary).toContainText('持ち込み 0/20');

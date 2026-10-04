@@ -2,7 +2,7 @@
 
 This document owns the durable economy meaning of the solo depth-attack
 roguelite: materials, resource exchange, status counterplay, milestone
-merchants, run quests, and the relationship between a run's value and the next
+merchants, feats, and the relationship between a run's value and the next
 descent. The core question and push-your-luck contract live in
 `.agents/game-design-core-loop.md`; this document refines their economy-facing
 implications.
@@ -235,13 +235,29 @@ route decision without a new currency, a permanent stat, or a substitute for
 the milestone merchant's curse removal. The room list and its rules live in the
 core-loop canon.
 
-## Run quests
+## Feats
 
-Run-scoped contracts are optional supporting content, not a second progression
-axis. They should point the player deeper or into meaningful risk, expire with
-the run, and never make a shallow farming route optimal. Their rewards must
-reinforce the material and depth question rather than create a separate
-currency or permanent checklist.
+Feats (偉業) are the long-term goals that replaced run-scoped quests. A quest
+that expired with the run paid too little to change a decision and gave a
+short run nothing to carry forward. A feat keeps its condition and progress
+visible at all times, accumulates across runs whatever the outcome, and is
+achieved once.
+
+- Feats exist so that every time scale shows something within reach: the
+  explore HUD carries the closest ones with live progress, the Result shows
+  what moved, and the town opens on the three closest to completion.
+- A feat points the player deeper or into meaningful risk: depth, guardians,
+  elites, role-carrying enemies, a descent without a trap. Cumulative feats
+  may advance in a shallow run, but each pays once, so no shallow route
+  becomes a farm.
+- A feat pays a one-time material reward straight to the town balance, in
+  full and independent of the run's outcome. It is not part of the run's
+  haul and is not subject to the death or abandon rate.
+- A feat is also the place to hang a horizontal unlock: a town facility, a
+  starting kit, a Workshop possibility. It never grants a permanent ATK/HP
+  increase, a targeted drop, or a second currency.
+- Conditions are never hidden and are stated as facts the player can check.
+  Feats that form a chain are offered one at a time.
 
 ## Castle, Codex, and knowledge
 

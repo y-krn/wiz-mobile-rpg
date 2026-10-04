@@ -2,7 +2,8 @@ import { state, saveGame, addLog, finalizeRunRecords, recordCharDeath, formatCha
 import { START_X, START_Y, DIR_N, getItemBaseId, getPartyMaxAffix } from "./data.js";
 import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
-import { updateRunQuests } from "./systems/run_quests.js";
+import { settleRunFeats } from "./systems/feats.js";
+import { normalizeRunFeatResult } from "./state/feats_state.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry.js";
 import { processRunReturn } from "./systems/run_return.js";
@@ -69,7 +70,6 @@ export function triggerRunResult(reason) {
       if (deathLog) addLog(formatCharDeathLog(deathLog));
     }
   }
-  updateRunQuests(run, getPartyMaxAffix(state.party, "contractReward"));
   const previousFirstKills = new Set(normalizeRunFirstKillsBefore(run.firstKillsBefore));
   run.codexDiscoveries = normalizeRunCodexDiscoveries(
     normalizeRunFirstKillsBefore(state.firstKills).filter(name => !previousFirstKills.has(name))
@@ -96,6 +96,20 @@ export function triggerRunResult(reason) {
   );
   state.records = recordResult.records;
   run.recordResult = normalizeRunRecordResult(recordResult);
+  // Feats count what happened whatever the outcome, and their one-time
+  // rewards are paid in full: they are not part of the run's haul.
+  const featSettlement = settleRunFeats(
+    state.feats,
+    run,
+    outcome,
+    recordResult.runNumber,
+    getPartyMaxAffix(state.party, "contractReward")
+  );
+  state.feats = featSettlement.feats;
+  run.featResult = normalizeRunFeatResult(featSettlement.result);
+  Object.entries(run.featResult?.rewards || {}).forEach(([name, quantity]) => {
+    state.metaMaterials[name] = (state.metaMaterials[name] || 0) + quantity;
+  });
   const danger = calculateDangerScore();
   run.dangerScore = danger.score;
   run.dangerRank = danger.rank;

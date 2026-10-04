@@ -3,7 +3,7 @@ import { setRenderSubmenuCallback } from "../navigation.js";
 import { renderSoloStart } from "./solo_start.js";
 import { renderCastleMain, renderCastleDeathLogs } from "./town_actions.js";
 import { renderWorkshop } from "./workshop_view.js";
-import { renderRunQuestBoard } from "./run_quest_board.js";
+import { renderFeatList } from "./feat_list.js";
 import { renderMilestoneMerchant } from "./milestone_merchant.js";
 import { renderMilestonePortal } from "./milestone_portal.js";
 import { renderStairsDown } from "./stairs_down.js";
@@ -17,7 +17,7 @@ const SUBMENU_RENDERERS = {
   chest_menu: () => openChestMenu(),
   pending_rewards: () => openPendingRewardMenu(),
   workshop_main: (optGrid) => renderWorkshop(optGrid),
-  run_quest_board: (optGrid) => renderRunQuestBoard(optGrid),
+  feats_main: (optGrid) => renderFeatList(optGrid),
   milestone_merchant: (optGrid) => renderMilestoneMerchant(optGrid),
   milestone_portal: (optGrid) => renderMilestonePortal(optGrid),
   stairs_down: (optGrid) => renderStairsDown(optGrid),

@@ -408,7 +408,7 @@ function bindButtons() {
     repeat: repeatLastDeparture,
     review: enterDungeon
   });
-  document.getElementById("btn-town-quest-board").addEventListener("click", () => handleTownOption("run_quest_board"));
+  document.getElementById("btn-town-feats").addEventListener("click", () => handleTownOption("feats"));
   document.getElementById("btn-town-castle").addEventListener("click", () => handleTownOption("castle"));
   document.getElementById("btn-town-workshop").addEventListener("click", () => handleTownOption("workshop"));
   document.getElementById("btn-town-archives").addEventListener("click", () => handleTownOption("archives"));

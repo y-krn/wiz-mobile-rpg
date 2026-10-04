@@ -161,7 +161,7 @@ test("production Core 13件を一度ずつ監査しvNext語彙と一致させる
     counts[disposition] = (counts[disposition] || 0) + 1;
     return counts;
   }, { keep: 0, change: 0, support: 0, retire: 0 });
-  assert.deepEqual(dispositionCounts, { keep: 5, change: 3, support: 4, retire: 1 });
+  assert.deepEqual(dispositionCounts, { keep: 5, change: 3, support: 3, retire: 2 });
   assert.equal(VNEXT_CORE_AUDIT.CORE_CAMP_MASTER.reasonCode, "passive_recovery_multiplier");
   assert.equal(VNEXT_CORE_AUDIT.CORE_KEEN_EYE.disposition, "retire");
   assert.equal(VNEXT_CORE_AUDIT.CORE_KEEN_EYE.productionConsumer, false);
@@ -407,15 +407,16 @@ function goblin() {
   return { name: "ゴブリン", hp: 0, maxHp: 10, exp: 0, tags: [], fled: false };
 }
 
-test("賞金稼ぎ: ランクエスト対象キルを2倍カウント", () => {
-  const quest = { type: "role_kill", role: "aggressor", currentValue: 0, targetValue: 4, completed: false, reward: { materials: {} } };
-  const rewardState = makeRewardState("CORE_BOUNTY_HUNTER", quest);
+test("賞金稼ぎ: 依頼の撤去後は発動経路を持たない", () => {
+  const rewardState = makeRewardState("CORE_BOUNTY_HUNTER");
   rewardState.combatState.monsters = [goblin()];
-  rewardState.combatState.monsters[0].role = "aggressor";
+  rewardState.combatState.monsters[0].role = "disruptor";
   const logs = [];
   applyCombatRewards(rewardState, rewardState.combatState.monsters, logs, () => 1);
-  assert.equal(quest.currentValue, 2);
-  assert.ok(logs.some(entry => entry.msg.startsWith("[賞金稼ぎ]")));
+  assert.equal(rewardState.currentRun.defeatsByRole.disruptor, 1);
+  assert.equal(logs.some(entry => entry.msg?.startsWith("[賞金稼ぎ]")), false);
+  assert.equal(VNEXT_CORE_AUDIT.CORE_BOUNTY_HUNTER.disposition, "retire");
+  assert.equal(VNEXT_CORE_AUDIT.CORE_BOUNTY_HUNTER.productionConsumer, false);
 });
 
 test("学者の眼: 図鑑未登録敵からrng不発でも素材確定", () => {

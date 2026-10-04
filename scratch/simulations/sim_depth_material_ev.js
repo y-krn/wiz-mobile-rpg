@@ -73,7 +73,6 @@ const {
   getPreferredOffensiveSpellName
 } = await import("../../src/combat_logic/auto_action.js");
 const { SPELL_EFFECTS } = await import("../../src/systems/spell_effects.js");
-const { assignRunQuests, updateRunQuests } = await import("../../src/systems/run_quests.js");
 const {
   generateRunFloor: generateRunFloorSource,
   floorHasCampEvent
@@ -4496,7 +4495,11 @@ function createSimulationState(
   currentRun.buildFixtureId = buildFixtureId;
   currentRun.floorsVisited = [startFloor];
   currentRun.campRestCount = 0;
-  assignRunQuests(currentRun);
+  // Run quests were replaced by feats (#2007). Assigning them used to draw
+  // six random numbers here (one for the count, five for the shuffle). The
+  // draws are kept so every seeded scenario stays on the stream its recorded
+  // baselines were measured on.
+  for (let draw = 0; draw < 6; draw += 1) Math.random();
 
   const startingKitId = scenario.startingKit || SIM_CLASS_STARTING_KITS[axisId] || "vanguard";
   if (!getStartingKit(startingKitId)) {
@@ -16092,11 +16095,9 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       `sources=${state.simTrapKitSources.length}`
     );
   }
+  // Run quests were replaced by feats (#2007): feats pay the town balance at
+  // settlement, never the run's materials, so this source stays at zero.
   const materialsBeforeFinalQuests = { ...state.currentRun.materials };
-  updateRunQuests(
-    state.currentRun,
-    getCharAffixSum(state.party[0], "contractReward")
-  );
   const finalQuestRewards = getMaterialDelta(
     materialsBeforeFinalQuests,
     state.currentRun.materials
@@ -16872,10 +16873,6 @@ function descendToNextFloor(state, nextFloor, metrics = null, { stairsHeal = fal
   state.floor = nextFloor;
   state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
   state.currentRun.floorsVisited.push(nextFloor);
-  updateRunQuests(
-    state.currentRun,
-    getCharAffixSum(state.party[0], "contractReward")
-  );
   if (stairsHeal) applySimulatedStairsHeal(character, metrics);
   const maxHp = getCharMaxHp(character);
   const hpBefore = character.hp;

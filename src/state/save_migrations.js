@@ -17,7 +17,7 @@ import { getEquipmentHands } from "../rules/equipment_hands.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { isRuntimeItemCollection, isRuntimeItemRef } from "./item.js";
 import { isNormalizedPendingRewardBundle } from "./pending_reward.js";
-import { normalizeDefeatsByRole, normalizeRunQuest } from "./run_quest.js";
+import { normalizeDefeatsByRole } from "./run_quest.js";
 import { normalizeTrialBands } from "./trial_band.js";
 import {
   createDefaultNormalizedEliteFloorState,
@@ -47,6 +47,7 @@ import {
 } from "./run_return_state.js";
 import { normalizeRunRecordResult } from "./run_record_result.js";
 import { normalizeRunNearMiss } from "./run_near_miss.js";
+import { normalizeAnnouncedFeatIds, normalizeFeatsState, normalizeRunFeatResult } from "./feats_state.js";
 import { normalizeStartingKitId } from "./starting_kit.js";
 import {
   normalizeRunFirstKillsBefore,
@@ -651,7 +652,9 @@ function normalizeCurrentRun(run, saveFloor) {
     normalized.pendingCampEntryFloor = null;
   }
 
-  normalized.quests = normalized.quests.map(normalizeRunQuest).filter(isRecord);
+  // Run quests were replaced by feats (#2007). A run saved with quests keeps
+  // going; the quests are dropped and their role counts still feed the feats.
+  normalized.quests = [];
   normalized.townInventory = normalized.townInventory.filter(item => item != null);
   normalized.unbankedObjectLoot = arrayOr(normalized.unbankedObjectLoot);
   normalized.bankedObjectLoot = normalized.bankedObjectLoot.filter(item => item != null);
@@ -664,6 +667,8 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.workshopUnlocks = normalizeWorkshopUnlocks(normalized.workshopUnlocks);
   normalized.returnProcessing = normalizeReturnProcessing(normalized.returnProcessing);
   normalized.nearMiss = normalizeRunNearMiss(normalized.nearMiss);
+  normalized.featResult = normalizeRunFeatResult(normalized.featResult);
+  normalized.featsAnnounced = normalizeAnnouncedFeatIds(normalized.featsAnnounced);
   normalized.recordResult = normalizeRunRecordResult(normalized.recordResult);
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);
@@ -881,6 +886,18 @@ export function normalizeSavePayload(data) {
   };
   normalized.keyItems = arrayOr(data.keyItems);
   normalized.lastPreparation = normalizeLastPreparation(data.lastPreparation);
+  // Saves from before feats seed the counters from the records they already
+  // hold; nothing is marked achieved until the next run is settled (#2007).
+  normalized.feats = normalizeFeatsState(data.feats, {
+    deepestFloor: Math.max(
+      Number(normalized.records?.personalBests?.deepestFloor) || 0,
+      Number(normalized.records?.deepestRetreat) || 0,
+      Number(normalized.records?.deepestDeath) || 0
+    ),
+    unlockedMilestones: normalized.unlockedMilestones,
+    totalChests: normalized.codex?.stats?.totalChests,
+    safeReturns: normalized.runHistory.filter(entry => entry?.outcome === "retreat").length
+  });
   refundRetiredWorkshopNodes(normalized);
   normalized.workshop = normalizeWorkshopState(normalized.workshop);
   normalized.dungeonMemory = {
