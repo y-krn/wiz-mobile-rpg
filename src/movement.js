@@ -1083,6 +1083,7 @@ export function executeEnterDungeon(floor, { departureCraft = [], runQuestTempla
   applyPhase4cV1PlayerBaseline(state, { refill: true });
   const workshopGrants = getWorkshopGrants(state.workshop);
   const craftGrants = getDepartureCraftGrants(departureCraft);
+  state.currentRun.departureCraftItems = craftGrants.items.slice();
   state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder +
     workshopGrants.identifyPowder + craftGrants.identifyPowder;
   state.inventory = [];

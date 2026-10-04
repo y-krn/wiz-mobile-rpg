@@ -60,8 +60,10 @@ The 20-slot ordinary bag is part of the push-your-luck design:
 - spare equipment, consumables, unknown items, curios, and Wings compete for
   ordinary slots and do not gain special safety or treasure compartments;
 - preparation supplies and dungeon finds use the same capacity;
-- preparation supplies are consumed only when used, while dungeon-acquired
-  objects remain run loot until settlement;
+- departure-craft supplies are consumed when used. Portal and Wing return only
+  unused departure-craft supplies to storage, up to its capacity; Death and
+  Abandon lose unused supplies. Workshop grants are issued again each run and
+  never enter storage. Dungeon-acquired consumables never enter storage;
 - removing equipment into a full bag requires an explicit discard decision;
 - permanent capacity expansion is not part of the contract.
 
@@ -158,9 +160,9 @@ have a meaningful response before the threat becomes decisive.
   into the best route.
 
 Recovered dungeon equipment is terminal evidence, not permanent next-run
-combat equipment. Returned consumables may replenish preparation supplies when
-their economy contract permits it; this does not make recovered equipment a
-second inventory.
+combat equipment. Dungeon-acquired consumables also remain run loot and never
+replenish preparation storage. Only unused departure-craft supplies return
+after Portal or Wing, subject to storage capacity.
 
 ### Permanent progression meaning
 

@@ -58,7 +58,15 @@ function getMaterialBalanceTotal(balance) {
   );
 }
 
-function formatCraftPaymentWithBalance(recipe, balance) {
+function getStoredCraftCount(itemId) {
+  return state.storage.filter(item => (typeof item === "string" ? item : item?.baseId) === itemId).length;
+}
+
+function formatCraftPaymentWithBalance(recipe, balance, selectedRecipeIds) {
+  const selectedFromStorage = selectedRecipeIds.filter(id => id === recipe.resultId).length;
+  if (getStoredCraftCount(recipe.resultId) > selectedFromStorage) {
+    return `倉庫在庫${getStoredCraftCount(recipe.resultId) - selectedFromStorage}個・次の1個は在庫使用`;
+  }
   const payment = getDepartureCraftCost([recipe.resultId]);
   const typed = Object.entries(payment.typed || {})
     .map(([material, quantity]) => `${material} ${quantity}/${balance?.[material] || 0}`)
@@ -66,7 +74,8 @@ function formatCraftPaymentWithBalance(recipe, balance) {
   const any = payment.any > 0
     ? `素材${payment.any}個（種別不問）/残${getMaterialBalanceTotal(balance)}個`
     : "";
-  return [typed, any].filter(Boolean).join("・") || "素材0個";
+  const materialCost = [typed, any].filter(Boolean).join("・") || "素材0個";
+  return `倉庫0個・${materialCost}`;
 }
 
 function startRun(startingKitId, startingGear = null, startFloor = 1) {
@@ -96,9 +105,10 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
   const selectedRecipeIds = getSelectedRecipeIds();
   let departureCraft = [];
   if (selectedRecipeIds.length > 0) {
-    const purchase = purchaseDepartureCraft(state.metaMaterials, selectedRecipeIds);
+    const purchase = purchaseDepartureCraft(state.metaMaterials, selectedRecipeIds, state.storage);
     if (purchase.ok) {
       state.metaMaterials = purchase.metaMaterials;
+      state.storage = purchase.storage;
       departureCraft = purchase.recipeIds;
       addLog(
         `出発クラフト：${purchase.recipeIds.length}品を製作した（` +
@@ -144,7 +154,7 @@ function getCraftSelectionBlockReason(recipe, selectedRecipeIds) {
   if (itemLimit && selectedItems.filter(itemId => itemId === recipe.resultId).length >= itemLimit) {
     return "帰還の翼は1個まで";
   }
-  if (!canAffordDepartureCraft(state.metaMaterials, [...selectedRecipeIds, recipe.resultId])) {
+  if (!canAffordDepartureCraft(state.metaMaterials, [...selectedRecipeIds, recipe.resultId], state.storage)) {
     return "素材不足";
   }
   return "";
@@ -160,7 +170,8 @@ function getCraftAvailability(recipe, selectedRecipeIds) {
     state.metaMaterials,
     selectedRecipeIds,
     recipe.resultId,
-    Number.isFinite(availableSlots) ? availableSlots : 99
+    Number.isFinite(availableSlots) ? availableSlots : 99,
+    state.storage
   );
   return `あと${Math.min(additional, DEPARTURE_ITEM_LIMITS[recipe.resultId] || additional)}個`;
 }
@@ -322,8 +333,8 @@ function clearDepartureStartFooter() {
 function renderDepartureCraftOptions(optGrid, startingKitId, startingGear) {
   const selectedRecipeIds = getSelectedRecipeIds();
   renderPreparationSummary(optGrid, startingKitId, startingGear);
-  const selectedCost = getDepartureCraftCost(selectedRecipeIds);
-  const selectedBalance = getDepartureCraftBalance(state.metaMaterials, selectedRecipeIds);
+  const selectedCost = getDepartureCraftCost(selectedRecipeIds, state.storage);
+  const selectedBalance = getDepartureCraftBalance(state.metaMaterials, selectedRecipeIds, state.storage);
   const summary = optGrid.querySelector(".solo-preparation-summary");
   const balances = document.createElement("div");
   balances.className = "solo-start-craft-balances";
@@ -383,14 +394,11 @@ function renderDepartureCraftOptions(optGrid, startingKitId, startingGear) {
       );
     });
 
-    const payment = getDepartureCraftCost([recipe.resultId]);
-    const hasEmptyMaterial = Object.keys(payment.typed || {}).some(
-      material => (selectedBalance?.[material] || 0) <= 0
-    ) || (payment.any > 0 && getMaterialBalanceTotal(selectedBalance) === 0);
+    const hasEmptyMaterial = !canAdd && getCraftSelectionBlockReason(recipe, selectedRecipeIds) === "素材不足";
     const button = createActionCard({
       name: `${recipe.name}：${quantity}個`,
       description: recipe.desc,
-      cost: `${formatCraftPaymentWithBalance(recipe, selectedBalance)} ・ ${availability}`,
+      cost: `${formatCraftPaymentWithBalance(recipe, selectedBalance, selectedRecipeIds)} ・ ${availability}`,
       costClassName: `solo-start-craft-cost${hasEmptyMaterial ? " is-insufficient" : ""}`,
       className: "solo-start-craft-option",
       selected: quantity > 0,

@@ -76,6 +76,7 @@ export interface NormalizedSavePayload {
   firstChestUnidentifiedGuaranteed: boolean;
   storage: StorageCollection;
   storageMax: number;
+  storageMigrationVersion: number;
   identifyTickets: number;
   cleared: boolean;
   metaMaterials: NormalizedMetaMaterialBalance;
@@ -92,7 +93,7 @@ export const SAVE_PAYLOAD_FIELDS = Object.freeze([
   "firstKills", "currentRun", "records", "unlockedMilestones", "runHistory",
   "deathLogs", "codex", "seed", "gameState", "combatState", "chestState",
   "prevX", "prevY", "roamingMonsters", "roamingMovementStepCount", "noiseEvents",
-  "firstChestUnidentifiedGuaranteed", "storage", "storageMax", "identifyTickets",
+  "firstChestUnidentifiedGuaranteed", "storage", "storageMax", "storageMigrationVersion", "identifyTickets",
   "cleared", "metaMaterials", "workshop", "keyItems", "dungeonMemory", "logs"
 ] as const);
 
@@ -139,7 +140,8 @@ export function isNormalizedSavePayload(value: unknown): value is NormalizedSave
   if (!isFiniteNumber(value.lightTurns) || typeof value.lightPower !== "string" ||
       !isFiniteNumber(value.repelTurns) || !isFiniteNumber(value.silenceTurns) ||
       !isFiniteNumber(value.forcedEncounterSteps) || !isFiniteNumber(value.roamingMovementStepCount) ||
-      !isFiniteNumber(value.storageMax) || !isFiniteNumber(value.identifyTickets)) return false;
+      !isFiniteNumber(value.storageMax) || !Number.isInteger(value.storageMigrationVersion) ||
+      !isFiniteNumber(value.identifyTickets)) return false;
   if (!Array.isArray(value.firstKills) || !value.firstKills.every(item => typeof item === "string")) return false;
   if (value.currentRun !== null && !isNormalizedCurrentRun(value.currentRun)) return false;
   if (!isNormalizedRecords(value.records) || !isNormalizedCodexPayload(value.codex) ||

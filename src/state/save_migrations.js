@@ -164,7 +164,7 @@ function filterRawRuntimeItems(data) {
 
   const run = data.currentRun;
   if (!isRecord(run)) return;
-  ["townInventory", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems", "itemsFound", "equipmentFound", "departureItems"]
+  ["townInventory", "departureCraftItems", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems", "lostTownItems", "overflowTownItems", "itemsFound", "equipmentFound", "departureItems"]
     .forEach(field => {
       run[field] = filterPersistedItems(run[field]);
     });
@@ -190,7 +190,7 @@ function filterNormalizedRuntimeItems(data) {
 
   const run = data.currentRun;
   if (!isRecord(run)) return;
-  ["townInventory", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems", "itemsFound", "equipmentFound", "departureItems"]
+  ["townInventory", "departureCraftItems", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems", "lostTownItems", "overflowTownItems", "itemsFound", "equipmentFound", "departureItems"]
     .forEach(field => { run[field] = filterRuntimeCollection(run[field]); });
   run.unbankedObjectLoot = normalizeRunObjectLootLedger(run.unbankedObjectLoot);
   if (isRecord(run.pendingRewardBundle)) {
@@ -864,6 +864,9 @@ export function normalizeSavePayload(data) {
   normalized.roamingMovementStepCount = numberOr(data.roamingMovementStepCount, 0);
   normalized.noiseEvents = arrayOr(data.noiseEvents);
   normalized.storage = filterPersistedItems(data.storage);
+  normalized.storageMigrationVersion = integerOr(data.storageMigrationVersion, 0) >= 1 ? 1 : 0;
+  if (normalized.storageMigrationVersion === 0) normalized.storage = [];
+  normalized.storageMigrationVersion = 1;
   normalized.storageMax = numberOr(data.storageMax, 30);
   normalized.identifyTickets = numberOr(data.identifyTickets, 0);
   normalized.cleared = typeof data.cleared === "boolean" ? data.cleared : false;

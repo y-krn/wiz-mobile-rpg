@@ -25,6 +25,9 @@ interface RunLike {
   townInventory?: unknown[];
   unbankedObjectLoot?: unknown[];
   returnedTownItems?: unknown[];
+  departureCraftItems?: unknown[];
+  lostTownItems?: unknown[];
+  overflowTownItems?: unknown[];
   bankedObjectLoot?: unknown[];
   lostObjectLoot?: unknown[];
   [key: string]: unknown;
@@ -34,6 +37,7 @@ interface StateLike {
   currentRun?: RunLike | null;
   inventory?: unknown[];
   storage?: unknown[];
+  storageMax?: number;
   party?: unknown[];
   [key: string]: unknown;
 }
@@ -391,12 +395,19 @@ function isTownPreparationItem(item: unknown): boolean {
   return getItemData(item)?.type === "usable";
 }
 
+function countItemsById(items: unknown[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  items.forEach(item => {
+    const itemId = getItemId(item);
+    if (typeof itemId === "string") counts.set(itemId, (counts.get(itemId) || 0) + 1);
+  });
+  return counts;
+}
+
 /**
- * Resolve object ownership at a run terminal. Town-owned items that were not
- * consumed are always returned to permanent storage. Returned dungeon
- * consumables are also Town preparation stock, while recovered equipment is
- * confirmed only for the terminal result and never becomes next-run storage;
- * death and abandon lose unbanked dungeon loot.
+ * Resolve object ownership at a run terminal. Only unused departure-craft
+ * supplies return to storage after a safe return; dungeon loot never becomes
+ * preparation stock, and death/abandon lose carried supplies.
  */
 export function settleRunObjectLoot(
   stateLike: unknown,
@@ -409,6 +420,17 @@ export function settleRunObjectLoot(
 
   const unbanked = getObjectLootEntries(run).filter(entry => entry.item);
   const townItems = Array.isArray(run.townInventory) ? [...run.townInventory] : [];
+  const departureCraftItems = Array.isArray(run.departureCraftItems)
+    ? run.departureCraftItems.filter(isTownPreparationItem)
+    : [];
+  const outcomeReturns = outcome === "retreat" || outcome === "wing";
+  const inventoryCounts = countItemsById(Array.isArray(state.inventory) ? state.inventory : []);
+  const craftCounts = countItemsById(departureCraftItems);
+  const unusedCraftItems: unknown[] = [];
+  craftCounts.forEach((initialCount, itemId) => {
+    const count = Math.min(initialCount, inventoryCounts.get(itemId) || 0);
+    for (let index = 0; index < count; index += 1) unusedCraftItems.push(itemId);
+  });
   const returnedLoot = outcome === "retreat"
     ? unbanked
     : salvageIds
@@ -416,9 +438,11 @@ export function settleRunObjectLoot(
       : [];
   const lostLoot = unbanked.filter(entry => !returnedLoot.some(item => item.id === entry.id));
   const returnedDungeonItems = returnedLoot.map(entry => entry.item);
-  const bankedItems = [...townItems, ...returnedDungeonItems];
-  const returnedPreparationItems = returnedDungeonItems.filter(isTownPreparationItem);
-  const storageItems = [...townItems, ...returnedPreparationItems];
+  const currentStorage = Array.isArray(state.storage) ? state.storage : [];
+  const storageLimit = Number.isFinite(state.storageMax) ? Math.max(0, Math.floor(state.storageMax!)) : 30;
+  const storageSlots = Math.max(0, storageLimit - currentStorage.length);
+  const storageItems = outcomeReturns ? unusedCraftItems.slice(0, storageSlots) : [];
+  const overflowItems = outcomeReturns ? unusedCraftItems.slice(storageSlots) : [];
   if (!canAppendToTownStorage(state, storageItems)) {
     return { banked: [], lost: [] };
   }
@@ -448,12 +472,17 @@ export function settleRunObjectLoot(
     ...unbanked.map(entry => entry.item)
   ]);
 
-  run.returnedTownItems = townItems;
+  run.returnedTownItems = storageItems;
+  run.lostTownItems = outcomeReturns ? [] : unusedCraftItems;
+  run.overflowTownItems = overflowItems;
   run.bankedObjectLoot = returnedLoot.map(entry => entry.item);
   run.lostObjectLoot = lostLoot.map(entry => entry.item);
   run.unbankedObjectLoot = [];
   run.townInventory = [];
-  return { banked: bankedItems, lost: run.lostObjectLoot };
+  return {
+    banked: [...storageItems, ...returnedDungeonItems],
+    lost: [...run.lostObjectLoot, ...run.lostTownItems, ...overflowItems]
+  };
 }
 
 // balance-impact: none — canonical normalized current-run boundary only.

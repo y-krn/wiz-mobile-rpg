@@ -251,49 +251,84 @@ export function getDepartureCraftRecipes(recipeIds: unknown): CraftRecipe[] {
     .filter((recipe): recipe is CraftRecipe => recipe !== undefined);
 }
 
-export function getDepartureCraftCost(recipeIds: unknown): { typed: MaterialBalance; any: number } {
-  return getDepartureCraftCostSummary(getDepartureCraftRecipes(recipeIds));
+function getStorageCounts(storage: unknown): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (!Array.isArray(storage)) return counts;
+  storage.forEach(item => {
+    const itemId = typeof item === "string" ? item : isRecord(item) ? item.baseId : null;
+    if (typeof itemId === "string") counts.set(itemId, (counts.get(itemId) || 0) + 1);
+  });
+  return counts;
+}
+
+function getCraftPlan(recipeIds: unknown, storage: unknown) {
+  const selected = normalizeDepartureCraftSelection(recipeIds);
+  if (selected.some(recipeId => !getCraftRecipe(recipeId))) return null;
+  const stock = getStorageCounts(storage);
+  const materialRecipes: CraftRecipe[] = [];
+  const storedItems: string[] = [];
+  getDepartureCraftRecipes(selected).forEach(recipe => {
+    if (!recipe.identifyPowder && (stock.get(recipe.resultId) || 0) > 0) {
+      stock.set(recipe.resultId, stock.get(recipe.resultId)! - 1);
+      storedItems.push(recipe.resultId);
+    } else {
+      materialRecipes.push(recipe);
+    }
+  });
+  return { selected, materialRecipes, storedItems };
+}
+
+export function getDepartureCraftCost(recipeIds: unknown, storage: unknown = []): { typed: MaterialBalance; any: number } {
+  const plan = getCraftPlan(recipeIds, storage);
+  return getDepartureCraftCostSummary(plan?.materialRecipes || []);
 }
 
 function purchaseSelectedDepartureCraft(metaMaterials: MaterialBalance, recipes: CraftRecipe[]) {
   return spendDepartureCraftRecipes(metaMaterials, recipes);
 }
 
-export function canAffordDepartureCraft(metaMaterials: MaterialBalance, recipeIds: unknown): boolean {
-  const selected = normalizeDepartureCraftSelection(recipeIds);
-  if (selected.some(recipeId => !getCraftRecipe(recipeId))) return false;
-  return purchaseSelectedDepartureCraft(metaMaterials, getDepartureCraftRecipes(selected)) !== null;
+export function canAffordDepartureCraft(metaMaterials: MaterialBalance, recipeIds: unknown, storage: unknown = []): boolean {
+  const plan = getCraftPlan(recipeIds, storage);
+  if (!plan) return false;
+  return purchaseSelectedDepartureCraft(metaMaterials, plan.materialRecipes) !== null;
 }
 
-export function getDepartureCraftBalance(metaMaterials: MaterialBalance, recipeIds: unknown): MaterialBalance {
-  const selected = normalizeDepartureCraftSelection(recipeIds);
-  if (selected.length === 0) return { ...metaMaterials };
-  const purchase = purchaseSelectedDepartureCraft(metaMaterials, getDepartureCraftRecipes(selected));
+export function getDepartureCraftBalance(metaMaterials: MaterialBalance, recipeIds: unknown, storage: unknown = []): MaterialBalance {
+  const plan = getCraftPlan(recipeIds, storage);
+  if (!plan || plan.selected.length === 0) return { ...metaMaterials };
+  const purchase = purchaseSelectedDepartureCraft(metaMaterials, plan.materialRecipes);
   return purchase ? purchase.balance : { ...metaMaterials };
 }
 
-export function getAdditionalCraftableCount(metaMaterials: MaterialBalance, recipeIds: unknown, recipeId: string, cap = 99): number {
+export function getAdditionalCraftableCount(metaMaterials: MaterialBalance, recipeIds: unknown, recipeId: string, cap = 99, storage: unknown = []): number {
   let count = 0;
   const candidate = [...normalizeDepartureCraftSelection(recipeIds)];
   while (count < cap) {
     candidate.push(recipeId);
-    if (!canAffordDepartureCraft(metaMaterials, candidate)) break;
+    if (!canAffordDepartureCraft(metaMaterials, candidate, storage)) break;
     count += 1;
   }
   return count;
 }
 
-export function purchaseDepartureCraft(metaMaterials: MaterialBalance, recipeIds: unknown) {
-  const selected = normalizeDepartureCraftSelection(recipeIds);
-  if (selected.some(recipeId => !getCraftRecipe(recipeId))) return { ok: false, reason: "unknown_recipe" } as const;
-  const purchase = purchaseSelectedDepartureCraft(metaMaterials, getDepartureCraftRecipes(selected));
+export function purchaseDepartureCraft(metaMaterials: MaterialBalance, recipeIds: unknown, storage: unknown = []) {
+  const plan = getCraftPlan(recipeIds, storage);
+  if (!plan) return { ok: false, reason: "unknown_recipe" } as const;
+  const purchase = purchaseSelectedDepartureCraft(metaMaterials, plan.materialRecipes);
   if (!purchase) return { ok: false, reason: "insufficient_materials" } as const;
+  const remainingStoredItems = Array.isArray(storage) ? [...storage] : [];
+  plan.storedItems.forEach(itemId => {
+    const index = remainingStoredItems.findIndex(item => (typeof item === "string" ? item : isRecord(item) ? item.baseId : null) === itemId);
+    if (index >= 0) remainingStoredItems.splice(index, 1);
+  });
   return {
     ok: true as const,
-    recipeIds: selected,
-    itemIds: selected,
+    recipeIds: plan.selected,
+    itemIds: plan.selected,
+    storedItems: plan.storedItems,
+    storage: remainingStoredItems,
     cost: purchase.spent,
-    payment: getDepartureCraftCost(selected),
+    payment: getDepartureCraftCost(plan.materialRecipes.map(recipe => recipe.resultId)),
     metaMaterials: purchase.balance
   };
 }

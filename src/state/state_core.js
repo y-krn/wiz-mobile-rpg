@@ -75,6 +75,7 @@ export const state = {
   // Warehouse System
   storage: [],
   storageMax: 30,
+  storageMigrationVersion: 1,
   identifyTickets: 0,
   dungeonMemory: { mapFragments: {}, visitedFloors: [1] },
 

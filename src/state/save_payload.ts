@@ -62,6 +62,7 @@ interface SavePayloadRuntimeState {
   firstChestUnidentifiedGuaranteed: boolean;
   storage: StorageCollection;
   storageMax: number;
+  storageMigrationVersion: number;
   identifyTickets: number;
   cleared: boolean;
   metaMaterials: NormalizedSavePayload["metaMaterials"];
@@ -243,6 +244,7 @@ export function createSavePayload(): SavePayload {
     firstChestUnidentifiedGuaranteed: state.firstChestUnidentifiedGuaranteed,
     storage: state.storage.map(sanitizePersistedItem),
     storageMax: state.storageMax,
+    storageMigrationVersion: state.storageMigrationVersion,
     identifyTickets: state.identifyTickets,
     cleared: state.cleared,
     metaMaterials: normalizeMaterialBalance(state.metaMaterials),
@@ -324,6 +326,7 @@ export function applySavePayload(data: unknown): void {
   state.noiseEvents = normalized.noiseEvents ?? [];
   state.storage = normalized.storage;
   state.storageMax = normalized.storageMax;
+  state.storageMigrationVersion = normalized.storageMigrationVersion;
   state.identifyTickets = normalized.identifyTickets;
   state.cleared = normalized.cleared;
   state.metaMaterials = normalized.metaMaterials;

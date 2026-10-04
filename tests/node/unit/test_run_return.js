@@ -33,6 +33,7 @@ function setupRun(deepestFloor = 5) {
       itemsFound: [potion, sword],
       equipmentFound: [sword],
       townInventory: ["HEAL_POTION"],
+      departureCraftItems: ["HEAL_POTION"],
       unbankedObjectLoot: [],
       bankedObjectLoot: [],
       lostObjectLoot: []
@@ -82,8 +83,8 @@ function setupRun(deepestFloor = 5) {
   assert.ok(getWorkshopGrants(state.workshop).affixIds.includes("CORE_TRAP_EATER"));
   assert.equal(state.party[0].equipment.weapon, null);
   assert.equal(state.storage.includes(sword), false, "recovered dungeon equipment is not permanent storage");
-  assert.equal(state.storage.includes("HEAL_POTION"), true, "unused Town preparation returns to storage");
-  assert.equal(state.storage.includes("GREATER_HEAL"), true, "recovered dungeon consumables return to preparation storage");
+  assert.equal(state.storage.includes("HEAL_POTION"), true, "unused departure craft returns to storage");
+  assert.equal(state.storage.includes("GREATER_HEAL"), false, "recovered dungeon consumables do not enter preparation storage");
   assert.ok(result.insights.some(insight => insight.id === "variantEquipment"));
   console.log("[PASS] portal return records compact Castle/Codex facts and opens one lateral Workshop possibility");
 }
@@ -94,10 +95,22 @@ function setupRun(deepestFloor = 5) {
   const result = processRunReturn(state, "death");
   assert.equal(result.representativeItem.baseId, "LONG_SWORD");
   assert.equal(result.representativeItem.status, "lost");
+  assert.equal(state.currentRun.returnProcessing.returnedObjectCount, 0);
+  assert.equal(state.currentRun.returnProcessing.lostObjectCount, 3);
   assert.equal(state.storage.includes(sword), false);
   assert.deepEqual(state.workshop.lateralUnlocks, []);
   assert.ok(result.insights.length > 0, "knowledge survives object loss");
   console.log("[PASS] death records a lost representative without recovering equipment or unlocking Workshop");
+}
+
+{
+  const { state } = setupRun(4);
+  const result = processRunReturn(state, "abandon");
+  assert.equal(state.currentRun.returnProcessing.returnedObjectCount, 0);
+  assert.equal(state.currentRun.returnProcessing.lostObjectCount, 3);
+  assert.equal(result.settlement.banked.length, 0);
+  assert.equal(result.settlement.lost.length, 3);
+  console.log("[PASS] abandon counts carried supplies and dungeon loot as lost");
 }
 
 {

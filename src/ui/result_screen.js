@@ -109,10 +109,7 @@ function getFoundItems(run) {
 }
 
 function getDepartureItems(run) {
-  if (Array.isArray(run.returnedTownItems)) {
-    return run.returnedTownItems;
-  }
-  return Array.isArray(run.departureItems) ? run.departureItems : [];
+  return Array.isArray(run.returnedTownItems) ? run.returnedTownItems : [];
 }
 
 function getResultLoot(run, outcome) {
@@ -165,7 +162,14 @@ function createLootSection(run, outcome) {
   };
   appendGroup("result-loot-returned", outcome.key === "wing" ? "翼で持ち帰った戦果" : "街へ回収した戦果", returned);
   if (lost.length > 0) appendGroup("result-loot-lost", "迷宮で失われた戦果", lost);
-  appendGroup("result-loot-carried", "持込品（未使用分）", departure);
+  if (outcome.success) {
+    appendGroup("result-loot-carried", "倉庫へ戻った持込品", departure);
+    const overflow = Array.isArray(run.overflowTownItems) ? run.overflowTownItems : [];
+    if (overflow.length) appendGroup("result-loot-overflow", "倉庫上限で戻らなかった持込品", overflow);
+  } else {
+    const lostTown = Array.isArray(run.lostTownItems) ? run.lostTownItems : [];
+    if (lostTown.length) appendGroup("result-loot-carried", "死亡・断念で失った持込品", lostTown);
+  }
   return section;
 }
 

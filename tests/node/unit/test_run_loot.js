@@ -32,6 +32,7 @@ const { state, createDefaultCurrentRun, createStartingKitCharacter, initNewGame 
   await import("../../../src/state.js");
 const { applySavePayload, createSavePayload } =
   await import("../../../src/state/save_payload.js");
+const { normalizeSavePayload } = await import("../../../src/state/save_migrations.js");
 const {
   RETURN_WING_SALVAGE_COUNT,
   consumeRunObjectLoot,
@@ -60,7 +61,20 @@ function setupRun() {
   state.storage = [];
   state.inventory = ["HEAL_POTION", "TOWN_PORTAL"];
   state.currentRun.townInventory = state.inventory.slice();
+  state.currentRun.departureCraftItems = ["HEAL_POTION"];
 }
+
+const legacyStorageSave = createSavePayload();
+legacyStorageSave.storage = ["HEAL_POTION", "TOWN_PORTAL"];
+delete legacyStorageSave.storageMigrationVersion;
+const migratedLegacyStorage = normalizeSavePayload(legacyStorageSave);
+assert.deepEqual(migratedLegacyStorage.storage, [], "existing storage is cleared on first load");
+assert.equal(migratedLegacyStorage.storageMigrationVersion, 1);
+assert.deepEqual(migratedLegacyStorage.metaMaterials, legacyStorageSave.metaMaterials,
+  "one-time storage reset preserves other save content");
+const migratedStorageRoundTrip = normalizeSavePayload(JSON.parse(JSON.stringify(migratedLegacyStorage)));
+assert.deepEqual(migratedStorageRoundTrip.storage, [], "one-time storage reset remains stable across later loads");
+console.log("[PASS] legacy storage resets once while the save payload remains valid");
 
 function addDungeonLoot(item) {
   state.inventory.push(item);
@@ -141,6 +155,7 @@ const selectedId = state.currentRun.unbankedObjectLoot[1].id;
 const wingResult = settleRunObjectLoot(state, "wing", [selectedId]);
 assert.equal(wingResult.banked.length, 2, "unused town wing plus one selected loot is banked");
 assert.equal(state.storage.length, 1, "only unused Town preparation is permanent storage");
+assert.deepEqual(state.storage, ["HEAL_POTION"], "workshop return items do not enter storage");
 assert.equal(state.storage.some(item => item?.baseId === "LONG_SWORD"), false);
 assert.equal(state.currentRun.lostObjectLoot.length, 2);
 assert.equal(state.party[0].equipment.weapon, null, "run-ending clears equipped loot placement");
@@ -177,22 +192,49 @@ function runTerminal(outcome) {
 
 for (const outcome of ["death", "abandon"]) {
   const terminal = runTerminal(outcome);
-  assert.deepEqual(terminal.storage, ["HEAL_POTION", "TOWN_PORTAL"]);
+  assert.deepEqual(terminal.storage, []);
+  assert.deepEqual(state.currentRun.lostTownItems, ["HEAL_POTION"]);
   assert.deepEqual(terminal.lost, ["GREATER_HEAL", { baseId: "LONG_SWORD", identified: true }]);
   assert.deepEqual(terminal.inventory, []);
   assert.equal(terminal.equipped, null);
-  console.log(`[PASS] ${outcome} preserves unused town consumables and loses dungeon object loot`);
+console.log(`[PASS] ${outcome} loses unused departure craft and dungeon object loot`);
 }
 
 setupRun();
 addDungeonLoot("GREATER_HEAL");
 settleRunObjectLoot(state, "retreat");
-assert.deepEqual(state.storage, ["HEAL_POTION", "TOWN_PORTAL", "GREATER_HEAL"]);
+assert.deepEqual(state.storage, ["HEAL_POTION"]);
 assert.deepEqual(state.currentRun.lostObjectLoot, []);
-console.log("[PASS] portal confirms all dungeon object loot without storing equipment");
+assert.deepEqual(state.currentRun.returnedTownItems, ["HEAL_POTION"]);
+console.log("[PASS] portal returns unused departure craft and excludes dungeon consumables");
+
+setupRun();
+addDungeonLoot("HEAL_POTION");
+state.inventory.splice(0, 1); // The picked potion is treated as used first.
+settleRunObjectLoot(state, "retreat");
+assert.deepEqual(state.storage, ["HEAL_POTION"]);
+console.log("[PASS] same-type dungeon pickup is spent before the one unused departure potion");
+
+setupRun();
+state.inventory = ["TOWN_PORTAL"]; // Used, discarded, or corroded craft item no longer remains in the bag.
+settleRunObjectLoot(state, "retreat");
+assert.deepEqual(state.storage, []);
+console.log("[PASS] consumed or removed departure item is not returned");
+
+setupRun();
+state.storageMax = 1;
+state.storage = ["TOWN_PORTAL"];
+state.currentRun.departureCraftItems = ["HEAL_POTION", "HEAL_POTION"];
+state.inventory.push("HEAL_POTION");
+settleRunObjectLoot(state, "retreat");
+assert.deepEqual(state.storage, ["TOWN_PORTAL"]);
+assert.deepEqual(state.currentRun.returnedTownItems, []);
+assert.deepEqual(state.currentRun.overflowTownItems, ["HEAL_POTION", "HEAL_POTION"]);
+console.log("[PASS] storage capacity rejects excess returned departure items and records overflow");
 
 setupRun();
 const malformedStorageItem = { baseId: "GREATER_HEAL", instanceId: "malformed-storage", affixes: [null] };
+state.storage = [malformedStorageItem];
 state.inventory = [malformedStorageItem];
 state.party[0].equipment.weapon = malformedStorageItem;
 state.currentRun.unbankedObjectLoot = [{ id: "malformed-storage", item: malformedStorageItem }];
@@ -225,6 +267,6 @@ state.currentRun.materials = { "獣の牙": 4 };
 addDungeonLoot("GREATER_HEAL");
 triggerRunResult("milestone_portal");
 assert.equal(state.gameState, "result");
-assert.deepEqual(state.storage, ["HEAL_POTION", "TOWN_PORTAL", "GREATER_HEAL"]);
+assert.deepEqual(state.storage, ["HEAL_POTION"]);
 assert.deepEqual(state.currentRun.bankedObjectLoot, ["GREATER_HEAL"]);
 console.log("[PASS] safe portal result settles object loot through the run terminal");

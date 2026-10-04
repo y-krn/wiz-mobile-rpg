@@ -66,7 +66,7 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
   await expect(page.locator('[data-result-memory]')).toContainText('物は失う。物語は残る');
   await expect(page.locator('[data-result-memory]')).toContainText('この冒険を象徴する品');
   await expect(page.locator('#result-overlay')).not.toContainText('代表的な戦果');
-  await expect(page.locator('[data-result-loot]')).toContainText('持込品（未使用分）');
+  await expect(page.locator('[data-result-loot]')).toContainText('倉庫へ戻った持込品');
   await expect(page.locator('[data-result-loot]')).toContainText('罠外しキット');
   expect(await page.locator('[data-result-loot]').textContent()).toMatch(/罠外しキット/);
   expect((await page.locator('[data-result-loot]').textContent()).match(/罠外しキット/g)).toHaveLength(1);
@@ -86,7 +86,29 @@ test('Result leads with run memory and keeps loot ownership explicit', async ({ 
   expect(await page.locator('#result-overlay').textContent()).not.toContain('戦果価値');
 });
 
-test('Death result preserves departure items and removes dungeon loot', async ({ page }) => {
+test('Result identifies unused departure supplies lost on death or abandon', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const run = createDefaultCurrentRun();
+    run.returnReason = 'gameover';
+    run.outcome = 'death';
+    run.lostTownItems = ['HEAL_POTION'];
+    run.quests = [];
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.currentRun = run;
+    state.gameState = 'result';
+    updateUI();
+  });
+
+  await expect(page.locator('[data-result-loot]')).toContainText('死亡・断念で失った持込品');
+  await expect(page.locator('[data-result-loot]')).toContainText('傷薬');
+  await expect(page.locator('[data-result-loot]')).not.toContainText('倉庫へ戻った持込品');
+});
+
+test('Death result loses unused departure supplies and dungeon loot', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/');
   const loot = await page.evaluate(async () => {
@@ -99,6 +121,7 @@ test('Death result preserves departure items and removes dungeon loot', async ({
     state.currentRun = createDefaultCurrentRun();
     state.currentRun.characterClass = 'Fighter';
     state.currentRun.departureItems = ['TRAP_KIT'];
+    state.currentRun.departureCraftItems = ['TRAP_KIT'];
     state.currentRun.townInventory = ['TRAP_KIT'];
     state.currentRun.unbankedObjectLoot = [{ id: 'run_loot_1', item: found }];
     state.currentRun.equipmentFound = [found];
@@ -116,9 +139,10 @@ test('Death result preserves departure items and removes dungeon loot', async ({
   });
 
   expect(loot.inventory).toEqual([]);
-  expect(loot.storage).toContain('TRAP_KIT');
+  expect(loot.storage).not.toContain('TRAP_KIT');
   expect(loot.state).toBe('result');
   expect(loot.lost).toContain('未鑑定の短剣');
+  expect(loot.returned).toContain('死亡・断念で失った持込品');
   expect(loot.returned).toContain('罠外しキット');
 });
 
