@@ -264,7 +264,7 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       const itemDataFull = getItemData(eqFull);
       console.log("Fully Identified Name:", itemDataFull.name);
       console.log("Fully Identified Description:", itemDataFull.desc);
-      if (!itemDataFull.desc.includes("<タグ:")) {
+      if (!itemDataFull.desc.includes("<系統:")) {
         throw new Error("Fully identified tags not rendered in description");
       }
       console.log("-> [PASS] Test 2: In-run Identification Flow verified");

@@ -62,6 +62,7 @@ import {
   getRuneSpellKey
 } from "./rules/magic_rules.js";
 import { consumeExplorationTurn } from "./movement.js";
+import { EQUIPMENT_SET_SIZE, compareEquipmentSets, listEquipmentSets } from "./rules/equipment_sets.js";
 import {
   createLoadoutDraft,
   getLoadoutEquipAvailability,
@@ -101,6 +102,11 @@ export function openEquipOverlay(actorIdx = 0) {
     equipState.sessionChanged = false;
     equipState.sessionTurnPaid = false;
     equipState.pendingTurns = 0;
+    // Read slot by slot: a guarded equipment object may refuse to list its keys.
+    const openEquipment = state.party[actorIdx]?.equipment;
+    equipState.equipmentAtOpen = Object.fromEntries(
+      EQUIPMENT_SLOTS.map(({ id }) => [id, openEquipment?.[id] ?? null])
+    );
   }
   state.gameState = "equip_overlay";
   equipState.mode = "equip";
@@ -180,6 +186,15 @@ export function closeEquipOverlay() {
   } else {
     state.gameState = "explore";
   }
+  // Say which family sets this visit completed or broke (#2024).
+  const hero = state.party[equipState.actorIdx];
+  if (changed && hero && equipState.equipmentAtOpen) {
+    compareEquipmentSets({ equipment: equipState.equipmentAtOpen }, hero).forEach(change => {
+      if (change.gained) addLog(`【系統】${change.label}が3つそろった（${change.effect}）。`);
+      else if (change.lost) addLog(`【系統】${change.label}のそろいが崩れた（${change.effect}が消えた）。`);
+    });
+  }
+  equipState.equipmentAtOpen = null;
   equipState.draft = null;
   equipState.sessionChanged = false;
   equipState.sessionTurnPaid = false;
@@ -797,7 +812,36 @@ function createEquippedSection(char) {
     grid.appendChild(row);
   });
   section.appendChild(grid);
+  section.appendChild(createEquipmentSetStrip(char));
   return section;
+}
+
+// Equipment families (#2024): how many equipped pieces carry each family, and
+// what three of them give. A family one piece short says what it would give.
+function createEquipmentSetStrip(char) {
+  const strip = document.createElement("div");
+  strip.className = "equip-set-strip";
+  strip.dataset.testid = "equipment-sets";
+  strip.setAttribute("aria-label", `系統のそろい効果：同じ系統を${EQUIPMENT_SET_SIZE}つ装備すると効果が付く`);
+  const label = document.createElement("span");
+  label.className = "equip-set-strip-label";
+  label.textContent = "系統";
+  strip.appendChild(label);
+  listEquipmentSets(char).forEach(entry => {
+    const chip = document.createElement("span");
+    const near = !entry.active && entry.count === EQUIPMENT_SET_SIZE - 1;
+    chip.className = `equip-set-chip ${entry.active ? "is-active" : near ? "is-near" : ""}`.trim();
+    chip.dataset.setId = entry.id;
+    chip.dataset.setActive = String(entry.active);
+    const count = Math.min(entry.count, EQUIPMENT_SET_SIZE);
+    chip.textContent = entry.active
+      ? `${entry.label} ${count}/${EQUIPMENT_SET_SIZE} ${entry.effect}`
+      : near
+        ? `${entry.label} ${count}/${EQUIPMENT_SET_SIZE} あと1つで${entry.effect}`
+        : `${entry.label} ${count}/${EQUIPMENT_SET_SIZE}`;
+    strip.appendChild(chip);
+  });
+  return strip;
 }
 
 function createFilterChips() {
@@ -1335,6 +1379,18 @@ function createDetailPanel(char) {
       statGrid.appendChild(createStatPill(row));
     });
     content.appendChild(statGrid);
+    // Families whose count this change moves (#2024).
+    if (preview.sets?.length > 0) {
+      const setChange = document.createElement("div");
+      setChange.className = "equip-set-change";
+      setChange.dataset.testid = "equipment-set-change";
+      setChange.textContent = `系統: ${preview.sets.map(change => {
+        const cap = value => Math.min(value, EQUIPMENT_SET_SIZE);
+        const outcome = change.gained ? ` そろう（${change.effect}）` : change.lost ? ` 崩れる（${change.effect}が消える）` : "";
+        return `${change.label} ${cap(change.before)}→${cap(change.after)}/${EQUIPMENT_SET_SIZE}${outcome}`;
+      }).join("・")}`;
+      content.appendChild(setChange);
+    }
   } else if (preview && availability.ok && hidden && knowledgeStage === KNOWLEDGE_STAGES.TRIAL && item.primaryEffect) {
     const trialEffect = document.createElement("div");
     trialEffect.className = "equip-detail-trial-effect";

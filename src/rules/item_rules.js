@@ -9,6 +9,7 @@ import {
   SENSORY_HINT_LABELS,
   KNOWLEDGE_STAGES
 } from "./identification_rules.js";
+import { getEquipmentSetAffixBonus } from "./equipment_sets.js";
 
 export function getItemBaseId(item) {
   if (!item) return "";
@@ -109,6 +110,8 @@ export function getCharAffixSum(char, affixType) {
     }
   }
   sum += getCurseKeeperBonus(char, affixType);
+  // Three equipped pieces of one family add that family's set effect (#2024).
+  sum += getEquipmentSetAffixBonus(char, affixType);
   const total = sum;
   if (affixType === "spellGuard") {
     return Math.max(-60, Math.min(50, total));
@@ -309,7 +312,7 @@ export function getItemData(itemOrKey) {
         decay: "衰"
       };
       const tagList = itemOrKey.tags.map(t => hintLabels[t] || t).join("・");
-      desc = `<タグ: ${tagList}> ${desc}`;
+      desc = `<系統: ${tagList}> ${desc}`;
     }
     if (itemOrKey.curseEffectId) {
       const curse = CURSE_EFFECTS[itemOrKey.curseEffectId];

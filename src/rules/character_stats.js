@@ -4,6 +4,7 @@ import { calculateDisarmRate } from "./trap_rules.js";
 import { getMediumMaxMpBonus } from "./magic_rules.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
 import { getArmorMendBonus, getForgeTemperBonus } from "./special_rooms.js";
+import { getEquipmentSetStatBonus } from "./equipment_sets.js";
 
 export const PHYSICAL_HIT_CHANCE_MIN = 0.50;
 
@@ -144,8 +145,9 @@ export function getCharEquipmentDef(char) {
 }
 
 export function getCharDef(char) {
-  // A mended armor (#2019) is a short, battle-counted patch, like the forge temper.
-  return getCharEquipmentDef(char) + getArmorMendBonus(char);
+  // A mended armor (#2019) is a short, battle-counted patch, like the forge
+  // temper. The iron family's set effect (#2024) is DEF as well.
+  return getCharEquipmentDef(char) + getArmorMendBonus(char) + getEquipmentSetStatBonus(char, "def");
 }
 
 // Monster DEF is mutable during combat because DEF buffs/debuffs are stored

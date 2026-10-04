@@ -167,6 +167,24 @@ semantic boundaries are durable:
   bounded Supports. Their value must not become an exact player-facing promise
   about a hidden supply role.
 
+## Equipment families
+
+Every piece of equipment shows its families (系統), and a few of them are sets.
+When three or more equipped, identified pieces share a set family, that
+family's set effect applies; below three it stops, and a fourth piece adds
+nothing. A set effect is a bounded Support-sized reinforcement on an axis the
+family already stands for, added at the existing stat entry points and held by
+the existing caps. It is owned by the loadout rather than by one item, so its
+cost is the slots it takes: three of five, against a higher number elsewhere.
+
+Only families a loadout can reach three of are sets, and the set list stays
+short enough to read at a glance. A set must stay small next to a Core and
+must not become the reason an item is picked up regardless of what it does.
+Unidentified pieces do not count, so an effect never appears or disappears
+through something the player cannot see. Supply stays build-blind: generation
+and weighting never look at which family the player is one piece short of.
+The set list and values are data-owned (`src/rules/equipment_sets.js`).
+
 ## Equipment knowledge
 
 In the Build vNext trial, ordinary finds skip straight to full understanding

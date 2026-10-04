@@ -184,6 +184,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/trap_rules.js", domains: ["traps"] },
     { pattern: "src/rules/trap_effect_rules.js", domains: ["traps"] },
     { pattern: "src/rules/item_rules.js", domains: ["equipment", "traps"] },
+    // Equipment families (#2024): three pieces of one family add a Support-sized bonus.
+    { pattern: "src/rules/equipment_sets.js", domains: ["combat", "equipment"] },
     { pattern: "src/rules/item_use_status.js", domains: ["combat", "status", "equipment", "recovery"] },
     { pattern: "src/rules/identification_rules.js", domains: ["equipment", "traps"] },
     { pattern: "src/systems/identification.js", domains: ["equipment"] },

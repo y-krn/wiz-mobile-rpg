@@ -224,6 +224,48 @@
   grid-column: 1 / -1;
 }
 
+/* Equipment families (#2024): one wrapping line of counts under the slots. */
+.equip-set-strip {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--sp-xs);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+}
+
+.equip-set-strip-label {
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-weight: bold;
+}
+
+.equip-set-chip {
+  border: 1px solid var(--border-control);
+  border-radius: 999px;
+  color: var(--text-muted);
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.equip-set-chip.is-near {
+  border-color: var(--neon-amber);
+  border-style: dashed;
+  color: var(--text-main);
+}
+
+.equip-set-chip.is-active {
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+  font-weight: bold;
+}
+
+.equip-set-change {
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--text-main);
+}
+
 .equip-slot-head {
   align-items: center;
   display: flex;
