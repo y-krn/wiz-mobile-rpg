@@ -639,6 +639,7 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.startingKit = normalizeStartingKitId(run.startingKit);
   normalized.eventObservations = normalizeEventObservations(run.eventObservations);
   normalized.floorSteps = normalizeFloorSteps(run.floorSteps);
+  normalized.explorationRecovery = normalizeExplorationRecovery(run.explorationRecovery);
   normalized.materials = normalizeRunMaterials(run.materials);
   normalized.bankedMaterials = normalizeBankedMaterials(run.bankedMaterials);
   normalized.codexRewards = normalizeCodexRewards(run.codexRewards);
@@ -699,6 +700,29 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.lootSequence = Math.max(0, Math.floor(Number(normalized.lootSequence) || 0));
   normalized.deathLogs = normalizeRunDeathLogs(run.deathLogs);
   return normalized;
+}
+
+function normalizeExplorationRecovery(value) {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(Object.entries(value)
+    .filter(([floor]) => /^[1-9]\d*$/.test(floor))
+    .map(([floor, record]) => {
+      const source = recordOr(record, {});
+      const nonNegativeInteger = field => {
+        const number = Number(source[field]);
+        return Number.isSafeInteger(number) && number >= 0 ? number : 0;
+      };
+      const remainder = field => {
+        const number = Number(source[field]);
+        return Number.isFinite(number) && number >= 0 && number < 1 ? number : 0;
+      };
+      return [floor, {
+        hpRecovered: nonNegativeInteger("hpRecovered"),
+        mpRecovered: nonNegativeInteger("mpRecovered"),
+        hpRemainder: remainder("hpRemainder"),
+        mpRemainder: remainder("mpRemainder")
+      }];
+    }));
 }
 
 function backfillMonsterCriticalEligibility(data) {

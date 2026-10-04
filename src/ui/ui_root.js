@@ -1,5 +1,6 @@
 import { syncAimRings } from "./aim_rings.js";
 import { createElement } from "react";
+import { getExplorationRecoveryRemaining } from "../systems/exploration_recovery.js";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { syncPwaUpdateAvailability } from "./pwa_update_manager.js";
@@ -567,6 +568,15 @@ export function updateUI() {
         const featSummary = createGoalStat("📜", "偉業 ", nextFeat.progress);
         featSummary.className = "goal-feat-summary";
         statsContainer.appendChild(featSummary);
+      }
+      if (isExploreHud && gameState === "explore") {
+        const remaining = getExplorationRecoveryRemaining(state);
+        if (remaining) {
+          const recovery = createGoalStat("♨️", "", `残り HP ${remaining.hp} / MP ${remaining.mp}`);
+          recovery.className = "goal-recovery-stat";
+          recovery.title = "この階で使える踏破回復の残り量";
+          statsContainer.appendChild(recovery);
+        }
       }
       goalRow.appendChild(statsContainer);
     }

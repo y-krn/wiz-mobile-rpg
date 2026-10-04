@@ -260,6 +260,10 @@ before or after the boss, and B6 transition.
 - The floor after a milestone provides a guaranteed breather before normal
   exploration. Rest is a resource choice, not a free replacement for the
   descent decision.
+- During exploration, each unvisited cell restores 2% of maximum HP and MP,
+  carrying fractional points forward and capping actual recovery at 50% of
+  each maximum per floor. Poison suspends this recovery. Stairs and pitfall
+  descents do not restore HP or MP; the milestone breather remains separate.
 - Biomes rotate on a five-floor rhythm. Their enemy themes, hazards, landmarks,
   and atmosphere answer “where am I?” while depth supplies the pressure axis.
 - Each biome owns one layout archetype, so the floor silhouette and route graph
@@ -515,8 +519,8 @@ resource timing, and build counterplay.
   absorb a floor's ordinary fights with a meaningful but not run-ending share
   lost per fight. Generic floor-trap damage scales with the victim's max HP
   instead of a party-era floor-linear roll; ordinary enemy spell damage scales
-  with the caster's attack; the floor transition breather restores a large
-  share of HP and MP; and a won or fled fight is followed by a few quiet steps
+  with the caster's attack; unvisited cells restore a bounded share of HP and
+  MP during exploration; and a won or fled fight is followed by a few quiet steps
   so a flee cannot chain into back-to-back ambushes. Exact values stay in
   source.
 - Live combat and deterministic simulation share action-selection and combat

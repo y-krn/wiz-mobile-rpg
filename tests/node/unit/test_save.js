@@ -8,7 +8,7 @@ import { clearSave as clearSaveOwner, initNewGame as initNewGameOwner, loadGame 
 import { menuContext, menuHistory, openGuardedSubmenu } from "../../../src/navigation.js";
 import { equipState } from "../../../src/equip.js";
 import { EVENT_TYPES } from "../../../src/data.js";
-import { applyFloorTransitionHeal, checkCellEvents } from "../../../src/movement.js";
+import { checkCellEvents } from "../../../src/movement.js";
 import { resolveItemDefinition } from "../../../src/state/item.js";
 
 // A run quest as saved before quests were replaced by feats (#2007).
@@ -83,6 +83,12 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.currentRun = createDefaultCurrentRun();
   state.currentRun.quests = [createLegacyRunQuest()];
   state.currentRun.quests[0].currentValue = 4;
+  state.currentRun.explorationRecovery["1"] = {
+    hpRecovered: 3,
+    mpRecovered: 1,
+    hpRemainder: 0.25,
+    mpRemainder: 0.5
+  };
   state.codex.monsters = {
     "ワーウルフ": {
       encountered: 2,
@@ -108,6 +114,12 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(Object.hasOwn(createSavePayload().records, "deepestByClass"), false);
   delete state.records.deepestByClass;
   assert.equal(payload.currentRun.quests[0].currentValue, 4);
+  assert.deepEqual(payload.currentRun.explorationRecovery["1"], {
+    hpRecovered: 3,
+    mpRecovered: 1,
+    hpRemainder: 0.25,
+    mpRemainder: 0.5
+  });
   assert.deepEqual(Object.keys(payload).sort(), [...SAVE_PAYLOAD_FIELDS].sort());
   state.transitioning = true;
   state.controlsGuardUntil = Date.now() + 1000;
@@ -141,6 +153,12 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, totalRuns: 7 });
   assert.deepEqual(state.currentRun.quests, [], "legacy run quests are dropped on load");
+  assert.deepEqual(state.currentRun.explorationRecovery["1"], {
+    hpRecovered: 3,
+    mpRecovered: 1,
+    hpRemainder: 0.25,
+    mpRemainder: 0.5
+  });
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedActions, ["通常攻撃"]);
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedConditions, ["麻痺を受けた"]);
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedLoot, ["獣の牙"]);
@@ -897,43 +915,6 @@ check("runtime item normalization keeps legacy facts and rejects malformed objec
   assert.equal(Object.hasOwn(roundTrip.inventory[0], "rarity"), false);
   assert.equal(Object.hasOwn(roundTrip.inventory[0], "level"), false);
   assert.equal(Object.hasOwn(roundTrip.inventory[0], "identified"), false);
-});
-
-check("floor transition applies 50 percent solo heal with cap and death guards", () => {
-  state.party = [createStartingKitCharacter("vanguard")];
-  const maxHp = state.party[0].maxHp;
-  const half = Math.floor(maxHp * 0.5);
-  state.party[0].hp = 10;
-  state.logs = [];
-  const healed = applyFloorTransitionHeal();
-  assert.equal(healed, half);
-  assert.equal(state.party[0].hp, 10 + half);
-  assert.match(state.logs.at(-1), new RegExp(`HPが${half}回復`));
-
-  state.party[0].equipment.accessory = {
-    kind: "equipment",
-    baseId: "RING_AGI",
-    identified: true,
-    curseEffectId: "curse_blood_thirst",
-    cursePower: 1,
-    affixes: []
-  };
-  state.party[0].hp = 10;
-  const cursedHalf = Math.round(half * 0.8);
-  assert.equal(applyFloorTransitionHeal(), cursedHalf);
-  assert.equal(state.party[0].hp, 10 + cursedHalf);
-  state.party[0].equipment.accessory = null;
-
-  state.party[0].hp = maxHp - 1;
-  assert.equal(applyFloorTransitionHeal(), 1);
-  assert.equal(state.party[0].hp, maxHp);
-
-  state.party[0].hp = maxHp;
-  assert.equal(applyFloorTransitionHeal(), 0);
-
-  state.party[0].hp = 0;
-  state.party[0].status = "dead";
-  assert.equal(applyFloorTransitionHeal(), 0);
 });
 
 check("下り階段サブメニュー中のセーブはexploreに畳まれる", () => {

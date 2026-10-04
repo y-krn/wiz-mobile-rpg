@@ -1,4 +1,5 @@
 import { state, saveAutosave, scheduleAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, getStartingKitItems, INVENTORY_CAPACITY } from "./state.js";
+import { applyExplorationRecovery } from "./systems/exploration_recovery.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum, getEffectiveHealAmount } from "./data.js";
 import { playSound } from "./audio.js";
@@ -421,7 +422,10 @@ export function handleMove(action) {
       tickExplorationSpellEffects();
       
       // Mark as visited
-      if (markMapCellVisited(state.x, state.y)) recordEliteGreedAction(state, "new_room");
+      if (markMapCellVisited(state.x, state.y)) {
+        applyExplorationRecovery(state);
+        recordEliteGreedAction(state, "new_room");
+      }
 
       processExplorationResolution(prevX, prevY);
     }
@@ -457,7 +461,10 @@ export function handleMove(action) {
       state.y = backY;
       recordExplorationSteps();
       tickExplorationSpellEffects();
-      if (markMapCellVisited(state.x, state.y)) recordEliteGreedAction(state, "new_room");
+      if (markMapCellVisited(state.x, state.y)) {
+        applyExplorationRecovery(state);
+        recordEliteGreedAction(state, "new_room");
+      }
       
       processExplorationResolution(prevX, prevY);
     }
@@ -537,7 +544,6 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
 
     const theme = getFloorTheme(nextFloor);
     const firstVisit = revealFloor(state, nextFloor);
-    applyFloorTransitionHeal();
     if (isPitfall) {
       addLog(`ドスン！地下${nextFloor}階の冷たい床に叩きつけられた！`);
     } else {
@@ -580,25 +586,6 @@ export function resumePendingCampEntry() {
   if (!isCampEntryEligible(state, floor)) return false;
   openGuardedSubmenu(EVENT_TYPES.CAMP, getCampEntryTitle(floor));
   return true;
-}
-
-export function applyFloorTransitionHeal() {
-  const char = state.party[0];
-  if (!char || char.hp <= 0 || char.status === "dead") return 0;
-  const maxHp = getCharMaxHp(char);
-  const baseHeal = Math.max(1, Math.floor(maxHp * 0.5));
-  const healed = Math.min(maxHp - char.hp, getEffectiveHealAmount(char, baseHeal));
-  // MP gets the same breather so a medium-based run is not one fight long.
-  const maxMp = getCharMaxMp(char);
-  const mpHealed = maxMp > 0 ? Math.min(maxMp - char.mp, Math.max(1, Math.floor(maxMp * 0.5))) : 0;
-  if (mpHealed > 0) char.mp += mpHealed;
-  if (healed <= 0) {
-    if (mpHealed > 0) addLog(`階層移動の小休止でMPが${mpHealed}回復した。`);
-    return 0;
-  }
-  char.hp += healed;
-  addLog(`階層移動の小休止でHPが${healed}回復した。${mpHealed > 0 ? `MPも${mpHealed}回復した。` : ""}`);
-  return healed;
 }
 
 function checkSensoryAura() {
