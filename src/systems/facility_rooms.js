@@ -73,3 +73,18 @@ export function getWaitingKeeperFacility(grid) {
 export function hasWaitingKeeper(grid) {
   return Boolean(getWaitingKeeperFacility(grid));
 }
+
+/**
+ * A fight started in a keeper's room was won: the keeper joins the run and
+ * the room is spent. Returns the facility, or null when the cell holds no
+ * waiting keeper who is freed by a fight.
+ */
+export function freeKeeperAfterFight(cell, run) {
+  const room = getSpecialRoom(cell);
+  const facility = room && !room.used ? KEEPER_ROOM_FACILITY.get(room.kind) : null;
+  if (!facility || facility.site.rescue.kind !== "fight" || !run) return null;
+  run.companions = normalizeCompanions([...(run.companions || []), facility.companion.id]);
+  room.used = true;
+  room.discovered = true;
+  return facility;
+}

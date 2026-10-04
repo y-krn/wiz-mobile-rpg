@@ -32,7 +32,15 @@ export const SPECIAL_ROOMS = Object.freeze({
   // The catacomb altar while the priest is sealed in it, and once the chapel
   // tends it (#2018).
   SEALED_PRIEST: "sealed_priest",
-  CHAPEL_ALTAR: "chapel_altar"
+  CHAPEL_ALTAR: "chapel_altar",
+  // The nest's brood chamber while the weaver hangs in it, and once the
+  // weaving house has strung its hammock there (#2019).
+  COCOONED_WEAVER: "cocooned_weaver",
+  WEAVER_HAMMOCK: "weaver_hammock",
+  // The library's reading room while the scribe is stranded in it, and once
+  // the scriptorium keeps it (#2019).
+  STRANDED_SCRIBE: "stranded_scribe",
+  SCRIBE_READING_ROOM: "scribe_reading_room"
 });
 
 /** Player-facing names and the short line shown when the room is found. */
@@ -46,7 +54,11 @@ export const SPECIAL_ROOM_INFO = Object.freeze({
   trapped_foreman: Object.freeze({ name: "崩落した詰所", glyph: "人", intro: "崩れた岩の向こうから、人の声がする。鉱夫が閉じ込められている。" }),
   miner_outpost: Object.freeze({ name: "坑夫の詰所", glyph: "詰", intro: "組合の坑夫が詰めている。補給を分けてくれるという。" }),
   sealed_priest: Object.freeze({ name: "封じられた祭壇", glyph: "人", intro: "祭壇の奥から、かすかな祈りの声がする。誰かが封じられている。" }),
-  chapel_altar: Object.freeze({ name: "礼拝堂の祭壇", glyph: "灯", intro: "礼拝堂の灯が祭壇にともっている。浄め、血の祝福、そして献灯。" })
+  chapel_altar: Object.freeze({ name: "礼拝堂の祭壇", glyph: "灯", intro: "礼拝堂の灯が祭壇にともっている。浄め、血の祝福、そして献灯。" }),
+  cocooned_weaver: Object.freeze({ name: "繭の卵室", glyph: "人", intro: "卵の並ぶ部屋の奥に、人の形をした繭が吊られている。巣の主が近くで眠っている。" }),
+  weaver_hammock: Object.freeze({ name: "織り手の吊り寝床", glyph: "寝", intro: "巣の糸で編んだ寝床が吊られている。魔物の寄りつかない静かな場所だ。" }),
+  stranded_scribe: Object.freeze({ name: "水に沈んだ閲覧室", glyph: "人", intro: "水の引かない閲覧室の書棚の上に、誰かが取り残されている。" }),
+  scribe_reading_room: Object.freeze({ name: "写本師の閲覧室", glyph: "写", intro: "写本師の整えた閲覧机に、この階と次の階の見取り図が並んでいる。" })
 });
 
 // Mine vein: digging spends exploration turns and makes noise, like rubble.
@@ -58,6 +70,17 @@ export const VEIN_AMBUSH_CHANCE = 0.35;
 // floor's rubble. The blast is loud: its noise lingers longer than a dig's.
 export const OUTPOST_SUPPLY_ITEM_IDS = Object.freeze(["HEAL_POTION", "ANTIDOTE", "TRAP_KIT"]);
 export const OUTPOST_BLAST_NOISE_TTL = 8;
+// Weaver's hammock (#2019): a rest takes turns and restores a share of max
+// HP; mending costs materials and adds DEF for a few battles.
+export const HAMMOCK_REST_TURNS = 4;
+export const HAMMOCK_REST_HP_RATE = 0.3;
+export const MENDING_MATERIAL_COST = 2;
+export const MENDING_BATTLES = 3;
+export const MENDING_RATE = 0.25;
+// Scribe's reading room (#2019): copying a manuscript takes turns and yields
+// guidebook fragments.
+export const COPY_TURNS = 3;
+export const COPY_FRAGMENTS = 1;
 // Altar: a cleanse costs materials; the blood blessing converts HP into MP.
 export const ALTAR_CLEANSE_MATERIAL_COST = 2;
 export const ALTAR_BLOOD_HP_RATE = 0.25;
@@ -196,6 +219,47 @@ export function startForgeTemperBattle(char) {
   return "active";
 }
 
+/** HP a rest in the hammock restores: a share of max HP, up to what is missing. */
+export function getHammockRestAmount(char, maxHp) {
+  const hp = Math.max(0, Math.floor(Number(char?.hp) || 0));
+  const max = Math.max(0, Math.floor(Number(maxHp) || 0));
+  return Math.max(0, Math.min(max - hp, Math.ceil(max * HAMMOCK_REST_HP_RATE)));
+}
+
+/** Flat DEF a mended armor adds for the given equipment DEF. */
+export function getArmorMendAmount(equipmentDef) {
+  return Math.max(1, Math.round((Number(equipmentDef) || 0) * MENDING_RATE));
+}
+
+/** Active mend DEF on a character, or 0. */
+export function getArmorMendBonus(char) {
+  const mend = char?.armorMend;
+  if (!mend) return 0;
+  return Math.max(0, Math.floor(Number(mend.bonus) || 0));
+}
+
+export function applyArmorMend(char, equipmentDef) {
+  const bonus = getArmorMendAmount(equipmentDef);
+  char.armorMend = { bonus, battles: MENDING_BATTLES };
+  return char.armorMend;
+}
+
+/**
+ * Called as a battle starts, like the forge temper: the mend covers
+ * MENDING_BATTLES battles. Returns "worn" when it wore off before this battle.
+ */
+export function startArmorMendBattle(char) {
+  const mend = char?.armorMend;
+  if (!mend) return null;
+  const battles = Math.max(0, Math.floor(Number(mend.battles) || 0));
+  if (battles <= 0) {
+    delete char.armorMend;
+    return "worn";
+  }
+  mend.battles = battles - 1;
+  return "active";
+}
+
 /** Clear every status the altar can cleanse. Returns the cleared ids. */
 export function cleanseAltarStatuses(char, { hasStatusEffect, removeStatusEffect, ids }) {
   return ids.filter(id => hasStatusEffect(char, id) && removeStatusEffect(char, id));
@@ -260,7 +324,9 @@ export function describeDirection(from, to) {
 export function hasMirrorVisionFor(previousGrid) {
   return findCells(previousGrid, cell => {
     const room = getSpecialRoom(cell);
-    return room?.kind === SPECIAL_ROOMS.MIRROR_HALL && room.used;
+    // A room that showed the next floor says so itself (`vision`); a used
+    // mirror hall always did.
+    return Boolean(room?.used) && (room.kind === SPECIAL_ROOMS.MIRROR_HALL || room.vision === true);
   }).length > 0;
 }
 

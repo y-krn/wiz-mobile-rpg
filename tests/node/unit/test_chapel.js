@@ -92,7 +92,7 @@ FACILITIES.forEach(facility => {
   assert.ok(getSpecialRoomInfo(facility.site.keeperRoom)?.name, `${facility.id} keeper room is described`);
   assert.equal(KEEPER_ROOM_FACILITY.get(facility.site.keeperRoom), facility);
   assert.ok(facility.site.omen, `${facility.id} announces its keeper on the floor`);
-  assert.ok(["dig", "blood"].includes(facility.site.rescue.kind));
+  assert.ok(["dig", "blood", "fight", "drain"].includes(facility.site.rescue.kind));
   assert.equal(COMPANIONS[facility.companion.id].facilityId, facility.id);
   const feat = FEAT_BY_ID.get(facility.featId);
   assert.equal(feat.chain, "rescue", "rescues share one chain");
@@ -113,8 +113,8 @@ FACILITIES.forEach(facility => {
   });
 });
 const chapel = FACILITY_BY_ID.get("chapel");
-assert.deepEqual([3, 8, 13, 33, 38].map(floor => getFacilityForFloor(floor)?.id || null),
-  ["miner_guild", "chapel", null, "miner_guild", "chapel"], "the third floor of each band, in every cycle");
+assert.deepEqual([3, 8, 33, 38].map(floor => getFacilityForFloor(floor)?.id || null),
+  ["miner_guild", "chapel", "miner_guild", "chapel"], "the third floor of each band, in every cycle");
 assert.deepEqual([6, 7, 9, 10].map(floor => getFacilityForFloor(floor)), [null, null, null, null]);
 console.log("[PASS] each facility owns the third floor of its band and its data is consistent");
 
@@ -183,7 +183,8 @@ const priestFirst = settleRunFeats(fresh, { startFloor: 1, deepestFloor: 8, comp
 assert.equal(isFacilityOpen(priestFirst.feats, "chapel"), true, "a keeper found out of order is still rescued");
 assert.equal(isFacilityOpen(priestFirst.feats, "miner_guild"), false);
 assert.deepEqual(offered(priestFirst.feats), ["foreman_rescue"]);
-assert.deepEqual(offered(home.feats), []);
+assert.deepEqual(offered(home.feats), FACILITIES.slice(2, 3).map(facility => facility.featId),
+  "with both home, the next keeper in order is offered");
 
 // The town shows open facilities and only the next closed one.
 assert.deepEqual(listTownFacilities(fresh).map(entry => [entry.facility.id, entry.open]), [["miner_guild", false]]);
@@ -192,6 +193,8 @@ assert.deepEqual(listTownFacilities(foremanHome.feats).map(entry => [entry.facil
   [["miner_guild", true], ["chapel", false]]);
 assert.deepEqual(listTownFacilities(priestFirst.feats).map(entry => [entry.facility.id, entry.open]),
   [["miner_guild", false], ["chapel", true]]);
+assert.deepEqual(listTownFacilities(home.feats).map(entry => entry.facility.id),
+  FACILITIES.slice(0, 3).map(facility => facility.id), "only one closed facility is shown at a time");
 console.log("[PASS] two keepers can be led out together and the town shows the next one to find");
 
 // --- Nodes, the kit and the order -------------------------------------------------------

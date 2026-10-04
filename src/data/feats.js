@@ -81,6 +81,22 @@ export const FEATS = Object.freeze([
     reward: { materials: {}, unlock: "礼拝堂が開く" }
   }),
   feat({
+    id: "weaver_rescue",
+    chain: "rescue",
+    name: "織り手を連れ帰る",
+    condition: "大裂溝の巣窟の3階目で巣の主を倒して織り手の繭を切り、帰還の門か帰還の翼で生還する",
+    metric: { kind: "counter", key: "weaverRescued", target: 1, unit: "rescue", companion: "weaver" },
+    reward: { materials: {}, unlock: "織り場が開く" }
+  }),
+  feat({
+    id: "scribe_rescue",
+    chain: "rescue",
+    name: "写本師を連れ帰る",
+    condition: "水没した魔導書庫の3階目で閲覧室の水を抜いて写本師を助け、帰還の門か帰還の翼で生還する",
+    metric: { kind: "counter", key: "scribeRescued", target: 1, unit: "rescue", companion: "scribe" },
+    reward: { materials: {}, unlock: "写本室が開く" }
+  }),
+  feat({
     id: "guardian_5",
     chain: "guardian",
     name: "坑道の主を倒す",
@@ -95,6 +111,22 @@ export const FEATS = Object.freeze([
     condition: "B10Fの階層守護者を倒す",
     metric: { kind: "counter", key: "guardianDepth", target: 10, unit: "floor" },
     reward: { materials: { "霊粉": 5 } }
+  }),
+  feat({
+    id: "guardian_15",
+    chain: "guardian",
+    name: "大裂溝の主を倒す",
+    condition: "B15Fの階層守護者を倒す",
+    metric: { kind: "counter", key: "guardianDepth", target: 15, unit: "floor" },
+    reward: { materials: { "毒腺": 5 } }
+  }),
+  feat({
+    id: "guardian_20",
+    chain: "guardian",
+    name: "書庫の主を倒す",
+    condition: "B20Fの階層守護者を倒す",
+    metric: { kind: "counter", key: "guardianDepth", target: 20, unit: "floor" },
+    reward: { materials: { "魔石片": 5 } }
   }),
   feat({
     id: "elite_5",

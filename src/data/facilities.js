@@ -11,7 +11,9 @@
 // the room its keeper waits in: on the band's third floor that room stands in
 // for the biome's special room until the keeper has been led home. `rescue`
 // is what freeing the keeper costs, in the same terms the biome's own room
-// uses (turns and noise, HP, materials, or a fight).
+// uses (turns and noise, HP, materials, or a fight): "dig" and "drain" take
+// turns (digging is noisy), "blood" takes a share of max HP, "fight" is the
+// brood chamber's fight.
 
 const node = definition => Object.freeze({
   ...definition,
@@ -139,6 +141,112 @@ export const FACILITIES = Object.freeze([
         description: "上薬2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
         cost: { "黒角": 2, "骨片": 2 },
         yields: ["GREATER_HEAL", "GREATER_HEAL"]
+      })
+    ]
+  }),
+  // The weaving house (#2019): the weaver cocooned in the nest's brood
+  // chamber on B13F. Cutting her out wakes the brood keeper.
+  facility({
+    id: "weaving_house",
+    name: "織り場",
+    keeper: "織り手",
+    featId: "weaver_rescue",
+    lockedHint: "大裂溝の巣窟の3階目で、繭の中から声がする。",
+    openDescription: "織り手が戻り、織り場の機が動き出した。",
+    companion: { id: "weaver", name: "織り手", counterKey: "weaverRescued" },
+    site: {
+      biomeId: "rift_nest",
+      keeperRoom: "cocooned_weaver",
+      omen: "この階のどこかで、糸の軋む音と、くぐもった声がする。",
+      // The cocoon hangs in the brood chamber: freeing her is that room's fight.
+      rescue: { kind: "fight" }
+    },
+    nodes: [
+      node({
+        id: "weaver_kit",
+        name: "忍び足キット",
+        description: "開始キットに「忍び足キット」が加わる。ダガーと探索者の外套で、静寂の香2個と鳴らし玉1個を毎回持って始まる。盾はない。",
+        cost: { "毒腺": 6, "呪布": 4 },
+        grants: { startingKit: "stalker" }
+      }),
+      node({
+        id: "weaver_hammock",
+        name: "吊り寝床",
+        description: "大裂溝の巣窟の3階目の卵室が「織り手の吊り寝床」になる。潜行ごとに1回、4手番かけて休み、最大HPの30%を回復する。",
+        cost: { "呪布": 6, "硬い皮": 6 },
+        requiresFeat: "depth_15",
+        grants: { room: "weaver_hammock" }
+      }),
+      node({
+        id: "weaver_mending",
+        name: "繕い台",
+        description: "織り手の吊り寝床で、休む代わりに防具を繕える。素材2個で、次の3戦のあいだ防御力が上がる。",
+        cost: { "呪布": 6, "鉄片": 6 },
+        requiresFeat: "guardian_15",
+        requiresNode: "weaver_hammock",
+        grants: { roomOption: "mending" }
+      })
+    ],
+    orders: [
+      order({
+        id: "weaver_silence_incense",
+        name: "静寂の香の仕込み",
+        description: "静寂の香2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
+        cost: { "霊粉": 1, "呪布": 1 },
+        yields: ["SILENCE_INCENSE", "SILENCE_INCENSE"]
+      })
+    ]
+  }),
+  // The scriptorium (#2019): the scribe stranded in the flooded reading room
+  // on B18F.
+  facility({
+    id: "scriptorium",
+    name: "写本室",
+    keeper: "写本師",
+    featId: "scribe_rescue",
+    lockedHint: "水没した魔導書庫の3階目で、誰かが水に閉じ込められている。",
+    openDescription: "写本師が戻り、写本室の机に灯がともった。",
+    companion: { id: "scribe", name: "写本師", counterKey: "scribeRescued" },
+    site: {
+      biomeId: "sunken_library",
+      keeperRoom: "stranded_scribe",
+      omen: "この階のどこかで、水音にまじって人の呼ぶ声がする。",
+      // Draining the room is quiet work: turns, like the reading room's study.
+      rescue: { kind: "drain", turns: 5 }
+    },
+    nodes: [
+      node({
+        id: "scribe_kit",
+        name: "写本師キット",
+        description: "開始キットに「写本師キット」が加わる。両手の杖とローブで、最初から呪文を使え、魔力草2個を毎回持って始まる。",
+        cost: { "魔石片": 6, "霊粉": 4 },
+        grants: { startingKit: "scribe" }
+      }),
+      node({
+        id: "scribe_waymark",
+        name: "道しるべ",
+        description: "水没した魔導書庫の3階目の閲覧室が「写本師の閲覧室」になる。見取り図を読むと、この階の下り階段と宝箱に加えて、次の階の下り階段も地図に出る。",
+        cost: { "魔石片": 6, "骨片": 6 },
+        requiresFeat: "depth_20",
+        grants: { room: "scribe_reading_room" }
+      }),
+      node({
+        id: "scribe_copy_desk",
+        name: "写本台",
+        description: "写本師の閲覧室で、見取り図の代わりに写本を写せる。3手番かけて、手引き書の断片を1枚得る。",
+        cost: { "魔石片": 6, "黒角": 6 },
+        requiresFeat: "guardian_20",
+        requiresNode: "scribe_waymark",
+        grants: { roomOption: "copy" }
+      })
+    ],
+    orders: [
+      order({
+        id: "scribe_mana_potion",
+        name: "魔力草の仕込み",
+        description: "魔力草2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
+        cost: { "獣の牙": 2, "硬い皮": 2 },
+        yields: ["MANA_POTION", "MANA_POTION"]
       })
     ]
   })

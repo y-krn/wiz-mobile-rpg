@@ -14,7 +14,7 @@ import { trackCombatStart } from "../telemetry.js";
 import { recordEliteGreedAction } from "../systems/roaming_elites.js";
 import { dungeonRenderer as renderer } from "../renderer_runtime.js";
 import { preparePhase4jBEncounter } from "../rules/phase4j_b_trial.js";
-import { startForgeTemperBattle } from "../rules/special_rooms.js";
+import { startArmorMendBattle, startForgeTemperBattle } from "../rules/special_rooms.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -48,6 +48,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     char.buffs = [];
     delete char.mabarrierTurns;
     if (startForgeTemperBattle(char) === "cooled") addLog(`${char.name}の武器から炉の熱が抜けた。`);
+    if (startArmorMendBattle(char) === "worn") addLog(`${char.name}の防具の繕いがほつれた。`);
   });
 
   const { monsters, isRare, trial, floorRole } = generateEncounter(
