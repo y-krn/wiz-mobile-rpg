@@ -154,6 +154,7 @@ export function initNewGame({ preserveSeed = false }: InitNewGameOptions = {}): 
   // Storage initialization
   state.storage = [];
   state.storageMax = 30;
+  state.storageMigrationVersion = 1;
   state.identifyTickets = 0;
   state.dungeonMemory = { mapFragments: {}, visitedFloors: [1] };
 

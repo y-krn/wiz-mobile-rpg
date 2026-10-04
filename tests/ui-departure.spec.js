@@ -435,6 +435,37 @@ test('Departure craft allows empty-handed departure without materials', async ({
   expect(await page.evaluate(async () => (await import('/src/state.js')).state.inventory)).toEqual([]);
 });
 
+test('Departure preparation spends stored supplies before materials', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+    state.gameState = 'town';
+    state.metaMaterials = {};
+    state.storage = ['HEAL_POTION'];
+    state.workshop = { ranks: {} };
+    state.unlockedMilestones = [];
+    openSubmenu('solo_start', '単独潜行');
+  });
+
+  await page.locator('.solo-starting-kit-option').first().click();
+  const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
+  await expect(heal).toContainText('倉庫在庫1個');
+  await expect(heal).toBeEnabled();
+  await heal.click();
+  await expect(page.locator('.solo-start-craft-summary')).toContainText('持ち込み 1/');
+  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await page.getByRole('button', { name: '迷宮へ向かう' }).click();
+  await expect(page.locator('#explore-controls')).toBeVisible();
+  const result = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return { storage: state.storage, inventory: state.inventory };
+  });
+  expect(result.storage).toEqual([]);
+  expect(result.inventory).toContain('HEAL_POTION');
+});
+
 test('Preparation keeps run conditions and all 20 bag slots visible', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

@@ -97,12 +97,15 @@ export interface NormalizedCurrentRun {
   materials: NormalizedRunMaterials;
   bankedMaterials: NormalizedBankedMaterials;
   townInventory: RuntimeItemCollection;
+  departureCraftItems: RuntimeItemCollection;
   unbankedObjectLoot: NormalizedRunObjectLootLedger;
   pendingRewardBundle: NormalizedPendingRewardBundle | null;
   bankedObjectLoot: RuntimeItemCollection;
   lostObjectLoot: RuntimeItemCollection;
   eventObservations: NormalizedEventObservations;
   returnedTownItems: RuntimeItemCollection;
+  lostTownItems: RuntimeItemCollection;
+  overflowTownItems: RuntimeItemCollection;
   representativeItem: NormalizedRunReturnItemRecord | null;
   meaningfulItemHistory: NormalizedRunReturnItemRecord[];
   codexInsights: NormalizedRunCodexInsight[];
@@ -143,7 +146,8 @@ const NUMBER_FIELDS = [
 ] as const;
 
 const ITEM_COLLECTION_FIELDS = [
-  "townInventory", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems",
+  "townInventory", "departureCraftItems", "bankedObjectLoot", "lostObjectLoot", "returnedTownItems",
+  "lostTownItems", "overflowTownItems",
   "itemsFound", "equipmentFound", "departureItems"
 ] as const;
 

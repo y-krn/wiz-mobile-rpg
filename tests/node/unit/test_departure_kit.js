@@ -209,6 +209,26 @@ const orderIndependentPurchase = purchaseDepartureCraft(
 );
 check("any-material payment preserves typed demand regardless of selection order", orderIndependentPurchase.ok);
 check("empty selection is valid", purchaseDepartureCraft({}, []).ok);
+const stockOnlyPurchase = purchaseDepartureCraft({}, ["HEAL_POTION"], ["HEAL_POTION"]);
+check("stored supplies can fund departure with no materials", stockOnlyPurchase.ok);
+check(
+  "stored supply is consumed before materials",
+  stockOnlyPurchase.ok && stockOnlyPurchase.storage.length === 0 && stockOnlyPurchase.storedItems[0] === "HEAL_POTION"
+);
+check(
+  "stored supply has zero material display cost",
+  getDepartureCraftCost(["HEAL_POTION"], ["HEAL_POTION"]).typed["獣の牙"] === undefined
+);
+const mixedStockPurchase = purchaseDepartureCraft(
+  { "獣の牙": 2, "硬い皮": 2 },
+  ["HEAL_POTION", "HEAL_POTION"],
+  ["HEAL_POTION"]
+);
+check(
+  "material payment applies only above available stock",
+  mixedStockPurchase.ok && mixedStockPurchase.metaMaterials["獣の牙"] === 1 &&
+    mixedStockPurchase.metaMaterials["硬い皮"] === 1 && mixedStockPurchase.storage.length === 0
+);
 const holyWaterPurchase = purchaseDepartureCraft(
   { "霊粉": 1, "骨片": 1 },
   ["HOLY_WATER"]

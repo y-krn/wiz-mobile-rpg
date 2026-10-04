@@ -147,8 +147,9 @@ Materials and object loot have different economic roles:
   subset, and Death/Abandon lose the unconfirmed subset;
 - returned dungeon equipment is history and knowledge, not permanent next-run
   battle inventory;
-- unused preparation supplies may return to Town, while used supplies have
-  already paid for the run's decisions.
+- only unused departure-craft supplies return to storage after Portal or Wing;
+  Death and Abandon lose them. Workshop grants are issued again each run and do
+  not return to storage, and dungeon-acquired consumables never replenish it.
 
 The fixed ordinary bag makes these roles compete. Do not add a hidden safety
 compartment, a separate equipment bank, or a permanent capacity increase to
