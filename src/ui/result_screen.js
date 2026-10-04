@@ -170,6 +170,74 @@ function createMemorySection(run, outcome) {
   return section;
 }
 
+const NEAR_MISS_ENEMY_KIND_LABELS = {
+  guardian: "階層守護者",
+  elite: "強敵"
+};
+
+// The enemy state stays the same three-step state combat shows. Exact HP is
+// hidden during combat, so the result screen must not reveal it afterwards.
+const NEAR_MISS_ENEMY_STATE_TEXT = {
+  "重傷": name => `${name}を重傷まで追い込んでいた`,
+  "負傷": name => `${name}に傷を負わせていた`,
+  "健在": name => `${name}は健在だった`,
+  "状態不明": name => `${name}の状態は分からなかった`
+};
+
+function getNearMissItemName(itemId) {
+  const name = getItemData(itemId)?.name || itemId;
+  return String(name).replace(/\s*[（(].*?[）)]/g, "");
+}
+
+export function getNearMissFacts(nearMiss) {
+  if (!nearMiss) return [];
+  const facts = [];
+  (nearMiss.enemies || []).forEach(enemy => {
+    const kind = NEAR_MISS_ENEMY_KIND_LABELS[enemy.kind];
+    const describe = NEAR_MISS_ENEMY_STATE_TEXT[enemy.state] || NEAR_MISS_ENEMY_STATE_TEXT["状態不明"];
+    facts.push(describe(`${kind ? `${kind}・` : ""}${enemy.name}`));
+  });
+  if (nearMiss.defeatedInBattle > 0) {
+    facts.push(`この戦闘で${nearMiss.defeatedInBattle}体を倒していた`);
+  }
+  if (nearMiss.bestDepth) {
+    facts.push(nearMiss.bestDepth.gap > 0
+      ? `自己最深 B${nearMiss.bestDepth.best}F まであと${nearMiss.bestDepth.gap}階だった`
+      : `自己最深 B${nearMiss.bestDepth.best}F に並んでいた`);
+  }
+  if (nearMiss.portal?.kind === "ahead") {
+    facts.push(`次の帰還の門（B${nearMiss.portal.floor}F）まであと${nearMiss.portal.gap}階だった`);
+  } else if (nearMiss.portal?.kind === "guardian_ahead") {
+    facts.push("帰還の門は、この階の階層守護者の先にあった");
+  } else if (nearMiss.portal?.kind === "guardian_defeated") {
+    facts.push("階層守護者は倒していた。帰還の門は同じ階にあった");
+  }
+  if (nearMiss.unused?.length > 0) {
+    const items = nearMiss.unused
+      .map(item => `${getNearMissItemName(item.itemId)}×${item.count}`)
+      .join("、");
+    facts.push(`使わずに残っていた物：${items}`);
+  }
+  return facts;
+}
+
+function createNearMissSection(run, outcome) {
+  if (outcome.key !== "death") return null;
+  const facts = getNearMissFacts(run.nearMiss);
+  if (facts.length === 0) return null;
+  const section = textElement("section", "result-focus-section result-near-miss-section");
+  setAttributeSafe(section, "aria-labelledby", "result-near-miss-title");
+  setAttributeSafe(section, "data-result-near-miss", "");
+  const heading = textElement("h2", "result-section-heading");
+  heading.id = "result-near-miss-title";
+  heading.appendChild(textElement("span", null, "あと少しだった点"));
+  section.appendChild(heading);
+  const list = textElement("ul", "result-near-miss-list");
+  facts.forEach(fact => list.appendChild(textElement("li", null, fact)));
+  section.appendChild(list);
+  return section;
+}
+
 function createDiscoverySection(run) {
   const codex = run.codexInsights?.length ? [] : run.codexDiscoveries || [];
   const workshop = run.workshopUnlocks?.length ? [] : run.workshopDiscoveries || [];
@@ -341,6 +409,8 @@ export function renderResultScreen() {
   const body = document.createElement("div");
   body.className = "result-body";
   body.appendChild(createMemorySection(run, outcome));
+  const nearMiss = createNearMissSection(run, outcome);
+  if (nearMiss) body.appendChild(nearMiss);
   body.appendChild(createRecordSection(run));
   body.appendChild(createLootSection(run));
   const discoveries = createDiscoverySection(run);

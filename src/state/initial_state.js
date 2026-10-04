@@ -55,6 +55,7 @@ export const createDefaultCurrentRun = () => ({
   codexInsights: [],
   workshopUnlocks: [],
   returnProcessing: null,
+  nearMiss: null,
   lootSequence: 0,
   itemsFound: [],
   equipmentFound: [],

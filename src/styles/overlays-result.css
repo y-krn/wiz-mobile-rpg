@@ -41,6 +41,9 @@
 .result-memory-list,
 .result-discovery-section ul { display: grid; gap: var(--sp-xs); margin: 0; padding-left: 1.2em; color: var(--text-main); font-family: var(--font-sans); font-size: var(--fs-sm); line-height: 1.45; }
 
+.result-near-miss-section { border-color: var(--neon-amber); }
+.result-near-miss-list { display: grid; gap: var(--sp-xs); margin: var(--sp-sm) 0 0; padding-left: 1.2em; color: var(--text-main); font-family: var(--font-sans); font-size: var(--fs-sm); line-height: 1.45; }
+
 .result-loot-section { border-color: var(--neon-purple); }
 .result-loot-note { margin-top: var(--sp-xxs); color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.4; }
 .result-loot-group { display: grid; gap: var(--sp-xs); margin-top: var(--sp-sm); }
