@@ -262,8 +262,9 @@ before or after the boss, and B6 transition.
   descent decision.
 - During exploration, each unvisited cell restores 2% of maximum HP and MP,
   carrying fractional points forward and capping actual recovery at 50% of
-  each maximum per floor. Poison suspends this recovery. Stairs and pitfall
-  descents do not restore HP or MP; the milestone breather remains separate.
+  each maximum per floor. HP recovery is subject to healing modifiers; MP
+  recovery is not. Poison suspends this recovery. Stairs and pitfall descents
+  do not restore HP or MP; the milestone breather remains separate.
 - Biomes rotate on a five-floor rhythm. Their enemy themes, hazards, landmarks,
   and atmosphere answer “where am I?” while depth supplies the pressure axis.
 - Each biome owns one layout archetype, so the floor silhouette and route graph

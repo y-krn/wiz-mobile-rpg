@@ -1,5 +1,6 @@
 // balance-impact: maps — per-cell recovery is exercised by the Issue #1993 production browser run.
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
+import { getHealMultiplier } from "../rules/item_rules.js";
 
 const RECOVERY_RATE = 0.02;
 const FLOOR_CAP_RATE = 0.5;
@@ -17,7 +18,7 @@ function getFloorRecovery(run, floor) {
   return run.explorationRecovery[key];
 }
 
-function recoverResource({ char, floorState, resource, getMax }) {
+function recoverResource({ char, floorState, resource, getMax, multiplier = 1 }) {
   const current = Number(char?.[resource]);
   const max = getMax(char);
   if (!Number.isFinite(current) || !Number.isFinite(max) || max <= 0 || current >= max) return 0;
@@ -28,7 +29,7 @@ function recoverResource({ char, floorState, resource, getMax }) {
   const remaining = Math.max(0, cap - floorState[recoveredKey]);
   if (remaining === 0) return 0;
 
-  const credit = max * RECOVERY_RATE + floorState[remainderKey];
+  const credit = max * RECOVERY_RATE * multiplier + floorState[remainderKey];
   const points = Math.floor(credit + Number.EPSILON * max);
   if (points === 0) {
     floorState[remainderKey] = credit;
@@ -39,7 +40,7 @@ function recoverResource({ char, floorState, resource, getMax }) {
   if (recovered <= 0) return 0;
   char[resource] = current + recovered;
   floorState[recoveredKey] += recovered;
-  floorState[remainderKey] = floorState[recoveredKey] < cap ? credit - points : 0;
+  floorState[remainderKey] = floorState[recoveredKey] < cap ? Math.max(0, credit - points) : 0;
   return recovered;
 }
 
@@ -51,7 +52,7 @@ export function applyExplorationRecovery(stateLike, floor = stateLike?.floor) {
   }
 
   return {
-    hpRecovered: recoverResource({ char, floorState, resource: "hp", getMax: getCharMaxHp }),
+    hpRecovered: recoverResource({ char, floorState, resource: "hp", getMax: getCharMaxHp, multiplier: getHealMultiplier(char) }),
     mpRecovered: recoverResource({ char, floorState, resource: "mp", getMax: getCharMaxMp })
   };
 }

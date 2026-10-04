@@ -29,6 +29,7 @@ global.setTimeout = callback => { callback(); return 0; };
 
 const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import("../../../src/state.js");
 const { getCharMaxHp, getCharMaxMp } = await import("../../../src/data.js");
+const { getHealMultiplier } = await import("../../../src/rules/item_rules.js");
 const { applyExplorationRecovery, getExplorationRecoveryRemaining } = await import("../../../src/systems/exploration_recovery.js");
 const { descendToFloor, executeEnterDungeon, handleMove } = await import("../../../src/movement.js");
 
@@ -38,6 +39,28 @@ function freshRun(kit = "vanguard") {
   state.floor = 1;
   state.party[0].status = "ok";
   return state.party[0];
+}
+
+function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
+  const char = freshRun();
+  char.maxHp = 100;
+  char.hp = 1;
+  char.antiHealTurns = antiHealTurns;
+  if (cursed) {
+    char.equipment.accessory = {
+      kind: "equipment",
+      baseId: "RING_AGI",
+      identified: true,
+      curseEffectId: "curse_blood_thirst",
+      cursePower: 1,
+      affixes: []
+    };
+  }
+  for (let index = 0; index < cells; index++) applyExplorationRecovery(state);
+  return {
+    recovered: state.currentRun.explorationRecovery["1"].hpRecovered,
+    multiplier: getHealMultiplier(char)
+  };
 }
 
 // 2% fractional recovery carries between newly visited cells.
@@ -100,6 +123,53 @@ function freshRun(kit = "vanguard") {
   assert.equal(state.currentRun.explorationRecovery["1"].mpRecovered, 0);
   assert.equal(state.currentRun.explorationRecovery["1"].hpRemainder, 0);
   assert.equal(state.currentRun.explorationRecovery["1"].mpRemainder, 0);
+}
+
+// Healing modifiers scale HP recovery credit while MP recovery remains unmodified.
+{
+  const unmodified = recoverHpAcrossCells({ cells: 25 });
+  const cursed = recoverHpAcrossCells({ cells: 25, cursed: true });
+  assert.equal(unmodified.recovered, 50);
+  assert.equal(cursed.multiplier, 0.8);
+  assert.equal(cursed.recovered / unmodified.recovered, 0.8);
+
+  const antiHealed = recoverHpAcrossCells({ cells: 25, antiHealTurns: 1 });
+  assert.equal(antiHealed.multiplier, 0.5);
+  assert.equal(antiHealed.recovered / unmodified.recovered, 0.5);
+
+  const arcana = freshRun("arcana");
+  arcana.maxHp = 100;
+  arcana.hp = 1;
+  arcana.maxMp = 100;
+  arcana.mp = 1;
+  arcana.antiHealTurns = 1;
+  for (let index = 0; index < 25; index++) applyExplorationRecovery(state);
+  assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, 25);
+  assert.equal(state.currentRun.explorationRecovery["1"].mpRecovered, Math.floor(getCharMaxMp(arcana) * 0.5));
+}
+
+// Modified HP recovery spends the per-floor budget by actual points and still stops at 50%.
+{
+  const cursed = recoverHpAcrossCells({ cells: 100, cursed: true });
+  assert.equal(cursed.recovered, 50);
+  assert.equal(state.currentRun.explorationRecovery["1"].hpRemainder, 0);
+  assert.equal(getExplorationRecoveryRemaining(state).hp, 0);
+  applyExplorationRecovery(state);
+  assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, 50);
+}
+
+// Floating-point rounding never leaves a negative or whole-point remainder.
+{
+  for (let maxHp = 1; maxHp <= 600; maxHp++) {
+    const char = freshRun();
+    char.maxHp = maxHp;
+    char.hp = 1;
+    for (let cell = 0; cell < 150; cell++) {
+      applyExplorationRecovery(state);
+      const remainder = state.currentRun.explorationRecovery["1"].hpRemainder;
+      assert.ok(remainder >= 0 && remainder < 1, `max HP ${maxHp}, cell ${cell + 1}: remainder ${remainder}`);
+    }
+  }
 }
 
 // Recovery counts actual integer HP/MP, stops at half of each maximum, and starts a fresh floor budget.
