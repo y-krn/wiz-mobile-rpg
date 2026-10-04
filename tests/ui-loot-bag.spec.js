@@ -96,7 +96,7 @@ test('trial knowledge is qualitative and does not expose an exact hidden affix v
   expect(detail).not.toContain('atk');
 });
 
-test('equipped dungeon gear keeps its unconfirmed ownership badge @smoke', async ({ page }) => {
+test('equipped dungeon gear keeps ownership state without a transfer badge @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
@@ -122,7 +122,7 @@ test('equipped dungeon gear keeps its unconfirmed ownership badge @smoke', async
 
   const equippedRow = page.locator('.equip-equipped-row[data-slot-id="weapon"]');
   await expect(equippedRow).toHaveAttribute('data-ownership', 'dungeon-unconfirmed');
-  await expect(equippedRow.locator('.ownership-badge')).toContainText('まだ持ち帰っていない品');
+  await expect(equippedRow.locator('.ownership-badge')).toHaveCount(0);
   await expect(equippedRow.locator('.equip-slot-label')).toHaveText('武器');
 });
 

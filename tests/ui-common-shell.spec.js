@@ -138,7 +138,7 @@ test.describe('Common UI vNext shell @smoke', () => {
     await expect(page.locator('#log-content [data-event-kind="result"]')).toContainText('敵の弱点');
   });
 
-  test('flags only not-yet-banked Dungeon items in the shared Bag row contract', async ({ page }) => {
+  test('shows a return badge for carried items and no ownership badge for Dungeon loot', async ({ page }) => {
     await page.goto('/');
     const ownership = await page.evaluate(async () => {
       const { state, createDefaultCurrentRun } = await import('/src/state.js');
@@ -164,8 +164,8 @@ test.describe('Common UI vNext shell @smoke', () => {
     });
 
     expect(ownership).toEqual([
-      { ownership: 'town-confirmed', badge: undefined },
-      { ownership: 'dungeon-unconfirmed', badge: 'まだ持ち帰っていない品' },
+      { ownership: 'town-confirmed', badge: '持ち込み品・生還時に倉庫へ' },
+      { ownership: 'dungeon-unconfirmed', badge: undefined },
     ]);
   });
 
