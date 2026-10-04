@@ -95,10 +95,22 @@ function setupRun(deepestFloor = 5) {
   const result = processRunReturn(state, "death");
   assert.equal(result.representativeItem.baseId, "LONG_SWORD");
   assert.equal(result.representativeItem.status, "lost");
+  assert.equal(state.currentRun.returnProcessing.returnedObjectCount, 0);
+  assert.equal(state.currentRun.returnProcessing.lostObjectCount, 3);
   assert.equal(state.storage.includes(sword), false);
   assert.deepEqual(state.workshop.lateralUnlocks, []);
   assert.ok(result.insights.length > 0, "knowledge survives object loss");
   console.log("[PASS] death records a lost representative without recovering equipment or unlocking Workshop");
+}
+
+{
+  const { state } = setupRun(4);
+  const result = processRunReturn(state, "abandon");
+  assert.equal(state.currentRun.returnProcessing.returnedObjectCount, 0);
+  assert.equal(state.currentRun.returnProcessing.lostObjectCount, 3);
+  assert.equal(result.settlement.banked.length, 0);
+  assert.equal(result.settlement.lost.length, 3);
+  console.log("[PASS] abandon counts carried supplies and dungeon loot as lost");
 }
 
 {

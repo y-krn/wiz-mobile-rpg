@@ -438,7 +438,6 @@ export function settleRunObjectLoot(
       : [];
   const lostLoot = unbanked.filter(entry => !returnedLoot.some(item => item.id === entry.id));
   const returnedDungeonItems = returnedLoot.map(entry => entry.item);
-  const bankedItems = [...townItems, ...returnedDungeonItems];
   const currentStorage = Array.isArray(state.storage) ? state.storage : [];
   const storageLimit = Number.isFinite(state.storageMax) ? Math.max(0, Math.floor(state.storageMax!)) : 30;
   const storageSlots = Math.max(0, storageLimit - currentStorage.length);
@@ -480,7 +479,10 @@ export function settleRunObjectLoot(
   run.lostObjectLoot = lostLoot.map(entry => entry.item);
   run.unbankedObjectLoot = [];
   run.townInventory = [];
-  return { banked: bankedItems, lost: run.lostObjectLoot };
+  return {
+    banked: [...storageItems, ...returnedDungeonItems],
+    lost: [...run.lostObjectLoot, ...run.lostTownItems, ...overflowItems]
+  };
 }
 
 // balance-impact: none — canonical normalized current-run boundary only.
