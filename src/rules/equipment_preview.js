@@ -1,5 +1,6 @@
 // Pure equipment stat/slot calculations used by the overlay and action layer.
 // This module never reads or mutates the live game state.
+import { compareEquipmentSets } from "./equipment_sets.js";
 import {
   getCharDerivedStats,
   getCharMaxHp,
@@ -130,7 +131,16 @@ export function getEquipmentPreview(char, itemKey, requestedSlot = null, { floor
   previewChar.equipment[slot] = itemKey;
   const next = getDisplayStats(previewChar, floor);
   const rows = createPreviewRows(current, next);
-  return { item, itemType: item.type, slot, rows, primaryDiff: getPrimaryDiff(item.type, rows), oldEq };
+  return {
+    item,
+    itemType: item.type,
+    slot,
+    rows,
+    primaryDiff: getPrimaryDiff(item.type, rows),
+    oldEq,
+    // How the equipment families' counts move with this change (#2024).
+    sets: compareEquipmentSets(char, previewChar)
+  };
 }
 
 export function getUnequipPreview(char, slot, { floor = 1 } = {}) {
@@ -144,5 +154,13 @@ export function getUnequipPreview(char, slot, { floor = 1 } = {}) {
   previewChar.equipment[slot] = null;
   const next = getDisplayStats(previewChar, floor);
   const rows = createPreviewRows(current, next);
-  return { item, itemType: item.type, slot, rows, primaryDiff: getPrimaryDiff(item.type, rows), oldEq: null };
+  return {
+    item,
+    itemType: item.type,
+    slot,
+    rows,
+    primaryDiff: getPrimaryDiff(item.type, rows),
+    oldEq: null,
+    sets: compareEquipmentSets(char, previewChar)
+  };
 }

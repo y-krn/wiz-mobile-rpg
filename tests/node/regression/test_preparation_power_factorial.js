@@ -142,8 +142,11 @@ for (const condition of result.conditions) {
   // #1801 solo HP budget: with seed 8 the W0R12 run returned voluntarily
   // instead of reaching the B6 synthetic cutoff. #1963 biome gimmicks reshape
   // its B1-B5 route, and that run reaches the cutoff again.
-  // Under unified Build vNext rules, the W0R12 condition reaches the cutoff
+  // Under unified Build vNext rules, the W0R12 condition reached the cutoff
   // in two of four runs; Workshop gear raises W1R12 to three.
-  assert.equal(condition.outcome.b6Cutoff, { W0R0: 0, W1R0: 0, W0R12: 2, W1R12: 3 }[condition.id]);
+  // #2024 equipment families: a set effect changes one fight of the W0R12
+  // vanguard run on this seed, its random stream diverges from there, and
+  // that run now dies before the cutoff. The other fifteen runs are unchanged.
+  assert.equal(condition.outcome.b6Cutoff, { W0R0: 0, W1R0: 0, W0R12: 1, W1R12: 3 }[condition.id]);
   assert.ok(condition.outcome.b6Cutoff + condition.outcome.voluntaryReturn <= condition.runs);
 }

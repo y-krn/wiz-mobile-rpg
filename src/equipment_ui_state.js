@@ -16,6 +16,8 @@ function createEquipmentUiState() {
     sessionChanged: false,
     sessionTurnPaid: false,
     pendingTurns: 0,
+    // The loadout as it was when the screen opened, to report set changes on close (#2024).
+    equipmentAtOpen: null,
   };
 }
 
