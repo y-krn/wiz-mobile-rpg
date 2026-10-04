@@ -150,7 +150,7 @@ export function applyKillAffixEffects(char, target, state, logQueue, options = {
       options.measurement.causalHealEvents.push({
         round: state.combatState?.roundNumber ?? null,
         source: "killHeal",
-        potential: effectiveHeal,
+        potential: killHeal,
         recovered: char.hp - hpBefore,
         antiHealTurns: char.antiHealTurns || 0
       });

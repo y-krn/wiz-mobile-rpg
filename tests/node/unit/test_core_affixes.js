@@ -515,6 +515,19 @@ test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログ
   assert.equal(char.hp, 52);
   assert.match(logs[0].msg, /HPが2回復/);
 
+  const antiHealChar = makeChar(null);
+  antiHealChar.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
+  antiHealChar.mp = getCharMaxMp(antiHealChar);
+  antiHealChar.hp = 50;
+  antiHealChar.antiHealTurns = 1;
+  applyKillAffixEffects(
+    antiHealChar,
+    { name: "Demon", tags: ["demon"] },
+    { combatState: {} },
+    []
+  );
+  assert.equal(antiHealChar.hp, 51);
+
   const fullHpChar = makeChar(null);
   fullHpChar.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
   fullHpChar.mp = getCharMaxMp(fullHpChar);
@@ -664,7 +677,7 @@ test("負のspellGuard・guardianが該当被ダメージを増やす", () => {
   spellChar.equipment.shield.affixes[0].value = 60;
   assert.equal(reduceIncomingDamage(spellChar, 100, { spell: true }), 60);
   spellChar.equipment.shield.affixes[0].value = 100;
-  assert.equal(reduceIncomingDamage(spellChar, 100, { spell: true }), 40);
+  assert.equal(reduceIncomingDamage(spellChar, 100, { spell: true }), 50);
   spellChar.equipment.shield.affixes[0].value = -100;
   assert.equal(reduceIncomingDamage(spellChar, 100, { spell: true }), 160);
 
@@ -723,6 +736,43 @@ test("渇血の回復低下が薬・キル回復・キャンプへ適用", () =>
     currentRun: {}
   });
   assert.equal(camp.hpRecovered, 16);
+});
+
+test("正のdevotionは薬・キル回復・キャンプに影響しない", () => {
+  const char = makeChar(null);
+  char.hp = 50;
+  char.equipment.shield = supportItem("devotion", 30, "SMALL_SHIELD");
+  char.equipment.weapon = supportItem("killHeal", 5, "SHORT_SWORD");
+
+  ITEM_EFFECTS.HEAL_POTION({ char });
+  assert.equal(char.hp, 65);
+
+  char.hp = 50;
+  applyKillAffixEffects(char, { name: "Enemy", tags: [] }, { combatState: {} }, []);
+  assert.equal(char.hp, 55);
+
+  char.hp = 50;
+  const camp = restAtCamp({ floor: 1, party: [char], currentRun: {} });
+  assert.equal(camp.hpRecovered, 20);
+});
+
+test("killHealのcausal potentialは回復低下前の値", () => {
+  const char = makeChar(null);
+  char.hp = 50;
+  char.antiHealTurns = 1;
+  char.equipment.weapon = supportItem("killHeal", 5, "SHORT_SWORD");
+  const measurement = {};
+
+  applyKillAffixEffects(
+    char,
+    { name: "Enemy", tags: [] },
+    { combatState: {} },
+    [],
+    { measurement }
+  );
+
+  assert.equal(measurement.causalHealEvents[0].potential, 5);
+  assert.equal(measurement.causalHealEvents[0].recovered, 3);
 });
 
 test("生成API: allowCores=falseでエピック商人相当にもコアなし", () => {

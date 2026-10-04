@@ -29,7 +29,7 @@ export function getEffectiveHealAmount(target, amount, { applyDevotion = true } 
   if (amount <= 0) return amount;
   let mult = 1;
   if (applyDevotion) {
-    mult *= 1 + getCharAffixSum(target, "devotion") / 100;
+    mult *= 1 + Math.min(0, getCharAffixSum(target, "devotion")) / 100;
   }
   if (target?.antiHealTurns > 0) {
     mult *= 0.5;
@@ -111,7 +111,7 @@ export function getCharAffixSum(char, affixType) {
   sum += getCurseKeeperBonus(char, affixType);
   const total = sum;
   if (affixType === "spellGuard") {
-    return Math.max(-60, Math.min(60, total));
+    return Math.max(-60, Math.min(50, total));
   }
   const caps = {
     poisonWard: 75,
