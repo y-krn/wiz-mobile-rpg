@@ -409,6 +409,11 @@ function bindButtons() {
     review: enterDungeon
   });
   document.getElementById("btn-town-feats").addEventListener("click", () => handleTownOption("feats"));
+  // Facility slots are rebuilt as facilities open, so the click is delegated.
+  document.getElementById("town-facilities").addEventListener("click", event => {
+    const button = event.target.closest?.("[data-facility-id]");
+    if (button && !button.disabled) handleTownOption(`facility:${button.getAttribute("data-facility-id")}`);
+  });
   document.getElementById("btn-town-castle").addEventListener("click", () => handleTownOption("castle"));
   document.getElementById("btn-town-workshop").addEventListener("click", () => handleTownOption("workshop"));
   document.getElementById("btn-town-archives").addEventListener("click", () => handleTownOption("archives"));

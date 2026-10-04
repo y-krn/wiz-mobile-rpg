@@ -48,6 +48,7 @@ import {
 import { normalizeRunRecordResult } from "./run_record_result.js";
 import { normalizeRunNearMiss } from "./run_near_miss.js";
 import { normalizeAnnouncedFeatIds, normalizeFeatsState, normalizeRunFeatResult } from "./feats_state.js";
+import { normalizeCompanion, normalizeFacilitiesState } from "./facilities_state.js";
 import { normalizeStartingKitId } from "./starting_kit.js";
 import {
   normalizeRunFirstKillsBefore,
@@ -669,6 +670,7 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.nearMiss = normalizeRunNearMiss(normalized.nearMiss);
   normalized.featResult = normalizeRunFeatResult(normalized.featResult);
   normalized.featsAnnounced = normalizeAnnouncedFeatIds(normalized.featsAnnounced);
+  normalized.companion = normalizeCompanion(normalized.companion);
   normalized.recordResult = normalizeRunRecordResult(normalized.recordResult);
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);
@@ -886,6 +888,7 @@ export function normalizeSavePayload(data) {
   };
   normalized.keyItems = arrayOr(data.keyItems);
   normalized.lastPreparation = normalizeLastPreparation(data.lastPreparation);
+  normalized.facilities = normalizeFacilitiesState(data.facilities);
   // Saves from before feats seed the counters from the records they already
   // hold; nothing is marked achieved until the next run is settled (#2007).
   normalized.feats = normalizeFeatsState(data.feats, {

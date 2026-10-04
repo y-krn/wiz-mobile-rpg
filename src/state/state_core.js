@@ -1,6 +1,7 @@
 import { DIR_N, START_X, START_Y } from "../data.js";
 import { createDefaultRecords } from "./records_state.js";
 import { createDefaultFeatsState } from "./feats_state.js";
+import { createDefaultFacilitiesState } from "./facilities_state.js";
 import { normalizeDeathSource, normalizeRunDeathLog } from "./death_logs.js";
 import {
   COMBAT_LOG_PRESENTATION_KINDS,
@@ -83,6 +84,8 @@ export const state = {
   lastPreparation: null,
   // Long-term goals: counters across runs and the feats achieved (#2007).
   feats: createDefaultFeatsState(),
+  // Town facility nodes bought with materials (#2009).
+  facilities: createDefaultFacilitiesState(),
 
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",

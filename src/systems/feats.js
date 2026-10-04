@@ -47,7 +47,11 @@ export function addRunToFeatCounters(counters, run, outcome = null) {
   next.disruptorsKilled += count(run.defeatsByRole?.disruptor);
   next.amplifiersKilled += count(run.defeatsByRole?.amplifier);
   next.chestsOpened += count(run.chestsOpened);
-  if (outcome === "retreat") next.safeReturns += 1;
+  if (outcome === "retreat") {
+    next.safeReturns += 1;
+    // A companion is rescued only by walking out: the Portal or the Wing.
+    if (run.companion === "foreman") next.foremanRescued = 1;
+  }
   // Starting from a milestone floor would hand these out for free, so only
   // descents from B1F count.
   if (startedAtTop) {
@@ -73,8 +77,15 @@ export function getFeatProgress(feat, counters) {
   return { current: capped, target, ratio: target > 0 ? capped / target : 0, done: current >= target };
 }
 
-/** "B3F / B5F" for depths, "3 / 5" for counts. */
-export function formatFeatProgress(feat, progress) {
+/**
+ * "B3F / B5F" for depths, "3 / 5" for counts. A rescue reads as a state; pass
+ * the running run to show that the person is being led out right now.
+ */
+export function formatFeatProgress(feat, progress, run = null) {
+  if (feat.metric.unit === "rescue") {
+    if (progress.current >= progress.target) return "救出";
+    return run && !run.returnReason && run.companion === feat.metric.companion ? "同行中" : "未救出";
+  }
   if (feat.metric.unit === "floor") {
     return `${progress.current > 0 ? `B${progress.current}F` : "未到達"} / B${progress.target}F`;
   }
@@ -82,9 +93,10 @@ export function formatFeatProgress(feat, progress) {
 }
 
 export function formatFeatReward(feat) {
-  return Object.entries(feat.reward?.materials || {})
-    .map(([name, quantity]) => `${name}×${quantity}`)
-    .join("・");
+  return [
+    ...Object.entries(feat.reward?.materials || {}).map(([name, quantity]) => `${name}×${quantity}`),
+    feat.reward?.unlock
+  ].filter(Boolean).join("・");
 }
 
 /** Counters as they stand right now: stored progress plus the running run. */

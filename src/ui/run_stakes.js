@@ -3,6 +3,7 @@ import { MATERIAL_TYPES } from "../data/materials.js";
 import { getBankedMaterials } from "../rules/material_rules.js";
 import { getItemBaseId } from "../data.js";
 import { getItemData } from "../rules/item_rules.js";
+import { COMPANIONS } from "../data/facilities.js";
 
 function getMaterialQuantity(materials, name) {
   return Math.max(0, Math.floor(Number(materials?.[name]) || 0));
@@ -109,6 +110,13 @@ export function createRunStakesSummary(
     overflow.className = "run-stakes-overflow";
     overflow.textContent = `倉庫満杯のため未使用品 ${overflowCount}個は戻らない`;
     flow.appendChild(overflow);
+  }
+  const companion = COMPANIONS[state.currentRun?.companion];
+  if (companion) {
+    const companionLine = document.createElement("p");
+    companionLine.className = "run-stakes-companion";
+    companionLine.textContent = `同行：${companion.name}。生還すれば街へ連れ帰る。死ねば・断念すれば連れ帰れない。`;
+    flow.appendChild(companionLine);
   }
   summary.append(title, flow);
   return summary;

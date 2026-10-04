@@ -132,6 +132,7 @@
 .result-feat-row { display: grid; grid-template-columns: auto 1fr auto; gap: var(--sp-sm); align-items: center; font-size: var(--fs-md); }
 .result-feat-row > span { color: var(--neon-amber); }
 .result-feat-row.completed > span { color: var(--neon-green); }
+.result-feat-row.failed > span { color: var(--neon-red); }
 .result-feat-row small { color: var(--text-muted); text-align: right; }
 .result-run-note { color: var(--text-muted); font-size: var(--fs-md); line-height: 1.4; }
 

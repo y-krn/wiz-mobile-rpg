@@ -18,6 +18,7 @@ import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
 import { getDepthCorruption, getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
 import { formatFeatProgress, getFeat, getLiveFeatCounters, getNearestFeats } from "../systems/feats.js";
+import { COMPANIONS } from "../data/facilities.js";
 import { updateRecordsStrip } from "./records_view.js";
 import { renderTownHome } from "./town_home.js";
 import { getScreenViewState } from "../state/view_state.js";
@@ -294,8 +295,13 @@ function getHudFeats() {
     .filter(Boolean)
     .map(feat => ({ name: feat.name, progress: "達成", completed: true }));
   const nearest = getNearestFeats(state.feats, getLiveFeatCounters(state.feats, run), 2)
-    .map(({ feat, progress }) => ({ name: feat.name, progress: formatFeatProgress(feat, progress), completed: false }));
-  return [...achieved, ...nearest];
+    .map(({ feat, progress }) => ({ name: feat.name, progress: formatFeatProgress(feat, progress, run), completed: false }));
+  // Someone being led out comes first: it is what this run now stands to lose.
+  const companion = COMPANIONS[run.companion];
+  const escort = companion
+    ? [{ name: `同行：${companion.name}`, progress: "生還で救出", completed: false, companion: true }]
+    : [];
+  return [...escort, ...achieved, ...nearest];
 }
 
 function getExploreGoalSignature() {
@@ -354,9 +360,10 @@ export function updateUI() {
         ? "choose_action"
         : "";
   const departurePrepSubmenu = view.isDeparturePrepSubmenu;
-  // The feat list is a long town list like the Workshop: give it the same
-  // full-height layout (#2007).
-  const workshopSubmenu = view.isWorkshopSubmenu || view.menuType === "feats_main";
+  // The feat list and the facility screens are long town lists like the
+  // Workshop: give them the same full-height layout (#2007, #2009).
+  const workshopSubmenu = view.isWorkshopSubmenu || view.menuType === "feats_main" ||
+    view.menuType.startsWith("facility_");
   const merchantSubmenu = view.isSubmenu && view.menuType === "milestone_merchant";
   const townSubmenu = view.isTownSubmenu;
   const isTownLikeGoal = gameState === "town" || departurePrepSubmenu;
@@ -533,7 +540,13 @@ export function updateUI() {
       const statsContainer = document.createElement("span");
       statsContainer.className = "goal-stats-container";
       statsContainer.appendChild(createGoalStat("🗺️", "探索率: ", `${expRate}%`));
-      const nextFeat = getHudFeats().find(feat => !feat.completed);
+      const hudFeatsForSummary = getHudFeats();
+      if (isExploreHud && hudFeatsForSummary.some(feat => feat.companion)) {
+        const escortSummary = createGoalStat("👤", "同行 ", COMPANIONS[state.currentRun.companion].name);
+        escortSummary.className = "goal-feat-summary goal-companion-summary";
+        statsContainer.appendChild(escortSummary);
+      }
+      const nextFeat = hudFeatsForSummary.find(feat => !feat.completed && !feat.companion);
       if (isExploreHud && nextFeat) {
         // The folded one-line goal still carries the closest feat (#1832, #2007).
         const featSummary = createGoalStat("📜", "偉業 ", nextFeat.progress);
@@ -566,7 +579,7 @@ export function updateUI() {
       featList.className = "feat-hud-list";
       hudFeats.forEach(feat => {
         const item = document.createElement("span");
-        item.className = feat.completed ? "completed" : "";
+        item.className = feat.completed ? "completed" : feat.companion ? "companion" : "";
         const name = document.createElement("strong");
         name.textContent = feat.name;
         const progress = document.createElement("small");

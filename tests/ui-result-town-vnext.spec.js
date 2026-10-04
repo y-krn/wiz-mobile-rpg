@@ -374,14 +374,14 @@ test('Town shows the three closest feats and opens the full list', async ({ page
   await expect(cards.nth(1)).toHaveAttribute('data-feat-id', 'depth_10');
   await expect(cards.nth(1)).toContainText('B7F / B10F');
   await expect(cards.nth(2)).toHaveAttribute('data-feat-id', 'guardian_10');
-  await expect(page.locator('#btn-town-feats')).toContainText('達成 2 / 14');
+  await expect(page.locator('#btn-town-feats')).toContainText('達成 2 / 15');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 
   await page.locator('#btn-town-feats').click();
   await expect(page.locator('#submenu-title')).toContainText('偉業');
-  await expect(page.locator('.feat-list-summary')).toContainText('達成 2 / 14');
-  await expect(page.locator('.feat-list-grid .feat-card')).toHaveCount(14);
+  await expect(page.locator('.feat-list-summary')).toContainText('達成 2 / 15');
+  await expect(page.locator('.feat-list-grid .feat-card')).toHaveCount(15);
   await expect(page.locator('.feat-card[data-feat-id="depth_5"]')).toHaveAttribute('data-feat-completed', 'true');
   await expect(page.locator('.feat-card[data-feat-id="depth_5"]')).toContainText('受け取り済み');
   await expect(page.locator('.feat-card[data-feat-id="kits_4"]')).toContainText('0 / 4');
@@ -483,7 +483,8 @@ test('Town home is organized as previous run, next descent, and accumulated know
   await expect(home.locator('.town-home-section').nth(0)).toContainText('開始キット');
   await expect(home.locator('.town-home-section').nth(1)).toContainText('次の潜行');
   await expect(home.locator('#town-next-run-title')).toHaveText('あと少しで届く偉業');
-  await expect(home.locator('.town-home-section').nth(2)).toContainText('蓄積した記録');
+  await expect(home.locator('.town-home-section').nth(2)).toContainText('街の施設');
+  await expect(home.locator('.town-home-section').nth(3)).toContainText('蓄積した記録');
   await expect(page.locator('#btn-town-dungeon')).toContainText('準備を整える');
   await expect(page.locator('#btn-town-dungeon')).toContainText('開始キットと開始地点を選ぶ');
   await expect(page.locator('#btn-town-dungeon')).not.toContainText('クラス');

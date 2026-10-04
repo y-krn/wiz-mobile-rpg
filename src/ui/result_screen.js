@@ -6,6 +6,7 @@ import { getFloorLabel } from "../data/floor_themes.js";
 import { setRepresentativeItem } from "../systems/run_return.js";
 import { clearPhase4cV1CharacterBaseline } from "../rules/phase4c_v1_trial.js";
 import { formatFeatProgress, formatFeatReward, getFeat } from "../systems/feats.js";
+import { COMPANIONS, FACILITY_BY_ID } from "../data/facilities.js";
 
 const ACHIEVEMENT_LABELS = {
   first_b5_reached: "初めてB5Fへ到達",
@@ -302,9 +303,26 @@ function createRecordSection(run) {
 
 // Feats achieved this run and how far the closest ones moved. The stored
 // result holds ids and numbers only; names and wording come from the catalog.
-export function getFeatResultRows(featResult) {
-  if (!featResult) return [];
+export function getFeatResultRows(featResult, run = null) {
   const rows = [];
+  // Someone who was being led out stays in the dungeon unless the run walked
+  // out. Say so plainly: they can be found again on the next run.
+  const companion = COMPANIONS[run?.companion];
+  const leftBehind = companion && run.outcome !== "retreat"
+    ? FACILITY_BY_ID.get(companion.facilityId)?.featId
+    : null;
+  if (leftBehind) {
+    const feat = getFeat(leftBehind);
+    rows.push({
+      id: leftBehind,
+      status: "失敗",
+      completed: false,
+      failed: true,
+      name: feat?.name || companion.name,
+      detail: `${companion.name}は迷宮に残された`
+    });
+  }
+  if (!featResult) return rows;
   (featResult.completed || []).forEach(featId => {
     const feat = getFeat(featId);
     if (!feat) return;
@@ -312,7 +330,7 @@ export function getFeatResultRows(featResult) {
   });
   (featResult.progress || []).forEach(entry => {
     const feat = getFeat(entry.id);
-    if (!feat) return;
+    if (!feat || entry.id === leftBehind) return;
     const progress = formatFeatProgress(feat, { current: entry.after, target: entry.target });
     const gained = entry.after - entry.before;
     rows.push({
@@ -327,7 +345,7 @@ export function getFeatResultRows(featResult) {
 }
 
 function createFeatSection(run) {
-  const rows = getFeatResultRows(run.featResult);
+  const rows = getFeatResultRows(run.featResult, run);
   if (rows.length === 0) return null;
   const section = textElement("section", "result-focus-section result-feat-section");
   setAttributeSafe(section, "aria-labelledby", "result-feat-title");
@@ -338,7 +356,7 @@ function createFeatSection(run) {
   section.appendChild(heading);
   const list = textElement("div", "result-feat-list");
   rows.forEach(entry => {
-    const row = textElement("div", `result-feat-row ${entry.completed ? "completed" : "pending"}`);
+    const row = textElement("div", `result-feat-row ${entry.completed ? "completed" : entry.failed ? "failed" : "pending"}`);
     setAttributeSafe(row, "data-feat-id", entry.id);
     row.appendChild(textElement("span", null, entry.status));
     row.appendChild(textElement("strong", null, entry.name));

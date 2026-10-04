@@ -57,7 +57,7 @@ import { getActiveRuneSpellKeys, getRuneItemId } from "./rules/magic_rules.js";
 import { RUNE_SUPPLY_BANDS, RUNES } from "./data/magic.js";
 import { resolveBuildSnapshot } from "./rules/build_snapshot.js";
 import { buildObjectLootStakeSnapshot } from "./rules/object_loot_stake.js";
-import { isStartingKitId } from "./state/starting_kit.js";
+import { isBaseStartingKitId } from "./state/starting_kit.js";
 import { isKnownDeathType } from "./state/death_logs.js";
 import {
   boundedFiniteOrNull,
@@ -389,7 +389,8 @@ export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
   const snapshot = {
     startingKit: character.startingKit === null || character.startingKit === undefined || character.startingKit === ""
       ? null
-      : isStartingKitId(character.startingKit) ? character.startingKit : "other",
+      // A facility kit reports as "other", so the event keeps its value set.
+      : isBaseStartingKitId(character.startingKit) ? character.startingKit : "other",
     level: boundedFiniteOrNull(character.level),
     hp: boundedFiniteOrNull(character.hp),
     maxHp: boundedFiniteOrNull(getCharMaxHp(character)),

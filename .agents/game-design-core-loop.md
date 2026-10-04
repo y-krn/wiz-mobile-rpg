@@ -157,6 +157,16 @@ have a meaningful response before the threat becomes decisive.
   rate, provide a permanently superior combat tier, or turn shallow farming
   into the best route.
 
+- **Facilities = who was brought home.** A craftsman trapped in the dungeon
+  can be dug out and led home. He follows as a companion and takes no part in
+  combat; he counts as rescued only when the run walks out by the Portal or
+  the Wing, so a death or an abandoned run leaves him where he was and the
+  next run meets him again. A rescue is recorded as a feat and opens his
+  facility in the town. Until then the town shows the facility as a
+  silhouette with a hint. A facility sells horizontal unlocks for materials
+  under the same limits as the Workshop: a starting kit, a change to a room
+  the dungeon already has, never a permanent stat or a targeted drop.
+
 Recovered dungeon equipment is terminal evidence, not permanent next-run
 combat equipment. Dungeon-acquired consumables also remain run loot and never
 replenish preparation storage. Only unused departure-craft supplies return
@@ -294,6 +304,10 @@ before or after the boss, and B6 transition.
   Placement only marks an existing cell and never changes the layout.
   - Collapsed mine — ore vein: digging costs exploration turns and makes noise;
     it yields a small chest-pool material bundle and may draw an ambush.
+    On the band's third floor the vein's cell holds the trapped foreman
+    instead, until he has been brought home. Digging him out costs the same
+    turns and noise; only the room kind on the placed cell changes, never the
+    layout or its random streams.
   - Forgotten catacomb — altar: a material-priced cleanse of status effects,
     or a blood blessing that converts a share of max HP into full MP.
   - Rift nest — brood chamber: breaking the eggs starts an elite-strength fight

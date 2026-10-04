@@ -1,6 +1,7 @@
 import { state, getStartingKit } from "../state.js";
 import { getNearestFeats, listFeats } from "../systems/feats.js";
 import { createFeatCard } from "./feat_card.js";
+import { listFacilities, listFacilityNodes } from "../systems/facilities.js";
 
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
@@ -118,8 +119,47 @@ function renderFeatSummary() {
   }
 }
 
+let renderedFacilitySignature = null;
+
+// One slot per facility that exists. Until its keeper is brought home the
+// slot is a silhouette with a hint; afterwards it is the way in (#2009).
+function renderFacilities() {
+  const container = document.getElementById("town-facilities");
+  if (!container) return;
+  const entries = listFacilities(state.feats);
+  const signature = entries
+    .map(({ facility, open }) => `${facility.id}:${open ? listFacilityNodes(facility.id, { facilities: state.facilities, feats: state.feats, metaMaterials: {} }).filter(entry => entry.bought).length : "locked"}`)
+    .join("|");
+  if (signature === renderedFacilitySignature && container.firstChild) return;
+  renderedFacilitySignature = signature;
+  const nodes = entries.map(({ facility, open }) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `btn btn-neon btn-town town-facility${open ? "" : " is-locked"}`;
+    button.setAttribute?.("data-facility-id", facility.id);
+    button.setAttribute?.("data-facility-open", String(open));
+    button.disabled = !open;
+    const name = document.createElement("strong");
+    const detail = document.createElement("span");
+    if (open) {
+      const bought = listFacilityNodes(facility.id, { facilities: state.facilities, feats: state.feats, metaMaterials: {} })
+        .filter(entry => entry.bought).length;
+      name.textContent = facility.name;
+      detail.textContent = `${facility.keeper}の施設 — 解放 ${bought} / ${facility.nodes.length}`;
+    } else {
+      name.textContent = "？？？";
+      detail.textContent = facility.lockedHint;
+    }
+    button.appendChild(name);
+    button.appendChild(detail);
+    return button;
+  });
+  container.replaceChildren(...nodes);
+}
+
 export function renderTownHome() {
   renderFeatSummary();
+  renderFacilities();
   const summary = document.getElementById("town-last-run-summary");
   if (!summary) return;
   const lastRun = Array.isArray(state.runHistory) ? state.runHistory[0] : null;

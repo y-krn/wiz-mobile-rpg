@@ -62,14 +62,14 @@ FEATS.forEach(feat => {
   assert.ok(feat.name && feat.condition, `${feat.id} states its name and condition`);
   assert.ok(feat.metric.target > 0, `${feat.id} has a target`);
   const materials = Object.entries(feat.reward.materials);
-  assert.ok(materials.length > 0, `${feat.id} pays a reward`);
+  assert.ok(materials.length > 0 || feat.reward.unlock, `${feat.id} pays a reward`);
   materials.forEach(([name, quantity]) => {
     assert.ok(MATERIAL_TYPES.includes(name), `${feat.id} pays an existing material`);
     assert.ok(Number.isInteger(quantity) && quantity > 0);
   });
   assert.equal(FEAT_BY_ID.get(feat.id), feat);
 });
-console.log("[PASS] every feat states a visible condition, a target, and a material reward");
+console.log("[PASS] every feat states a visible condition, a target, and a reward");
 
 // --- Counters ----------------------------------------------------------------
 
@@ -96,6 +96,7 @@ assert.deepEqual(afterDeath, {
   chestsOpened: 4,
   safeReturns: 0,
   traplessDepth: 6,
+  foremanRescued: 0,
   kitDepths: { vanguard: 0, scout: 6, devotion: 0, arcana: 0 }
 }, "a run that ends in death still counts what happened");
 assert.equal(fresh.counters.bestDepth, 0, "the stored counters are not mutated");
@@ -138,7 +139,7 @@ assert.equal(freshList.filter(entry => entry.offered && entry.feat.chain === "de
 assert.equal(freshList.find(entry => entry.feat.id === "depth_5").offered, true);
 assert.equal(freshList.find(entry => entry.feat.id === "depth_10").offered, false);
 
-assert.deepEqual(getNearestFeats(fresh, null, 3).map(entry => entry.feat.id), ["depth_5", "guardian_5", "elite_5"],
+assert.deepEqual(getNearestFeats(fresh, null, 3).map(entry => entry.feat.id), ["depth_5", "foreman_rescue", "guardian_5"],
   "with no progress, the authored order leads");
 const partial = { ...fresh, counters: { ...fresh.counters, bestDepth: 4, elitesKilled: 4, chestsOpened: 3 } };
 assert.deepEqual(getNearestFeats(partial, null, 3).map(entry => entry.feat.id), ["depth_5", "elite_5", "chest_30"],

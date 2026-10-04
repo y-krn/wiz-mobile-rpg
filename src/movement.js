@@ -1,4 +1,4 @@
-import { state, saveAutosave, scheduleAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, INVENTORY_CAPACITY } from "./state.js";
+import { state, saveAutosave, scheduleAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, getStartingKitItems, INVENTORY_CAPACITY } from "./state.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum, getEffectiveHealAmount } from "./data.js";
 import { playSound } from "./audio.js";
@@ -51,6 +51,7 @@ import {
   refreshHeatHazards
 } from "./rules/traversal_gimmicks.js";
 import { getSpecialRoomInfo } from "./rules/special_rooms.js";
+import { hasWaitingKeeper } from "./systems/facility_rooms.js";
 import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 
@@ -541,6 +542,9 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
       addLog(`ドスン！地下${nextFloor}階の冷たい床に叩きつけられた！`);
     } else {
       addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
+    }
+    if (hasWaitingKeeper(state.maps[nextFloor - 1])) {
+      addLog("[気配] この階のどこかで、岩を叩く音と人の声がする。");
     }
 
     checkFloorOmenMessage();
@@ -1065,7 +1069,10 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder +
     workshopGrants.identifyPowder + craftGrants.identifyPowder;
   state.inventory = [];
-  [...workshopGrants.returnItems, ...craftGrants.items].forEach(item => {
+  // The kit's own supplies are handed out every run, like the Workshop's
+  // fixed items: they are not departure craft, so they never return to storage.
+  const kitItems = getStartingKitItems(state.currentRun.startingKit);
+  [...workshopGrants.returnItems, ...kitItems, ...craftGrants.items].forEach(item => {
     if (!addInventoryItem(item)) {
       addLog(`[!] バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）で${item}を持ち込めなかった。`);
     }

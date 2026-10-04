@@ -168,6 +168,13 @@ space, not a targeted build shop:
 - when a possibility is added, preserve the authored supply structure instead
   of diluting every existing candidate.
 
+Town facilities follow the same rules. A facility opens when its keeper is led
+home from the dungeon (a feat), and its nodes are bought with materials. Each
+node widens what a run starts with or meets: a starting kit, a change to an
+existing room. A node may name a feat as its condition; the condition and its
+progress are shown before it can be bought. Supplies a kit carries are handed
+out at every departure and never return to storage.
+
 The Workshop should broaden combinations involving HP, MP, status, actions,
 information, and curses while keeping resource competition and improvisation as
 the source of power.

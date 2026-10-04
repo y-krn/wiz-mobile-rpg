@@ -11,6 +11,7 @@ import { assertNormalizedSavePayload } from "./save_contract.js";
 import { normalizeMaterialBalance } from "./material_balance.js";
 import { normalizeLastPreparation } from "./last_preparation.js";
 import { normalizeFeatsState } from "./feats_state.js";
+import { normalizeFacilitiesState } from "./facilities_state.js";
 import { encodeSaveMaps, encodeVisitedMaps } from "./map_codec.js";
 import type { NormalizedSavePayload, PersistedGameState } from "./save_contract.js";
 import type { StorageCollection, RuntimeItemCollection, RuntimeItemRef } from "./item.js";
@@ -73,6 +74,7 @@ interface SavePayloadRuntimeState {
   dungeonMemory: NormalizedSavePayload["dungeonMemory"];
   lastPreparation: unknown;
   feats: unknown;
+  facilities: unknown;
   logs: string[];
   sessionMaxFloor: number;
   activeTrapState: unknown;
@@ -155,7 +157,8 @@ function resolvePersistedGameState(): PersistedGameState | "submenu" {
     t.startsWith("castle") ||
     t.startsWith("solo_start") ||
     t.startsWith("workshop") ||
-    t.startsWith("feats")
+    t.startsWith("feats") ||
+    t.startsWith("facility_")
   ) {
     return "town";
   }
@@ -257,6 +260,7 @@ export function createSavePayload(): SavePayload {
     dungeonMemory: state.dungeonMemory,
     lastPreparation: normalizeLastPreparation(state.lastPreparation),
     feats: normalizeFeatsState(state.feats),
+    facilities: normalizeFacilitiesState(state.facilities),
     logs: state.logs.slice(-30)
   };
 }
@@ -340,6 +344,7 @@ export function applySavePayload(data: unknown): void {
   state.keyItems = normalized.keyItems ?? [];
   state.lastPreparation = normalized.lastPreparation;
   state.feats = normalized.feats;
+  state.facilities = normalized.facilities;
   state.dungeonMemory = {
     mapFragments: normalized.dungeonMemory?.mapFragments || {},
     visitedFloors: normalized.dungeonMemory?.visitedFloors || [1]

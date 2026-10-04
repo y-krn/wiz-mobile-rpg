@@ -134,6 +134,7 @@ test('combat item cards keep long descriptions visible and scroll the list on sh
     const { menuContext } = await import('/src/navigation.js');
     const { ITEMS } = await import('/src/data/items.js');
     const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+    const { updateUI } = await import('/src/ui.js');
 
     state.party = [createStartingKitCharacter('vanguard')];
     state.gameState = 'submenu';
@@ -148,6 +149,9 @@ test('combat item cards keep long descriptions visible and scroll the list on sh
     }
     menuContext.type = 'combat_item';
     menuContext.prevGameState = 'combat';
+    // Leave the town layout first: the town page is as tall as its content,
+    // so an overlay measured inside it would never need to scroll.
+    updateUI();
 
     const overlay = document.querySelector('#combat-overlay');
     overlay.style.display = 'flex';
