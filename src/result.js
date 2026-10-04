@@ -4,6 +4,8 @@ import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
 import { settleRunFeats } from "./systems/feats.js";
 import { normalizeRunFeatResult } from "./state/feats_state.js";
+import { settleRunFragments } from "./systems/guidebook.js";
+import { normalizeRunGuideResult } from "./state/guidebook_state.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry.js";
 import { processRunReturn } from "./systems/run_return.js";
@@ -110,6 +112,10 @@ export function triggerRunResult(reason) {
   Object.entries(run.featResult?.rewards || {}).forEach(([name, quantity]) => {
     state.metaMaterials[name] = (state.metaMaterials[name] || 0) + quantity;
   });
+  // Guidebook fragments come home only with the adventurer (#2013).
+  const fragmentSettlement = settleRunFragments(state.guidebook, run, outcome);
+  state.guidebook = fragmentSettlement.guidebook;
+  run.guideResult = normalizeRunGuideResult(fragmentSettlement.result);
   const danger = calculateDangerScore();
   run.dangerScore = danger.score;
   run.dangerRank = danger.rank;

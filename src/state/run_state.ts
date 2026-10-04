@@ -73,6 +73,7 @@ import { isNormalizedRunDeathLogs, type NormalizedRunDeathLogs } from "./death_l
 import { isNormalizedRunNearMiss, type NormalizedRunNearMiss } from "./run_near_miss.js";
 import { isAnnouncedFeatIds, isNormalizedRunFeatResult, type NormalizedRunFeatResult } from "./feats_state.js";
 import { isNormalizedCompanion, type NormalizedCompanion } from "./facilities_state.js";
+import { isNormalizedRunGuideResult, isRunGuideFragments, type NormalizedRunGuideResult } from "./guidebook_state.js";
 import {
   isNormalizedRunObjectLootLedger,
   type NormalizedRunObjectLootLedger
@@ -118,6 +119,8 @@ export interface NormalizedCurrentRun {
   featResult: NormalizedRunFeatResult;
   featsAnnounced: string[];
   companion: NormalizedCompanion;
+  guideFragments: number;
+  guideResult: NormalizedRunGuideResult;
   lootSequence: number;
   itemsFound: RuntimeItemCollection;
   equipmentFound: RuntimeItemCollection;
@@ -161,7 +164,7 @@ const ITEM_COLLECTION_FIELDS = [
 const REQUIRED_FIELDS = [
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
-  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing", "nearMiss", "featResult", "featsAnnounced", "companion",
+  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing", "nearMiss", "featResult", "featsAnnounced", "companion", "guideFragments", "guideResult",
   "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
   "floorSteps", "eventObservations",
@@ -233,6 +236,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (value.nearMiss !== null && !isNormalizedRunNearMiss(value.nearMiss)) return false;
   if (!isNormalizedRunFeatResult(value.featResult) || !isAnnouncedFeatIds(value.featsAnnounced)) return false;
   if (!isNormalizedCompanion(value.companion)) return false;
+  if (!isRunGuideFragments(value.guideFragments) || !isNormalizedRunGuideResult(value.guideResult)) return false;
   if (value.recordResult !== null && !isNormalizedRunRecordResult(value.recordResult)) return false;
   return true;
 }

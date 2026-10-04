@@ -2,6 +2,7 @@ import { state, getStartingKit } from "../state.js";
 import { getNearestFeats, listFeats } from "../systems/feats.js";
 import { createFeatCard } from "./feat_card.js";
 import { listFacilities, listFacilityNodes } from "../systems/facilities.js";
+import { getNextGuidebookPage, listGuidebookPages } from "../systems/guidebook.js";
 
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
@@ -157,9 +158,22 @@ function renderFacilities() {
   container.replaceChildren(...nodes);
 }
 
+function renderGuidebookEntry() {
+  const detail = typeof document.querySelector === "function"
+    ? document.querySelector("[data-town-guidebook-detail]")
+    : null;
+  if (!detail) return;
+  const pages = listGuidebookPages(state.guidebook);
+  const fragments = Math.max(0, Math.floor(Number(state.guidebook?.fragments) || 0));
+  const next = getNextGuidebookPage(state.guidebook);
+  const ready = next && fragments >= next.cost ? "・解読できる頁がある" : "";
+  detail.textContent = `断片 ${fragments}枚・解読 ${pages.filter(entry => entry.decoded).length} / ${pages.length}頁${ready}`;
+}
+
 export function renderTownHome() {
   renderFeatSummary();
   renderFacilities();
+  renderGuidebookEntry();
   const summary = document.getElementById("town-last-run-summary");
   if (!summary) return;
   const lastRun = Array.isArray(state.runHistory) ? state.runHistory[0] : null;

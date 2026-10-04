@@ -276,6 +276,16 @@ achieved once.
 - Workshop may make an existing side-grade possibility eligible after a deep
   result, but it must not choose a build, guarantee a drop, or provide a
   vertical tier.
+- The dungeon guidebook is knowledge the player carries home. Strong enemies
+  and floor guardians yield fragments; a fragment is not a material and
+  takes no bag slot. Fragments come home only with a safe return and are
+  lost to a death or an abandoned run, so a hard fight won is something to
+  walk out with. In the town, fragments decode the guidebook's pages in a
+  fixed order. A page states a rule that is really in force but that the
+  screens do not explain, such as how each kind of roaming elite senses the
+  adventurer. A page grants no number, never names a best build, and never
+  states an exact probability. A page that quotes a number is written from
+  the rule's own constant so it cannot drift from the rule.
 
 Presentation should be generated from facts rather than saved as a second
 prose authority. Internal build and supply metadata may guide recording and

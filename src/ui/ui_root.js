@@ -301,7 +301,12 @@ function getHudFeats() {
   const escort = companion
     ? [{ name: `同行：${companion.name}`, progress: "生還で救出", completed: false, companion: true }]
     : [];
-  return [...escort, ...achieved, ...nearest];
+  // Fragments are lost unless the run walks out: show them with the escort.
+  const fragments = Math.max(0, Math.floor(Number(run.guideFragments) || 0));
+  const carried = fragments > 0
+    ? [{ name: "手引き書の断片", progress: `${fragments}枚・生還で持ち帰り`, completed: false, companion: true }]
+    : [];
+  return [...escort, ...carried, ...achieved, ...nearest];
 }
 
 function getExploreGoalSignature() {
@@ -363,7 +368,7 @@ export function updateUI() {
   // The feat list and the facility screens are long town lists like the
   // Workshop: give them the same full-height layout (#2007, #2009).
   const workshopSubmenu = view.isWorkshopSubmenu || view.menuType === "feats_main" ||
-    view.menuType.startsWith("facility_");
+    view.menuType.startsWith("facility_") || view.menuType === "guidebook_main";
   const merchantSubmenu = view.isSubmenu && view.menuType === "milestone_merchant";
   const townSubmenu = view.isTownSubmenu;
   const isTownLikeGoal = gameState === "town" || departurePrepSubmenu;
@@ -541,10 +546,16 @@ export function updateUI() {
       statsContainer.className = "goal-stats-container";
       statsContainer.appendChild(createGoalStat("🗺️", "探索率: ", `${expRate}%`));
       const hudFeatsForSummary = getHudFeats();
-      if (isExploreHud && hudFeatsForSummary.some(feat => feat.companion)) {
+      if (isExploreHud && COMPANIONS[state.currentRun?.companion]) {
         const escortSummary = createGoalStat("👤", "同行 ", COMPANIONS[state.currentRun.companion].name);
         escortSummary.className = "goal-feat-summary goal-companion-summary";
         statsContainer.appendChild(escortSummary);
+      }
+      const carriedFragments = Math.max(0, Math.floor(Number(state.currentRun?.guideFragments) || 0));
+      if (isExploreHud && carriedFragments > 0) {
+        const fragmentSummary = createGoalStat("📖", "断片 ", `${carriedFragments}枚`);
+        fragmentSummary.className = "goal-feat-summary goal-fragment-summary";
+        statsContainer.appendChild(fragmentSummary);
       }
       const nextFeat = hudFeatsForSummary.find(feat => !feat.completed && !feat.companion);
       if (isExploreHud && nextFeat) {

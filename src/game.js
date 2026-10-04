@@ -417,6 +417,7 @@ function bindButtons() {
   document.getElementById("btn-town-castle").addEventListener("click", () => handleTownOption("castle"));
   document.getElementById("btn-town-workshop").addEventListener("click", () => handleTownOption("workshop"));
   document.getElementById("btn-town-archives").addEventListener("click", () => handleTownOption("archives"));
+  document.getElementById("btn-town-guidebook").addEventListener("click", () => handleTownOption("guidebook"));
 
   // Combat actions
   const bindCombatAction = (id, action) => {

@@ -126,6 +126,15 @@ export const FEATS = Object.freeze([
     metric: { kind: "counter", key: "safeReturns", target: 5, unit: "count" },
     reward: { materials: { "硬い皮": 5 } }
   }),
+  // Decoded in the town from fragments carried home (#2013).
+  feat({
+    id: "guide_pages_3",
+    chain: "guidebook",
+    name: "手引き書を読み解く",
+    condition: "迷宮の手引き書を3頁解読する",
+    metric: { kind: "counter", key: "guidePagesDecoded", target: 3, unit: "count" },
+    reward: { materials: { "霊粉": 4 } }
+  }),
   feat({
     id: "trapless_5",
     chain: "trapless",

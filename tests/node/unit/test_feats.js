@@ -97,6 +97,7 @@ assert.deepEqual(afterDeath, {
   safeReturns: 0,
   traplessDepth: 6,
   foremanRescued: 0,
+  guidePagesDecoded: 0,
   kitDepths: { vanguard: 0, scout: 6, devotion: 0, arcana: 0 }
 }, "a run that ends in death still counts what happened");
 assert.equal(fresh.counters.bestDepth, 0, "the stored counters are not mutated");

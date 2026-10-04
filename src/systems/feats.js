@@ -195,6 +195,30 @@ export function getFeatAnnouncementLines(featsState, run) {
     .map(feat => `【偉業達成】${feat.name}（${feat.condition}）。報酬は街で受け取る。`);
 }
 
+/**
+ * Settle feats outside a run, for progress made in the town (decoding a
+ * guidebook page). `changeCounters` receives a copy of the counters to
+ * update. Pure: returns the next feat state, the feats newly achieved, and
+ * their one-time rewards.
+ */
+export function settleTownFeats(featsState, changeCounters, runNumber = 0) {
+  const before = normalizeFeatsState(featsState);
+  const counters = normalizeFeatCounters(before.counters);
+  changeCounters?.(counters);
+  const completed = { ...before.completed };
+  const newlyCompleted = [];
+  const rewards = {};
+  FEATS.forEach(feat => {
+    if (Object.hasOwn(completed, feat.id) || !getFeatProgress(feat, counters).done) return;
+    completed[feat.id] = { runNumber: count(runNumber) };
+    newlyCompleted.push(feat);
+    Object.entries(feat.reward?.materials || {}).forEach(([name, quantity]) => {
+      rewards[name] = (rewards[name] || 0) + count(quantity);
+    });
+  });
+  return { feats: { counters, completed }, completed: newlyCompleted, rewards };
+}
+
 export function getFeat(featId) {
   return FEAT_BY_ID.get(featId) || null;
 }

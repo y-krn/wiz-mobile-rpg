@@ -322,6 +322,18 @@ export function getFeatResultRows(featResult, run = null) {
       detail: `${companion.name}は迷宮に残された`
     });
   }
+  // Guidebook fragments: brought home by a safe return, lost otherwise.
+  const guide = run?.guideResult;
+  if (guide?.carried > 0) {
+    rows.push({
+      id: "guide_fragments",
+      status: guide.kept ? "持ち帰り" : "喪失",
+      completed: guide.kept,
+      failed: !guide.kept,
+      name: `手引き書の断片 ${guide.carried}枚`,
+      detail: guide.kept ? "街で頁の解読に使える" : "生還しなければ残らない"
+    });
+  }
   if (!featResult) return rows;
   (featResult.completed || []).forEach(featId => {
     const feat = getFeat(featId);

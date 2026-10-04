@@ -118,6 +118,13 @@ export function createRunStakesSummary(
     companionLine.textContent = `同行：${companion.name}。生還すれば街へ連れ帰る。死ねば・断念すれば連れ帰れない。`;
     flow.appendChild(companionLine);
   }
+  const fragments = Math.max(0, Math.floor(Number(state.currentRun?.guideFragments) || 0));
+  if (fragments > 0) {
+    const fragmentLine = document.createElement("p");
+    fragmentLine.className = "run-stakes-companion run-stakes-fragments";
+    fragmentLine.textContent = `手引き書の断片 ${fragments}枚。生還すれば持ち帰る。死ねば・断念すれば失う。`;
+    flow.appendChild(fragmentLine);
+  }
   summary.append(title, flow);
   return summary;
 }
