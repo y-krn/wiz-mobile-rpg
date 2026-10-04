@@ -4,6 +4,23 @@ import {
   VNEXT_SUPPORT_AUDIT
 } from "../data/equipment_vnext.js";
 import { ITEMS } from "../data/items.js";
+import { MEDIUM_IDS } from "../data/magic.js";
+
+export const VNEXT_UNAVAILABLE_ITEM_IDS = Object.freeze([
+  "WAKE_POWDER",
+  "PARALYZE_CURE",
+  "RUNE_DIALKO"
+]);
+
+const VNEXT_DEVOTION_WEAPON_IDS = Object.freeze(["WAND", "SAGE_STAFF"]);
+
+export function isVNextMediumWeapon(baseId) {
+  return MEDIUM_IDS.includes(baseId);
+}
+
+export function isVNextDevotionWeapon(baseId) {
+  return VNEXT_DEVOTION_WEAPON_IDS.includes(baseId);
+}
 
 export const VNEXT_CANONICAL_BASE_REPRESENTATIVES = Object.freeze({
   dagger: "DAGGER",
@@ -41,7 +58,7 @@ export function getVNextTrialCandidates(productionIds) {
 }
 
 export function getVNextTrialChestCandidates(itemIds) {
-  return [...new Set(itemIds.map(itemId => {
+  return [...new Set(itemIds.filter(itemId => !VNEXT_UNAVAILABLE_ITEM_IDS.includes(itemId)).map(itemId => {
     const type = ITEMS[itemId]?.type;
     return ["weapon", "armor", "shield", "accessory"].includes(type)
       ? getVNextTrialBaseId(itemId)
@@ -49,8 +66,10 @@ export function getVNextTrialChestCandidates(itemIds) {
   }).filter(Boolean))];
 }
 
-export function isVNextTrialSupport(id) {
-  return VNEXT_SUPPORT_AUDIT[id]?.disposition === "keep";
+export function isVNextTrialSupport(id, { slot = null, baseId = null } = {}) {
+  if (VNEXT_SUPPORT_AUDIT[id]?.disposition !== "keep") return false;
+  if (id === "followUpMp") return slot === "weapon" && isVNextMediumWeapon(baseId);
+  return true;
 }
 
 export function isVNextTrialCore(id) {

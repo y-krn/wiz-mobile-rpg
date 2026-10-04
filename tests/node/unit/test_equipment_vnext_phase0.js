@@ -113,7 +113,7 @@ assert.equal(CANONICAL_BASES.staff.weaponProfile, "medium");
 
 assert.equal(getNamedRuleId("SEALED_EXCALIBUR"), "excalibur");
 assert.equal(Object.keys(VNEXT_SUPPORT_AUDIT).length, SUPPORT_AFFIXES.length);
-assert.equal(VNEXT_SUPPORT_IDS.length, 37);
+assert.equal(VNEXT_SUPPORT_IDS.length, 35);
 assert.equal(new Set(SUPPORT_AFFIXES.map(({ id }) => id)).size, SUPPORT_AFFIXES.length);
 const equipmentGenerationSource = fs.readFileSync("src/systems/equipment_generation.js", "utf8");
 const supportDispositionCounts = { keep: 0, change: 0, core: 0, retire: 0 };
@@ -136,7 +136,7 @@ for (const { id } of SUPPORT_AFFIXES) {
     assert.ok(audit.targetId, `${id} records its revised vNext target`);
   }
 }
-assert.deepEqual(supportDispositionCounts, { keep: 34, change: 3, core: 0, retire: 10 });
+assert.deepEqual(supportDispositionCounts, { keep: 32, change: 3, core: 0, retire: 12 });
 assert.deepEqual(
   Object.keys(VNEXT_SUPPORT_AUDIT).sort(),
   SUPPORT_AFFIXES.map(({ id }) => id).sort(),
@@ -154,7 +154,11 @@ assert.equal(VNEXT_SUPPORT_AUDIT.antiDragon.disposition, "retire");
 assert.equal(VNEXT_SUPPORT_AUDIT.spellPower.disposition, "retire");
 assert.equal(VNEXT_SUPPORT_AUDIT.deepAssault.currentStatus, "legacy");
 assert.equal(VNEXT_SUPPORT_AUDIT.frontGuard.currentStatus, "legacy");
-assert.equal(VNEXT_SUPPORT_AUDIT.rearEvasion.disposition, "keep");
+assert.equal(VNEXT_SUPPORT_AUDIT.rearEvasion.disposition, "retire");
+assert.equal(VNEXT_SUPPORT_AUDIT.escapeChance.disposition, "retire");
+assert.equal(VNEXT_SUPPORT_AUDIT.followUpMp.disposition, "keep");
+assert.equal(VNEXT_SUPPORT_AUDIT.followUpMp.currentStatus, "active");
+assert.equal(VNEXT_SUPPORT_AUDIT.followUpMp.vnextSupplyConstraint, "medium_weapon_only");
 assert.ok(!VNEXT_SUPPORT_IDS.includes("poisonWard"));
 assert.ok(VNEXT_SUPPORT_CANDIDATE_IDS.includes("longFightDefense"));
 assert.ok(VNEXT_CORE_IDS.includes("thin_ice_pact"));

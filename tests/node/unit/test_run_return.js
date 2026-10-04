@@ -200,7 +200,8 @@ function setupRun(deepestFloor = 5) {
       knowledgeStage: "trial"
     }]
   });
-  assert.equal(scholarResult.unlocked.id, "pool_scholar_eye", "the returned retained core selects a related side-grade");
+  assert.notEqual(scholarResult.unlocked?.id, "pool_scholar_eye", "automatic returns cannot unlock a vNext-disabled Core node");
+  assert.ok(!scholarResult.workshop.lateralUnlocks.includes("pool_scholar_eye"));
   const searchResult = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
     deepestFloor: 25,
     recoveredEquipment: [{ baseId: "RING_LUK", tags: ["search"], lootRole: "convert", knowledgeStage: "trial" }]

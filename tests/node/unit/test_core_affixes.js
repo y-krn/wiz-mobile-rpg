@@ -14,7 +14,6 @@ import {
   getStatusEffectChance,
   partyHasCoreAffix,
   getEquippedCoreAffixes,
-  canEquipUnidentifiedItem,
   getItemData,
   getPartyMaxAffix,
   getAffixDefinition
@@ -138,11 +137,10 @@ test("production Core 13件を一度ずつ監査しvNext語彙と一致させる
     const audit = VNEXT_CORE_AUDIT[core.id];
     assert.equal(audit.productionId, core.id);
     assert.ok(["keep", "change", "support", "retire"].includes(audit.disposition));
-    assert.equal(audit.currentStatus, "active");
     assert.equal(audit.productionSupply, true);
     assert.ok(audit.supplyEvidence.length > 0);
-    assert.equal(audit.productionConsumer, true);
-    assert.ok(audit.consumerEvidence.length > 0);
+    if (audit.productionConsumer) assert.ok(audit.consumerEvidence.length > 0);
+    else assert.deepEqual(audit.consumerEvidence, []);
     assert.ok(audit.currentSemantic);
     assert.ok(audit.identityOverlap.some(entry => entry.startsWith("Support ")));
     assert.ok(audit.identityOverlap.some(entry => entry.startsWith("Named/Base:")));
@@ -160,8 +158,10 @@ test("production Core 13件を一度ずつ監査しvNext語彙と一致させる
     counts[disposition] = (counts[disposition] || 0) + 1;
     return counts;
   }, { keep: 0, change: 0, support: 0, retire: 0 });
-  assert.deepEqual(dispositionCounts, { keep: 6, change: 3, support: 4, retire: 0 });
+  assert.deepEqual(dispositionCounts, { keep: 5, change: 3, support: 4, retire: 1 });
   assert.equal(VNEXT_CORE_AUDIT.CORE_CAMP_MASTER.reasonCode, "passive_recovery_multiplier");
+  assert.equal(VNEXT_CORE_AUDIT.CORE_KEEN_EYE.disposition, "retire");
+  assert.equal(VNEXT_CORE_AUDIT.CORE_KEEN_EYE.productionConsumer, false);
   assert.equal(Object.hasOwn(VNEXT_CORE_AUDIT.CORE_CAMP_MASTER, "targetId"), false);
   assert.equal(getVNextCoreId("CORE_CAMP_MASTER"), null);
   assert.equal(VNEXT_CORE_IDS.includes("camp_master"), false);
@@ -342,9 +342,7 @@ test("盗掘王: 開錠者本人で素材+1と罠強度+1を両立", () => {
     Object.values(baseMats).reduce((a, b) => a + b, 0) + 1);
 });
 
-test("未鑑定装備: 全員装備可・鑑定前表示隠匿", () => {
-  const char = makeChar(null);
-  char.equipment.accessory = coreItem("CORE_KEEN_EYE", "AMULET_HP");
+test("未鑑定装備: 鑑定前表示隠匿", () => {
   const unknown = {
     kind: "equipment",
     baseId: "SHORT_SWORD",
@@ -352,8 +350,6 @@ test("未鑑定装備: 全員装備可・鑑定前表示隠匿", () => {
     unidentifiedName: "古びた未鑑定の武器",
     affixes: [{ id: "str", type: "str", kind: "support", value: 3 }]
   };
-  assert.equal(canEquipUnidentifiedItem(char, unknown), true);
-  assert.equal(canEquipUnidentifiedItem(makeChar(null), unknown), true);
   const hidden = getItemData(unknown);
   assert.deepEqual(hidden.affixBonus, {});
   assert.deepEqual(hidden.affixes, []);

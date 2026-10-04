@@ -18,6 +18,8 @@ import { isEquipmentInstance } from "../state/equipment.js";
 import { TRIAL_PROFILES } from "../trial_profiles.js";
 import {
   getVNextTrialCandidates,
+  isVNextDevotionWeapon,
+  isVNextMediumWeapon,
   isVNextTrialCore,
   isVNextTrialSupport
 } from "../rules/equipment_vnext_trial.js";
@@ -31,16 +33,24 @@ const BUILD_VNEXT_ECONOMY_SUPPORTS = new Set([
 ]);
 const BUILD_VNEXT_ECONOMY_WEIGHT = 0.25;
 
-function rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId = null) {
+function rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId = null, baseId = null) {
   const budget = getAffixBudget(rarity, floor);
   const activeUnlocks = Array.isArray(unlockedAffixIds) ? new Set(unlockedAffixIds) : null;
-  const weightedSupports = supportPool.map(affix => BUILD_VNEXT_ECONOMY_SUPPORTS.has(affix.type)
+  const eligibleSupports = supportPool.filter(affix => isVNextTrialSupport(affix.type, { slot, baseId }));
+  const weightedSupports = eligibleSupports.map(affix => BUILD_VNEXT_ECONOMY_SUPPORTS.has(affix.type)
     ? { ...affix, weight: (affix.weight || 1) * BUILD_VNEXT_ECONOMY_WEIGHT }
     : affix);
   const supportCount = rarity === "magic" ? 1 : 2;
+  const isMediumWeapon = slot === "weapon" && isVNextMediumWeapon(baseId);
+  const isAllowedCoreForBase = coreId => (
+    (coreId !== "CORE_BLOOD_WAND" || isMediumWeapon)
+    && (coreId !== "CORE_TECH_CHAIN" || !isMediumWeapon)
+  );
   const supports = rollAffixes(weightedSupports, supportCount, rng, budget, lootRole);
   if (forceCoreId) {
-    const forced = [...CORE_AFFIXES, ...BUILD_VNEXT_CORE_AFFIXES].find(affix => affix.id === forceCoreId && affix.enabled);
+    const forced = [...CORE_AFFIXES, ...BUILD_VNEXT_CORE_AFFIXES].find(affix =>
+      affix.id === forceCoreId && affix.enabled && affix.slot === slot && isAllowedCoreForBase(affix.id)
+    );
     if (forced) {
       return [{ id: forced.id, kind: "core", type: forced.id, value: 1, buildRole: forced.buildRole || null }, ...supports];
     }
@@ -50,6 +60,7 @@ function rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootR
     .filter(affix => affix.enabled
       && (affix.trialOnly || isVNextTrialCore(affix.id))
       && affix.slot === slot
+      && isAllowedCoreForBase(affix.id)
       && (affix.trialOnly || !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) || !activeUnlocks || activeUnlocks.has(affix.id)))
     .map(affix => ({
       ...affix,
@@ -164,9 +175,9 @@ function withSupportDefinition(candidate) {
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null, lootRole = null, phase3Equipment = false, forceCoreId = null) {
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null, lootRole = null, phase3Equipment = false, forceCoreId = null, baseId = null) {
   if (phase3Equipment) {
-    return rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId);
+    return rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId, baseId);
   }
   const budget = getAffixBudget(rarity, floor);
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
@@ -315,7 +326,10 @@ export function generateRandomEquipment(floor, options) {
   const possibleAffixes = [];
   const addAffix = (minFloor, type, getVal, weight = 3) => {
     if (floor < minFloor) return;
-    if (phase3Equipment && !isVNextTrialSupport(type)) return;
+    if (phase3Equipment && !isVNextTrialSupport(type, {
+      slot: baseItem.type === "weapon" ? "weapon" : baseItem.type,
+      baseId
+    })) return;
     const candidate = withSupportDefinition({ type, getVal, weight });
     if (candidate) possibleAffixes.push(candidate);
   };
@@ -357,7 +371,9 @@ export function generateRandomEquipment(floor, options) {
   if (isSpellPowerEligible) {
     addAffix(2, "spellPower", () => AFFIX_BALANCE.spellPowerByRarity[rarity], 2);
   }
-  const isDevotionEligible = ["MACE", "PRIEST_ROBE", "SACRED_MACE", "HOLY_STAFF"].includes(baseId);
+  const isDevotionEligible = phase3Equipment
+    ? isVNextDevotionWeapon(baseId)
+    : ["MACE", "PRIEST_ROBE", "SACRED_MACE", "HOLY_STAFF"].includes(baseId);
   if (isDevotionEligible) {
     addAffix(2, "devotion", () => 15, 2); // +15%
   }
@@ -413,7 +429,9 @@ export function generateRandomEquipment(floor, options) {
     addAffix(2, "antiSpirit", () => getSupportValueByRarity("antiSpirit", rarity), 1);
     // #271実src N=8,000: B5装備2.0%、職内r=0.065 [0.027, 0.103]、event勝率4.9%→4.8%。
     addAffix(2, "antiDemon", () => getSupportValueByRarity("antiDemon", rarity), 1);
-    addAffix(3, "spellAccuracy", () => getSupportValueByRarity("spellAccuracy", rarity), 1);
+    if (!phase3Equipment || isVNextMediumWeapon(baseId)) {
+      addAffix(3, "spellAccuracy", () => getSupportValueByRarity("spellAccuracy", rarity), 1);
+    }
     addAffix(3, "killHeal", () => 2, 1);
     addAffix(3, "followUpMp", () => 1, 1);
     addAffix(3, "hitFlinch", () => getSupportValueByRarity("hitFlinch", rarity), 1);
@@ -431,7 +449,7 @@ export function generateRandomEquipment(floor, options) {
   addAffix(1, "contractReward", () => 10, 2);
   
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment, phase3Equipment ? forceCoreId : null);
+  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment, phase3Equipment ? forceCoreId : null, baseId);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
 
@@ -591,12 +609,12 @@ export function generateRandomAccessory(floor, options) {
     { type: "identifyDiscount", getVal: () => 10, weight: 2 },
     { type: "materialFind", getVal: () => 10, weight: 2 },
     { type: "contractReward", getVal: () => 10, weight: 2 }
-  ].filter(aff => aff.weight > 0 && (!phase3Equipment || isVNextTrialSupport(aff.type)))
+  ].filter(aff => aff.weight > 0 && (!phase3Equipment || isVNextTrialSupport(aff.type, { slot: "accessory", baseId })))
     .map(withSupportDefinition)
     .filter(Boolean);
 
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment, phase3Equipment ? forceCoreId : null);
+  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment, phase3Equipment ? forceCoreId : null, baseId);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
   const tags = [...(baseItem.tags || [])];

@@ -106,7 +106,7 @@ cap.
 | --- | --- | --- |
 | 忍び足 | `CORE_SNEAK_STEP` | Reduce the cost of reading a dangerous route by narrowing gatekeeper/boss detection pressure and improving environmental signs. |
 | 盗掘王 | `CORE_TOMB_RAIDER` | Increase chest-material opportunity while increasing trap intensity, turning greed into a route and resource trade-off. |
-| 慧眼 | `CORE_KEEN_EYE` | Permit an unknown item to be equipped while its exact details remain hidden, preserving the trial gamble. |
+| 慧眼 | `CORE_KEEN_EYE` | Retired: Build vNext finds are identified, so this Core has no activation path. |
 | 野営の達人 | `CORE_CAMP_MASTER` | Increase the recovery returned by choosing to rest at camp, trading the opportunity to continue immediately. |
 | 賞金稼ぎ | `CORE_BOUNTY_HUNTER` | Make selected run-objective target defeats count more, rewarding a deliberate hunt instead of passive depth. |
 | 学者の眼 | `CORE_SCHOLAR_EYE` | Turn an enemy not yet understood into a material opportunity, linking knowledge to exploration without revealing an optimal route. |
@@ -221,6 +221,12 @@ table with the run RNG. Mediums
 and Runes are separate choices; supply should not answer their pairing for the
 player. A deep band may make a role more visible, but every meaningful role
 must remain possible and depth must not become a base-stat treadmill.
+
+### Build vNextの発動可能性
+
+Build vNext供給はソロ戦闘との適合性で制限する。`rearEvasion`、`escapeChance`、`CORE_KEEN_EYE`は候補に含めない。`followUpMp`は追撃成功時に発動するため、MPを使えるMEDIUM武器だけに付与する。MEDIUM武器はWAND、SAGE_STAFF、ARCH_WAND、HOLY_STAFF。`devotion`はそのうちWANDとSAGE_STAFFのみ、武器の`spellAccuracy`と`CORE_BLOOD_WAND`はMEDIUM武器のみ候補にする。`CORE_TECH_CHAIN`はMEDIUM武器に付与しない。
+
+`WAKE_POWDER`、`PARALYZE_CURE`、`RUNE_DIALKO`はBuild vNextの宝箱・Rune供給から除外し、Build vNextの商人は`WAKE_POWDER`と`PARALYZE_CURE`を販売しない。万能薬の説明は実効果（毒・盲目・麻痺・睡眠の治療）に合わせる。Workshopでは`pool_thorn_shield`、`pool_scholar_eye`、`pool_thin_ice_pact`の新規購入を禁止する。過去に解放済みのWorkshopランクは維持し、効果も適用する。これらの制約はBuild vNext専用。進行中の`normal`・`progression-exp`セーブは開始時の供給を維持する。
 
 Weapon families may trade hit stability, defense payment, single-hit pressure,
 and magical capacity. Those are authored feel differences using the shared
