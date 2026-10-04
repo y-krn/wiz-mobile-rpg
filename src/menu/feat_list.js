@@ -15,8 +15,18 @@ export function renderFeatList(optGrid) {
   summary.textContent = `達成 ${achievedCount} / ${entries.length}。進み具合は帰還・死亡を問わず積み上がる。`;
   optGrid.appendChild(summary);
 
+  // Ahead: the feats currently within reach first, closest first; the later
+  // steps of each chain follow in their authored order.
+  const ahead = entries
+    .filter(entry => !entry.completed)
+    .map((entry, index) => ({ entry, index }))
+    .sort((left, right) =>
+      Number(right.entry.offered) - Number(left.entry.offered) ||
+      (left.entry.offered ? right.entry.progress.ratio - left.entry.progress.ratio : 0) ||
+      left.index - right.index)
+    .map(({ entry }) => entry);
   const groups = [
-    { title: "これから", entries: entries.filter(entry => !entry.completed) },
+    { title: "これから", entries: ahead },
     { title: "達成済み", entries: entries.filter(entry => entry.completed) }
   ];
   groups.forEach(group => {
