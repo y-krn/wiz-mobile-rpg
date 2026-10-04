@@ -1,5 +1,6 @@
 import { DIR_N, START_X, START_Y } from "../data.js";
 import { createDefaultRecords } from "./records_state.js";
+import { createDefaultFeatsState } from "./feats_state.js";
 import { normalizeDeathSource, normalizeRunDeathLog } from "./death_logs.js";
 import {
   COMBAT_LOG_PRESENTATION_KINDS,
@@ -80,6 +81,8 @@ export const state = {
   dungeonMemory: { mapFragments: {}, visitedFloors: [1] },
   // Choices of the previous departure; pre-fills the next preparation (#2002).
   lastPreparation: null,
+  // Long-term goals: counters across runs and the feats achieved (#2007).
+  feats: createDefaultFeatsState(),
 
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",

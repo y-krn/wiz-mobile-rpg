@@ -16,7 +16,7 @@ const craftModule = await import("../../../src/craft.js");
 const { CRAFT_RECIPES } = craftModule;
 const { ITEMS } = await import("../../../src/data/items.js");
 const { MATERIAL_TYPES } = await import("../../../src/data/materials.js");
-const { RUN_QUEST_TEMPLATES } = await import("../../../src/data/run_quests.js");
+const { FEAT_BY_ID } = await import("../../../src/data/feats.js");
 const workshopData = await import("../../../src/data/workshop.js");
 const {
   RETIRED_WORKSHOP_NODES,
@@ -50,11 +50,11 @@ check(
 );
 check("departure craft has no recipe-count cap", !Object.hasOwn(workshopData, "DEPARTURE_CRAFT_MAX_SLOTS"));
 check("starting heal potion supply is removed", RECOVERY_BALANCE.startingHealPotions === 0);
-const milestoneQuest = RUN_QUEST_TEMPLATES.find(quest => quest.id === "reach_milestone");
+const firstDepthFeat = FEAT_BY_ID.get("depth_5");
 check(
   "guard material is not added to the shallow milestone reward",
-  milestoneQuest?.reward?.materials?.["竜鱗"] === undefined,
-  JSON.stringify(milestoneQuest?.reward?.materials)
+  Boolean(firstDepthFeat) && firstDepthFeat.reward.materials["竜鱗"] === undefined,
+  JSON.stringify(firstDepthFeat?.reward?.materials)
 );
 
 const recipeIds = ["HEAL_POTION", "ANTIDOTE", "TRAP_KIT", "TOWN_PORTAL"];

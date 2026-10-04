@@ -10,8 +10,22 @@ import { equipState } from "../../../src/equip.js";
 import { EVENT_TYPES } from "../../../src/data.js";
 import { applyFloorTransitionHeal, checkCellEvents } from "../../../src/movement.js";
 import { resolveItemDefinition } from "../../../src/state/item.js";
-import { RUN_QUEST_TEMPLATES } from "../../../src/data/run_quests.js";
-import { createRunQuest } from "../../../src/systems/run_quests.js";
+
+// A run quest as saved before quests were replaced by feats (#2007).
+const createLegacyRunQuest = () => ({
+  id: "reach_milestone:1:5",
+  templateId: "reach_milestone",
+  type: "depth",
+  name: "次の深みへ",
+  description: "次の階層守護者が待つ階まで到達する。",
+  role: null,
+  targetValue: 5,
+  currentValue: 0,
+  completed: false,
+  rewardClaimed: false,
+  completedAtDepth: null,
+  reward: { materials: { "鉄片": 3 } }
+});
 import { isNormalizedSavePayload } from "../../../src/state/save_contract.js";
 import { decodeSaveMaps } from "../../../src/state/map_codec.js";
 import { normalizeMaterialBalance } from "../../../src/state/material_balance.js";
@@ -67,7 +81,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.unlockedMilestones = [5, 10];
   state.records = { deepestRetreat: 12, deepestDeath: 9, totalRuns: 7 };
   state.currentRun = createDefaultCurrentRun();
-  state.currentRun.quests = [createRunQuest(RUN_QUEST_TEMPLATES[0], 1)];
+  state.currentRun.quests = [createLegacyRunQuest()];
   state.currentRun.quests[0].currentValue = 4;
   state.codex.monsters = {
     "ワーウルフ": {
@@ -126,7 +140,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(state.keyItems, ["FORGE_SEAL", "ABYSS_SEAL"]);
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, totalRuns: 7 });
-  assert.equal(state.currentRun.quests[0].currentValue, 4);
+  assert.deepEqual(state.currentRun.quests, [], "legacy run quests are dropped on load");
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedActions, ["通常攻撃"]);
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedConditions, ["麻痺を受けた"]);
   assert.deepEqual(state.codex.monsters["ワーウルフ"].observedLoot, ["獣の牙"]);
@@ -375,7 +389,7 @@ check("applying a save clears omitted transient runtime state", () => {
 });
 
 check("malformed current-run collections receive safe defaults", () => {
-  const validQuest = createRunQuest(RUN_QUEST_TEMPLATES[0], 1);
+  const validQuest = createLegacyRunQuest();
   const normalized = migrateSavePayload({
     ...createSavePayload(),
     currentRun: {
@@ -392,7 +406,7 @@ check("malformed current-run collections receive safe defaults", () => {
     }
   });
 
-  assert.deepEqual(normalized.currentRun.quests, [validQuest]);
+  assert.deepEqual(normalized.currentRun.quests, []);
   assert.deepEqual(normalized.currentRun.itemsFound, []);
   assert.deepEqual(normalized.currentRun.equipmentFound, []);
   assert.equal(Object.hasOwn(normalized.currentRun, "floorsVisited"), false);

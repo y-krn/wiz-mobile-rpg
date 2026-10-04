@@ -8,7 +8,7 @@ a review lens, not a catalogue of the current content implementation.
 
 ## Scope
 
-- Items, enemies, spells, classes, run quests, rewards, events, descriptions,
+- Items, enemies, spells, classes, feats, rewards, events, descriptions,
   labels, and display text.
 - Clarity, theme fit, player motivation, terminology, and progression fit.
 - The amount of new vocabulary, choice pressure, and implementation cost that

@@ -1,4 +1,6 @@
 import { state, getStartingKit } from "../state.js";
+import { getNearestFeats, listFeats } from "../systems/feats.js";
+import { createFeatCard } from "./feat_card.js";
 
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
@@ -83,7 +85,41 @@ function renderCastleEntry(hasRecord) {
   if (detail) detail.textContent = copy.detail;
 }
 
+// The three unachieved feats closest to completion: the town always shows
+// something within reach (#2007).
+let renderedFeatSignature = null;
+
+function renderFeatSummary() {
+  const container = document.getElementById("town-feat-summary");
+  if (!container) return;
+  const entries = listFeats(state.feats);
+  const nearest = getNearestFeats(state.feats, null, 3);
+  // Rebuild only when what is shown changes: replacing the cards on every UI
+  // update would disturb the town page's scroll position.
+  const signature = [
+    entries.filter(entry => entry.completed).length,
+    ...nearest.map(({ feat, progress }) => `${feat.id}:${progress.current}`)
+  ].join("|");
+  if (signature === renderedFeatSignature && container.firstChild) return;
+  renderedFeatSignature = signature;
+  const nodes = nearest.map(({ feat, progress }) => createFeatCard({ feat, completed: false, progress }));
+  if (nodes.length === 0) {
+    const done = document.createElement("p");
+    done.className = "town-feat-empty";
+    done.textContent = "すべての偉業を達成した。";
+    nodes.push(done);
+  }
+  container.replaceChildren(...nodes);
+  const detail = typeof document.querySelector === "function"
+    ? document.querySelector("[data-town-feats-detail]")
+    : null;
+  if (detail) {
+    detail.textContent = `達成 ${entries.filter(entry => entry.completed).length} / ${entries.length}`;
+  }
+}
+
 export function renderTownHome() {
+  renderFeatSummary();
   const summary = document.getElementById("town-last-run-summary");
   if (!summary) return;
   const lastRun = Array.isArray(state.runHistory) ? state.runHistory[0] : null;

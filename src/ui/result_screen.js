@@ -5,6 +5,7 @@ import { updateUI } from "./ui_root.js";
 import { getFloorLabel } from "../data/floor_themes.js";
 import { setRepresentativeItem } from "../systems/run_return.js";
 import { clearPhase4cV1CharacterBaseline } from "../rules/phase4c_v1_trial.js";
+import { formatFeatProgress, formatFeatReward, getFeat } from "../systems/feats.js";
 
 const ACHIEVEMENT_LABELS = {
   first_b5_reached: "初めてB5Fへ到達",
@@ -299,21 +300,53 @@ function createRecordSection(run) {
   return record;
 }
 
-function createQuestContent(run) {
-  const quests = run.quests || [];
-  if (quests.length === 0) return textElement("div", "list-empty", "クエストなし");
-  const list = fragmentNode();
-  quests.forEach(quest => {
-    const reward = Object.entries(quest.reward?.materials || {})
-      .map(([name, quantity]) => `${name}×${quantity}`)
-      .join(" / ");
-    const row = textElement("div", `result-quest-row ${quest.completed ? "completed" : "failed"}`);
-    row.appendChild(textElement("span", null, quest.completed ? "達成" : "未達"));
-    row.appendChild(textElement("strong", null, quest.name));
-    row.appendChild(textElement("small", null, quest.completed ? reward : `${quest.currentValue || 0}/${quest.targetValue}`));
+// Feats achieved this run and how far the closest ones moved. The stored
+// result holds ids and numbers only; names and wording come from the catalog.
+export function getFeatResultRows(featResult) {
+  if (!featResult) return [];
+  const rows = [];
+  (featResult.completed || []).forEach(featId => {
+    const feat = getFeat(featId);
+    if (!feat) return;
+    rows.push({ id: feat.id, status: "達成", completed: true, name: feat.name, detail: `報酬 ${formatFeatReward(feat)}` });
+  });
+  (featResult.progress || []).forEach(entry => {
+    const feat = getFeat(entry.id);
+    if (!feat) return;
+    const progress = formatFeatProgress(feat, { current: entry.after, target: entry.target });
+    const gained = entry.after - entry.before;
+    rows.push({
+      id: feat.id,
+      status: gained > 0 ? "前進" : "次の目標",
+      completed: false,
+      name: feat.name,
+      detail: gained > 0 && feat.metric.unit !== "floor" ? `${progress}（今回 +${gained}）` : progress
+    });
+  });
+  return rows;
+}
+
+function createFeatSection(run) {
+  const rows = getFeatResultRows(run.featResult);
+  if (rows.length === 0) return null;
+  const section = textElement("section", "result-focus-section result-feat-section");
+  setAttributeSafe(section, "aria-labelledby", "result-feat-title");
+  setAttributeSafe(section, "data-result-feats", "");
+  const heading = textElement("h2", "result-section-heading");
+  heading.id = "result-feat-title";
+  heading.appendChild(textElement("span", null, "偉業"));
+  section.appendChild(heading);
+  const list = textElement("div", "result-feat-list");
+  rows.forEach(entry => {
+    const row = textElement("div", `result-feat-row ${entry.completed ? "completed" : "pending"}`);
+    setAttributeSafe(row, "data-feat-id", entry.id);
+    row.appendChild(textElement("span", null, entry.status));
+    row.appendChild(textElement("strong", null, entry.name));
+    row.appendChild(textElement("small", null, entry.detail));
     list.appendChild(row);
   });
-  return list;
+  section.appendChild(list);
+  return section;
 }
 
 const RETURN_RARITY_LABELS = {
@@ -427,6 +460,8 @@ export function renderResultScreen() {
   body.appendChild(createMemorySection(run, outcome));
   const nearMiss = createNearMissSection(run, outcome);
   if (nearMiss) body.appendChild(nearMiss);
+  const featSection = createFeatSection(run);
+  if (featSection) body.appendChild(featSection);
   body.appendChild(createRecordSection(run));
   body.appendChild(createLootSection(run));
   const discoveries = createDiscoverySection(run);
@@ -464,16 +499,6 @@ export function renderResultScreen() {
   }
   body.appendChild(materialsSection);
 
-  const questSection = textElement("section", "result-focus-section");
-  setAttributeSafe(questSection, "aria-labelledby", "result-quest-title");
-  const questHeading = textElement("h2", "result-section-heading");
-  questHeading.id = "result-quest-title";
-  questHeading.appendChild(textElement("span", null, "今回の依頼"));
-  const questList = textElement("div", "result-quest-list");
-  questList.appendChild(createQuestContent(run));
-  questSection.appendChild(questHeading);
-  questSection.appendChild(questList);
-  body.appendChild(questSection);
   body.appendChild(textElement("div", "result-run-note", getEvaluationText(run, isSuccess)));
 
   const footer = textElement("div", "result-footer-actions");

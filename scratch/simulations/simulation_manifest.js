@@ -247,6 +247,12 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/pending_rewards.js", domains: ["chests", "equipment", "economy", "maps"] },
     { pattern: "src/rules/pending_reward_bundle.js", domains: ["economy"] },
     { pattern: "src/rules/pending_reward_bundle.ts", domains: ["economy"] },
+    // Feats (#2007) replace the run quests: one-time material rewards paid to
+    // the town balance at settlement.
+    { pattern: "src/systems/feats.js", domains: ["economy", "progression"] },
+    { pattern: "src/data/feats.js", domains: ["economy", "progression"] },
+    // The removed run-quest modules stay mapped so their deletion diff is
+    // classified; drop these once the deletion is on main.
     { pattern: "src/systems/run_quests.js", domains: ["economy", "progression"] },
     { pattern: "src/systems/run_quests.ts", domains: ["economy", "progression"] },
     { pattern: "src/data/run_quests.js", domains: ["economy", "progression"] },
@@ -295,7 +301,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/enemy_presentation.js", "src/enemy_presentation.ts", "src/enemy_presentation_palette.js", "src/enemy_presentation_palette.ts", "src/assets/enemies/**",
     "src/equipment_ui_loader.js", "src/equipment_ui_state.js",
     "src/data/starting_kit_copy.js",
-    "src/state/last_preparation.ts", "src/systems/departure_preparation.js"
+    "src/state/last_preparation.ts", "src/systems/departure_preparation.js",
+    "src/state/feats_state.ts"
   ]),
   // A one-off no-impact declaration is recognized only when its marker is
   // added in the same production diff. This keeps mapped modules such as

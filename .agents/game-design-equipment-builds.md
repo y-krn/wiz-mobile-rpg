@@ -107,7 +107,7 @@ cap.
 | 盗掘王 | `CORE_TOMB_RAIDER` | Increase chest-material opportunity while increasing trap intensity, turning greed into a route and resource trade-off. |
 | 慧眼 | `CORE_KEEN_EYE` | Retired: Build vNext finds are identified, so this Core has no activation path. |
 | 野営の達人 | `CORE_CAMP_MASTER` | Increase the recovery returned by choosing to rest at camp, trading the opportunity to continue immediately. |
-| 賞金稼ぎ | `CORE_BOUNTY_HUNTER` | Make selected run-objective target defeats count more, rewarding a deliberate hunt instead of passive depth. |
+| 賞金稼ぎ | `CORE_BOUNTY_HUNTER` | Retired: run quests were replaced by feats, so this Core has no activation path. |
 | 学者の眼 | `CORE_SCHOLAR_EYE` | Turn an enemy not yet understood into a material opportunity, linking knowledge to exploration without revealing an optimal route. |
 
 ## Technique Cores (Build vNext trial only)
@@ -148,7 +148,7 @@ rarity, bag decision, or competing resource.
 - basic: `atk`, `def`, `hp`, `mp`, `antiUndead`, `antiDragon`, `antiDemon`, `poisonWard`, `spellGuard`, `trapBonus`, `trapGuard`, `treasureSense`, `arcaneSense`, `hearRange`, `traceRead`, `followUp`, `spellPower`, `arcane`, `devotion`, `guardian`, `firstStrike`, `physicalAccuracy`, `escapeChance`
 - conditional: `deepAssault`, `frontGuard`, `rearEvasion`, `fullHpDamage`, `firstTurnAttack`, `antiBeast`, `antiSpirit`, `firstStrikeDefense`, `statusResistance`, `spellAccuracy`, `lowHpDamage`, `highHpTargetDamage`, `bossDamage`
 - trigger: `killHeal`, `followUpMp`, `hitFlinch`, `poisonAtk`, `bleedingAtk`, `victoryMaterial`, `stairsHeal`, `firstStrikeFollowUp`
-- economy: `identifyDiscount`, `materialFind`, `contractReward`
+- economy: `identifyDiscount`, `materialFind`, `contractReward` (raises the one-time material reward of feats settled at the end of the run)
 
 The categories describe ownership, not a promise that every Support is useful
 in every band. Values and availability remain data-owned, while the following
@@ -278,7 +278,7 @@ slot.
 - `.agents/game-design-core-loop.md` owns the depth question, object-loot
   stakes, information ladder, and route-level trap contract.
 - `.agents/game-design.md` owns materials, status-counterplay economy, merchants,
-  run quests, and the relationship between value and future possibility.
+  feats, and the relationship between value and future possibility.
 - `.agents/game-design-combat-model.md` owns formula structure and application
   order for combat effects.
 - `.agents/game-design-telemetry.md` owns observable build decisions and privacy

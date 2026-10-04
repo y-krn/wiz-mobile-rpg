@@ -486,7 +486,7 @@ Each must have a situation where using it is attractive and another where
 holding it is better; it must not become a permanent universal upgrade.
 
 - An encounter-calling item trades HP, MP, or time for experience, drops, or a
-  quest opportunity.
+  feat opportunity.
 - An encounter-suppressing item trades experience and drop opportunities for a
   safer route to depth.
 - A detection item reveals nearby trap information without improving disarm
@@ -499,7 +499,7 @@ not a second meta-game.
 ## Relationship to other documents
 
 - `.agents/game-design.md` owns durable economy, resource, status-counterplay,
-  merchant, and run-quest semantics.
+  merchant, and feat semantics.
 - `.agents/game-design-equipment-builds.md` owns the Core/Support build model,
   equipment knowledge, and horizontal equipment possibility space.
 - `.agents/game-design-combat-model.md` owns combat formula structure,

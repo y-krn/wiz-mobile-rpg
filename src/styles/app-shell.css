@@ -217,7 +217,7 @@
 .records-strip small { color: var(--text-muted); font-size: var(--fs-xs); }
 .records-strip strong { color: var(--neon-cyan); font-size: var(--fs-md); text-shadow: none; }
 
-.quest-hud-list {
+.feat-hud-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-xs);
@@ -225,22 +225,22 @@
   text-shadow: none;
 }
 
-.quest-hud-list span {
+.feat-hud-list span {
   display: flex;
   justify-content: space-between;
   gap: var(--sp-xs);
   min-width: 0;
 }
 
-.quest-hud-list strong {
+.feat-hud-list strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.quest-hud-list small { flex-shrink: 0; font-size: inherit; }
-.quest-hud-list span.completed { color: var(--neon-green); }
+.feat-hud-list small { flex-shrink: 0; font-size: inherit; }
+.feat-hud-list span.completed { color: var(--neon-green); }
 
 #game-container.result-mode #goal-banner,
 #game-container.result-mode #log-panel,
@@ -806,7 +806,7 @@
   left: 6px;
 }
 
-#game-container.dungeon-first-mode #goal-banner .quest-hud-list {
+#game-container.dungeon-first-mode #goal-banner .feat-hud-list {
   display: grid;
   max-height: 38px;
   overflow-y: auto;
@@ -1283,8 +1283,8 @@
   white-space: nowrap;
 }
 
-#game-container.dungeon-first-mode[data-goal-expanded="false"] #goal-banner .quest-hud-list,
-#game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-quest-summary {
+#game-container.dungeon-first-mode[data-goal-expanded="false"] #goal-banner .feat-hud-list,
+#game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-feat-summary {
   display: none;
 }
 

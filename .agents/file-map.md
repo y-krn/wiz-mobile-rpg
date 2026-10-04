@@ -97,7 +97,7 @@ to verify the change.
 | Affix cores/supports, budgets, seal/polish rules | `src/data/affixes.js`, `src/rules/affix_rules.js`, `.agents/game-design-equipment-builds.md` | `src/systems/equipment_generation.js`, `src/craft.js`, `src/combat_logic/damage.js`, `src/combat_logic/round.js`, `tests/node/unit/test_affixes.js`, `tests/node/unit/test_core_affixes.js` | `npm run test:unit` |
 | Build vNext trial: weapon techniques, technique Cores, graded legible supply, build seed (#1801) | `src/data/techniques.js`, `src/rules/technique_rules.js`, `src/combat_logic/technique_resolution.js`, `src/rules/build_vnext_supply.js`, `src/systems/build_vnext_seed.js`, `.agents/game-design-equipment-builds.md` | `src/data/affixes.js` (`BUILD_VNEXT_CORE_AFFIXES`), `src/systems/equipment_generation.js`, `src/chest.js`, `src/pending_rewards.js`, `src/combat_logic/round.js`, `src/combat_ui/action_selection.js`, `src/ui/ui_root.js`, `tests/node/unit/test_build_vnext_techniques.js`, `tests/node/unit/test_build_vnext_supply.js` | `npm run test:unit`, `npm run test:browser`, `scratch/measurements/run_browser_playtest.js` |
 | Treasure chest, traps, drops | `src/chest.js`, `src/data.js`, `src/data/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/combat.js`, `src/combat_ui/*` | `npm run test:unit` |
-| Run quests and codex/progress tracking | `src/data/run_quests.js`, `src/systems/run_quests.js`, `src/state.js`, `src/state/*` | `src/ui.js`, `src/ui/*`, `src/result.js`, `tests/node/unit/test_run_quests_records.js` | `npm run test:unit`, `npm run test:browser` |
+| Feats (long-term goals) and codex/progress tracking | `src/data/feats.js`, `src/systems/feats.js`, `src/state/feats_state.ts`, `src/state.js`, `src/state/*` | `src/ui/ui_root.js`, `src/ui/town_home.js`, `src/ui/feat_card.js`, `src/menu/feat_list.js`, `src/ui/result_screen.js`, `src/result.js`, `tests/node/unit/test_feats.js` | `npm run test:unit`, `npm run test:browser` |
 | Run result, rewards, return reasons | `src/result.js`, `src/systems/run_return.js`, `src/state.js`, `src/state/*` | `src/chest.js`, `src/combat.js`, `src/combat_logic/*`, `src/ui/result_screen.js` | `npm run test:unit`, `npm run test:browser` |
 | Core Loop vNext telemetry and observability | `src/telemetry.js`, `.agents/game-design-telemetry.md` | `src/state/run_loot.js`, `src/state/inventory_state.js`, `src/movement.js`, `src/chest.js`, portal/equipment/elite callers | `npm run test:unit`, `npm run build`, `npm run lint` |
 | Progression economy, materials, workshop, post-clear loop | `.agents/game-design.md`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `src/systems/*`, `src/combat_logic.js`, `src/combat_logic/*`, `src/chest.js`, `src/menu.js`, `src/menu/*`, `src/result.js`, `tests/node/*/test_*.js`, `tests/*.spec.js` | `npm run test:unit`, `npm run build`, `npm run test:browser` |
@@ -128,10 +128,10 @@ to verify the change.
 - If mobile UI changes, always include the relevant `src/styles/*.css` file and
   `tests/ui-*.spec.js` in review and verification. Inspect `src/style.css`
   only when import order or cascade behavior may be relevant.
-- If numbers affect enemies, drops, rewards, XP, materials, run quests, or map pacing,
+- If numbers affect enemies, drops, rewards, XP, materials, feats, or map pacing,
   include the `balance-simulation` review lens.
 - If the request changes XP, milestone merchant purchases, loot,
-  materials, workshop actions, run quests, or B5F clear behavior, read
+  materials, workshop actions, feats, or B5F clear behavior, read
   `.agents/game-design.md` before
   implementation or review.
 - If the request changes equipment affixes, cores, inscriptions, polish, or
