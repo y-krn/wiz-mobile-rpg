@@ -4,7 +4,7 @@
 
 import { getBiomeForFloor } from "../data/biomes.js";
 import { SPECIAL_ROOMS, getSpecialRoom } from "../rules/special_rooms.js";
-import { isFacilityOpen } from "./facilities.js";
+import { isFacilityNodeBought, isFacilityOpen } from "./facilities.js";
 
 /** The third floor of the collapsed mine band, in every cycle. */
 export function isForemanFloor(floor) {
@@ -14,11 +14,14 @@ export function isForemanFloor(floor) {
 /**
  * The room kind that replaces the mine vein on this floor, or null.
  * The foreman waits there until he has been brought home; a run that is
- * already leading him out does not meet him again.
+ * already leading him out does not meet him again. Once he is home and the
+ * guild has built its outpost, the outpost stands there instead (#2010).
  */
-export function getFacilityRoomKind(floor, { feats, run } = {}) {
+export function getFacilityRoomKind(floor, { feats, run, facilities } = {}) {
   if (!isForemanFloor(floor)) return null;
-  if (isFacilityOpen(feats, "miner_guild")) return null;
+  if (isFacilityOpen(feats, "miner_guild")) {
+    return isFacilityNodeBought(facilities, "miner_outpost") ? SPECIAL_ROOMS.MINER_OUTPOST : null;
+  }
   if (run?.companion === "foreman") return null;
   return SPECIAL_ROOMS.TRAPPED_FOREMAN;
 }

@@ -308,6 +308,12 @@ before or after the boss, and B6 transition.
     instead, until he has been brought home. Digging him out costs the same
     turns and noise; only the room kind on the placed cell changes, never the
     layout or its random streams.
+    Once the miner guild has built its outpost, that cell holds the miner
+    outpost: once per run it hands out one of a heal potion, an antidote, or
+    a trap kit, used in that run and never returned to storage. If the guild
+    also sells the blast, the outpost can instead clear all rubble on that
+    floor and mark its down stairs, at the price of a loud, lingering noise.
+    Supply and blast are exclusive, and the outpost appears nowhere else.
   - Forgotten catacomb — altar: a material-priced cleanse of status effects,
     or a blood blessing that converts a share of max HP into full MP.
   - Rift nest — brood chamber: breaking the eggs starts an elite-strength fight

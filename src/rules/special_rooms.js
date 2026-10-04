@@ -26,7 +26,9 @@ export const SPECIAL_ROOMS = Object.freeze({
   MIRROR_HALL: "mirror_hall",
   // Not a biome room: it stands in for the mine vein while the foreman is
   // still trapped (#2009, `src/systems/facility_rooms.js`).
-  TRAPPED_FOREMAN: "trapped_foreman"
+  TRAPPED_FOREMAN: "trapped_foreman",
+  // The same cell once the miner guild has built its outpost there (#2010).
+  MINER_OUTPOST: "miner_outpost"
 });
 
 /** Player-facing names and the short line shown when the room is found. */
@@ -37,7 +39,8 @@ export const SPECIAL_ROOM_INFO = Object.freeze({
   reading_room: Object.freeze({ name: "閲覧室", glyph: "書", intro: "水を免れた閲覧机に、この階の見取り図が残っている。" }),
   forge: Object.freeze({ name: "竜火の炉", glyph: "炉", intro: "炉にまだ竜火が残っている。素材をくべれば武器を鍛え直せる。" }),
   mirror_hall: Object.freeze({ name: "鏡の間", glyph: "鏡", intro: "鏡の奥に、さらに深い階の景色が揺れている。覗けば何かを奪われる。" }),
-  trapped_foreman: Object.freeze({ name: "崩落した詰所", glyph: "人", intro: "崩れた岩の向こうから、人の声がする。鉱夫が閉じ込められている。" })
+  trapped_foreman: Object.freeze({ name: "崩落した詰所", glyph: "人", intro: "崩れた岩の向こうから、人の声がする。鉱夫が閉じ込められている。" }),
+  miner_outpost: Object.freeze({ name: "坑夫の詰所", glyph: "詰", intro: "組合の坑夫が詰めている。補給を分けてくれるという。" })
 });
 
 // Mine vein: digging spends exploration turns and makes noise, like rubble.
@@ -47,6 +50,10 @@ export const VEIN_MATERIAL_BONUS = 1;
 export const VEIN_AMBUSH_CHANCE = 0.35;
 // Trapped foreman: digging him out costs the same turns and noise as a vein.
 export const FOREMAN_DIG_TURNS = 3;
+// Miner outpost: one supply per run, or (once bought) a blast that clears the
+// floor's rubble. The blast is loud: its noise lingers longer than a dig's.
+export const OUTPOST_SUPPLY_ITEM_IDS = Object.freeze(["HEAL_POTION", "ANTIDOTE", "TRAP_KIT"]);
+export const OUTPOST_BLAST_NOISE_TTL = 8;
 // Altar: a cleanse costs materials; the blood blessing converts HP into MP.
 export const ALTAR_CLEANSE_MATERIAL_COST = 2;
 export const ALTAR_BLOOD_HP_RATE = 0.25;
@@ -138,6 +145,19 @@ export function startForgeTemperBattle(char) {
 /** Clear every status the altar can cleanse. Returns the cleared ids. */
 export function cleanseAltarStatuses(char, { hasStatusEffect, removeStatusEffect, ids }) {
   return ids.filter(id => hasStatusEffect(char, id) && removeStatusEffect(char, id));
+}
+
+/** Clear every intact rubble cell on the floor. Returns how many were cleared. */
+export function clearFloorRubble(grid) {
+  let cleared = 0;
+  grid?.forEach(row => row?.forEach(cell => {
+    const obstacle = cell?.obstacle;
+    if (obstacle?.kind !== "rubble" || obstacle.state === "cleared") return;
+    obstacle.state = "cleared";
+    obstacle.discovered = true;
+    cleared += 1;
+  }));
+  return cleared;
 }
 
 function findCells(grid, predicate) {

@@ -3,7 +3,23 @@ import { test, expect } from './fixtures/browser-health.js';
 // Town facilities (#2009): the foreman is dug out on B3F, led home by a safe
 // return, and opens the miner guild, which sells the miner kit.
 
+// Opening a room arms the controls guard for a moment; a tap during it is
+// ignored. Wait it out before pressing a button in the room.
+async function waitForControls(page) {
+  await expect.poll(async () => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { isControlsGuarded } = await import('/src/controls_guard.js');
+    return !state.transitioning && !isControlsGuarded();
+  })).toBe(true);
+}
+
 async function seedForemanRoom(page) {
+  const room = await seedForemanRoomState(page);
+  await waitForControls(page);
+  return room;
+}
+
+async function seedForemanRoomState(page) {
   return page.evaluate(async () => {
     const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
@@ -67,7 +83,7 @@ test('Town shows a silhouette until the foreman is home, then opens the miner gu
   await expect(slot).toHaveAttribute('data-facility-open', 'true');
   await expect(slot).toBeEnabled();
   await expect(slot).toContainText('坑夫組合');
-  await expect(slot).toContainText('解放 0 / 1');
+  await expect(slot).toContainText('解放 0 / 3');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 
@@ -94,7 +110,7 @@ test('Town shows a silhouette until the foreman is home, then opens the miner gu
   expect(afterPurchase).toEqual({ fang: 1, iron: 1, nodes: ['miner_kit'] });
 
   await page.locator('#btn-submenu-back').click();
-  await expect(slot).toContainText('解放 1 / 1');
+  await expect(slot).toContainText('解放 1 / 3');
 
   // The bought kit joins the starting kits and carries its supplies into the run.
   await page.locator('#btn-town-dungeon').click();
@@ -190,4 +206,158 @@ test('A foreman led into a death stays in the dungeon and waits on the next run'
 
   const nextRoom = await seedForemanRoom(page);
   expect(nextRoom.kind).toBe('trapped_foreman');
+});
+
+async function seedOutpostRoom(page, options) {
+  const room = await seedOutpostRoomState(page, options);
+  await waitForControls(page);
+  return room;
+}
+
+async function seedOutpostRoomState(page, { nodes, inventory = [] }) {
+  return page.evaluate(async ({ nodes, inventory }) => {
+    const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const { ensureRunFloor } = await import('/src/state/run_floor_state.js');
+    const { checkCellEvents } = await import('/src/movement.js');
+    initNewGame();
+    state.feats.counters.foremanRescued = 1;
+    state.feats.completed = { foreman_rescue: { runNumber: 1 }, depth_5: { runNumber: 2 }, guardian_5: { runNumber: 3 } };
+    state.facilities = { nodes };
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.inventory = inventory;
+    state.currentRun = createDefaultCurrentRun();
+    state.currentRun.runSeed = 'facility-ui-seed';
+    state.currentRun.startingKit = 'vanguard';
+    state.currentRun.deepestFloor = 3;
+    state.maps = [];
+    state.visitedMaps = [];
+    state.roamingMonsters = [];
+    state.noiseEvents = [];
+    state.floor = 3;
+    state._freshRunFloor = 3;
+    const grid = ensureRunFloor(state, 3);
+    state.map = grid;
+    state.visitedMap = state.visitedMaps[2];
+    let room = null;
+    let rubble = 0;
+    grid.forEach((row, y) => row.forEach((cell, x) => {
+      if (cell.specialRoom) room = { x, y, kind: cell.specialRoom.kind };
+      if (cell.obstacle?.kind === 'rubble' && cell.obstacle.state !== 'cleared') rubble += 1;
+    }));
+    state.x = room.x;
+    state.y = room.y;
+    state.gameState = 'explore';
+    updateUI();
+    checkCellEvents();
+    return { ...room, rubble };
+  }, { nodes, inventory });
+}
+
+test('The miner outpost hands out one supply per run', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const room = await seedOutpostRoom(page, { nodes: ['miner_outpost'] });
+  expect(room.kind).toBe('miner_outpost');
+
+  await expect(page.locator('#submenu-title')).toContainText('坑夫の詰所');
+  await expect(page.getByRole('button', { name: '傷薬を受け取る' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '解毒薬を受け取る' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '罠外しキットを受け取る' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /発破を頼む/ })).toHaveCount(0);
+  await page.getByRole('button', { name: '解毒薬を受け取る' }).click();
+
+  const after = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const id = item => (typeof item === 'string' ? item : item?.baseId);
+    return {
+      inventory: state.inventory.map(id),
+      used: state.map[state.y][state.x].specialRoom.used,
+      craft: state.currentRun.departureCraftItems,
+      town: state.currentRun.townInventory.map(id),
+      gameState: state.gameState
+    };
+  });
+  expect(after).toEqual({ inventory: ['ANTIDOTE'], used: true, craft: [], town: [], gameState: 'explore' });
+  await expect(page.locator('#log-content')).toContainText('詰所の坑夫から解毒薬を受け取った。');
+
+  // The supply is dungeon loot: a safe return does not put it into storage.
+  const storage = await page.evaluate(async () => {
+    (await import('/src/result.js')).triggerRunResult('milestone_portal');
+    return (await import('/src/state.js')).state.storage.length;
+  });
+  expect(storage).toBe(0);
+});
+
+test('The blast clears the floor rubble, marks the stairs, and makes noise instead of a supply', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const room = await seedOutpostRoom(page, { nodes: ['miner_outpost', 'miner_blast'] });
+  expect(room.kind).toBe('miner_outpost');
+  expect(room.rubble).toBeGreaterThan(0);
+
+  await expect(page.locator('#submenu-options')).toContainText('どちらか一方');
+  await page.getByRole('button', { name: /発破を頼む/ }).click();
+
+  const after = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    let rubble = 0;
+    let stairsShown = false;
+    state.map.forEach((row, y) => row.forEach((cell, x) => {
+      if (cell.obstacle?.kind === 'rubble' && cell.obstacle.state !== 'cleared') rubble += 1;
+      if (cell.type === 'stairs-down') stairsShown = Boolean(state.visitedMap[y][x]);
+    }));
+    return {
+      rubble,
+      stairsShown,
+      inventory: state.inventory.length,
+      used: state.map[state.y][state.x].specialRoom.used,
+      noise: state.noiseEvents.filter(event => event.floor === 3).map(event => event.ttl)
+    };
+  });
+  expect(after.rubble).toBe(0);
+  expect(after.stairsShown).toBe(true);
+  expect(after.inventory).toBe(0);
+  expect(after.used).toBe(true);
+  expect(after.noise.length).toBeGreaterThan(0);
+  expect(Math.max(...after.noise)).toBeGreaterThanOrEqual(7);
+  await expect(page.locator('#log-content')).toContainText('発破の音が階じゅうに響いた');
+});
+
+test('The guild shows each rebuild with its feat condition before it can be bought', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { initNewGame, state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    initNewGame();
+    state.gameState = 'town';
+    state.feats.counters.foremanRescued = 1;
+    state.feats.counters.bestDepth = 4;
+    state.feats.completed = { foreman_rescue: { runNumber: 1 } };
+    state.metaMaterials = { '硬い皮': 20, '獣の牙': 20, '鉄片': 20 };
+    updateUI();
+  });
+  await page.locator('#town-facilities [data-facility-id="miner_guild"]').click();
+
+  const outpost = page.locator('[data-facility-node-id="miner_outpost"]');
+  await expect(outpost).toBeDisabled();
+  await expect(outpost).toContainText('条件：偉業「坑道を抜ける」（B5Fに到達する／B4F / B5F）');
+  await expect(outpost).toContainText('潜行ごとに1回');
+  const blast = page.locator('[data-facility-node-id="miner_blast"]');
+  await expect(blast).toBeDisabled();
+  await expect(blast).toContainText('条件：偉業「坑道の主を倒す」');
+
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+    state.feats.counters.bestDepth = 5;
+    state.feats.completed.depth_5 = { runNumber: 2 };
+    openSubmenu('facility_miner_guild', '坑夫組合 - 鉱夫頭の施設', true);
+  });
+  await expect(outpost).toBeEnabled();
+  await outpost.click();
+  await expect(outpost).toHaveAttribute('data-facility-node-bought', 'true');
+  await expect(blast).toBeDisabled();
+  await expect(blast).toContainText('条件：偉業「坑道の主を倒す」');
 });
