@@ -27,7 +27,7 @@ for (const viewport of [
     ));
     await page.getByRole('button', { name: '選択した依頼で潜行準備へ' }).click();
     await page.locator('.solo-starting-kit-option').first().click();
-    await page.getByRole('button', { name: /B1Fから開始/ }).click();
+    await page.locator('#btn-kit-confirm').click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#explore-controls')).toBeVisible();
 
@@ -45,7 +45,7 @@ test('依頼板を使わず出発すると現行のランダム依頼が割り�
   await page.goto('/');
   await page.locator('#btn-town-dungeon').click();
   await page.locator('.solo-starting-kit-option').first().click();
-  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await page.locator('#btn-kit-confirm').click();
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
 
   const questCount = await page.evaluate(async () => {

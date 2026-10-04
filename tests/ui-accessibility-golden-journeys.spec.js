@@ -158,6 +158,8 @@ test('Preparation and Town keep named controls, keyboard focus entry, and contex
   const kit = page.getByRole('button', { name: /鋼の前線キット/ }).first();
   await kit.focus();
   await kit.press('Enter');
+  expect(await page.locator('[data-kit-id="vanguard"]').evaluate(element => element === document.activeElement)).toBe(true);
+  await page.locator('#btn-kit-confirm').press('Enter');
   const firstFloor = page.locator('[data-start-floor="1"]');
   await expect(firstFloor).toBeVisible();
   expect(await readFocusEvidence(page)).toMatchObject({ visible: true, inViewport: true });

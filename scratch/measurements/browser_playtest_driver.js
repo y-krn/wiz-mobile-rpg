@@ -473,7 +473,7 @@ const KIT_NAMES = { vanguard: '鋼の前線キット', scout: '軽装探索キ�
 W.__startRun = async ({ kit = 'vanguard', seed = null } = {}) => {
   if (W.__btns().some(t => t.includes('街へ戻る'))) { await W.__click('街へ戻る'); await sl(1000); }
   for (let t = 0; t < 4 && !document.querySelector('button.solo-start-floor-option'); t++) {
-    await W.__tap('準備を整える'); await sl(300); await W.__tap(KIT_NAMES[kit] || kit); await sl(500);
+    await W.__tap('準備を整える'); await sl(300); await W.__tap(KIT_NAMES[kit] || kit); await sl(300); await W.__tap('このキットで準備へ'); await sl(500);
   }
   if (!document.querySelector('button.solo-start-floor-option')) return { ok: false, reason: 'no start floor options; gs=' + st().gameState };
   const fb = [...document.querySelectorAll('button.solo-start-floor-option')].find(b => b.textContent.includes('B1F')); if (!fb) return { ok: false, reason: 'no B1 option' };

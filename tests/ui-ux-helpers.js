@@ -31,7 +31,7 @@ async function startSoloRun(page) {
   await page.goto('/');
   await page.locator('#btn-town-dungeon').click();
   await page.getByRole('button', { name: /鋼の前線キット/ }).click();
-  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await page.locator('#btn-kit-confirm').click();
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
   await expect(page.locator('#explore-controls')).toBeVisible();
 }
@@ -57,6 +57,7 @@ async function openDeparturePreparation(page, vp, unlockedMilestones = []) {
     openSubmenu('solo_start', '単独潜行');
   }, unlockedMilestones);
   await page.locator('.solo-starting-kit-option').first().click();
+  await page.locator('#btn-kit-confirm').click();
 }
 
 async function beginPendingOutcomePlayback(page, kind, floor = 1) {
