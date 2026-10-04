@@ -1,7 +1,7 @@
 import { state, getStartingKit } from "../state.js";
 import { getNearestFeats, listFeats } from "../systems/feats.js";
 import { createFeatCard } from "./feat_card.js";
-import { listFacilities, listFacilityNodes } from "../systems/facilities.js";
+import { getOpenFacilityOrder, listFacilities, listFacilityNodes } from "../systems/facilities.js";
 import { getNextGuidebookPage, listGuidebookPages } from "../systems/guidebook.js";
 
 function outcomeLabel(run) {
@@ -129,7 +129,7 @@ function renderFacilities() {
   if (!container) return;
   const entries = listFacilities(state.feats);
   const signature = entries
-    .map(({ facility, open }) => `${facility.id}:${open ? listFacilityNodes(facility.id, { facilities: state.facilities, feats: state.feats, metaMaterials: {} }).filter(entry => entry.bought).length : "locked"}`)
+    .map(({ facility, open }) => `${facility.id}:${open ? listFacilityNodes(facility.id, { facilities: state.facilities, feats: state.feats, metaMaterials: {} }).filter(entry => entry.bought).length : "locked"}:${getOpenFacilityOrder(state.facilities, facility.id) ? "order" : ""}`)
     .join("|");
   if (signature === renderedFacilitySignature && container.firstChild) return;
   renderedFacilitySignature = signature;
@@ -146,7 +146,8 @@ function renderFacilities() {
       const bought = listFacilityNodes(facility.id, { facilities: state.facilities, feats: state.feats, metaMaterials: {} })
         .filter(entry => entry.bought).length;
       name.textContent = facility.name;
-      detail.textContent = `${facility.keeper}の施設 — 解放 ${bought} / ${facility.nodes.length}`;
+      const ordering = getOpenFacilityOrder(state.facilities, facility.id) ? "・仕込み中" : "";
+      detail.textContent = `${facility.keeper}の施設 — 解放 ${bought} / ${facility.nodes.length}${ordering}`;
     } else {
       name.textContent = "？？？";
       detail.textContent = facility.lockedHint;

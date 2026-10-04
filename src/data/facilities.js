@@ -13,6 +13,15 @@ const node = definition => Object.freeze({
   grants: Object.freeze({ ...definition.grants })
 });
 
+// An order (仕込み, #2014): materials are paid when it is placed, and the
+// goods are finished into storage by the next safe return. It is cheaper
+// than departure craft because it only pays off for a run that walks out.
+const order = definition => Object.freeze({
+  ...definition,
+  cost: Object.freeze({ ...definition.cost }),
+  yields: Object.freeze([...definition.yields])
+});
+
 export const FACILITIES = Object.freeze([
   Object.freeze({
     id: "miner_guild",
@@ -48,9 +57,22 @@ export const FACILITIES = Object.freeze([
         requiresNode: "miner_outpost",
         grants: { roomOption: "blast" }
       })
+    ]),
+    orders: Object.freeze([
+      order({
+        id: "miner_trap_kits",
+        name: "罠外しキットの仕込み",
+        description: "罠外しキット2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
+        cost: { "鉄片": 2, "硬い皮": 1 },
+        yields: ["TRAP_KIT", "TRAP_KIT"]
+      })
     ])
   })
 ]);
+
+export const FACILITY_ORDER_BY_ID = new Map(
+  FACILITIES.flatMap(facility => (facility.orders || []).map(definition => [definition.id, definition]))
+);
 
 export const FACILITY_BY_ID = new Map(FACILITIES.map(facility => [facility.id, facility]));
 

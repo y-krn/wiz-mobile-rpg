@@ -1,7 +1,7 @@
 // Facility state queries and node purchases (#2009). A purchase spends town
 // materials on a horizontal unlock; it is mapped to the workshop domain.
 
-import { FACILITIES, FACILITY_BY_ID, FACILITY_NODE_BY_ID } from "../data/facilities.js";
+import { FACILITIES, FACILITY_BY_ID, FACILITY_NODE_BY_ID, FACILITY_ORDER_BY_ID } from "../data/facilities.js";
 import { normalizeFacilitiesState } from "../state/facilities_state.js";
 import { normalizeFeatsState } from "../state/feats_state.js";
 import { getFeat, getFeatProgress, formatFeatProgress } from "./feats.js";
@@ -69,11 +69,89 @@ export function purchaseFacilityNode(nodeId, { feats, facilities, metaMaterials 
   const reason = getFacilityNodeBlockReason(nodeId, { feats, facilities, metaMaterials });
   if (reason) return { ok: false, reason };
   const definition = FACILITY_NODE_BY_ID.get(nodeId);
+  const current = normalizeFacilitiesState(facilities);
   return {
     ok: true,
     node: definition,
     metaMaterials: spendMaterials(metaMaterials || {}, definition.cost),
-    facilities: { nodes: [...normalizeFacilitiesState(facilities).nodes, nodeId] }
+    facilities: { ...current, nodes: [...current.nodes, nodeId] }
+  };
+}
+
+// --- Orders (仕込み, #2014) ---------------------------------------------------
+
+function findOrderFacility(orderId) {
+  return FACILITIES.find(facility => (facility.orders || []).some(definition => definition.id === orderId)) || null;
+}
+
+/** The open order at a facility, with its definition, or null. */
+export function getOpenFacilityOrder(facilitiesState, facilityId) {
+  const open = normalizeFacilitiesState(facilitiesState).orders?.[facilityId];
+  if (!open) return null;
+  return { ...open, order: FACILITY_ORDER_BY_ID.get(open.orderId) || null };
+}
+
+/** Why an order cannot be placed right now, or "" when it can. */
+export function getFacilityOrderBlockReason(orderId, { feats, facilities, metaMaterials } = {}) {
+  const definition = FACILITY_ORDER_BY_ID.get(orderId);
+  const facility = findOrderFacility(orderId);
+  if (!definition || !facility) return "存在しない仕込み";
+  if (!isFacilityOpen(feats, facility.id)) return `${facility.name}がまだ開いていない`;
+  if (getOpenFacilityOrder(facilities, facility.id)) return "仕込み中の品がある";
+  if (!spendMaterials(metaMaterials || {}, definition.cost)) return "素材不足";
+  return "";
+}
+
+/**
+ * Place an order: the materials are paid now and the goods are owed until a
+ * safe return. One open order per facility. Pure.
+ */
+export function placeFacilityOrder(orderId, { feats, facilities, metaMaterials } = {}) {
+  const reason = getFacilityOrderBlockReason(orderId, { feats, facilities, metaMaterials });
+  if (reason) return { ok: false, reason };
+  const definition = FACILITY_ORDER_BY_ID.get(orderId);
+  const facility = findOrderFacility(orderId);
+  const current = normalizeFacilitiesState(facilities);
+  return {
+    ok: true,
+    order: definition,
+    metaMaterials: spendMaterials(metaMaterials || {}, definition.cost),
+    facilities: {
+      ...current,
+      orders: { ...current.orders, [facility.id]: { orderId, items: [...definition.yields] } }
+    }
+  };
+}
+
+/**
+ * Settle open orders at the end of a run. A safe return finishes them into
+ * storage as far as it has room; what does not fit stays owed for the next
+ * safe return, and nothing is discarded. A death or an abandoned run leaves
+ * every order open. Pure.
+ */
+export function settleFacilityOrders(facilitiesState, storage, storageMax, outcome) {
+  const facilities = normalizeFacilitiesState(facilitiesState);
+  const nextStorage = Array.isArray(storage) ? [...storage] : [];
+  const openItems = Object.values(facilities.orders || {}).reduce((total, order) => total + order.items.length, 0);
+  if (openItems === 0) return { facilities, storage: nextStorage, result: null };
+  if (outcome !== "retreat") {
+    return { facilities, storage: nextStorage, result: { delivered: [], waiting: openItems } };
+  }
+  const limit = Number.isFinite(storageMax) ? Math.max(0, Math.floor(storageMax)) : 30;
+  const orders = {};
+  const delivered = [];
+  Object.entries(facilities.orders || {}).forEach(([facilityId, order]) => {
+    const room = Math.max(0, limit - nextStorage.length);
+    const fitting = order.items.slice(0, room);
+    const held = order.items.slice(room);
+    nextStorage.push(...fitting);
+    delivered.push(...fitting);
+    if (held.length > 0) orders[facilityId] = { orderId: order.orderId, items: held };
+  });
+  return {
+    facilities: { ...facilities, orders },
+    storage: nextStorage,
+    result: { delivered, waiting: openItems - delivered.length }
   };
 }
 

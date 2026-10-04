@@ -48,7 +48,7 @@ import {
 import { normalizeRunRecordResult } from "./run_record_result.js";
 import { normalizeRunNearMiss } from "./run_near_miss.js";
 import { normalizeAnnouncedFeatIds, normalizeFeatsState, normalizeRunFeatResult } from "./feats_state.js";
-import { normalizeCompanion, normalizeFacilitiesState } from "./facilities_state.js";
+import { normalizeCompanion, normalizeFacilitiesState, normalizeRunOrderResult } from "./facilities_state.js";
 import { normalizeGuidebookState, normalizeRunGuideFragments, normalizeRunGuideResult } from "./guidebook_state.js";
 import { normalizeStartingKitId } from "./starting_kit.js";
 import {
@@ -674,6 +674,7 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.companion = normalizeCompanion(normalized.companion);
   normalized.guideFragments = normalizeRunGuideFragments(normalized.guideFragments);
   normalized.guideResult = normalizeRunGuideResult(normalized.guideResult);
+  normalized.orderResult = normalizeRunOrderResult(normalized.orderResult);
   normalized.recordResult = normalizeRunRecordResult(normalized.recordResult);
   normalized.trialBands = normalizeTrialBands(normalized.trialBands);
   normalized.eliteFloors = normalizeEliteFloors(normalized.eliteFloors);

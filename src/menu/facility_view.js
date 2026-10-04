@@ -4,7 +4,15 @@
 import { state, addLog, saveGame } from "../state.js";
 import { playSound } from "../audio.js";
 import { FACILITY_BY_ID } from "../data/facilities.js";
-import { isFacilityOpen, listFacilityNodes, purchaseFacilityNode } from "../systems/facilities.js";
+import {
+  getFacilityOrderBlockReason,
+  getOpenFacilityOrder,
+  isFacilityOpen,
+  listFacilityNodes,
+  placeFacilityOrder,
+  purchaseFacilityNode
+} from "../systems/facilities.js";
+import { ITEMS } from "../data/items.js";
 import { createActionCard } from "./action_card.js";
 
 function formatCostWithBalance(cost) {
@@ -58,5 +66,59 @@ export function renderFacility(optGrid, facilityId, focusSelector = null) {
     optGrid.appendChild(card);
   });
 
+  renderOrders(optGrid, facility);
+
   if (focusSelector) optGrid.querySelector?.(focusSelector)?.focus?.();
+}
+
+function formatYields(itemIds) {
+  const counts = new Map();
+  itemIds.forEach(itemId => counts.set(itemId, (counts.get(itemId) || 0) + 1));
+  return [...counts.entries()]
+    .map(([itemId, count]) => `${String(ITEMS[itemId]?.name || itemId).replace(/\s*[（(].*?[）)]/g, "")}×${count}`)
+    .join("・");
+}
+
+// Orders (仕込み, #2014): pay now, receive the goods in storage at the next
+// safe return. One open order per facility.
+function renderOrders(optGrid, facility) {
+  const orders = facility.orders || [];
+  if (orders.length === 0) return;
+  const heading = document.createElement("h3");
+  heading.className = "feat-list-heading facility-orders-heading";
+  heading.textContent = "仕込み";
+  optGrid.appendChild(heading);
+
+  const open = getOpenFacilityOrder(state.facilities, facility.id);
+  if (open) {
+    const status = document.createElement("p");
+    status.className = "facility-order-open";
+    status.setAttribute("data-facility-order-open", open.orderId);
+    status.textContent = `仕込み中：${formatYields(open.items)}。次に生還した時に仕上がり、倉庫に入る。`;
+    optGrid.appendChild(status);
+    return;
+  }
+  orders.forEach(order => {
+    const blockReason = getFacilityOrderBlockReason(order.id, getContext());
+    const card = createActionCard({
+      name: `${order.name}（${formatYields(order.yields)}）`,
+      description: order.description,
+      cost: `${formatCostWithBalance(order.cost)}${blockReason ? `／${blockReason}` : ""}`,
+      costClassName: blockReason ? "is-insufficient" : "",
+      className: "facility-node facility-order",
+      disabled: Boolean(blockReason),
+      dataset: { facilityOrderId: order.id },
+      onClick: () => {
+        const placed = placeFacilityOrder(order.id, getContext());
+        if (!placed.ok) return;
+        state.metaMaterials = placed.metaMaterials;
+        state.facilities = placed.facilities;
+        playSound("item");
+        addLog(`${facility.name}に「${order.name}」を頼んだ。次に生還した時に仕上がる。`);
+        saveGame();
+        renderFacility(optGrid, facility.id, "[data-facility-order-open]");
+      }
+    });
+    optGrid.appendChild(card);
+  });
 }

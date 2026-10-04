@@ -361,3 +361,67 @@ test('The guild shows each rebuild with its feat condition before it can be boug
   await expect(blast).toBeDisabled();
   await expect(blast).toContainText('条件：偉業「坑道の主を倒す」');
 });
+
+test('An order is paid in the guild, survives a death, and reaches storage on a safe return', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { initNewGame, state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    initNewGame();
+    state.gameState = 'town';
+    state.feats.counters.foremanRescued = 1;
+    state.feats.completed = { foreman_rescue: { runNumber: 1 } };
+    state.metaMaterials = { '鉄片': 3, '硬い皮': 1 };
+    updateUI();
+  });
+  const slot = page.locator('#town-facilities [data-facility-id="miner_guild"]');
+  await slot.click();
+  await waitForControls(page);
+
+  const order = page.locator('[data-facility-order-id="miner_trap_kits"]');
+  await expect(order).toBeEnabled();
+  await expect(order).toContainText('罠外しキットの仕込み（罠外しキット×2）');
+  await expect(order).toContainText('鉄片 2（所持3）・硬い皮 1（所持1）');
+  await order.click();
+  const open = page.locator('[data-facility-order-open="miner_trap_kits"]');
+  await expect(open).toHaveText('仕込み中：罠外しキット×2。次に生還した時に仕上がり、倉庫に入る。');
+  await expect(order).toHaveCount(0);
+  const paid = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return { iron: state.metaMaterials['鉄片'], hide: state.metaMaterials['硬い皮'], storage: state.storage.length };
+  });
+  expect(paid).toEqual({ iron: 1, hide: 0, storage: 0 });
+
+  await page.locator('#btn-submenu-back').click();
+  await expect(slot).toContainText('仕込み中');
+
+  const endRun = reason => page.evaluate(async reason => {
+    const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.inventory = [];
+    state.currentRun = createDefaultCurrentRun();
+    state.currentRun.startingKit = 'vanguard';
+    state.floor = 2;
+    state.gameState = 'explore';
+    if (reason === 'gameover') state.party[0].hp = 0;
+    (await import('/src/result.js')).triggerRunResult(reason);
+    const id = item => (typeof item === 'string' ? item : item?.baseId);
+    return { storage: state.storage.map(id), orders: state.facilities.orders };
+  }, reason);
+
+  // A death does not lose the order: it waits for the next safe return.
+  const afterDeath = await endRun('gameover');
+  expect(afterDeath).toEqual({ storage: [], orders: { miner_guild: { orderId: 'miner_trap_kits', items: ['TRAP_KIT', 'TRAP_KIT'] } } });
+  const waiting = page.locator('.result-feat-row[data-feat-id="facility_orders"]');
+  await expect(waiting).toHaveText('持ち越し仕込み中の品 2個生還すると仕上がる');
+  await page.locator('#btn-result-castle').click();
+  await expect(slot).toContainText('仕込み中');
+
+  const afterReturn = await endRun('milestone_portal');
+  expect(afterReturn).toEqual({ storage: ['TRAP_KIT', 'TRAP_KIT'], orders: {} });
+  const delivered = page.locator('.result-feat-row[data-feat-id="facility_orders"]');
+  await expect(delivered).toHaveText('仕上がり仕込みの品 罠外しキット×2倉庫に入った');
+  await page.locator('#btn-result-castle').click();
+  await expect(slot).not.toContainText('仕込み中');
+});
