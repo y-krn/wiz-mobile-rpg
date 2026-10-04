@@ -793,9 +793,9 @@ for (const vp of VIEWPORTS) {
       window.__secondDepartureRenderBaseline = window.__dungeonRenderer.renderCount;
     });
     await page.locator('#btn-town-dungeon').click();
-    await page.getByRole('button', { name: /鋼の前線キット/ }).click();
-    await page.locator('#btn-kit-confirm').click();
-    await page.locator('[data-recipe-id="HEAL_POTION"]').click();
+    // The second preparation opens pre-filled with the first one (#2002).
+    await expect(page.locator('.solo-preparation-summary')).toContainText('鋼の前線キット');
+    await expect(page.locator('[data-recipe-id="HEAL_POTION"]')).toContainText('1個');
     await page.getByRole('button', { name: /B5Fから開始/ }).click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#explore-controls')).toBeVisible();
