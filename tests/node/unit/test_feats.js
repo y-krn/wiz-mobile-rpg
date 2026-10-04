@@ -100,6 +100,8 @@ assert.deepEqual(afterDeath, {
   priestRescued: 0,
   weaverRescued: 0,
   scribeRescued: 0,
+  smithRescued: 0,
+  chamberlainRescued: 0,
   guidePagesDecoded: 0,
   kitDepths: { vanguard: 0, scout: 6, devotion: 0, arcana: 0 }
 }, "a run that ends in death still counts what happened");

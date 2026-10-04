@@ -130,6 +130,8 @@ export interface NormalizedCurrentRun {
   companions: NormalizedCompanions;
   offeredMaterials: NormalizedRunOfferedMaterials;
   graveResult: NormalizedRunGraveResult;
+  /** An oath sworn at the oath altar: a death or an abandoned run banks no carried material (#2021). */
+  oath: boolean;
   guideFragments: number;
   guideResult: NormalizedRunGuideResult;
   orderResult: NormalizedRunOrderResult;
@@ -176,7 +178,7 @@ const ITEM_COLLECTION_FIELDS = [
 const REQUIRED_FIELDS = [
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
-  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing", "nearMiss", "featResult", "featsAnnounced", "companions", "offeredMaterials", "graveResult", "guideFragments", "guideResult", "orderResult",
+  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing", "nearMiss", "featResult", "featsAnnounced", "companions", "offeredMaterials", "graveResult", "oath", "guideFragments", "guideResult", "orderResult",
   "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
   "floorSteps", "eventObservations",
@@ -249,6 +251,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!isNormalizedRunFeatResult(value.featResult) || !isAnnouncedFeatIds(value.featsAnnounced)) return false;
   if (!isNormalizedCompanions(value.companions)) return false;
   if (!isNormalizedRunOfferedMaterials(value.offeredMaterials) || !isNormalizedRunGraveResult(value.graveResult)) return false;
+  if (typeof value.oath !== "boolean") return false;
   if (!isRunGuideFragments(value.guideFragments) || !isNormalizedRunGuideResult(value.guideResult)) return false;
   if (!isNormalizedRunOrderResult(value.orderResult)) return false;
   if (value.recordResult !== null && !isNormalizedRunRecordResult(value.recordResult)) return false;

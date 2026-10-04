@@ -681,6 +681,7 @@ function normalizeCurrentRun(run, saveFloor) {
   delete normalized.companion;
   normalized.offeredMaterials = normalizeRunOfferedMaterials(normalized.offeredMaterials);
   normalized.graveResult = normalizeRunGraveResult(normalized.graveResult);
+  normalized.oath = normalized.oath === true;
   normalized.guideFragments = normalizeRunGuideFragments(normalized.guideFragments);
   normalized.guideResult = normalizeRunGuideResult(normalized.guideResult);
   normalized.orderResult = normalizeRunOrderResult(normalized.orderResult);

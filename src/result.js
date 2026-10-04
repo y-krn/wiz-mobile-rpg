@@ -104,9 +104,11 @@ export function triggerRunResult(reason) {
   run.goldEarned = Number(run.goldEarned ?? run.gold) || 0;
   run.lootCount = Number(run.lootCount) || Object.values(run.materialsBeforeBanking)
     .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
+  // A broken oath (#2021) banks none of the carried materials.
+  const oathBroken = run.oath === true && isDeathLike;
   const banking = bankRunMaterials(
     state.metaMaterials,
-    run.materials,
+    oathBroken ? {} : run.materials,
     outcome
   );
   state.metaMaterials = addOffered(banking.balance);
@@ -243,7 +245,8 @@ export function triggerRunResult(reason) {
     lootCount: run.lootCount || Object.values(run.materialsBeforeBanking || {})
       .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0),
     dangerRank: danger.rank,
-    bankedMaterials: banking.banked,
+    // Includes what a chapel offering sent home during the run (#2018).
+    bankedMaterials: run.bankedMaterials,
     lostUnidentifiedCount: isDeathLike ? run.equipmentFound.length : 0,
     itemCount: run.itemsFound.length + run.equipmentFound.length,
     returnReason: reason,

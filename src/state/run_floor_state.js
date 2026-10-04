@@ -206,7 +206,10 @@ export function ensureRunFloor(stateLike, floor) {
 export function applyMirrorVision(stateLike, floor) {
   const grid = stateLike.maps?.[floor - 1];
   const visited = stateLike.visitedMaps?.[floor - 1];
-  if (!grid || !visited || !hasMirrorVisionFor(stateLike.maps?.[floor - 2])) return 0;
+  // The floor above showed this one, or the floor two above showed it through
+  // the mirror gallery (#2021).
+  const shown = hasMirrorVisionFor(stateLike.maps?.[floor - 2]) || hasMirrorVisionFor(stateLike.maps?.[floor - 3], 2);
+  if (!grid || !visited || !shown) return 0;
   const revealed = revealCells(visited, getMirrorVisionCells(grid));
   if (revealed > 0) markMapChanged(stateLike);
   return revealed;

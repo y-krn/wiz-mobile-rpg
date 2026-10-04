@@ -92,7 +92,7 @@ FACILITIES.forEach(facility => {
   assert.ok(getSpecialRoomInfo(facility.site.keeperRoom)?.name, `${facility.id} keeper room is described`);
   assert.equal(KEEPER_ROOM_FACILITY.get(facility.site.keeperRoom), facility);
   assert.ok(facility.site.omen, `${facility.id} announces its keeper on the floor`);
-  assert.ok(["dig", "blood", "fight", "drain"].includes(facility.site.rescue.kind));
+  assert.ok(["dig", "blood", "fight", "drain", "fuel"].includes(facility.site.rescue.kind));
   assert.equal(COMPANIONS[facility.companion.id].facilityId, facility.id);
   const feat = FEAT_BY_ID.get(facility.featId);
   assert.equal(feat.chain, "rescue", "rescues share one chain");
@@ -103,11 +103,18 @@ FACILITIES.forEach(facility => {
     assert.ok(getSpecialRoomInfo(node.grants.room)?.name, `${node.id} rebuilds into a described room`);
   });
   facility.orders.forEach(order => {
-    // An order yields two of a craftable tool for the price of one.
+    // An order yields a craftable tool at half the price of departure craft:
+    // two for one recipe's materials, or one for half the count of an
+    // any-material recipe (the return wing).
     const recipe = CRAFT_RECIPES.find(candidate => candidate.resultId === order.yields[0]);
-    assert.ok(recipe?.mats, `${order.id} yields a tool departure craft can also make`);
-    assert.deepEqual(order.cost, recipe.mats);
-    assert.equal(order.yields.length, 2);
+    assert.ok(recipe, `${order.id} yields a tool departure craft can also make`);
+    if (recipe.mats) {
+      assert.deepEqual(order.cost, recipe.mats);
+      assert.equal(order.yields.length, 2);
+    } else {
+      const total = Object.values(order.cost).reduce((sum, quantity) => sum + quantity, 0);
+      assert.equal(total * 2, recipe.departureCost.total * order.yields.length);
+    }
     assert.deepEqual(getDepartureCraftCost(order.yields, order.yields), { typed: {}, any: 0 },
       "finished goods are stock for departure craft");
   });

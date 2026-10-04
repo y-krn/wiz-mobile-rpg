@@ -306,7 +306,10 @@ function getHudFeats() {
   const carried = fragments > 0
     ? [{ name: "手引き書の断片", progress: `${fragments}枚・生還で持ち帰り`, completed: false, companion: true }]
     : [];
-  return [...escort, ...carried, ...achieved, ...nearest];
+  const oath = run.oath === true
+    ? [{ name: "誓約", progress: "死ねば素材は残らない", completed: false, companion: true }]
+    : [];
+  return [...escort, ...oath, ...carried, ...achieved, ...nearest];
 }
 
 function getExploreGoalSignature() {

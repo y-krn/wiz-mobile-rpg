@@ -40,7 +40,15 @@ export const SPECIAL_ROOMS = Object.freeze({
   // The library's reading room while the scribe is stranded in it, and once
   // the scriptorium keeps it (#2019).
   STRANDED_SCRIBE: "stranded_scribe",
-  SCRIBE_READING_ROOM: "scribe_reading_room"
+  SCRIBE_READING_ROOM: "scribe_reading_room",
+  // The dragon forge's furnace while the smith is shut in behind it, and once
+  // the smithy keeps it burning (#2021).
+  COLD_FORGE: "cold_forge",
+  SMITH_FORGE: "smith_forge",
+  // The abyssal throne's mirror while the chamberlain is caught in it, and
+  // once the audience hall has raised its oath altar there (#2021).
+  MIRROR_CAPTIVE: "mirror_captive",
+  OATH_ALTAR: "oath_altar"
 });
 
 /** Player-facing names and the short line shown when the room is found. */
@@ -58,7 +66,11 @@ export const SPECIAL_ROOM_INFO = Object.freeze({
   cocooned_weaver: Object.freeze({ name: "繭の卵室", glyph: "人", intro: "卵の並ぶ部屋の奥に、人の形をした繭が吊られている。巣の主が近くで眠っている。" }),
   weaver_hammock: Object.freeze({ name: "織り手の吊り寝床", glyph: "寝", intro: "巣の糸で編んだ寝床が吊られている。魔物の寄りつかない静かな場所だ。" }),
   stranded_scribe: Object.freeze({ name: "水に沈んだ閲覧室", glyph: "人", intro: "水の引かない閲覧室の書棚の上に、誰かが取り残されている。" }),
-  scribe_reading_room: Object.freeze({ name: "写本師の閲覧室", glyph: "写", intro: "写本師の整えた閲覧机に、この階と次の階の見取り図が並んでいる。" })
+  scribe_reading_room: Object.freeze({ name: "写本師の閲覧室", glyph: "写", intro: "写本師の整えた閲覧机に、この階と次の階の見取り図が並んでいる。" }),
+  cold_forge: Object.freeze({ name: "火の消えた炉", glyph: "人", intro: "炉の火が消えている。その奥の鉄の扉を、誰かが内側から叩いている。" }),
+  smith_forge: Object.freeze({ name: "鍛冶師の炉", glyph: "鍛", intro: "鍛冶師の弟子が炉の火を守っている。武器を預ければ、長く保つ熱を入れてくれる。" }),
+  mirror_captive: Object.freeze({ name: "囚われの鏡", glyph: "人", intro: "鏡の中に、こちらを叩く人影がある。鏡は生気を欲しがっている。" }),
+  oath_altar: Object.freeze({ name: "誓約の祭壇", glyph: "誓", intro: "鏡の前に祭壇が据えられている。覗くか、生きて帰ると誓うか。" })
 });
 
 // Mine vein: digging spends exploration turns and makes noise, like rubble.
@@ -90,6 +102,13 @@ export const READING_TURNS = 2;
 export const FORGE_MATERIAL_COST = 2;
 export const FORGE_TEMPER_BATTLES = 3;
 export const FORGE_TEMPER_RATE = 0.2;
+// Smith's forge (#2021): the temper holds longer, or the equipped weapon is
+// reforged one grade up, past the grade finds can carry.
+export const SMITH_TEMPER_BATTLES = 5;
+export const REFORGE_MATERIAL_COST = 4;
+export const REFORGE_MAX_LEVEL = 6;
+// Oath altar (#2021): the mirror gallery shows this many floors ahead.
+export const GALLERY_VISION_FLOORS = 2;
 // Mirror hall: the vision of the next floor costs a share of max HP.
 export const MIRROR_HP_RATE = 0.15;
 
@@ -196,10 +215,16 @@ export function getForgeTemperBonus(char) {
   return Math.max(0, Math.floor(Number(temper.bonus) || 0));
 }
 
-export function applyForgeTemper(char, weaponAtk) {
+export function applyForgeTemper(char, weaponAtk, battles = FORGE_TEMPER_BATTLES) {
   const bonus = getForgeTemperAmount(weaponAtk);
-  char.forgeTemper = { bonus, battles: FORGE_TEMPER_BATTLES };
+  char.forgeTemper = { bonus, battles };
   return char.forgeTemper;
+}
+
+/** The enhancement grade a reforge leaves on a weapon, or null when it cannot rise. */
+export function getReforgedLevel(weapon) {
+  const level = Math.max(0, Math.floor(Number(weapon?.enhanceLevel) || 0));
+  return level >= REFORGE_MAX_LEVEL ? null : level + 1;
 }
 
 /**
@@ -321,12 +346,14 @@ export function describeDirection(from, to) {
  * Mirror hall: whether the floor above holds a used mirror, which grants a
  * vision of this floor.
  */
-export function hasMirrorVisionFor(previousGrid) {
+export function hasMirrorVisionFor(previousGrid, distance = 1) {
   return findCells(previousGrid, cell => {
     const room = getSpecialRoom(cell);
-    // A room that showed the next floor says so itself (`vision`); a used
-    // mirror hall always did.
-    return Boolean(room?.used) && (room.kind === SPECIAL_ROOMS.MIRROR_HALL || room.vision === true);
+    if (!room?.used) return false;
+    // A room that showed floors ahead says how many (`vision`: true is one
+    // floor); a used mirror hall always showed the next one.
+    const reach = room.vision === true ? 1 : Math.max(0, Math.floor(Number(room.vision) || 0));
+    return reach >= distance || (distance === 1 && room.kind === SPECIAL_ROOMS.MIRROR_HALL);
   }).length > 0;
 }
 

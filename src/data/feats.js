@@ -54,6 +54,14 @@ export const FEATS = Object.freeze([
     reward: { materials: { "黒角": 5 } }
   }),
   feat({
+    id: "depth_25",
+    chain: "depth",
+    name: "竜火をくぐる",
+    condition: "B25Fに到達する",
+    metric: { kind: "counter", key: "bestDepth", target: 25, unit: "floor" },
+    reward: { materials: { "黒角": 6 } }
+  }),
+  feat({
     id: "depth_30",
     chain: "depth",
     name: "深淵の玉座",
@@ -97,6 +105,22 @@ export const FEATS = Object.freeze([
     reward: { materials: {}, unlock: "写本室が開く" }
   }),
   feat({
+    id: "smith_rescue",
+    chain: "rescue",
+    name: "鍛冶師を連れ帰る",
+    condition: "竜火の鍛造殿の3階目で炉に火を入れて鍛冶師を助け、帰還の門か帰還の翼で生還する",
+    metric: { kind: "counter", key: "smithRescued", target: 1, unit: "rescue", companion: "smith" },
+    reward: { materials: {}, unlock: "鍛冶場が開く" }
+  }),
+  feat({
+    id: "chamberlain_rescue",
+    chain: "rescue",
+    name: "侍従を連れ帰る",
+    condition: "深淵の玉座の3階目で鏡に生気を与えて侍従を助け、帰還の門か帰還の翼で生還する",
+    metric: { kind: "counter", key: "chamberlainRescued", target: 1, unit: "rescue", companion: "chamberlain" },
+    reward: { materials: {}, unlock: "謁見の間が開く" }
+  }),
+  feat({
     id: "guardian_5",
     chain: "guardian",
     name: "坑道の主を倒す",
@@ -127,6 +151,22 @@ export const FEATS = Object.freeze([
     condition: "B20Fの階層守護者を倒す",
     metric: { kind: "counter", key: "guardianDepth", target: 20, unit: "floor" },
     reward: { materials: { "魔石片": 5 } }
+  }),
+  feat({
+    id: "guardian_25",
+    chain: "guardian",
+    name: "鍛造殿の主を倒す",
+    condition: "B25Fの階層守護者を倒す",
+    metric: { kind: "counter", key: "guardianDepth", target: 25, unit: "floor" },
+    reward: { materials: { "竜鱗": 5 } }
+  }),
+  feat({
+    id: "guardian_30",
+    chain: "guardian",
+    name: "玉座の主を倒す",
+    condition: "B30Fの階層守護者を倒す",
+    metric: { kind: "counter", key: "guardianDepth", target: 30, unit: "floor" },
+    reward: { materials: { "竜鱗": 8 } }
   }),
   feat({
     id: "elite_5",
