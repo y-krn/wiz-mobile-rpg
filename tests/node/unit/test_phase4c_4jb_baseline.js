@@ -16,7 +16,6 @@ import {
 } from "../../../src/rules/phase4j_b_trial.js";
 import { applyCombatRewards } from "../../../src/combat_logic/rewards.js";
 import { processMonsterDefeat } from "../../../src/combat_logic/monster_traits.js";
-import { TRIAL_PROFILES } from "../../../src/trial_profiles.js";
 import { calculateCandidateAward } from "../../../scratch/measurements/progression_exp_award_paired_inventory.js";
 import { SPELL_EFFECTS } from "../../../src/systems/spell_effects.js";
 
@@ -30,7 +29,7 @@ function test(name, body) {
   }
 }
 
-function makeState(profile, floor) {
+function makeState(floor) {
   return {
     floor,
     party: [{
@@ -43,7 +42,6 @@ function makeState(profile, floor) {
       equipment: { weapon: "SHORT_SWORD", shield: null, armor: null, accessory: null, accessory2: null }
     }],
     currentRun: {
-      trialProfile: profile,
       startFloor: floor,
       defeatedMilestones: floor > 1 ? [floor] : [],
       expGained: 0,
@@ -63,23 +61,21 @@ function makeState(profile, floor) {
   };
 }
 
-test("selected B1/B10/B20 Phase 4c baseline grants Level 1 HP entitlement to both trial profiles", () => {
-  for (const profile of [TRIAL_PROFILES.PROGRESSION_EXP, TRIAL_PROFILES.PHASE3_EQUIPMENT]) {
-    for (const [floor, baseline, maxHp] of [[1, 0, 20], [10, 2, 24], [20, 4, 28]]) {
-      const state = makeState(profile, floor);
-      assert.equal(resolvePhase4cV1Baseline(state.currentRun), baseline);
-      assert.equal(applyPhase4cV1PlayerBaseline(state, { refill: true }).baseline, baseline);
-      assert.equal(state.party[0].maxHp, maxHp);
-      assert.equal(state.party[0].hp, maxHp);
-      assert.equal(getCharWeaponAtk(state.party[0]), getCharWeaponAtk({ ...state.party[0], phase4cV1Baseline: 0 }) * (1 + 0.16 * baseline));
-      assert.equal(getCharAffixSum(state.party[0], "spellPower"), 0);
-    }
+test("selected B1/B10/B20 Phase 4c baseline grants Level 1 HP entitlement", () => {
+  for (const [floor, baseline, maxHp] of [[1, 0, 20], [10, 2, 24], [20, 4, 28]]) {
+    const state = makeState(floor);
+    assert.equal(resolvePhase4cV1Baseline(state.currentRun), baseline);
+    assert.equal(applyPhase4cV1PlayerBaseline(state, { refill: true }).baseline, baseline);
+    assert.equal(state.party[0].maxHp, maxHp);
+    assert.equal(state.party[0].hp, maxHp);
+    assert.equal(getCharWeaponAtk(state.party[0]), getCharWeaponAtk({ ...state.party[0], phase4cV1Baseline: 0 }) * (1 + 0.16 * baseline));
+    assert.equal(getCharAffixSum(state.party[0], "spellPower"), 0);
   }
 });
 
 test("Phase 4c independently multiplies attack spells and leaves healing spells unchanged", () => {
   const makeCaster = baseline => {
-    const state = makeState(TRIAL_PROFILES.PROGRESSION_EXP, baseline * 5 || 1);
+    const state = makeState(baseline * 5 || 1);
     const caster = state.party[0];
     caster.equipment.weapon = {
       baseId: "SHORT_SWORD",
@@ -106,8 +102,9 @@ test("Phase 4c independently multiplies attack spells and leaves healing spells 
   }
 });
 
-test("normal mode stays unscaled and a defeated milestone advances trial baseline without healing", () => {
-  const normal = makeState(TRIAL_PROFILES.NORMAL, 10);
+test("no active run stays unscaled and a defeated milestone advances the baseline without healing", () => {
+  const normal = makeState(10);
+  normal.currentRun = null;
   const beforeAttack = getCharWeaponAtk(normal.party[0]);
   const baselineResult = applyPhase4cV1PlayerBaseline(normal, { refill: true });
   assert.equal(baselineResult.applied, false);
@@ -119,12 +116,12 @@ test("normal mode stays unscaled and a defeated milestone advances trial baselin
     target: { name: "敵", hp: 1000, magicResist: 0 },
     rng: () => 0
   }).damage;
-  assert.equal(normalSpellDamage, 12, "normal mode has no Phase 4c spell multiplier");
+  assert.equal(normalSpellDamage, 12, "no active run has no Phase 4c spell multiplier");
   const untouchedEnemy = { ...MONSTERS.find(monster => !monster.isBoss), hp: 77, maxHp: 77, atk: 23, def: 4 };
   assert.equal(preparePhase4cV1Encounter(normal, [untouchedEnemy]).applied, false);
   assert.deepEqual([untouchedEnemy.hp, untouchedEnemy.maxHp, untouchedEnemy.atk, untouchedEnemy.def], [77, 77, 23, 4]);
 
-  const trial = makeState(TRIAL_PROFILES.PROGRESSION_EXP, 1);
+  const trial = makeState(1);
   applyPhase4cV1PlayerBaseline(trial, { refill: true });
   trial.party[0].hp = 7;
   trial.currentRun.defeatedMilestones.push(5);
@@ -136,7 +133,7 @@ test("normal mode stays unscaled and a defeated milestone advances trial baselin
 });
 
 test("Phase 4c scales generic enemies, summons, and guardians by band, and split children inherit parent scale", () => {
-  const state = makeState(TRIAL_PROFILES.PHASE3_EQUIPMENT, 10);
+  const state = makeState(10);
   const template = MONSTERS.find(monster => !monster.isBoss && !monster.isMidboss && !monster.treasureRare);
   const generic = { ...template, name: `${template.name} A`, hp: 999, maxHp: 999, atk: 999, def: 999 };
   const guardianTemplate = MONSTERS.find(monster => monster.name === "ストーンガード");
@@ -183,7 +180,7 @@ test("Phase 4j-B awards match the frozen diagnostic formula and deterministic al
       encounterSize: templates.length
     }).totalAward;
     assert.equal(productionAward, frozenAward);
-    const state = makeState(TRIAL_PROFILES.PROGRESSION_EXP, floor);
+    const state = makeState(floor);
     const enemies = templates.map(template => ({ ...template, hp: 1, maxHp: 1 }));
     const planned = preparePhase4jBEncounter(state, enemies);
     assert.equal(planned.totalAward, frozenAward);
@@ -201,7 +198,7 @@ test("Phase 4j-B awards match the frozen diagnostic formula and deterministic al
 });
 
 test("fled initial enemy keeps its owner allocation out of the EXP settlement", () => {
-  const state = makeState(TRIAL_PROFILES.PROGRESSION_EXP, 1);
+  const state = makeState(1);
   const templates = BIOMES[0].enemyPool.slice(0, 2).map(name => MONSTERS.find(monster => monster.name === name));
   const monsters = templates.map((template, index) => ({
     ...template,
@@ -225,7 +222,7 @@ test("fled initial enemy keeps its owner allocation out of the EXP settlement", 
 });
 
 test("combat reward grants candidate EXP once, levels once, and excludes split/summon descendants", () => {
-  const state = makeState(TRIAL_PROFILES.PROGRESSION_EXP, 1);
+  const state = makeState(1);
   const character = state.party[0];
   const template = MONSTERS.find(monster => monster.traits?.includes("splitOnDeath") && !monster.isBoss);
   assert.ok(template);

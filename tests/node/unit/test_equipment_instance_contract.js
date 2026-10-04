@@ -23,7 +23,7 @@ function assertGeneratedEquipment(item, label) {
   assert.equal(typeof item.baseId, "string");
   assert.ok(["magic", "rare", "epic"].includes(item.rarity));
   assert.equal(Number.isFinite(item.level), true);
-  assert.equal(item.identified, false);
+  assert.equal(typeof item.identified, "boolean");
   assert.equal(Array.isArray(item.affixes), true);
   assert.equal(item.affixes.every(isEquipmentAffix), true);
 }

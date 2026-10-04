@@ -37,11 +37,10 @@ permanent tier.
 ## Build vNext contract (#1801, default run rules since #1815)
 
 Since #1815 every new run uses the Phase 3 equipment rules together with the
-Phase 4c v1 baseline and fixed 4j-B EXP (`trialProfile: phase3-equipment`).
-There is no run-mode selection. The legacy `normal` and `progression-exp`
-profiles remain only so saved in-progress runs finish under the rules they
-started with. The rules below still say "trial" where they name the
-historical profile. The contract resolves three structural problems found by play (#1799): finds did not make
+Phase 4c v1 baseline and fixed 4j-B EXP. There is no run-mode selection and
+no run profile: the legacy `normal` and `progression-exp` profiles were
+removed, and saved in-progress runs continue under these rules. The rules below
+still say "trial" where they name the historical profile. The contract resolves three structural problems found by play (#1799): finds did not make
 the character stronger, combat had no verbs for "how to fight" to change, and
 finding loot was not a choice. The contract is:
 

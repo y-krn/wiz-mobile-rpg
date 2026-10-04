@@ -72,7 +72,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
       { id: "traps.floor-resolution", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.floor-resolution"], anyPositive: ["trapEncounterCount"] } },
       { id: "economy.material-bank", domain: "economy", evidence: { anyPositive: ["bankedMaterials"] } },
       { id: "workshop.departure-craft", domain: "workshop", evidence: { anyPositive: ["departureCraftEvaluations"] } },
-      { id: "workshop.equipment-craft", domain: "workshop", evidence: { callLevel: ["runtimeCalls.workshop.enhance"], anyPositive: ["equipmentCraft.enhanceAttempts"] } }
+      { id: "workshop.equipment-craft", domain: "workshop", evidence: { callLevel: ["runtimeCalls.workshop.polish"], anyPositive: ["equipmentCraft.polishAttempts"] } }
     ]),
     // Only these domains have a declared runtime evidence path in the
     // lightweight smoke. modelDomains deliberately includes the broader
@@ -125,6 +125,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/equipment_vnext_trial.js", domains: ["chests", "equipment"] },
     { pattern: "src/rules/phase4c_v1_trial.js", domains: ["combat", "progression"] },
     { pattern: "src/rules/phase4j_b_trial.js", domains: ["progression"] },
+    { pattern: "src/save_keys.js", domains: [] },
+    // Removed profile module (renamed to save_keys.js); its balance effect lives in the rule modules above.
     { pattern: "src/trial_profiles.js", domains: [] },
     { pattern: "src/data/milestone_merchant.js", domains: ["economy"] },
     { pattern: "src/menu/explore_actions.js", domains: ["maps", "traps"] },

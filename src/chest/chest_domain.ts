@@ -383,13 +383,7 @@ export function rollChestEncounter({
     ? rollChestSpecialReward(floor, rng)
     : null;
   const accessoryItem: ChestLootItem | null = forcedItem === null
-    ? rollChestAccessory(
-      floor,
-      rng,
-      rewardParty,
-      undefined,
-      typeof currentRun?.trialProfile === "string" ? currentRun.trialProfile : "normal"
-    )
+    ? rollChestAccessory(floor, rng, rewardParty)
     : null;
   return {
     trap,

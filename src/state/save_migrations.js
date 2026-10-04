@@ -603,9 +603,9 @@ function normalizeCurrentRun(run, saveFloor) {
   const normalized = normalizeRunOutcome(run);
   const defaults = createDefaultCurrentRun();
 
-  if (!["normal", "progression-exp", "phase3-equipment"].includes(normalized.trialProfile)) {
-    normalized.trialProfile = "normal";
-  }
+  // Run profiles were removed; saved in-progress runs continue under the
+  // standard rules.
+  delete normalized.trialProfile;
 
   Object.entries(defaults).forEach(([key, defaultValue]) => {
     if (Array.isArray(defaultValue)) {

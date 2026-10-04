@@ -10,7 +10,6 @@ import { purifyEquipmentCurse } from "./identification.js";
 import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { VNEXT_UNAVAILABLE_ITEM_IDS } from "../rules/equipment_vnext_trial.js";
-import { TRIAL_PROFILES } from "../trial_profiles.js";
 
 type MerchantStockKind = "identify" | "item";
 
@@ -41,7 +40,6 @@ type MerchantInventoryItem = RuntimeItemRef | MerchantInventoryObject;
 
 interface MerchantCurrentRunLike {
   materials?: NormalizedRunMaterials;
-  trialProfile?: string;
   [key: string]: unknown;
 }
 
@@ -83,15 +81,14 @@ function isMerchantStockEntry(value: unknown): value is MerchantStockEntry {
   );
 }
 
-export function getMilestoneMerchantStock(trialProfile?: string): MerchantStockEntry[] {
-  if (trialProfile !== TRIAL_PROFILES.PHASE3_EQUIPMENT) return [...MILESTONE_MERCHANT_STOCK];
+export function getMilestoneMerchantStock(): MerchantStockEntry[] {
   return MILESTONE_MERCHANT_STOCK.filter(entry =>
     !("itemId" in entry) || !VNEXT_UNAVAILABLE_ITEM_IDS.includes(entry.itemId)
   );
 }
 
-function findStockEntry(stockId: string, trialProfile?: string): MerchantStockEntry | null {
-  const entry = getMilestoneMerchantStock(trialProfile).find((candidate: unknown) =>
+function findStockEntry(stockId: string): MerchantStockEntry | null {
+  const entry = getMilestoneMerchantStock().find((candidate: unknown) =>
     isMerchantStockEntry(candidate) && candidate.id === stockId
   );
   return isMerchantStockEntry(entry) ? entry : null;
@@ -110,7 +107,7 @@ export function purchaseMilestoneStock(
   entry: MerchantStockEntry;
 } {
   const currentRun = stateLike.currentRun;
-  const entry = findStockEntry(stockId, currentRun?.trialProfile);
+  const entry = findStockEntry(stockId);
   if (!entry) return { ok: false, reason: "unknown_stock" };
   const materials = currentRun?.materials;
   if (!currentRun || !materials || !canAffordMaterials(materials, entry.cost)) {

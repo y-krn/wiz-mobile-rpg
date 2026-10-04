@@ -15,7 +15,6 @@ import {
 } from "../rules/identification_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
 import { isEquipmentInstance } from "../state/equipment.js";
-import { TRIAL_PROFILES } from "../trial_profiles.js";
 import {
   getVNextTrialCandidates,
   isVNextDevotionWeapon,
@@ -86,16 +85,6 @@ const WORKSHOP_LOCKED_AFFIX_IDS = new Set([
   "CORE_TOMB_RAIDER",
   "CORE_SCHOLAR_EYE",
   "CORE_THIN_ICE_PACT"
-]);
-
-// Lateral Workshop unlocks occupy a reserved same-slot core slot. Enabling a
-// side-grade therefore replaces one authored baseline possibility instead of
-// diluting every existing core's chance by adding another candidate.
-const WORKSHOP_LATERAL_REPLACEMENTS = new Map([
-  ["CORE_TRAP_EATER", "CORE_CURSE_KEEPER"],
-  ["CORE_TOMB_RAIDER", "CORE_BOUNTY_HUNTER"],
-  ["CORE_SCHOLAR_EYE", "CORE_KEEN_EYE"],
-  ["CORE_THIN_ICE_PACT", "CORE_SNEAK_STEP"]
 ]);
 
 function requireGenerationOptions(options, functionName) {
@@ -175,72 +164,6 @@ function withSupportDefinition(candidate) {
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null, lootRole = null, phase3Equipment = false, forceCoreId = null, baseId = null) {
-  if (phase3Equipment) {
-    return rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId, baseId);
-  }
-  const budget = getAffixBudget(rarity, floor);
-  const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
-    ? AFFIX_BALANCE.corePoolWeights.shallow
-    : AFFIX_BALANCE.corePoolWeights.deep;
-  const activeUnlocks = Array.isArray(unlockedAffixIds) ? new Set(unlockedAffixIds) : null;
-  const activeLateralUnlocks = Array.isArray(party?.[0]?.lateralUnlockAffixIds)
-    ? new Set(party[0].lateralUnlockAffixIds)
-    : new Set();
-  const reservedReplacements = activeLateralUnlocks.size > 0
-    ? new Set([...WORKSHOP_LATERAL_REPLACEMENTS.entries()]
-      .filter(([lateralId, replacementId]) => replacementId
-        && activeLateralUnlocks.has(lateralId)
-        && CORE_AFFIXES.some(affix => affix.id === lateralId
-          && affix.enabled
-          && affix.slot === slot
-          && affix.cost <= budget))
-      .map(([, replacementId]) => replacementId))
-    : new Set();
-  const corePool = allowCores ? CORE_AFFIXES
-    .filter(affix => affix.enabled
-      && (!phase3Equipment || isVNextTrialCore(affix.id))
-      && affix.slot === slot
-      && affix.cost <= budget
-      && !reservedReplacements.has(affix.id)
-      && (
-        !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) ||
-        !activeUnlocks ||
-        activeUnlocks.has(affix.id)
-      ))
-    .map(affix => ({
-      ...affix,
-      type: affix.id,
-      value: 1,
-      buildRole: affix.buildRole,
-      weight: poolWeights[affix.poolGroup] || 1
-    })) : [];
-
-  if (corePool.length === 0) {
-    const count = AFFIX_BALANCE.legacySupportCounts[source][rarity] || 1;
-    return rollAffixes(supportPool, count, rng, budget, lootRole);
-  }
-
-  const composition = AFFIX_BALANCE.rollComposition[rarity]
-    || AFFIX_BALANCE.rollComposition.magic;
-  if (typeof composition.coreChance === "number") {
-    if (rng() >= composition.coreChance) {
-      return rollAffixes(supportPool, composition.support, rng, budget, lootRole);
-    }
-    return rollAffixes(corePool, Math.max(1, composition.core || 1), rng, budget, lootRole);
-  }
-
-  const coreCount = Math.max(0, composition.core || 0);
-  const coreAffixes = coreCount > 0
-    ? rollAffixes(corePool, coreCount, rng, budget, lootRole)
-    : [];
-  const remainingBudget = budget - coreAffixes.reduce((sum, affix) => {
-    return sum + (CORE_AFFIXES.find(definition => definition.id === affix.id)?.cost || 0);
-  }, 0);
-  const supportAffixes = rollAffixes(supportPool, composition.support, rng, remainingBudget, lootRole);
-  return [...coreAffixes, ...supportAffixes];
-}
-
 function getDominantBuildRole(affixes, fallbackRole) {
   const counts = new Map();
   affixes.forEach(affix => {
@@ -287,9 +210,8 @@ export function buildUnidentifiedMeta(
 }
 
 export function generateRandomEquipment(floor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, trialProfile = TRIAL_PROFILES.NORMAL, forceBaseId = null, forceCoreId = null } =
+  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null } =
     requireGenerationOptions(options, "generateRandomEquipment");
-  const phase3Equipment = trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
@@ -300,14 +222,14 @@ export function generateRandomEquipment(floor, options) {
   if (excludeHighEnd) {
     baseCandidates = baseCandidates.filter(baseId => !RESTRICTED_CHEST_BASES.includes(baseId));
   }
-  if (phase3Equipment) baseCandidates = getVNextTrialCandidates(baseCandidates);
+  baseCandidates = getVNextTrialCandidates(baseCandidates);
 
   // Reuse the historical pre-selection roll for the role target so seeded
   // streams stay stable. Candidate selection remains independent of the loadout.
   const lootRole = rollLootBuildRole(floor, rng);
   const baseRoll = rng();
   let baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
-  if (phase3Equipment && forceBaseId && ITEMS[forceBaseId]) baseId = forceBaseId;
+  if (forceBaseId && ITEMS[forceBaseId]) baseId = forceBaseId;
   let baseItem = ITEMS[baseId];
   if (!baseItem) return null;
   
@@ -326,7 +248,7 @@ export function generateRandomEquipment(floor, options) {
   const possibleAffixes = [];
   const addAffix = (minFloor, type, getVal, weight = 3) => {
     if (floor < minFloor) return;
-    if (phase3Equipment && !isVNextTrialSupport(type, {
+    if (!isVNextTrialSupport(type, {
       slot: baseItem.type === "weapon" ? "weapon" : baseItem.type,
       baseId
     })) return;
@@ -371,9 +293,7 @@ export function generateRandomEquipment(floor, options) {
   if (isSpellPowerEligible) {
     addAffix(2, "spellPower", () => AFFIX_BALANCE.spellPowerByRarity[rarity], 2);
   }
-  const isDevotionEligible = phase3Equipment
-    ? isVNextDevotionWeapon(baseId)
-    : ["MACE", "PRIEST_ROBE", "SACRED_MACE", "HOLY_STAFF"].includes(baseId);
+  const isDevotionEligible = isVNextDevotionWeapon(baseId);
   if (isDevotionEligible) {
     addAffix(2, "devotion", () => 15, 2); // +15%
   }
@@ -429,7 +349,7 @@ export function generateRandomEquipment(floor, options) {
     addAffix(2, "antiSpirit", () => getSupportValueByRarity("antiSpirit", rarity), 1);
     // #271実src N=8,000: B5装備2.0%、職内r=0.065 [0.027, 0.103]、event勝率4.9%→4.8%。
     addAffix(2, "antiDemon", () => getSupportValueByRarity("antiDemon", rarity), 1);
-    if (!phase3Equipment || isVNextMediumWeapon(baseId)) {
+    if (isVNextMediumWeapon(baseId)) {
       addAffix(3, "spellAccuracy", () => getSupportValueByRarity("spellAccuracy", rarity), 1);
     }
     addAffix(3, "killHeal", () => 2, 1);
@@ -449,7 +369,7 @@ export function generateRandomEquipment(floor, options) {
   addAffix(1, "contractReward", () => 10, 2);
   
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment, phase3Equipment ? forceCoreId : null, baseId);
+  const affixes = rollBuildVNextAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId, baseId);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
 
@@ -543,25 +463,24 @@ export function generateRandomEquipment(floor, options) {
     buildRoles,
     lootRole
   };
-  if (phase3Equipment) applyBuildVNextSupply(generated, baseItem.type, floor, rng);
+  applyBuildVNextSupply(generated, baseItem.type, floor, rng);
   return requireGeneratedEquipment(generated);
 }
 
 export function generateRandomAccessory(floor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null, trialProfile = TRIAL_PROFILES.NORMAL, forceBaseId = null, forceCoreId = null } =
+  const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null } =
     requireGenerationOptions(options, "generateRandomAccessory");
-  const phase3Equipment = trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "accessory", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[candidateFloor]
     || ACCESSORY_CANDIDATES_BY_FLOOR[30];
-  if (phase3Equipment) baseCandidates = getVNextTrialCandidates(baseCandidates);
+  baseCandidates = getVNextTrialCandidates(baseCandidates);
 
   const lootRole = rollLootBuildRole(floor, rng);
   const baseRoll = rng();
   let baseId = baseCandidates[Math.floor(baseRoll * baseCandidates.length)];
-  if (phase3Equipment && forceBaseId && ITEMS[forceBaseId]) baseId = forceBaseId;
+  if (forceBaseId && ITEMS[forceBaseId]) baseId = forceBaseId;
   const baseItem = ITEMS[baseId];
   if (!baseItem) return null;
 
@@ -609,12 +528,12 @@ export function generateRandomAccessory(floor, options) {
     { type: "identifyDiscount", getVal: () => 10, weight: 2 },
     { type: "materialFind", getVal: () => 10, weight: 2 },
     { type: "contractReward", getVal: () => 10, weight: 2 }
-  ].filter(aff => aff.weight > 0 && (!phase3Equipment || isVNextTrialSupport(aff.type, { slot: "accessory", baseId })))
+  ].filter(aff => aff.weight > 0 && isVNextTrialSupport(aff.type, { slot: "accessory", baseId }))
     .map(withSupportDefinition)
     .filter(Boolean);
 
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party, lootRole, phase3Equipment, phase3Equipment ? forceCoreId : null, baseId);
+  const affixes = rollBuildVNextAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId, baseId);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
   const tags = [...(baseItem.tags || [])];
@@ -690,6 +609,6 @@ export function generateRandomAccessory(floor, options) {
     buildRoles,
     lootRole
   };
-  if (phase3Equipment) applyBuildVNextSupply(generated, "accessory", floor, rng);
+  applyBuildVNextSupply(generated, "accessory", floor, rng);
   return requireGeneratedEquipment(generated);
 }

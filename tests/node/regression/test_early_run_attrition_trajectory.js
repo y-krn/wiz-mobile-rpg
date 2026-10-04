@@ -451,11 +451,14 @@ assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributi
 // corrosion, so one more B3 entrant returns instead of descending. #1962 biome
 // layout archetypes and #1963 traversal gimmicks reshuffle the seeded floors;
 // 64-run comparisons for each kept B3-B5 entrants and deaths within noise.
-assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 7);
+// Removing the normal run profile makes simulated runs use the unified Build
+// vNext rules: one more of the eight seeded runs now enters B3 and then
+// returns voluntarily; reaching B4 and deaths are unchanged.
+assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 8);
 assert.deepEqual(
   Object.fromEntries(Object.entries(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts)
     .map(([id, cohort]) => [id, cohort.count])),
-  { reachedNextFloor: 4, died: 1, voluntaryReturn: 2, otherTerminal: 0 }
+  { reachedNextFloor: 4, died: 1, voluntaryReturn: 3, otherTerminal: 0 }
 );
 assert.equal(canonicalOnlySmoke.cases[0].policies.t0, undefined);
 const canonicalOnlyReport = trajectory.buildReport(
@@ -582,15 +585,20 @@ assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.totalCount, 16)
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.retainedCount, trajectory.RUN_EVIDENCE_SAMPLE_LIMIT);
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.droppedCount, 8);
 assert.equal(largerReport.cases[0].returnContinuation.rows.length <= trajectory.RETURN_CONTINUATION_SAMPLE_LIMIT, true);
+// The unified Build vNext supply never produces the multi-candidate rejection
+// reasons (out-ranked-by-later-candidate, not-best-selection-score) in these
+// seeded runs, so the aggregate-retention check uses the strictUpgrade reasons
+// that do occur.
+const strictUpgradeRejectionsByReason = reason => Object.values(
+  largerSmoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor
+).reduce((sum, floor) => sum + (floor.byRejectionReason[reason]?.strictUpgrade?.rejectedCandidateCount || 0), 0);
 assert.ok(
-  largerSmoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor["1"]
-    .byRejectionReason["out-ranked-by-later-candidate"].strictUpgrade.rejectedCandidateCount > 0,
-  "aggregate must retain strictUpgrade out-ranked-by-later-candidate reasons"
+  strictUpgradeRejectionsByReason("combat-score-not-higher") > 0,
+  "aggregate must retain strictUpgrade combat-score-not-higher reasons"
 );
 assert.ok(
-  largerSmoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor["1"]
-    .byRejectionReason["not-best-selection-score"].strictUpgrade.rejectedCandidateCount > 0,
-  "aggregate must retain strictUpgrade not-best-selection-score reasons"
+  strictUpgradeRejectionsByReason("score-not-higher") > 0,
+  "aggregate must retain strictUpgrade score-not-higher reasons"
 );
 
 const b2Smoke = await trajectory.runMeasurement({

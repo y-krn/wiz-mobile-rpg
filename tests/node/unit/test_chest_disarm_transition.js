@@ -73,6 +73,7 @@ function prepareChest() {
   }];
   state.inventory = [];
   state.currentRun = createDefaultCurrentRun();
+  state.currentRun.buildSeedOffered = true; // the Build vNext seed choice is covered by its own tests
   state.chestState = null;
   state.gameState = "explore";
   state.transitioning = false;

@@ -469,7 +469,7 @@ W.__auto = async (policy = { explore: 0.6 }, maxIter = 600) => {
 
 // ---------- run start (seedable) ----------
 const KIT_NAMES = { vanguard: '鋼の前線キット', scout: '軽装探索キット', devotion: '祈りの旅装キット', arcana: '術式の旅装キット' };
-// New runs always use the phase3-equipment profile (#1815); there is no mode picker.
+// There is a single run rule set (#1815); there is no mode picker.
 W.__startRun = async ({ kit = 'vanguard', seed = null } = {}) => {
   if (W.__btns().some(t => t.includes('街へ戻る'))) { await W.__click('街へ戻る'); await sl(1000); }
   for (let t = 0; t < 4 && !document.querySelector('button.solo-start-floor-option'); t++) {
@@ -487,7 +487,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null } = {}) => {
   const run = st().currentRun;
   // Fingerprint of the B1 layout so before/after runs can prove they share maps.
   let h = 2166136261; for (const row of st().map) for (const c of row) for (const w of c.walls) { h ^= w ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
-  return { ok: st().floor === 1 && run?.trialProfile !== 'normal', runSeed: run?.runSeed, mapFingerprint: h.toString(16), trialProfile: run?.trialProfile, maxHp: DATA.getCharMaxHp(P()), mp: P().mp, maxMp: DATA.getCharMaxMp(P()) };
+  return { ok: st().floor === 1, runSeed: run?.runSeed, mapFingerprint: h.toString(16), maxHp: DATA.getCharMaxHp(P()), mp: P().mp, maxMp: DATA.getCharMaxMp(P()) };
 };
 
 // One complete run; returns a plain JSON summary.

@@ -15,6 +15,7 @@ async function prepareTeleporterChest(page) {
     character.status = 'ok';
     state.party = [character];
     state.currentRun = createDefaultCurrentRun();
+    state.currentRun.buildSeedOffered = true; // the first ordinary chest otherwise offers the build seed
     state.map[state.y][state.x].event = 'chest';
     const origin = { x: state.x, y: state.y };
     setupChestState('teleporter', null, null);

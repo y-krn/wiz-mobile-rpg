@@ -25,6 +25,7 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
       }
     ];
     state.currentRun = createDefaultCurrentRun();
+    state.currentRun.buildSeedOffered = true; // the first ordinary chest otherwise offers the build seed
     state.gameState = 'explore';
     // Force transition to chest menu
     setupChestState("none", null, "HEAL_POTION");
@@ -110,6 +111,7 @@ test('A trap kit opens a trapped chest without firing the trap @e2e', async ({ p
       equipment: { weapon: null, shield: null, armor: null },
     }];
     state.currentRun = createDefaultCurrentRun();
+    state.currentRun.buildSeedOffered = true; // the first ordinary chest otherwise offers the build seed
     state.floor = 2;
     state.inventory = ['TRAP_KIT'];
     setupChestState('poison needle', null, 'HEAL_POTION');

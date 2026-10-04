@@ -1,14 +1,12 @@
 // Weapon technique availability, cooldown and Core hooks (Build vNext, #1801).
-// Techniques exist only in the Phase 3 equipment trial profile; the normal
-// profile never sees the action, so its combat contract is unchanged.
+// Techniques are available during any active run.
 import { TECHNIQUE_BY_PROFILE, TELEGRAPH_FLAGS } from "../data/techniques.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
-import { TRIAL_PROFILES } from "../trial_profiles.js";
 import { getCharCoreParams } from "./affix_rules.js";
 import { getCharMaxHp } from "./character_stats.js";
 
 export function isBuildVNextRun(stateLike) {
-  return stateLike?.currentRun?.trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT;
+  return Boolean(stateLike?.currentRun);
 }
 
 export function getCharTechnique(char, stateLike) {

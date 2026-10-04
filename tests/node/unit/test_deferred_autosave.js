@@ -38,7 +38,7 @@ const {
   saveAutosave,
   scheduleAutosave
 } = await import("../../../src/state/save_storage.ts");
-const { SAVE_KEYS } = await import("../../../src/trial_profiles.js");
+const { SAVE_KEYS } = await import("../../../src/save_keys.js");
 const { state } = await import("../../../src/state.js");
 
 const saveWrites = () => writes.filter(key => key === SAVE_KEYS.save).length;

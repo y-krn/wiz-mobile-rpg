@@ -168,7 +168,9 @@ const fleeScenario = {
   fleeHpThreshold: 0.9,
   milestonePortalPolicy: "continue"
 };
-resetSimulationRandom(2);
+// Seed 2 -> 3: the unified Build vNext rules (normal profile removed) change
+// the seeded B1-B5 route, and seed 2 no longer reaches the B5 guardian.
+resetSimulationRandom(3);
 const fleeBoss = simulateRun({
   className: "Thief",
   startFloor: 1,
@@ -379,6 +381,7 @@ const qualifyingGuardianScenario = {
   milestonePortalPolicy: "continue",
   // #1801: guardian adds share one slot, so at +1000 HP the guardian dies
   // before the 80% flee threshold is reached; +600 keeps the qualifying flee.
+  // Seed 6 is the first seed that earns the checkpoint under the unified rules.
   hpBaseBonus: 600,
   merchantPolicy: "supply-missing",
   b5GuardianRetryCheckpoint: true,
@@ -386,12 +389,12 @@ const qualifyingGuardianScenario = {
 };
 const qualifyingGuardian = runGuardianRetryProbe(
   qualifyingGuardianScenario,
-  1,
+  6,
   "issue1374-qualifying-flee"
 );
 const qualifyingRepeat = runGuardianRetryProbe(
   qualifyingGuardianScenario,
-  1,
+  6,
   "issue1374-qualifying-flee"
 );
 assert.deepEqual(qualifyingGuardian.b5GuardianRetry, qualifyingRepeat.b5GuardianRetry);
@@ -401,7 +404,8 @@ assert.ok(qualifyingAttempts.some(attempt => attempt.qualifyingFlee));
 const appliedAttempts = qualifyingAttempts.filter(attempt => attempt.checkpointApplied);
 assert.ok(appliedAttempts.length > 0);
 assert.ok(appliedAttempts.every(attempt =>
-  attempt.bossStartHpRate === 0.8 &&
+  // Integer boss HP rounds the 80% checkpoint (e.g. 66/82), so allow one HP of slack.
+  Math.abs(attempt.bossStartHpRate - 0.8) <= 1 / attempt.bossStartMaxHp &&
   attempt.bossStartGuardBroken === false &&
   attempt.bossStartExposureTurns === 0
 ));

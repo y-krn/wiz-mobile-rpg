@@ -6,7 +6,6 @@
 import { generateRandomAccessory, generateRandomEquipment } from "./equipment_generation.js";
 import { KNOWLEDGE_STAGES, setKnowledgeStage } from "../rules/identification_rules.js";
 import { CURSE_EFFECTS, ITEMS } from "../data/items.js";
-import { TRIAL_PROFILES } from "../trial_profiles.js";
 
 export const BUILD_SEED_CHOICE_ROLE = "seed";
 
@@ -42,8 +41,7 @@ export const BUILD_SEED_DIRECTIONS = Object.freeze([
 
 export function shouldOfferBuildSeed(stateLike, { fromDrop = false } = {}) {
   const run = stateLike?.currentRun;
-  return Boolean(run) && run.trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT
-    && !fromDrop && run.buildSeedOffered !== true;
+  return Boolean(run) && !fromDrop && run.buildSeedOffered !== true;
 }
 
 function makeLegible(item) {
@@ -66,7 +64,6 @@ export function generateBuildSeedOffer(stateLike, rng = Math.random) {
       forceRarity: "magic",
       rng,
       party: stateLike.party,
-      trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT,
       forceBaseId: choice.baseId,
       forceCoreId: choice.coreId
     };

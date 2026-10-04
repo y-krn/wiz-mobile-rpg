@@ -318,6 +318,7 @@ import { createStartingKitCharacter } from "../../../src/state.js";
     const { ITEMS } = await import("../../../src/data/items.js");
     const { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } = await import("../../../src/data/equipment_tables.js");
     const { generateRandomEquipment } = await import("../../../src/systems/equipment_generation.js");
+    const { isVNextTrialSupport, isVNextDevotionWeapon } = await import("../../../src/rules/equipment_vnext_trial.js");
     const craftModule = await import("../../../src/craft.js");
     assert.ok(!Object.hasOwn(craftModule, "getDismantleResults"));
     assert.ok(!Object.hasOwn(craftModule, "executeDismantle"));
@@ -344,33 +345,22 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       FLAME_SWORD: ["followUp"]
     };
 
-    function makeRng(baseIndex, candidateCount, seed) {
-      let calls = 0;
-      let state = seed;
-      return () => {
-        calls++;
-        if (calls === 1) {
-          return 0.99;
-        }
-        if (calls === 2) {
-          return (baseIndex + 0.01) / candidateCount;
-        }
-        state = (state * 1664525 + 1013904223) >>> 0;
-        return state / 0x100000000;
-      };
-    }
-
+    // The unified Build vNext pool only rolls the audited canonical bases, so
+    // legacy variety bases are generated through the forced-base option.
     function collectAffixTypes(baseId, floor, runs = 800) {
-      const candidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor];
-      const baseIndex = candidates.indexOf(baseId);
-      assert.ok(baseIndex >= 0, `${baseId} must be registered for B${floor}F`);
+      assert.ok(EQUIPMENT_CANDIDATES_BY_FLOOR[floor].includes(baseId), `${baseId} must be registered for B${floor}F`);
 
       const found = new Set();
       let unidentifiedName = "";
       for (let seed = 1; seed <= runs; seed++) {
+        let state = seed;
         const item = generateRandomEquipment(floor, {
           forceRarity: "epic",
-          rng: makeRng(baseIndex, candidates.length, seed)
+          forceBaseId: baseId,
+          rng: () => {
+            state = (state * 1664525 + 1013904223) >>> 0;
+            return state / 0x100000000;
+          }
         });
         assert.strictEqual(item.baseId, baseId);
         unidentifiedName = item.unidentifiedName;
@@ -391,7 +381,7 @@ import { createStartingKitCharacter } from "../../../src/state.js";
     });
     const mageDropData = ITEMS[mageDrop.baseId];
     assert.ok(mageDropData, `floor candidate must resolve without a class filter: ${mageDrop.baseId}`);
-    assert.strictEqual(mageDrop.baseId, "BATTLE_GARB", "a Mage can receive a base historically restricted to another class");
+    assert.strictEqual(mageDrop.baseId, "PLATE_MAIL", "a Mage can receive a base historically restricted to another class");
 
     const unsupportedParty = [{
       class: "UnsupportedClass",
@@ -420,9 +410,14 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       assert.ok(EQUIPMENT_CANDIDATES_BY_FLOOR[expected.floor].includes(baseId), `${baseId} must drop on B${expected.floor}F`);
 
       const { found, unidentifiedName } = collectAffixTypes(baseId, expected.floor);
+      // Only Supports in the audited pool can roll; retired ones never do.
       expectedAffixes[baseId].forEach(type => {
-        assert.ok(found.has(type), `${baseId} should be eligible for ${type}`);
+        const eligible = isVNextTrialSupport(type, { slot: "weapon", baseId }) &&
+          (type !== "devotion" || isVNextDevotionWeapon(baseId));
+        if (eligible) assert.ok(found.has(type), `${baseId} should be eligible for ${type}`);
+        else assert.ok(!found.has(type), `${baseId} never rolls retired Support ${type}`);
       });
+      assert.ok(found.size > 0, `${baseId} rolls at least one affix`);
       assert.ok(unidentifiedName.includes(expected.namePart), `${baseId} unidentified name should include ${expected.namePart}`);
 
     }
@@ -542,7 +537,7 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       antiDemon: 25,
       poisonWard: 25,
       treasureSense: 8,
-      hearRange: 2,
+      hearRange: 3, // vNext epic table value (src/data/affixes.js)
       arcaneSense: 3,
       traceRead: 3,
       deepAssault: 15,
@@ -553,6 +548,7 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       statusResistance: 20,
       spellAccuracy: 15,
       killHeal: 2,
+      stairsHeal: 4,
       followUpMp: 1,
       hitFlinch: 15,
       identifyDiscount: 10,
@@ -564,12 +560,13 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       const rng = lcg(100 + rarityIndex);
       const accessory = generateRandomAccessory(5, rarity, rng, [baseChar], false);
       assert.strictEqual(accessory.kind, "equipment");
-      assert.strictEqual(accessory.identified, false);
+      // Build vNext finds are legible unless they are a gamble (epic or cursed).
+      if (rarity === "epic" || accessory.curseEffectId) assert.strictEqual(accessory.identified, false);
       assert.ok(accessory.affixes.every(affix => affix.kind !== "core"));
       if (accessory.curseEffectId) assert.strictEqual(accessory.curseSuspected, true);
       assert.strictEqual(getItemData(accessory).type, "accessory");
-      assert.ok(accessory.unidentifiedName.includes("未鑑定"));
-      assert.ok(accessory.affixes.length <= (rarity === "epic" ? 2 : 1));
+      if (!accessory.identified) assert.ok(accessory.unidentifiedName.includes("未鑑定"));
+      assert.ok(accessory.affixes.length <= (rarity === "magic" ? 1 : 2));
       accessory.affixes.forEach(affix => {
         assert.ok(!bannedAccessoryAffixes.has(affix.type), `banned affix: ${affix.type}`);
         assert.ok(affix.value <= accessoryCaps[affix.type], `affix cap exceeded: ${affix.type}=${affix.value}`);

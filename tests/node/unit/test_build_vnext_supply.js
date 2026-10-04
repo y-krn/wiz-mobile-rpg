@@ -19,7 +19,6 @@ import {
   shouldOfferBuildSeed
 } from "../../../src/systems/build_vnext_seed.js";
 import { resolvePendingRewardBundle, stagePendingRewardBundle } from "../../../src/pending_rewards.js";
-import { TRIAL_PROFILES } from "../../../src/trial_profiles.js";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 const dummyElement = () => ({
@@ -44,7 +43,6 @@ function lcg(seed) {
   };
 }
 
-const TRIAL = TRIAL_PROFILES.PHASE3_EQUIPMENT;
 
 // Grade: expected ≈ floor × gradePerFloor, one uniform draw, capped.
 assert.equal(rollBuildVNextGrade(1, () => 0), 0);
@@ -59,7 +57,7 @@ let cores = 0;
 let trialOnlyCores = 0;
 const trialOnlyIds = new Set(BUILD_VNEXT_CORE_AFFIXES.map(core => core.id));
 for (let seed = 1; seed <= 300; seed++) {
-  const item = generateRandomEquipment(1, { rng: lcg(seed), trialProfile: TRIAL });
+  const item = generateRandomEquipment(1, { rng: lcg(seed) });
   assert.ok(item);
   if (isBuildVNextGamble(item)) {
     gambles++;
@@ -79,22 +77,13 @@ assert.ok(identified > gambles, "most trial finds are identified");
 assert.ok(cores >= 30, `Cores appear from B1 in the trial (saw ${cores}/300)`);
 assert.ok(trialOnlyCores > 0, "technique Cores are part of the trial pool");
 
-// The normal profile keeps its unknown-by-default contract and has no grade
-// or trial-only Cores.
-for (let seed = 1; seed <= 200; seed++) {
-  const item = generateRandomEquipment(5, { rng: lcg(seed) });
-  assert.equal(item.identified, false);
-  assert.equal(item.enhanceLevel, undefined);
-  assert.ok(!item.affixes.some(affix => trialOnlyIds.has(affix.id)));
-}
-
 // Fixed-seed generator regression: unusable solo affixes are absent, and
 // spell-related equipment effects stay on compatible weapon bases.
 const forbiddenVNextSupports = new Set(["rearEvasion", "escapeChance"]);
 for (const floor of [1, 3, 6, 11, 16, 26]) {
   for (let seed = 1; seed <= 250; seed++) {
     const item = generateRandomEquipment(floor, {
-      rng: lcg(seed + floor * 1000), forceRarity: "epic", trialProfile: TRIAL
+      rng: lcg(seed + floor * 1000), forceRarity: "epic"
     });
     assert.ok(item);
     assert.ok(!item.affixes.some(affix => forbiddenVNextSupports.has(affix.type)), `${item.baseId} has no inert solo Support`);
@@ -117,7 +106,7 @@ for (const floor of [1, 3, 6, 11, 16, 26]) {
 for (const floor of [1, 3, 6, 11, 16, 26]) {
   for (let seed = 1; seed <= 250; seed++) {
     const item = generateRandomAccessory(floor, {
-      rng: lcg(seed + floor * 2000), forceRarity: "epic", trialProfile: TRIAL
+      rng: lcg(seed + floor * 2000), forceRarity: "epic"
     });
     assert.ok(item);
     assert.ok(!item.affixes.some(affix => forbiddenVNextSupports.has(affix.type)), `${item.baseId} accessory has no excluded solo Support`);
@@ -128,31 +117,29 @@ for (const floor of [1, 3, 6, 11, 16, 26]) {
 
 // Depth raises the grade of found weapon/armor/shield pieces.
 const deepGrades = Array.from({ length: 60 }, (_, index) =>
-  generateRandomEquipment(5, { rng: lcg(900 + index), trialProfile: TRIAL }).enhanceLevel || 0);
+  generateRandomEquipment(5, { rng: lcg(900 + index) }).enhanceLevel || 0);
 assert.ok(deepGrades.every(grade => grade >= 2), "B5 finds carry at least +2");
 
-// Forced base/Core are a trial-only generation option.
+// Forced base/Core are a generation option used by the build seed.
 const forced = generateRandomEquipment(1, {
-  rng: lcg(7), trialProfile: TRIAL, forceRarity: "magic", forceBaseId: "MACE", forceCoreId: "CORE_TECH_CHAIN"
+  rng: lcg(7), forceRarity: "magic", forceBaseId: "MACE", forceCoreId: "CORE_TECH_CHAIN"
 });
 assert.equal(forced.baseId, "MACE");
 assert.equal(forced.affixes[0].id, "CORE_TECH_CHAIN");
 const forcedBloodWandOnMace = generateRandomEquipment(1, {
-  rng: lcg(9), trialProfile: TRIAL, forceRarity: "magic", forceBaseId: "MACE", forceCoreId: "CORE_BLOOD_WAND"
+  rng: lcg(9), forceRarity: "magic", forceBaseId: "MACE", forceCoreId: "CORE_BLOOD_WAND"
 });
 assert.ok(!forcedBloodWandOnMace.affixes.some(affix => affix.id === "CORE_BLOOD_WAND"));
 const forcedBloodWandOnMedium = generateRandomEquipment(1, {
-  rng: lcg(10), trialProfile: TRIAL, forceRarity: "magic", forceBaseId: "WAND", forceCoreId: "CORE_BLOOD_WAND"
+  rng: lcg(10), forceRarity: "magic", forceBaseId: "WAND", forceCoreId: "CORE_BLOOD_WAND"
 });
 assert.equal(forcedBloodWandOnMedium.affixes[0].id, "CORE_BLOOD_WAND");
 const forcedChainOnMedium = generateRandomEquipment(1, {
-  rng: lcg(11), trialProfile: TRIAL, forceRarity: "magic", forceBaseId: "SAGE_STAFF", forceCoreId: "CORE_TECH_CHAIN"
+  rng: lcg(11), forceRarity: "magic", forceBaseId: "SAGE_STAFF", forceCoreId: "CORE_TECH_CHAIN"
 });
 assert.ok(!forcedChainOnMedium.affixes.some(affix => affix.id === "CORE_TECH_CHAIN"));
-const ignored = generateRandomEquipment(1, { rng: lcg(7), forceRarity: "magic", forceBaseId: "MACE", forceCoreId: "CORE_TECH_CHAIN" });
-assert.ok(!ignored.affixes.some(affix => affix.id === "CORE_TECH_CHAIN"), "normal profile ignores forced Cores");
 const forcedAccessory = generateRandomAccessory(1, {
-  rng: lcg(8), trialProfile: TRIAL, forceRarity: "magic", forceBaseId: "VNEXT_RING", forceCoreId: "CORE_TRAP_EATER"
+  rng: lcg(8), forceRarity: "magic", forceBaseId: "VNEXT_RING", forceCoreId: "CORE_TRAP_EATER"
 });
 assert.equal(forcedAccessory.affixes[0].id, "CORE_TRAP_EATER");
 
@@ -163,7 +150,6 @@ state.floor = 1;
 state.logs = [];
 state.gameState = "explore";
 state.currentRun = createDefaultCurrentRun();
-state.currentRun.trialProfile = TRIAL;
 assert.equal(shouldOfferBuildSeed(state), true);
 assert.equal(shouldOfferBuildSeed(state, { fromDrop: true }), false, "monster-drop chests never carry the seed");
 for (let seed = 1; seed <= 20; seed++) {
@@ -177,15 +163,11 @@ for (let seed = 1; seed <= 20; seed++) {
     assert.ok(allowed.includes(item.baseId), `${item.baseId} belongs to direction ${BUILD_SEED_DIRECTIONS[index].id}`);
   });
 }
-state.currentRun.trialProfile = TRIAL_PROFILES.NORMAL;
-assert.equal(shouldOfferBuildSeed(state), false, "normal runs never see the seed");
-state.currentRun.trialProfile = TRIAL;
 state.currentRun.buildSeedOffered = true;
 assert.equal(shouldOfferBuildSeed(state), false, "the seed is offered once per run");
 
 // Pick-one bundle: seed entries start left behind and at most one is kept.
 state.currentRun = createDefaultCurrentRun();
-state.currentRun.trialProfile = TRIAL;
 const offer = generateBuildSeedOffer(state, lcg(3));
 const bundle = stagePendingRewardBundle(state, [
   { item: "HEAL_POTION", role: "main" },

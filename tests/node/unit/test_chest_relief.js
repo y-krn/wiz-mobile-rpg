@@ -137,6 +137,7 @@ function resetChest({
   state.party = party || [makeCharacter()];
   state.inventory = [];
   state.currentRun = createDefaultCurrentRun();
+  state.currentRun.buildSeedOffered = true; // the Build vNext seed choice is covered by its own tests
   state.floorChestsOpened = [0, 0, 0, 0, 0];
   state.chestState = {
     x: state.x,

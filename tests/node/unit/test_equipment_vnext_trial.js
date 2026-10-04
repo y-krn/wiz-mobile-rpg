@@ -9,7 +9,7 @@ import { ITEMS } from "../../../src/data/items.js";
 import { ACCESSORY_CANDIDATES_BY_FLOOR, EQUIPMENT_CANDIDATES_BY_FLOOR } from "../../../src/data/equipment_tables.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../../../src/systems/equipment_generation.js";
 import { getVNextTrialBaseId, getVNextTrialCandidates, getVNextTrialChestCandidates, isVNextDevotionWeapon, isVNextMediumWeapon, isVNextTrialCore, isVNextTrialSupport, VNEXT_CANONICAL_BASE_REPRESENTATIVES } from "../../../src/rules/equipment_vnext_trial.js";
-import { DEFAULT_RUN_PROFILE, SAVE_KEYS, TRIAL_PROFILES, isTrialProfile } from "../../../src/trial_profiles.js";
+import { SAVE_KEYS } from "../../../src/save_keys.js";
 import { getChestItemCandidatesByFloor, rollChestReward } from "../../../src/rules/chest_rules.js";
 import { BUILD_VNEXT_CORE_AFFIXES } from "../../../src/data/affixes.js";
 
@@ -86,14 +86,8 @@ assert.ok(getChestItemCandidatesByFloor(1, { includeRunes: true }).includes("WAK
 assert.ok(getChestItemCandidatesByFloor(2, { includeRunes: true }).includes("PARALYZE_CURE"));
 assert.ok(getChestItemCandidatesByFloor(3, { includeRunes: true }).includes("RUNE_DIALKO"));
 for (const [floor, excluded] of [[2, "WAKE_POWDER"], [2, "PARALYZE_CURE"], [3, "RUNE_DIALKO"]]) {
-  const legacyReward = rollChestReward({
-    floor, rng: () => 0.1, party: [], currentRun: { trialProfile: TRIAL_PROFILES.NORMAL },
-    trap: "none", itemCandidates: [excluded], itemCandidateFilter: candidate => candidate === excluded,
-    includeRunes: excluded === "RUNE_DIALKO"
-  });
-  assert.equal(legacyReward.item, excluded, `${excluded} remains available to an in-progress legacy run`);
   const trialReward = rollChestReward({
-    floor, rng: () => 0.1, party: [], currentRun: { trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT },
+    floor, rng: () => 0.1, party: [], currentRun: {},
     trap: "none", itemCandidates: [excluded], includeRunes: true,
     itemCandidateFilter: candidate => candidate === excluded
   });
@@ -104,14 +98,11 @@ assert.equal(ITEMS.VNEXT_RING.hpBonus, undefined);
 assert.equal(ITEMS.VNEXT_RING.affixBonus, undefined);
 assert.equal(ITEMS.VNEXT_AMULET.hpBonus, undefined);
 assert.equal(ITEMS.VNEXT_AMULET.mpBonus, undefined);
-assert.equal(isTrialProfile(TRIAL_PROFILES.PHASE3_EQUIPMENT), true);
-assert.equal(isTrialProfile(TRIAL_PROFILES.NORMAL), false);
-assert.equal(DEFAULT_RUN_PROFILE, TRIAL_PROFILES.PHASE3_EQUIPMENT);
 assert.equal(SAVE_KEYS.save, "mobile_wiz_rpg_autosave");
 assert.equal(SAVE_KEYS.backup, "mobile_wiz_rpg_backup");
 
 for (let seed = 1; seed <= 80; seed += 1) {
-  const options = { rng: lcg(seed), forceRarity: "epic", trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT };
+  const options = { rng: lcg(seed), forceRarity: "epic" };
   const equipment = generateRandomEquipment(30, options);
   const accessory = generateRandomAccessory(30, options);
   assert.ok(equipment, `phase 3 equipment generated for seed ${seed}`);
@@ -129,7 +120,7 @@ for (let seed = 1; seed <= 80; seed += 1) {
 }
 
 for (const floor of [1, 10, 20]) {
-  const options = { rng: lcg(100 + floor), forceRarity: "magic", trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT };
+  const options = { rng: lcg(100 + floor), forceRarity: "magic" };
   const equipment = generateRandomEquipment(floor, options);
   const accessory = generateRandomAccessory(floor, options);
   assert.ok(equipment, `Phase 3 Base generated on a B${floor} run`);
@@ -142,16 +133,17 @@ const firstTrialChest = rollChestReward({
   floor: 1,
   rng: lcg(203),
   party: [],
-  currentRun: { trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT },
+  currentRun: {},
   trap: "none"
 });
 assert.ok(firstTrialChest.item);
 assert.ok(Object.values(VNEXT_CANONICAL_BASE_REPRESENTATIVES).includes(firstTrialChest.item.baseId));
 assert.equal(firstTrialChest.item.rarity, "magic");
 
-const normalEquipment = generateRandomEquipment(5, { rng: lcg(55), forceRarity: "magic" });
-const normalAccessory = generateRandomAccessory(5, { rng: lcg(55), forceRarity: "magic" });
-assert.ok(normalEquipment && !normalEquipment.baseId.startsWith("VNEXT_"));
-assert.ok(normalAccessory && !normalAccessory.baseId.startsWith("VNEXT_"));
+// Generation needs no profile option: the vNext pool is the only pool.
+const defaultEquipment = generateRandomEquipment(5, { rng: lcg(55), forceRarity: "magic" });
+const defaultAccessory = generateRandomAccessory(5, { rng: lcg(55), forceRarity: "magic" });
+assert.ok(Object.values(VNEXT_CANONICAL_BASE_REPRESENTATIVES).includes(defaultEquipment.baseId));
+assert.ok(["VNEXT_RING", "VNEXT_AMULET"].includes(defaultAccessory.baseId));
 
-console.log("PASS Equipment vNext trial profile, pool, Support/Core, and Base regressions");
+console.log("PASS Equipment vNext pool, Support/Core, and Base regressions");

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
+import { getVNextTrialChestCandidates } from "../../../src/rules/equipment_vnext_trial.js";
 import {
   CHEST_ITEM_CANDIDATES_BY_FLOOR,
   CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
@@ -136,6 +137,7 @@ function prepareLiveChest(inventory = []) {
   state.party = [createStartingKitCharacter("vanguard")];
   state.inventory = [...inventory];
   state.currentRun = createDefaultCurrentRun();
+  state.currentRun.buildSeedOffered = true; // the Build vNext seed choice is covered by its own tests
   state.currentRun.startFloor = 1;
   state.codex = createDefaultCodex();
   state.firstChestUnidentifiedGuaranteed = false;
@@ -200,10 +202,13 @@ await liveCheck("live failed automatic disarm still resolves the trap and reward
 
 await liveCheck("combat-generated reward chests keep their existing reward scope", async () => {
   prepareLiveChest();
-  const rolls = [0, (20.5 / CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[2].length), 1];
+  // Combat chests roll from the unified (vNext-filtered) candidate list.
+  const candidates = getVNextTrialChestCandidates(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[2]);
+  const portalIndex = candidates.indexOf("TOWN_PORTAL");
+  assert.ok(portalIndex >= 0, "the combat chest pool keeps TOWN_PORTAL");
+  const rolls = [0, ((portalIndex + 0.5) / candidates.length), 1];
   setupChestState("none", null, null, () => rolls.shift() ?? 1, { fromDrop: true });
   assert.ok(state.chestState.item, "combat chest should still create its main reward");
-  assert.equal(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[2][20], "TOWN_PORTAL");
   assert.equal(state.chestState.item, "TOWN_PORTAL");
   assert.equal(state.chestState.specialItem, null);
   openChest(() => 0);

@@ -18,8 +18,10 @@ import {
 import { generateRandomEquipment } from "../../../src/systems/equipment_generation.js";
 import { normalizeSavePayload, SAVE_VERSION } from "../../../src/state/save_migrations.js";
 
+// Epic finds are Build vNext gambles: they stay unidentified, which is the
+// state the knowledge stages below describe.
 const item = generateRandomEquipment(3, {
-  forceRarity: "rare",
+  forceRarity: "epic",
   rng: (() => {
     let value = 7;
     return () => ((value = (value * 1664525 + 1013904223) >>> 0) / 0x100000000);
@@ -40,6 +42,9 @@ assert.ok(getKnowledgeHintTags(item).every(tag => item.tags.includes(tag)));
 assert.match(getItemData(item).desc, /観察:/);
 
 const stateLike = { inventory: [item], party: [] };
+// Each observation reveals one more hint tag; once every tag is known the loot
+// must not retrigger.
+while (observeEquipment(item).changed);
 assert.equal(observeCarriedEquipment(stateLike), 0, "already observed loot should not retrigger");
 const beforeAtk = getCharWeaponAtk({
   str: 15,

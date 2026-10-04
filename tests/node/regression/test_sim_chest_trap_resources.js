@@ -29,15 +29,16 @@ function mimicOutcome(result) {
   return result.chestTrapOutcomes.mimic;
 }
 
-const victory = run(57);
+const victory = run(14);
 assert.deepEqual(mimicOutcome(victory), {
   encounters: 1, left: 0, fights: 1, victories: 1, flees: 0, deaths: 0
 });
-assert.deepEqual(mimicOutcome(run(57)), mimicOutcome(victory), "mimic fights are deterministic");
+assert.deepEqual(mimicOutcome(run(14)), mimicOutcome(victory), "mimic fights are deterministic");
 
 // Run indexes are fixtures; floor layouts (#1962) and gimmicks (#1963) decide
-// which chests a run meets.
-const cautious = run(28);
+// which chests a run meets. Removing the normal run profile moved the
+// fixtures (57 -> 14, 28 -> 2) because runs now use the unified Build vNext rules.
+const cautious = run(2);
 const cautiousMimic = mimicOutcome(cautious);
 assert.ok(cautiousMimic.encounters > 0, "the cautious fixture meets a mimic");
 assert.equal(cautiousMimic.left, cautiousMimic.encounters, "a low-HP player leaves every mimic");
