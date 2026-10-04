@@ -382,7 +382,10 @@ function scoreLateralCandidate(candidate: LateralUnlockCandidate, signals: Recov
 
 function getAutomaticWorkshopCandidates(workshop: NormalizedWorkshopState, recoveredEquipment: unknown[], deepestFloor: number) {
   const available = WORKSHOP_LATERAL_UNLOCKS.filter(isLateralUnlockCandidate).filter(({ nodeId, minDepth }) => (
-    deepestFloor >= minDepth && !workshop.lateralUnlocks.includes(nodeId) && getWorkshopRank(workshop, nodeId) <= 0
+    deepestFloor >= minDepth
+    && isWorkshopNodeAvailableInVNext(getWorkshopNode(nodeId))
+    && !workshop.lateralUnlocks.includes(nodeId)
+    && getWorkshopRank(workshop, nodeId) <= 0
   ));
   return available
     .map(candidate => {

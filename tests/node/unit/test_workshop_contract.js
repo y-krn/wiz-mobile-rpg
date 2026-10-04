@@ -8,6 +8,7 @@ import {
   getWorkshopGrants,
   isNormalizedWorkshopState,
   isWorkshopNodeAvailableInVNext,
+  isWorkshopNodeUnlocked,
   normalizeWorkshopState,
   purchaseDepartureCraft,
   purchaseWorkshopNode
@@ -73,6 +74,9 @@ assert.equal(purchased.workshop.ranks.gear_rapier, 1);
 assert.equal(purchased.metaMaterials["獣の牙"], 0);
 
 const unavailableCoreNodeIds = ["pool_thorn_shield", "pool_scholar_eye", "pool_thin_ice_pact"];
+const thinIceNode = WORKSHOP_NODES.find(entry => entry.id === "pool_thin_ice_pact");
+assert.equal(isWorkshopNodeUnlocked(thinIceNode, []), false);
+assert.equal(isWorkshopNodeUnlocked(thinIceNode, ["ABYSS_SEAL"]), true);
 for (const nodeId of unavailableCoreNodeIds) {
   const node = WORKSHOP_NODES.find(entry => entry.id === nodeId);
   assert.ok(node);

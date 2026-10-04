@@ -9,6 +9,7 @@ import { isCurseLocked } from "../rules/identification_rules.js";
 import { purifyEquipmentCurse } from "./identification.js";
 import { addCanonicalInventoryItemToState } from "../state/inventory_state.js";
 import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
+import { VNEXT_UNAVAILABLE_ITEM_IDS } from "../rules/equipment_vnext_trial.js";
 import { TRIAL_PROFILES } from "../trial_profiles.js";
 
 type MerchantStockKind = "identify" | "item";
@@ -82,12 +83,10 @@ function isMerchantStockEntry(value: unknown): value is MerchantStockEntry {
   );
 }
 
-const VNEXT_UNAVAILABLE_STOCK_ITEM_IDS = new Set(["WAKE_POWDER", "PARALYZE_CURE"]);
-
 export function getMilestoneMerchantStock(trialProfile?: string): MerchantStockEntry[] {
   if (trialProfile !== TRIAL_PROFILES.PHASE3_EQUIPMENT) return [...MILESTONE_MERCHANT_STOCK];
   return MILESTONE_MERCHANT_STOCK.filter(entry =>
-    !("itemId" in entry) || !VNEXT_UNAVAILABLE_STOCK_ITEM_IDS.has(entry.itemId)
+    !("itemId" in entry) || !VNEXT_UNAVAILABLE_ITEM_IDS.includes(entry.itemId)
   );
 }
 

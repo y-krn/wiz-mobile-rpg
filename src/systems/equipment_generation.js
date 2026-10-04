@@ -16,9 +16,10 @@ import {
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
 import { isEquipmentInstance } from "../state/equipment.js";
 import { TRIAL_PROFILES } from "../trial_profiles.js";
-import { MEDIUM_IDS } from "../data/magic.js";
 import {
   getVNextTrialCandidates,
+  isVNextDevotionWeapon,
+  isVNextMediumWeapon,
   isVNextTrialCore,
   isVNextTrialSupport
 } from "../rules/equipment_vnext_trial.js";
@@ -35,11 +36,12 @@ const BUILD_VNEXT_ECONOMY_WEIGHT = 0.25;
 function rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId = null, baseId = null) {
   const budget = getAffixBudget(rarity, floor);
   const activeUnlocks = Array.isArray(unlockedAffixIds) ? new Set(unlockedAffixIds) : null;
-  const weightedSupports = supportPool.map(affix => BUILD_VNEXT_ECONOMY_SUPPORTS.has(affix.type)
+  const eligibleSupports = supportPool.filter(affix => isVNextTrialSupport(affix.type, { slot, baseId }));
+  const weightedSupports = eligibleSupports.map(affix => BUILD_VNEXT_ECONOMY_SUPPORTS.has(affix.type)
     ? { ...affix, weight: (affix.weight || 1) * BUILD_VNEXT_ECONOMY_WEIGHT }
     : affix);
   const supportCount = rarity === "magic" ? 1 : 2;
-  const isMediumWeapon = slot === "weapon" && MEDIUM_IDS.includes(baseId);
+  const isMediumWeapon = slot === "weapon" && isVNextMediumWeapon(baseId);
   const isAllowedCoreForBase = coreId => (
     (coreId !== "CORE_BLOOD_WAND" || isMediumWeapon)
     && (coreId !== "CORE_TECH_CHAIN" || !isMediumWeapon)
@@ -324,7 +326,10 @@ export function generateRandomEquipment(floor, options) {
   const possibleAffixes = [];
   const addAffix = (minFloor, type, getVal, weight = 3) => {
     if (floor < minFloor) return;
-    if (phase3Equipment && !isVNextTrialSupport(type)) return;
+    if (phase3Equipment && !isVNextTrialSupport(type, {
+      slot: baseItem.type === "weapon" ? "weapon" : baseItem.type,
+      baseId
+    })) return;
     const candidate = withSupportDefinition({ type, getVal, weight });
     if (candidate) possibleAffixes.push(candidate);
   };
@@ -367,7 +372,7 @@ export function generateRandomEquipment(floor, options) {
     addAffix(2, "spellPower", () => AFFIX_BALANCE.spellPowerByRarity[rarity], 2);
   }
   const isDevotionEligible = phase3Equipment
-    ? ["WAND", "SAGE_STAFF"].includes(baseId)
+    ? isVNextDevotionWeapon(baseId)
     : ["MACE", "PRIEST_ROBE", "SACRED_MACE", "HOLY_STAFF"].includes(baseId);
   if (isDevotionEligible) {
     addAffix(2, "devotion", () => 15, 2); // +15%
@@ -424,7 +429,7 @@ export function generateRandomEquipment(floor, options) {
     addAffix(2, "antiSpirit", () => getSupportValueByRarity("antiSpirit", rarity), 1);
     // #271実src N=8,000: B5装備2.0%、職内r=0.065 [0.027, 0.103]、event勝率4.9%→4.8%。
     addAffix(2, "antiDemon", () => getSupportValueByRarity("antiDemon", rarity), 1);
-    if (!phase3Equipment || MEDIUM_IDS.includes(baseId)) {
+    if (!phase3Equipment || isVNextMediumWeapon(baseId)) {
       addAffix(3, "spellAccuracy", () => getSupportValueByRarity("spellAccuracy", rarity), 1);
     }
     addAffix(3, "killHeal", () => 2, 1);
@@ -604,7 +609,7 @@ export function generateRandomAccessory(floor, options) {
     { type: "identifyDiscount", getVal: () => 10, weight: 2 },
     { type: "materialFind", getVal: () => 10, weight: 2 },
     { type: "contractReward", getVal: () => 10, weight: 2 }
-  ].filter(aff => aff.weight > 0 && (!phase3Equipment || isVNextTrialSupport(aff.type)))
+  ].filter(aff => aff.weight > 0 && (!phase3Equipment || isVNextTrialSupport(aff.type, { slot: "accessory", baseId })))
     .map(withSupportDefinition)
     .filter(Boolean);
 

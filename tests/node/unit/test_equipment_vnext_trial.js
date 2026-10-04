@@ -8,7 +8,7 @@ import {
 import { ITEMS } from "../../../src/data/items.js";
 import { ACCESSORY_CANDIDATES_BY_FLOOR, EQUIPMENT_CANDIDATES_BY_FLOOR } from "../../../src/data/equipment_tables.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../../../src/systems/equipment_generation.js";
-import { getVNextTrialBaseId, getVNextTrialCandidates, getVNextTrialChestCandidates, isVNextTrialCore, isVNextTrialSupport, VNEXT_CANONICAL_BASE_REPRESENTATIVES } from "../../../src/rules/equipment_vnext_trial.js";
+import { getVNextTrialBaseId, getVNextTrialCandidates, getVNextTrialChestCandidates, isVNextDevotionWeapon, isVNextMediumWeapon, isVNextTrialCore, isVNextTrialSupport, VNEXT_CANONICAL_BASE_REPRESENTATIVES } from "../../../src/rules/equipment_vnext_trial.js";
 import { DEFAULT_RUN_PROFILE, SAVE_KEYS, TRIAL_PROFILES, isTrialProfile } from "../../../src/trial_profiles.js";
 import { getChestItemCandidatesByFloor, rollChestReward } from "../../../src/rules/chest_rules.js";
 import { BUILD_VNEXT_CORE_AFFIXES } from "../../../src/data/affixes.js";
@@ -27,8 +27,12 @@ assert.equal(Object.keys(VNEXT_SUPPORT_AUDIT).length, 47);
 assert.equal(Object.keys(VNEXT_CORE_AUDIT).length, 13);
 assert.equal(VNEXT_SUPPORT_AUDIT.escapeChance.disposition, "retire");
 assert.equal(VNEXT_SUPPORT_AUDIT.rearEvasion.disposition, "retire");
-assert.equal(VNEXT_SUPPORT_AUDIT.followUpMp.disposition, "retire");
-assert.equal(VNEXT_SUPPORT_AUDIT.devotion.vnextSupplyConstraint, "medium_weapon_only");
+assert.equal(VNEXT_SUPPORT_AUDIT.followUpMp.disposition, "keep");
+assert.equal(VNEXT_SUPPORT_AUDIT.followUpMp.vnextSupplyConstraint, "medium_weapon_only");
+assert.equal(isVNextTrialSupport("followUpMp", { slot: "weapon", baseId: "WAND" }), true);
+assert.equal(isVNextTrialSupport("followUpMp", { slot: "weapon", baseId: "MACE" }), false);
+assert.equal(isVNextTrialSupport("followUpMp", { slot: "accessory", baseId: "VNEXT_RING" }), false);
+assert.equal(VNEXT_SUPPORT_AUDIT.devotion.vnextSupplyConstraint, "wand_or_sage_staff_weapon_only");
 assert.equal(VNEXT_SUPPORT_AUDIT.spellAccuracy.vnextSupplyConstraint, "weapon_slot_requires_medium");
 assert.equal(VNEXT_CORE_AUDIT.CORE_KEEN_EYE.disposition, "retire");
 assert.equal(VNEXT_CORE_AUDIT.CORE_BLOOD_WAND.vnextSupplyConstraint, "medium_weapon_only");
@@ -116,9 +120,11 @@ for (let seed = 1; seed <= 80; seed += 1) {
   assert.equal(accessory.rarity, "epic");
   assert.ok(Object.values(VNEXT_CANONICAL_BASE_REPRESENTATIVES).includes(equipment.baseId));
   assert.ok(["VNEXT_RING", "VNEXT_AMULET"].includes(accessory.baseId));
-  for (const affix of [...equipment.affixes, ...accessory.affixes]) {
-    if (affix.kind === "core") assert.ok(isVNextTrialCore(affix.id) || BUILD_VNEXT_CORE_IDS.has(affix.id), affix.id);
-    else assert.equal(isVNextTrialSupport(affix.type), true, affix.type);
+  for (const [item, slot] of [[equipment, "weapon"], [accessory, "accessory"]]) {
+    for (const affix of item.affixes) {
+      if (affix.kind === "core") assert.ok(isVNextTrialCore(affix.id) || BUILD_VNEXT_CORE_IDS.has(affix.id), affix.id);
+      else assert.equal(isVNextTrialSupport(affix.type, { slot, baseId: item.baseId }), true, affix.type);
+    }
   }
 }
 

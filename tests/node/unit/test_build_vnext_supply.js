@@ -6,6 +6,7 @@ import {
 } from "../../../src/state.js";
 import { BUILD_VNEXT_CORE_AFFIXES } from "../../../src/data/affixes.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../../../src/systems/equipment_generation.js";
+import { isVNextDevotionWeapon, isVNextMediumWeapon } from "../../../src/rules/equipment_vnext_trial.js";
 import {
   BUILD_VNEXT_SUPPLY,
   isBuildVNextGamble,
@@ -89,8 +90,7 @@ for (let seed = 1; seed <= 200; seed++) {
 
 // Fixed-seed generator regression: unusable solo affixes are absent, and
 // spell-related equipment effects stay on compatible weapon bases.
-const forbiddenVNextSupports = new Set(["rearEvasion", "escapeChance", "followUpMp"]);
-const mediumWeaponIds = new Set(["WAND", "SAGE_STAFF"]);
+const forbiddenVNextSupports = new Set(["rearEvasion", "escapeChance"]);
 for (const floor of [1, 3, 6, 11, 16, 26]) {
   for (let seed = 1; seed <= 250; seed++) {
     const item = generateRandomEquipment(floor, {
@@ -98,16 +98,31 @@ for (const floor of [1, 3, 6, 11, 16, 26]) {
     });
     assert.ok(item);
     assert.ok(!item.affixes.some(affix => forbiddenVNextSupports.has(affix.type)), `${item.baseId} has no inert solo Support`);
+    if (item.affixes.some(affix => affix.type === "followUpMp")) {
+      assert.ok(isVNextMediumWeapon(item.baseId), `followUpMp stays on medium weapons: ${item.baseId}`);
+    }
     assert.ok(!item.affixes.some(affix => affix.id === "CORE_KEEN_EYE"), "KEEN_EYE stays out of Build vNext");
     if (item.affixes.some(affix => affix.type === "devotion")) {
-      assert.ok(mediumWeaponIds.has(item.baseId), `devotion stays on vNext media: ${item.baseId}`);
+      assert.ok(isVNextDevotionWeapon(item.baseId), `devotion stays on WAND/SAGE_STAFF: ${item.baseId}`);
     }
-    if (!mediumWeaponIds.has(item.baseId)) {
+    if (!isVNextMediumWeapon(item.baseId)) {
       assert.ok(!item.affixes.some(affix => affix.id === "CORE_BLOOD_WAND"), `${item.baseId} cannot use BLOOD_WAND`);
       assert.ok(!item.affixes.some(affix => affix.type === "spellAccuracy"), `${item.baseId} cannot use spellAccuracy`);
     } else {
       assert.ok(!item.affixes.some(affix => affix.id === "CORE_TECH_CHAIN"), `${item.baseId} cannot use TECH_CHAIN`);
     }
+  }
+}
+
+for (const floor of [1, 3, 6, 11, 16, 26]) {
+  for (let seed = 1; seed <= 250; seed++) {
+    const item = generateRandomAccessory(floor, {
+      rng: lcg(seed + floor * 2000), forceRarity: "epic", trialProfile: TRIAL
+    });
+    assert.ok(item);
+    assert.ok(!item.affixes.some(affix => forbiddenVNextSupports.has(affix.type)), `${item.baseId} accessory has no excluded solo Support`);
+    assert.ok(!item.affixes.some(affix => affix.type === "followUpMp"), `${item.baseId} accessory cannot use followUpMp`);
+    assert.ok(!item.affixes.some(affix => affix.id === "CORE_KEEN_EYE"), `${item.baseId} accessory has no KEEN_EYE`);
   }
 }
 

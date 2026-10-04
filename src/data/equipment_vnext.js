@@ -67,7 +67,7 @@ export const VNEXT_SUPPORT_IDS = Object.freeze([
   "treasureSense", "arcaneSense", "hearRange", "traceRead", "followUp",
   "arcane", "devotion", "guardian", "firstStrike", "physicalAccuracy", "spellAccuracy",
   "longFightDamage", "frontlineGuard", "fullHpDamage", "openingAttack",
-  "firstStrikeDefense", "lowHpDamage", "highHpTargetDamage", "killHeal",
+  "firstStrikeDefense", "lowHpDamage", "highHpTargetDamage", "killHeal", "followUpMp",
   "hitFlinch", "poisonAtk", "bleedingAtk", "stairsHeal", "firstStrikeFollowUp",
   "identifyDiscount", "materialFind", "contractReward"
 ]);
@@ -109,7 +109,7 @@ export const VNEXT_SUPPORT_AUDIT = Object.freeze({
   followUp: { productionId: "followUp", disposition: "keep", reasonCode: "extra_action_chance", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
   spellPower: { productionId: "spellPower", disposition: "retire", reasonCode: "broad_spell_power_overlaps_specializations", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js", "src/systems/spell_effects.js"] },
   arcane: { productionId: "arcane", disposition: "keep", reasonCode: "offensive_spell_specialization", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js", "src/systems/spell_effects.js"] },
-  devotion: { productionId: "devotion", disposition: "keep", reasonCode: "healing_spell_specialization", currentStatus: "active", productionSupply: true, vnextSupplyConstraint: "medium_weapon_only", productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js", "src/systems/spell_effects.js"] },
+  devotion: { productionId: "devotion", disposition: "keep", reasonCode: "healing_spell_specialization", currentStatus: "active", productionSupply: true, vnextSupplyConstraint: "wand_or_sage_staff_weapon_only", productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js", "src/systems/spell_effects.js"] },
   guardian: { productionId: "guardian", disposition: "keep", reasonCode: "low_health_defense_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js"] },
   firstStrike: { productionId: "firstStrike", disposition: "keep", reasonCode: "initiative_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/turn_order.js"] },
   physicalAccuracy: { productionId: "physicalAccuracy", disposition: "keep", reasonCode: "evasion_answer", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/character_stats.js"] },
@@ -128,7 +128,7 @@ export const VNEXT_SUPPORT_AUDIT = Object.freeze({
   highHpTargetDamage: { productionId: "highHpTargetDamage", disposition: "keep", reasonCode: "durable_target_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
   bossDamage: { productionId: "bossDamage", disposition: "retire", reasonCode: "boss_only_target_condition", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
   killHeal: { productionId: "killHeal", disposition: "keep", reasonCode: "defeat_triggered_recovery", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js"] },
-  followUpMp: { productionId: "followUpMp", disposition: "retire", reasonCode: "solo_build_has_no_mp_followup", currentStatus: "dead", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
+  followUpMp: { productionId: "followUpMp", disposition: "keep", reasonCode: "medium_weapon_follow_up_mp_recovery", currentStatus: "active", productionSupply: true, vnextSupplyConstraint: "medium_weapon_only", productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
   hitFlinch: { productionId: "hitFlinch", disposition: "keep", reasonCode: "received_hit_control_trigger", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js"] },
   poisonAtk: { productionId: "poisonAtk", disposition: "keep", reasonCode: "status_application_trigger", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
   bleedingAtk: { productionId: "bleedingAtk", disposition: "keep", reasonCode: "status_application_trigger", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/round.js"] },
