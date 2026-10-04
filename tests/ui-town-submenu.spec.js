@@ -86,16 +86,18 @@ for (const viewport of [
     }, keyItems);
 
     await openWorkshop([]);
-    await expect(page.locator('.workshop-node')).toHaveCount(9);
+    await expect(page.locator('.workshop-node')).toHaveCount(7);
+    await expect(page.getByRole('button', { name: /棘盾の記憶|学者の眼の記憶|薄氷の誓約/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toHaveCount(0);
 
     await openWorkshop(['FORGE_SEAL']);
-    await expect(page.locator('.workshop-node')).toHaveCount(9);
+    await expect(page.locator('.workshop-node')).toHaveCount(7);
+    await expect(page.getByRole('button', { name: /棘盾の記憶|学者の眼の記憶|薄氷の誓約/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toHaveCount(0);
 
     await openWorkshop(['FORGE_SEAL', 'ABYSS_SEAL']);
-    await expect(page.locator('.workshop-node')).toHaveCount(10);
-    await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toBeVisible();
+    await expect(page.locator('.workshop-node')).toHaveCount(7);
+    await expect(page.getByRole('button', { name: /棘盾の記憶|学者の眼の記憶|薄氷の誓約/ })).toHaveCount(0);
 
     const layout = await page.locator('.workshop-node').evaluateAll((buttons) => ({
       minHeight: Math.min(...buttons.map(button => button.getBoundingClientRect().height)),
