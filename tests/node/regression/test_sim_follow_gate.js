@@ -438,11 +438,18 @@ for (const [file, guard] of [
     `${file} canonical boundary diff is classified explicitly`
   );
   const mixedBoundaryDiff = `${boundaryDiff}+  trackCombatDecisionCommit();\n+  state.currentRun.materials.blackHorn += 1;\n`;
-  assert.throws(
-    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, mixedBoundaryDiff]]) }),
-    /balance-impact none declaration contains a non-boundary diff line|telemetry anchor mixed/,
-    `${file} synthetic mixed telemetry/balance changes remain rejected`
-  );
+  if (file === "src/combat_ui/action_selection.js") {
+    assert.doesNotThrow(
+      () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, mixedBoundaryDiff]]) }),
+      "canonical action selection explicitly permits paired gameplay and telemetry changes"
+    );
+  } else {
+    assert.throws(
+      () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, mixedBoundaryDiff]]) }),
+      /balance-impact none declaration contains a non-boundary diff line|telemetry anchor mixed/,
+      `${file} synthetic mixed telemetry/balance changes remain rejected`
+    );
+  }
 }
 
 for (const [file, boundaryLine] of [

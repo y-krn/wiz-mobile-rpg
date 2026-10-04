@@ -14,16 +14,14 @@ export const DOCK_ACTION_ROLES = Object.freeze({
 export const OWNERSHIP_STATES = Object.freeze({
   TOWN_CONFIRMED: "town-confirmed",
   DUNGEON_UNCONFIRMED: "dungeon-unconfirmed",
-  WING_SELECTED: "wing-selected",
   LOST: "lost",
   AMBIGUOUS: "ambiguous"
 });
 
 export const OWNERSHIP_LABELS = Object.freeze({
   [OWNERSHIP_STATES.TOWN_CONFIRMED]: "街から持ち込んだ品",
-  [OWNERSHIP_STATES.DUNGEON_UNCONFIRMED]: "まだ持ち帰っていない品",
-  [OWNERSHIP_STATES.WING_SELECTED]: "翼で持ち帰る",
-  [OWNERSHIP_STATES.LOST]: "失った品",
+  [OWNERSHIP_STATES.DUNGEON_UNCONFIRMED]: "迷宮で見つけた品",
+  [OWNERSHIP_STATES.LOST]: "迷宮で失った品",
   [OWNERSHIP_STATES.AMBIGUOUS]: "品の状態を確認中"
 });
 
@@ -238,7 +236,7 @@ export function getOwnershipLabel(ownership) {
   return OWNERSHIP_LABELS[ownership] || OWNERSHIP_LABELS[OWNERSHIP_STATES.AMBIGUOUS];
 }
 
-export function getItemOwnership(item, { state = null, selectedLootIds = null, lootEntryId = null } = {}) {
+export function getItemOwnership(item, { state = null, lootEntryId = null } = {}) {
   const run = state?.currentRun;
   const lost = run?.lostObjectLoot;
   if (includesItem(lost, item)) return OWNERSHIP_STATES.LOST;
@@ -250,7 +248,6 @@ export function getItemOwnership(item, { state = null, selectedLootIds = null, l
     ? unbanked.find(entry => entry?.id === lootEntryId)
     : unbanked.find(entry => sameItem(entry?.item, item));
   if (unbankedEntry) {
-    if (selectedLootIds?.has?.(unbankedEntry.id)) return OWNERSHIP_STATES.WING_SELECTED;
     return OWNERSHIP_STATES.DUNGEON_UNCONFIRMED;
   }
   if (includesItem(townItems, item)) return OWNERSHIP_STATES.TOWN_CONFIRMED;
@@ -277,11 +274,11 @@ export function getItemOwnership(item, { state = null, selectedLootIds = null, l
 
 export function appendOwnershipBadge(parent, ownership, { label = null } = {}) {
   if (!parent || typeof document === "undefined") return null;
-  if (ownership === OWNERSHIP_STATES.AMBIGUOUS) return null;
+  if (ownership !== OWNERSHIP_STATES.TOWN_CONFIRMED) return null;
   const badge = document.createElement("span");
   badge.className = `ownership-badge ownership-badge--${ownership}`;
   if (badge.dataset) badge.dataset.ownership = ownership;
-  badge.textContent = label || getOwnershipLabel(ownership);
+  badge.textContent = label || "持ち込み品・生還時に倉庫へ";
   parent.appendChild(badge);
   return badge;
 }

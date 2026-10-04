@@ -90,6 +90,17 @@ function setupRun(deepestFloor = 5) {
 }
 
 {
+  const { state } = setupRun(10);
+  state.currentRun.returnReason = "escape_scroll";
+  const result = processRunReturn(state, "wing");
+  assert.equal(state.currentRun.bankedObjectLoot.length, 2);
+  assert.equal(state.currentRun.lostObjectLoot.length, 0);
+  assert.equal(result.representativeItem.status, "returned");
+  assert.deepEqual(state.workshop.lateralUnlocks, ["pool_trap_eater"]);
+  console.log("[PASS] Wing banks all dungeon items, records no rescue status, and applies Workshop unlocks");
+}
+
+{
   const { state, sword } = setupRun(4);
   state.currentRun.returnReason = "gameover";
   const result = processRunReturn(state, "death");

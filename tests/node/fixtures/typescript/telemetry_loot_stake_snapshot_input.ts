@@ -6,7 +6,5 @@ export const lootStakeSnapshotPayloadInputFixture: LootStakeSnapshotPayloadInput
   snapshotPoint: "portal_decision",
   safeSnapshotPoints: new Set(["portal_decision"]),
   settlementOutcome: "retreat",
-  selectedLootCount: 2,
-  inventoryCapacity: 20,
   stakeSnapshotFields: { bagOccupancy: 2 }
 };

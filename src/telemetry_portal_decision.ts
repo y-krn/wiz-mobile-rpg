@@ -15,7 +15,6 @@ export interface PortalDecisionInput {
   unbankedObjectLootCount: unknown;
   unbankedObjectLootValueProxy: unknown;
   wingOwned: unknown;
-  wingSalvageCount: unknown;
   nextBandMainId: unknown;
   nextBandSubId: unknown;
   stakeSnapshotFields: Record<string, unknown>;
@@ -34,7 +33,6 @@ export interface PortalDecisionPayload {
   unbankedObjectLootCount: unknown;
   unbankedObjectLootValueProxy: unknown;
   wingOwned: unknown;
-  wingSalvageCount: number | null;
   nextBandMainId: string | "other" | null;
   nextBandSubId: string | "other" | null;
   stakeSnapshotPoint: string;
@@ -57,7 +55,6 @@ export function buildPortalDecisionPayload(input: PortalDecisionInput): PortalDe
     unbankedObjectLootCount: input.unbankedObjectLootCount,
     unbankedObjectLootValueProxy: input.unbankedObjectLootValueProxy,
     wingOwned: input.wingOwned,
-    wingSalvageCount: boundedFiniteOrNull(input.wingSalvageCount, 0, 2),
     nextBandMainId: normalizeOptionalStableValue(input.nextBandMainId, input.safeBandTrialIds),
     nextBandSubId: normalizeOptionalStableValue(input.nextBandSubId, input.safeBandTrialIds),
     stakeSnapshotPoint: "portal_decision",

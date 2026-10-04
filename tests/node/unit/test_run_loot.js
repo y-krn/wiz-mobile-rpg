@@ -34,7 +34,6 @@ const { applySavePayload, createSavePayload } =
   await import("../../../src/state/save_payload.js");
 const { normalizeSavePayload } = await import("../../../src/state/save_migrations.js");
 const {
-  RETURN_WING_SALVAGE_COUNT,
   consumeRunObjectLoot,
   createPendingObjectLootEntry,
   isNormalizedRunObjectLootEntry,
@@ -50,6 +49,7 @@ const {
   __setTelemetryClientForTests
 } = await import("../../../src/telemetry.js");
 const { triggerRunResult } = await import("../../../src/result.js");
+const { getRunMaterialStake, getUnusedDepartureItemCount } = await import("../../../src/ui/run_stakes.js");
 
 function setupRun() {
   initNewGame();
@@ -75,6 +75,16 @@ assert.deepEqual(migratedLegacyStorage.metaMaterials, legacyStorageSave.metaMate
 const migratedStorageRoundTrip = normalizeSavePayload(JSON.parse(JSON.stringify(migratedLegacyStorage)));
 assert.deepEqual(migratedStorageRoundTrip.storage, [], "one-time storage reset remains stable across later loads");
 console.log("[PASS] legacy storage resets once while the save payload remains valid");
+
+setupRun();
+state.currentRun.townInventory = ["HEAL_POTION", "HEAL_POTION", "TOWN_PORTAL"];
+state.inventory = ["HEAL_POTION", "TOWN_PORTAL", "GREATER_HEAL"];
+assert.equal(getUnusedDepartureItemCount(), 2, "counts only remaining carried items with duplicate quantities");
+state.currentRun.materials = { "獣の牙": 3, "鉄片": 2 };
+const stake = getRunMaterialStake();
+assert.equal(stake.currentTotal, 5);
+assert.ok(stake.deathLoss >= 0);
+console.log("[PASS] shared stakes count materials and remaining departure items");
 
 function addDungeonLoot(item) {
   state.inventory.push(item);
@@ -151,16 +161,16 @@ assert.deepEqual(pushStorage, [], "push does not settle object loot");
 assert.equal(state.currentRun.unbankedObjectLoot.length, 3);
 console.log("[PASS] push leaves object ownership unchanged");
 
-const selectedId = state.currentRun.unbankedObjectLoot[1].id;
-const wingResult = settleRunObjectLoot(state, "wing", [selectedId]);
-assert.equal(wingResult.banked.length, 2, "unused town wing plus one selected loot is banked");
+const wingResult = settleRunObjectLoot(state, "wing");
+assert.equal(wingResult.banked.length, 4, "unused town supply and all dungeon loot are banked");
 assert.equal(state.storage.length, 1, "only unused Town preparation is permanent storage");
 assert.deepEqual(state.storage, ["HEAL_POTION"], "workshop return items do not enter storage");
 assert.equal(state.storage.some(item => item?.baseId === "LONG_SWORD"), false);
-assert.equal(state.currentRun.lostObjectLoot.length, 2);
+assert.equal(state.currentRun.bankedObjectLoot.length, 3);
+assert.equal(state.currentRun.lostObjectLoot.length, 0);
 assert.equal(state.party[0].equipment.weapon, null, "run-ending clears equipped loot placement");
 assert.equal(state.currentRun.unbankedObjectLoot.length, 0);
-console.log(`[PASS] wing salvages at most ${RETURN_WING_SALVAGE_COUNT} selected object loot entries including equipment`);
+console.log("[PASS] wing banks all dungeon loot while only departure supplies enter storage");
 
 setupRun();
 const townSword = { baseId: "LONG_SWORD", identified: true, instanceId: "town-sword" };

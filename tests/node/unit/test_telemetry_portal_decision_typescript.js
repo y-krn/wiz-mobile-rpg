@@ -18,7 +18,6 @@ const input = {
   unbankedObjectLootCount: 3,
   unbankedObjectLootValueProxy: 8,
   wingOwned: 0,
-  wingSalvageCount: "5",
   nextBandMainId: "short_battle",
   nextBandSubId: "invalid",
   stakeSnapshotFields: {
@@ -35,7 +34,7 @@ const payload = buildPortalDecisionPayload(input);
 assert.deepEqual(Object.keys(payload), [
   "runId", "portalType", "decision", "hpRate", "customContext", "mpRate",
   "freeInventorySlots", "unbankedObjectLootCount", "unbankedObjectLootValueProxy",
-  "wingOwned", "wingSalvageCount", "nextBandMainId", "nextBandSubId",
+  "wingOwned", "nextBandMainId", "nextBandSubId",
   "stakeSnapshotPoint"
 ]);
 assert.equal(payload.runId, "context-run");
@@ -47,7 +46,6 @@ assert.equal(payload.freeInventorySlots, "17");
 assert.equal(payload.unbankedObjectLootCount, 3);
 assert.equal(payload.unbankedObjectLootValueProxy, 8);
 assert.equal(payload.wingOwned, 0);
-assert.equal(payload.wingSalvageCount, 2);
 assert.equal(payload.nextBandMainId, "short_battle");
 assert.equal(payload.nextBandSubId, "other");
 assert.equal(payload.stakeSnapshotPoint, "stake-point");
@@ -60,7 +58,6 @@ const normalized = buildPortalDecisionPayload({
   hpRate: -1,
   mpRate: 1.5,
   wingOwned: "yes",
-  wingSalvageCount: "invalid",
   nextBandMainId: "",
   nextBandSubId: null,
   stakeSnapshotFields: {}
@@ -69,7 +66,6 @@ assert.equal(normalized.decision, "push");
 assert.equal(normalized.hpRate, 0);
 assert.equal(normalized.mpRate, 1);
 assert.equal(normalized.wingOwned, "yes");
-assert.equal(normalized.wingSalvageCount, null);
 assert.equal(normalized.nextBandMainId, null);
 assert.equal(normalized.nextBandSubId, null);
 

@@ -54,7 +54,6 @@ export {
 } from "./state/inventory_state.js";
 
 export {
-  RETURN_WING_SALVAGE_COUNT,
   createPendingObjectLootEntry,
   adoptPendingObjectLoot,
   recordDungeonObjectLoot,

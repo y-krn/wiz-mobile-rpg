@@ -363,6 +363,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/systems/loadout_transaction.js",
     "src/systems/loadout_transaction.ts",
     "src/menu/explore_actions.js",
+    // Combat item selection now gates the existing Wing action with confirmation.
+    "src/combat_ui/action_selection.js",
     // Back handling records UX boundaries without changing navigation or rules.
     "src/navigation.js",
     "src/movement.js",
@@ -710,7 +712,7 @@ export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/
 const TELEMETRY_CONTEXT_KEYS = new Set([
   "state", "character", "combat", "actorIdx", "targetIdx", "spellName", "itemKey",
   "currentKey", "candidateKey", "preview", "source", "charOriginalIdx", "dir",
-  "itemAction", "direction", "lootId", "portalType", "wingOwned", "wingSalvageCount",
+  "itemAction", "direction", "lootId", "portalType", "wingOwned",
   "nextBandMainId", "nextBandSubId", "floor", "stairsType", "stepsAtDiscovery",
   "stepsBeforeDiscovery", "stepsAfterStairs", "hpRate", "mpRate", "stairsDiscovered",
   "floorCompleted", "chestsDiscovered", "chestsSkipped", "explorationMode", "x", "y",

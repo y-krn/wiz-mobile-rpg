@@ -124,13 +124,10 @@ const ownershipState = {
 };
 assert.equal(getItemOwnership(townPotion, { state: ownershipState }), OWNERSHIP_STATES.TOWN_CONFIRMED);
 assert.equal(getItemOwnership(dungeonPotion, { state: ownershipState }), OWNERSHIP_STATES.DUNGEON_UNCONFIRMED);
-assert.equal(
-  getItemOwnership(dungeonPotion, { state: ownershipState, selectedLootIds: new Set(["loot-1"]) }),
-  OWNERSHIP_STATES.WING_SELECTED
-);
+assert.equal(getItemOwnership(dungeonPotion, { state: ownershipState }), OWNERSHIP_STATES.DUNGEON_UNCONFIRMED);
 ownershipState.currentRun.lostObjectLoot = [dungeonPotion];
 assert.equal(getItemOwnership(dungeonPotion, { state: ownershipState }), OWNERSHIP_STATES.LOST);
-assert.match(getOwnershipLabel(OWNERSHIP_STATES.DUNGEON_UNCONFIRMED), /持ち帰っていない/);
+assert.match(getOwnershipLabel(OWNERSHIP_STATES.DUNGEON_UNCONFIRMED), /迷宮で見つけた/);
 
 const ambiguousState = {
   currentRun: {

@@ -3,8 +3,8 @@ import { state, getStartingKit } from "../state.js";
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
   if (run?.outcome === "abandon" || run?.returnReason === "abandon") return "断念";
-  if (run?.returnReason === "escape_scroll") return "翼で帰還";
-  if (run?.returnReason === "milestone_portal") return "帰還";
+  if (run?.returnReason === "escape_scroll") return "帰還の翼で帰還";
+  if (run?.returnReason === "milestone_portal") return "帰還の門から帰還";
   return "帰還";
 }
 
@@ -31,6 +31,12 @@ function runFactLabel(run) {
   return "潜行の事実を記録";
 }
 
+function returnedMaterialCount(run) {
+  return Object.values(run?.bankedMaterials || {}).reduce(
+    (total, quantity) => total + Math.max(0, Number(quantity) || 0), 0
+  );
+}
+
 function getLastRunSummary(run) {
   if (!run) {
     const empty = document.createElement("p");
@@ -51,7 +57,9 @@ function getLastRunSummary(run) {
   status.appendChild(detail);
   const fact = document.createElement("p");
   fact.className = "town-last-run-fact";
-  fact.textContent = lost ? "物は失っても、記録と知識は残っています。" : "戦果を持ち帰り、次の潜行へ進めます。";
+  fact.textContent = lost
+    ? `素材 ${returnedMaterialCount(run)}個を持ち帰り、未使用の持ち込み品は失いました。`
+    : `素材 ${returnedMaterialCount(run)}個と未使用の持ち込み品を持ち帰りました。`;
   const fragment = fragmentNode();
   fragment.appendChild(status);
   fragment.appendChild(fact);

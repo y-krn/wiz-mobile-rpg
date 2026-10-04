@@ -2,9 +2,8 @@ import { closeSubmenu } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
-import { appendOwnershipBadge, getItemOwnership } from "../ui/common_shell.js";
 import { state } from "../state.js";
-import { getCharMaxMp, getItemData } from "../data.js";
+import { getCharMaxMp } from "../data.js";
 import { trackExplorationDecision, trackPortalDecision, trackUxDecisionOpened, trackUxDecisionResolved } from "../telemetry.js";
 import {
   getBandIndexForFloor,
@@ -79,78 +78,8 @@ function createPortalVitals() {
 function createPortalBagSummary() {
   return createBagCapacitySummary(state.inventory, {
     className: "milestone-portal-bag",
-    note: "装備中の品は枠外。ここに表示される空き枠は、次の戦果を拾う余地です。"
+    note: "装備中の品は枠外。空き枠は迷宮で拾う品の余地です。"
   });
-}
-
-function getLootDisplayName(item) {
-  const data = getItemData(item);
-  return item?.unidentifiedName || data?.name || item?.name || "不明な戦果";
-}
-
-function getLootTypeLabel(item) {
-  const type = getItemData(item)?.type;
-  return type === "weapon" ? "武器"
-    : type === "shield" ? "盾"
-      : type === "armor" ? "防具"
-        : type === "accessory" ? "装身具"
-          : "品";
-}
-
-function createPortalLootSummary() {
-  const entries = (state.currentRun?.unbankedObjectLoot || [])
-    .filter(entry => entry?.item);
-  const section = document.createElement("section");
-  section.className = "milestone-portal-loot";
-  section.dataset.infoRole = "unbanked-object-loot";
-  section.setAttribute("aria-label", "まだ持ち帰っていない戦果の内訳");
-
-  const heading = document.createElement("div");
-  heading.className = "milestone-portal-section-heading";
-  const title = document.createElement("strong");
-  title.className = "milestone-portal-section-title";
-  title.textContent = "まだ持ち帰っていない戦果";
-  const count = document.createElement("span");
-  count.className = "milestone-portal-loot-count";
-  count.dataset.lootCount = String(entries.length);
-  count.textContent = `${entries.length}点`;
-  heading.append(title, count);
-  section.appendChild(heading);
-
-  const note = document.createElement("p");
-  note.className = "milestone-portal-note";
-  note.textContent = "帰還すれば、これらはすべて持ち帰れる。さらに進めば、この戦果を抱えたまま次の帰還の門を目指す。";
-  section.appendChild(note);
-
-  if (entries.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "list-empty";
-    empty.textContent = "まだ持ち帰っていない戦果はありません。";
-    section.appendChild(empty);
-    return section;
-  }
-
-  const list = document.createElement("div");
-  list.className = "milestone-portal-loot-list";
-  entries.forEach(entry => {
-    const row = document.createElement("div");
-    row.className = "milestone-portal-loot-row";
-    row.dataset.lootId = entry.id || "";
-    const name = document.createElement("span");
-    name.className = "milestone-portal-loot-name";
-    name.textContent = getLootDisplayName(entry.item);
-    const detail = document.createElement("span");
-    detail.className = "milestone-portal-loot-detail";
-    detail.textContent = getLootTypeLabel(entry.item);
-    row.append(name, detail);
-    appendOwnershipBadge(row, getItemOwnership(entry.item, {
-      state,
-      lootEntryId: entry.id
-    }));
-    list.appendChild(row);
-  });
-  section.appendChild(list);
-  return section;
 }
 
 function createPortalMaterialSummary() {
@@ -159,7 +88,7 @@ function createPortalMaterialSummary() {
   summary.dataset.infoRole = "materials-side-info";
   const label = document.createElement("div");
   label.className = "milestone-portal-side-info-label";
-  label.textContent = "素材と品の戦果は別管理";
+  label.textContent = "帰還で守られる賭け金";
   summary.prepend(label);
   return summary;
 }
@@ -198,14 +127,14 @@ function createPortalChoiceSurface() {
   section.appendChild(createPortalDecisionCard(
     "return",
     "ここで帰還",
-    "帰還すれば、これらはすべて持ち帰れる。今回の冒険をここで終える。",
-    "戦果をすべて持ち帰って帰還"
+    "素材と未使用の持ち込み品を守って、今回の冒険を終える。",
+    "素材と持ち込み品を持って帰還"
   ));
   section.appendChild(createPortalDecisionCard(
     "push",
     "さらに深く進む",
-    "さらに進めば、この戦果を抱えたまま次の帰還の門を目指す。",
-    "戦果を抱えてさらに進む"
+    "素材と未使用の持ち込み品を賭けたまま、さらに深く進む。",
+    "賭け金を持ってさらに進む"
   ));
   return section;
 }
@@ -244,8 +173,8 @@ function createPortalConfirmation() {
     : "さらに深く進みますか？";
   const description = document.createElement("p");
   description.textContent = pendingPortalDecision === "return"
-    ? "この戦果をすべて持ち帰り、今回の冒険を終えます。"
-    : "この戦果を抱えたまま、次の帰還の門を目指します。";
+    ? "素材と未使用の持ち込み品を守って帰還します。"
+    : "素材と未使用の持ち込み品を賭けたまま、さらに深く進みます。";
   section.append(title, description);
   return section;
 }
@@ -282,7 +211,6 @@ function renderPortalSurface(optGrid) {
   optGrid.append(
     createPortalVitals(),
     createPortalBagSummary(),
-    createPortalLootSummary(),
     createPortalMaterialSummary()
   );
   const clue = createNextBandClue();

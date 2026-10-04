@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { MATERIAL_TYPES } from "../data/materials.js";
 import { getBankedMaterials } from "../rules/material_rules.js";
+import { getItemBaseId } from "../data.js";
 
 function getMaterialQuantity(materials, name) {
   return Math.max(0, Math.floor(Number(materials?.[name]) || 0));
@@ -25,18 +26,37 @@ export function getRunMaterialStake(runMaterials = state.currentRun?.materials) 
   return { currentTotal, deathLoss };
 }
 
+export function getUnusedDepartureItemCount(run = state.currentRun, inventory = state.inventory) {
+  const remaining = new Map();
+  (Array.isArray(inventory) ? inventory : []).forEach(item => {
+    const id = getItemBaseId(item);
+    if (id) remaining.set(id, (remaining.get(id) || 0) + 1);
+  });
+  let count = 0;
+  (Array.isArray(run?.townInventory) ? run.townInventory : []).forEach(item => {
+    const id = getItemBaseId(item);
+    const available = remaining.get(id) || 0;
+    if (id && available > 0) {
+      count += 1;
+      remaining.set(id, available - 1);
+    }
+  });
+  return count;
+}
+
 export function createRunStakesSummary(runMaterials = state.currentRun?.materials) {
   const { currentTotal, deathLoss } = getRunMaterialStake(runMaterials);
+  const unusedItems = getUnusedDepartureItemCount();
 
   const summary = document.createElement("section");
   summary.className = "run-stakes-summary";
-  summary.setAttribute("aria-label", "潜行中の素材の持ち帰り情報");
+  summary.setAttribute("aria-label", "潜行中の素材と持ち込み品の賭け金");
 
   const title = document.createElement("div");
   title.className = "run-stakes-title";
-  title.append("今回の素材 ");
+  title.append("今回の賭け金 ");
   const current = document.createElement("strong");
-  current.textContent = `${currentTotal}個`;
+  current.textContent = `素材 ${currentTotal}個・未使用品 ${unusedItems}個`;
   title.appendChild(current);
 
   const flow = document.createElement("div");
@@ -44,16 +64,16 @@ export function createRunStakesSummary(runMaterials = state.currentRun?.material
 
   const retreat = document.createElement("div");
   const retreatLabel = document.createElement("span");
-  retreatLabel.textContent = "持ち帰れば";
+  retreatLabel.textContent = "生還すれば持ち帰る";
   const retreatValue = document.createElement("strong");
-  retreatValue.textContent = `${currentTotal}個`;
+  retreatValue.textContent = `素材 ${currentTotal}個・未使用品 ${unusedItems}個`;
   retreat.append(retreatLabel, retreatValue);
 
   const death = document.createElement("div");
   const deathLabel = document.createElement("span");
-  deathLabel.textContent = "死ねば";
+  deathLabel.textContent = "死ねば・断念すれば失う";
   const deathValue = document.createElement("strong");
-  deathValue.textContent = `${deathLoss}個失う`;
+  deathValue.textContent = `素材 ${deathLoss}個・未使用品 ${unusedItems}個`;
   death.append(deathLabel, deathValue);
 
   flow.append(retreat, death);

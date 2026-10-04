@@ -1,8 +1,4 @@
-import {
-  boundedFiniteOrNull,
-  normalizeOptionalStableValue,
-  normalizeStableValue
-} from "./telemetry_normalization.js";
+import { normalizeOptionalStableValue, normalizeStableValue } from "./telemetry_normalization.js";
 
 export interface LootStakeSnapshotPayloadInput {
   runId: unknown;
@@ -10,8 +6,6 @@ export interface LootStakeSnapshotPayloadInput {
   get snapshotPoint(): unknown;
   safeSnapshotPoints: ReadonlySet<string>;
   get settlementOutcome(): unknown;
-  get selectedLootCount(): unknown;
-  inventoryCapacity: number;
   get stakeSnapshotFields(): Record<string, unknown>;
 }
 
@@ -25,7 +19,6 @@ export interface LootStakeSnapshotPayload {
   runId: unknown;
   snapshotPoint: string | "other";
   settlementOutcome: LootStakeSettlementOutcome | "other" | null;
-  selectedLootCount: number | null;
   [key: string]: unknown;
 }
 
@@ -37,11 +30,6 @@ export function buildLootStakeSnapshotPayload(
     input.settlementOutcome,
     SAFE_SETTLEMENT_OUTCOMES
   );
-  const selectedLootCount = boundedFiniteOrNull(
-    input.selectedLootCount,
-    0,
-    input.inventoryCapacity
-  );
   const stakeSnapshotFields = input.stakeSnapshotFields;
 
   return {
@@ -49,7 +37,6 @@ export function buildLootStakeSnapshotPayload(
     ...input.context,
     snapshotPoint,
     settlementOutcome,
-    selectedLootCount,
     ...stakeSnapshotFields
   };
 }

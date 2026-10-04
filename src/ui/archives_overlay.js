@@ -386,7 +386,6 @@ export function getRunHistoryHtml() {
     const outcomeText = getRunOutcomeLabel(h);
     const outcomeColor = getRunOutcomeColor(h);
     const representative = h.representativeItem;
-    const returnProcessing = h.returnProcessing || {};
     const startingKit = h.startingKit ? getStartingKit(h.startingKit)?.name : null;
     const deepestFloor = safeNonNegativeInteger(h.deepestFloor);
     const kills = safeNonNegativeInteger(h.kills);
@@ -394,8 +393,6 @@ export function getRunHistoryHtml() {
     const dangerRank = safeNonNegativeInteger(h.dangerRank);
     const bankedMaterials = Object.values(h.bankedMaterials || {})
       .reduce((sum, quantity) => sum + safeNonNegativeInteger(quantity), 0);
-    const returnedObjectCount = safeNonNegativeInteger(returnProcessing.returnedObjectCount);
-    const lostObjectCount = safeNonNegativeInteger(returnProcessing.lostObjectCount);
     
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
@@ -409,8 +406,7 @@ export function getRunHistoryHtml() {
           <div>宝箱開封: ${chestsOpened} 個</div>
           <div>出発: ${escapeHtml(startingKit || "開始時情報なし")}</div>
           <div>持帰素材: ${bankedMaterials} 個</div>
-          <div>この冒険を象徴する品: ${representative ? `${escapeHtml(representative.name)}（${escapeHtml(representative.status === "lost" ? "喪失" : representative.status === "rescued" ? "翼で持ち帰り" : representative.status === "returned" ? "帰還" : "観測")}）` : "なし"}</div>
-          <div>品のゆくえ: 持ち帰り${returnedObjectCount} / 失った品${lostObjectCount}</div>
+          <div>この冒険を象徴する品: ${representative ? escapeHtml(representative.name) : "なし"}</div>
         </div>
       </div>
     `;

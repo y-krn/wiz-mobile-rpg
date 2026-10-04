@@ -261,7 +261,6 @@ function compactLoot(result) {
     endingBagFree: result.finalInventorySlots == null ? null : 20 - result.finalInventorySlots,
     returnObjectLoot: {
       banked: settlement.banked?.length ?? 0,
-      salvaged: settlement.salvaged?.length ?? 0,
       discarded: settlement.discarded?.length ?? 0,
       lost: settlement.lost?.length ?? 0,
       left: settlement.left?.length ?? 0
@@ -483,7 +482,7 @@ function aggregateCondition(rows, condition, { includeStartingKitBreakdown = tru
       buildChanges: mean(rows.map(row => row.loot.buildChanges)),
       totals: lootTotals,
       endingBagUsed: quantiles(rows.map(row => row.loot.endingBagUsed).filter(Number.isFinite)),
-      returnObjectLoot: ["banked", "salvaged", "discarded", "lost", "left"].reduce((result, key) => {
+      returnObjectLoot: ["banked", "discarded", "lost", "left"].reduce((result, key) => {
         result[key] = rows.reduce((sum, row) => sum + row.loot.returnObjectLoot[key], 0);
         return result;
       }, {})

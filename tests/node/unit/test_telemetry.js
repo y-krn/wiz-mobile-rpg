@@ -994,7 +994,6 @@ check("portal decision telemetry keeps production snapshots, nullish fallbacks, 
       hpRate,
       mpRate,
       wingOwned,
-      wingSalvageCount: "5",
       nextBandMainId: "short_battle",
       nextBandSubId: ""
     });
@@ -1006,7 +1005,7 @@ check("portal decision telemetry keeps production snapshots, nullish fallbacks, 
   const explorationContext = buildExplorationContext({ state, character: player });
   assert.deepEqual(portals.map(event => event.properties.hpRate), [0, 0, 0, explorationContext.hpRate, explorationContext.hpRate]);
   assert.deepEqual(portals.map(event => event.properties.mpRate), [0, 0, 0, explorationContext.mpRate, explorationContext.mpRate]);
-  assert.ok(portals.every(event => event.properties.wingSalvageCount === 2));
+  assert.ok(portals.every(event => !Object.hasOwn(event.properties, "wingSalvageCount")));
   assert.ok(portals.every(event => event.properties.nextBandMainId === "short_battle"));
   assert.ok(portals.every(event => event.properties.nextBandSubId === null));
   assert.ok(portals.every(event => event.properties.stakeSnapshotPoint === "portal_decision"));
@@ -1163,7 +1162,7 @@ check("roaming combat results keep elite decision mapping", () => {
   }
 });
 
-check("return-wing snapshots distinguish the Wing from escape scrolls", () => {
+check("return-wing inventory telemetry distinguishes the Wing from escape scrolls", () => {
   const resourceSnapshot = buildResourceSnapshot({ inventory: ["TOWN_PORTAL", "ESCAPE_SCROLL"] });
   assert.equal(resourceSnapshot.consumableWingCount, 1);
   assert.equal(resourceSnapshot.consumableEscapeScrollCount, 1);
@@ -1190,7 +1189,7 @@ check("combat Wing use is recorded as a return-wing decision", () => {
   assert.equal(result.escaped, true);
   assert.equal(portal.portalType, "return_wing");
   assert.equal(portal.decision, "return");
-  assert.equal(portal.wingSalvageCount, 0);
+  assert.equal(Object.hasOwn(portal, "wingSalvageCount"), false);
   assert.equal(combatState.inventory.length, 0);
   assert.equal(events.filter(event => event.name === "portal_decision").length, 1);
   assert.equal(events.filter(event => event.name === "loot_lifecycle").length, 0, "Town-owned item use must not emit a null loot lifecycle");

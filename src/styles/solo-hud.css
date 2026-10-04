@@ -190,7 +190,6 @@
 }
 
 .milestone-portal-vitals,
-.milestone-portal-loot,
 .milestone-portal-choices,
 .milestone-portal-confirmation,
 .milestone-portal-confirmation-actions {
@@ -200,7 +199,6 @@
 }
 
 .milestone-portal-vitals,
-.milestone-portal-loot,
 .milestone-portal-confirmation {
   padding: var(--sp-sm) var(--sp-md);
   border: 1px solid var(--border-color);
@@ -216,15 +214,12 @@
   font-size: var(--fs-md);
 }
 
-.milestone-portal-party,
-.milestone-portal-loot-list {
+.milestone-portal-party {
   display: grid;
   gap: var(--sp-xs);
 }
 
-.milestone-portal-vital-row,
-.milestone-portal-loot-row,
-.milestone-portal-section-heading {
+.milestone-portal-vital-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
@@ -232,8 +227,7 @@
   min-width: 0;
 }
 
-.milestone-portal-vital-name,
-.milestone-portal-loot-name {
+.milestone-portal-vital-name {
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -248,36 +242,12 @@
   white-space: nowrap;
 }
 
-.milestone-portal-loot-count {
-  color: var(--semantic-unknown);
-  font-family: var(--font-mono);
-}
-
-.milestone-portal-loot-row {
-  grid-template-columns: minmax(0, 1fr) auto;
-  padding: var(--sp-xs) 0;
-  border-top: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-}
-
-.milestone-portal-loot-detail,
-.milestone-portal-note,
 .milestone-portal-choice-description,
 .milestone-portal-confirmation p {
   margin: 0;
   color: var(--text-muted);
   font-size: var(--fs-xs);
   line-height: 1.35;
-}
-
-.milestone-portal-loot-row .ownership-badge {
-  grid-column: 1 / -1;
-  justify-self: start;
-  border-left: 0;
-  padding-left: 0;
-}
-
-.milestone-portal-section-heading {
-  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .milestone-portal-materials {
@@ -299,10 +269,7 @@
   font-size: var(--fs-lg);
 }
 
-.milestone-portal-choice,
-.wing-selection-heading,
-.wing-selection-status,
-.wing-selection-candidate-count {
+.milestone-portal-choice {
   min-height: var(--tap-min);
 }
 
@@ -319,29 +286,6 @@
 
 .milestone-portal-change {
   color: var(--text-secondary);
-}
-
-.wing-selection-heading,
-.wing-selection-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--sp-sm) var(--sp-md);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-}
-
-.wing-selection-candidate-count {
-  display: flex;
-  align-items: center;
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-}
-
-.wing-selection-status {
-  color: var(--semantic-selected);
-  font-family: var(--font-mono);
 }
 
 .milestone-portal-clue {

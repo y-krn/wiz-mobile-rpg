@@ -2,9 +2,7 @@ import { getItemBaseId, getItemData, isSpecialOrQuestItem } from "../rules/item_
 import { trackLootLifecycle } from "../telemetry.js";
 import { isRuntimeItemCollection, isRuntimeItemRef, type RuntimeItemRef } from "./item.js";
 
-// This is intentionally separate from equipped/unbagged state. An item can be
-// equipped and still remain an unbanked dungeon result until the run ends.
-export const RETURN_WING_SALVAGE_COUNT = 2;
+// An item can be equipped and still remain run-owned until the run ends.
 
 export interface NormalizedRunObjectLootEntry {
   id: string;
@@ -312,11 +310,6 @@ export function replaceRunObjectLoot(
   return false;
 }
 
-function takeByIds(entries: RunObjectLootEntryLike[], selectedIds: unknown[] | null = null): RunObjectLootEntryLike[] {
-  const selected = selectedIds ? new Set(selectedIds) : null;
-  return entries.filter(entry => !selected || selected.has(entry.id));
-}
-
 function removeTrackedItemsFromInventory(stateLike: StateLike, items: unknown[]): void {
   const remaining = new Map<unknown, number>();
   items.forEach(item => {
@@ -411,8 +404,7 @@ function countItemsById(items: unknown[]): Map<string, number> {
  */
 export function settleRunObjectLoot(
   stateLike: unknown,
-  outcome: unknown,
-  salvageIds: unknown[] | null = null
+  outcome: unknown
 ): { banked: unknown[]; lost: unknown[] } {
   const state = isStateLike(stateLike) ? stateLike : null;
   const run = getRun(stateLike);
@@ -431,11 +423,7 @@ export function settleRunObjectLoot(
     const count = Math.min(initialCount, inventoryCounts.get(itemId) || 0);
     for (let index = 0; index < count; index += 1) unusedCraftItems.push(itemId);
   });
-  const returnedLoot = outcome === "retreat"
-    ? unbanked
-    : salvageIds
-      ? takeByIds(unbanked, salvageIds).slice(0, RETURN_WING_SALVAGE_COUNT)
-      : [];
+  const returnedLoot = outcomeReturns ? unbanked : [];
   const lostLoot = unbanked.filter(entry => !returnedLoot.some(item => item.id === entry.id));
   const returnedDungeonItems = returnedLoot.map(entry => entry.item);
   const currentStorage = Array.isArray(state.storage) ? state.storage : [];
@@ -447,16 +435,13 @@ export function settleRunObjectLoot(
     return { banked: [], lost: [] };
   }
 
-  returnedLoot.forEach(entry => trackLootLifecycle(
-    outcome === "wing" ? "salvaged" : "banked",
-    {
+  returnedLoot.forEach(entry => trackLootLifecycle("banked", {
       state: stateLike,
       itemKey: entry.item,
       source: "dungeon",
       lootId: entry.id,
       ownership: "town"
-    }
-  ));
+    }));
   lostLoot.forEach(entry => trackLootLifecycle("lost", {
     state: stateLike,
     itemKey: entry.item,

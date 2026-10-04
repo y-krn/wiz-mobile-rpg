@@ -612,9 +612,9 @@ for (const vp of VIEWPORTS) {
 
       expect(observed.exploreSummaryCount).toBe(0);
       for (const surface of [observed.stairs, observed.portal, observed.wing]) {
-        expect(surface.text).toContain('今回の素材 10個');
-        expect(surface.text).toMatch(/持ち帰れば\s*10個/);
-        expect(surface.text).toMatch(/死ねば\s*9個失う/);
+        expect(surface.text).toContain('素材 10個・未使用品 0個');
+        expect(surface.text).toMatch(/生還すれば持ち帰る\s*素材 10個・未使用品 0個/);
+        expect(surface.text).toMatch(/死ねば・断念すれば失う\s*素材 9個・未使用品 0個/);
         expect(surface.text).not.toMatch(/危険|確率|推奨|%/);
         expect(surface.box.left).toBeGreaterThanOrEqual(0);
         expect(surface.box.right).toBeLessThanOrEqual(vp.width);
@@ -626,7 +626,7 @@ for (const vp of VIEWPORTS) {
         }
       }
       expect(observed.portal.buttons.map(button => button.text)).toContain(
-        '戦果をすべて持ち帰って帰還'
+        '素材と持ち込み品を持って帰還'
       );
       expect(observed.portal.buttons.map(button => button.text)).not.toContain(
         '撤退して素材を100%、戦果を選んで持ち帰る'

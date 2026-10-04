@@ -16,7 +16,7 @@ or identifiers that are not needed for the observation.
 | `loot_lifecycle` | Object loot from discovery to settlement | lifecycle stage, category, source, floor, ownership, rarity band, coarse role, value proxy |
 | `loot_stake_snapshot` | Production-backed unconfirmed object-loot stake at decision boundaries | snapshot point, count, location/category composition, Rune supply-band composition, Core/Support, bag pressure |
 | `equipment_decision` / `build_shift` | Ordinary equipment changes versus meaningful direction changes | action, old/new category, decision kind, role transition |
-| `portal_decision` | Push, return, or Wing choice | portal kind, decision, resource band, free slots, unconfirmed count, rescued subset |
+| `portal_decision` | Push or return choice | portal kind, decision, resource band, free slots, unconfirmed count |
 | `elite_decision` | Approach, avoidance, contact, and result of optional threats | decision, contact mode, distance band, detection state, floor, unconfirmed count |
 | `chest_action` | The single chest decision | open/leave/kit, shown trap sign, actual trap, loot aura, kit availability, reward categories |
 | `trap_resolution` | Trap observation, response, and resource exchange | source kind, trap kind, outcome, action, success/risk, build capability band, tool/resource use |
@@ -28,7 +28,7 @@ The event names are stable domain observations. Exact property names and
 normalization limits remain owned by the telemetry source so a data-shape
 change does not become a design change.
 
-`loot_lifecycle` is keyed to the production `lootId`: `found` means the player attempted to take the object, `bagged` means it entered `currentRun.unbankedObjectLoot`, and `tried`/`identified`/`adopted`/`discarded`/`consumed` remain attached to that same sequence. Portal, Wing, Death, and Abandon settle it as `banked`, `salvaged`, or `lost`; Town-owned duplicate item use is not a dungeon lifecycle event. `loot_stake_snapshot` rereads production `unbankedObjectLoot` at each boundary and does not create a second ledger.
+`loot_lifecycle` is keyed to the production `lootId`: `found` means the player attempted to take the object, `bagged` means it entered `currentRun.unbankedObjectLoot`, and `tried`/`identified`/`adopted`/`discarded`/`consumed` remain attached to that same sequence. Portal and Wing settle it as `banked`; Death and Abandon settle unconfirmed objects as `lost`. Town-owned duplicate item use is not a dungeon lifecycle event. `loot_stake_snapshot` rereads production `unbankedObjectLoot` at each boundary and does not create a second ledger.
 
 ### Bounded UX diagnostics
 
@@ -53,8 +53,8 @@ resolved.
   ownership;
 - `tried`, `identified`, `adopted`, `left`, and `discarded` describe player
   decisions attached to that same sequence;
-- Portal settles the object as `banked`, Wing settles a selected subset as
-  `salvaged`, and Death/Abandon settle unconfirmed objects as `lost`.
+- Portal and Wing settle objects as `banked`; Death/Abandon settle
+  unconfirmed objects as `lost`.
 
 An equipped object remains unconfirmed until the terminal route settles it.
 Full bags may therefore produce `found` followed by `rejected` without a
