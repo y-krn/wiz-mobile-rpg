@@ -63,6 +63,8 @@ export const createDefaultCurrentRun = () => ({
   // Materials a chapel offering sent home, and what a death left on the grave (#2018).
   offeredMaterials: {},
   graveResult: null,
+  // Sworn at the oath altar (#2021): full recovery now, nothing banked if the run dies.
+  oath: false,
   // Guidebook fragments carried by this run, and what became of them (#2013).
   guideFragments: 0,
   guideResult: null,
@@ -154,8 +156,8 @@ export const UNLOCKABLE_STARTING_KITS = Object.freeze([
   Object.freeze({
     id: "stalker",
     name: "忍び足キット",
-    description: "ダガー・探索者の外套・静寂の香2個・鳴らし玉",
-    gear: Object.freeze(["DAGGER", "EXPLORER_CLOAK"]),
+    description: "ダガー・ローブ・静寂の香2個・鳴らし玉",
+    gear: Object.freeze(["DAGGER", "ROBE"]),
     items: Object.freeze(["SILENCE_INCENSE", "SILENCE_INCENSE", "NOISE_BALL"])
   }),
   // The scriptorium's kit (#2019): a two-handed staff with the basic rune
@@ -167,6 +169,23 @@ export const UNLOCKABLE_STARTING_KITS = Object.freeze([
     gear: Object.freeze(["SAGE_STAFF", "ROBE"]),
     items: Object.freeze(["MANA_POTION", "MANA_POTION"]),
     startsWithRune: true
+  }),
+  // The smithy's kit (#2021): the heaviest armor behind the lightest weapon.
+  // Heavier weapons with this armor measured well above every other kit.
+  Object.freeze({
+    id: "ironclad",
+    name: "重装キット",
+    description: "ダガー・プレートメイル・守りの薬",
+    gear: Object.freeze(["DAGGER", "PLATE_MAIL"]),
+    items: Object.freeze(["GUARD_POTION"])
+  }),
+  // The audience hall's kit (#2021): a ceremonial guard's great shield and
+  // mace over a robe.
+  Object.freeze({
+    id: "ceremonial",
+    name: "儀仗キット",
+    description: "メイス・ラージシールド・ローブ",
+    gear: Object.freeze(["MACE", "LARGE_SHIELD", "ROBE"])
   })
 ]);
 

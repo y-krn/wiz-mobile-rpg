@@ -346,8 +346,24 @@ before or after the boss, and B6 transition.
     a safe return like any other fragment. Floor plan and copy are exclusive.
   - Dragon forge — forge: a material-priced temper adds a share of weapon ATK
     for the next few battles, then cools.
+    On the band's third floor the furnace is cold and the smith is shut in
+    behind it until he has been brought home; feeding it carried materials
+    opens the door. Once the smithy keeps that furnace, its temper holds for
+    more battles. If the smithy also reforges, materials can instead raise the
+    equipped weapon's enhancement grade by one, up to one grade past what a
+    find can carry. The grade stays on that run's weapon like any other;
+    temper and reforge are exclusive.
   - Abyssal throne — mirror hall: paying a share of max HP marks the next
     floor's down stairs and their approach on that floor's map.
+    On the band's third floor the mirror holds the chamberlain until he has
+    been brought home; giving it a share of max HP lets him out. Once the
+    audience hall has raised its oath altar there, the room offers the mirror
+    as before or an oath: HP and MP are fully restored, and if the run then
+    dies or is abandoned, none of its carried materials are banked (a safe
+    return banks all of them; materials an offering already sent home are
+    untouched). If the audience hall has the mirror gallery, the mirror costs
+    no HP and marks the down stairs of the next two floors. Mirror and oath
+    are exclusive.
   Rewards stay inside the economy canon: materials come from the existing chest
   pool, the elite fight pays the existing dropped chest, and costs are turns,
   noise, HP, or materials. No room adds a currency, a permanent stat, curse

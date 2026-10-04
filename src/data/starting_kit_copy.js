@@ -59,6 +59,18 @@ export const STARTING_KIT_COPY = Object.freeze({
     playstyle: "両手の杖で呪文を撃つ。魔力草でMPを継ぎ足しながら戦う。",
     strengths: ["最初から呪文を使える", "魔力草2個を毎回持って始まる"],
     weaknesses: ["盾を持てない", "杖で殴っても弱い"]
+  }),
+  ironclad: kitCopy({
+    role: "重装",
+    playstyle: "厚い鎧で打撃を受け止め、短剣で少しずつ削る。長い戦いになる。",
+    strengths: ["鎧が最も厚い", "守りの薬を毎回持って始まる"],
+    weaknesses: ["一撃が軽い", "鎧が重く、動きが遅い", "盾がない"]
+  }),
+  ceremonial: kitCopy({
+    role: "盾",
+    playstyle: "大盾で守りを固めながら、槌で硬い相手を崩す。",
+    strengths: ["大盾で打撃をよく防ぐ", "防御の高い敵に強い"],
+    weaknesses: ["鎧は薄い", "大盾が重く、動きが遅い", "呪文は使えない"]
   })
 });
 

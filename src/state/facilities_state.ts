@@ -116,7 +116,9 @@ export function normalizeRunOrderResult(value: unknown): NormalizedRunOrderResul
 }
 
 /** People who can be led out of the dungeon, one per facility. */
-export const COMPANION_IDS = Object.freeze(["foreman", "priest", "weaver", "scribe"] as const);
+export const COMPANION_IDS = Object.freeze([
+  "foreman", "priest", "weaver", "scribe", "smith", "chamberlain"
+] as const);
 export type CompanionId = typeof COMPANION_IDS[number];
 /** Everyone the run is leading out right now, in the order they joined. */
 export type NormalizedCompanions = CompanionId[];

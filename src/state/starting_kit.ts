@@ -7,8 +7,8 @@ export type BaseStartingKitId =
   | "devotion"
   | "arcana";
 
-/** Kits opened by a town facility (#2009, #2018, #2019). */
-export type UnlockableStartingKitId = "miner" | "pilgrim" | "stalker" | "scribe";
+/** Kits opened by a town facility (#2009, #2018, #2019, #2021). */
+export type UnlockableStartingKitId = "miner" | "pilgrim" | "stalker" | "scribe" | "ironclad" | "ceremonial";
 
 export type StartingKitId = BaseStartingKitId | UnlockableStartingKitId;
 
@@ -25,7 +25,9 @@ export const UNLOCKABLE_STARTING_KIT_IDS = Object.freeze([
   "miner",
   "pilgrim",
   "stalker",
-  "scribe"
+  "scribe",
+  "ironclad",
+  "ceremonial"
 ] as const satisfies readonly UnlockableStartingKitId[]);
 
 export function isBaseStartingKitId(value: unknown): value is BaseStartingKitId {

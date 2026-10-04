@@ -189,6 +189,15 @@ carried materials safe, and its grave turns part of a death's loss into the
 next run's destination. Neither adds a currency, protects object loot, or
 removes the gap between a safe return and a death.
 
+A facility may also widen that gap by the player's own choice: the audience
+hall's oath trades a full recovery for banking nothing if the run then dies or
+is abandoned. Such a trade is offered once, at the facility's room, states its
+price before it is taken, and stays visible for the rest of the run.
+
+Run-local power a facility room grants stays run-local: a longer temper, a
+mended armor, and a reforged weapon grade all belong to that run's character
+and equipment, and none of them is carried into the next run.
+
 A facility may also take an order (仕込み): materials are paid when it is
 placed, and the goods enter storage at the next safe return. An order costs
 less than departure craft because it only pays off for a run that walks out;

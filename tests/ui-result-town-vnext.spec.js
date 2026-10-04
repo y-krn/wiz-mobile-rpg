@@ -374,14 +374,14 @@ test('Town shows the three closest feats and opens the full list', async ({ page
   await expect(cards.nth(1)).toHaveAttribute('data-feat-id', 'depth_10');
   await expect(cards.nth(1)).toContainText('B7F / B10F');
   await expect(cards.nth(2)).toHaveAttribute('data-feat-id', 'guardian_10');
-  await expect(page.locator('#btn-town-feats')).toContainText('達成 2 / 21');
+  await expect(page.locator('#btn-town-feats')).toContainText('達成 2 / 26');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 
   await page.locator('#btn-town-feats').click();
   await expect(page.locator('#submenu-title')).toContainText('偉業');
-  await expect(page.locator('.feat-list-summary')).toContainText('達成 2 / 21');
-  await expect(page.locator('.feat-list-grid .feat-card')).toHaveCount(21);
+  await expect(page.locator('.feat-list-summary')).toContainText('達成 2 / 26');
+  await expect(page.locator('.feat-list-grid .feat-card')).toHaveCount(26);
   await expect(page.locator('.feat-card[data-feat-id="depth_5"]')).toHaveAttribute('data-feat-completed', 'true');
   await expect(page.locator('.feat-card[data-feat-id="depth_5"]')).toContainText('受け取り済み');
   await expect(page.locator('.feat-card[data-feat-id="kits_4"]')).toContainText('0 / 4');

@@ -16,10 +16,11 @@ function getMaterialTotal(materials) {
   );
 }
 
-export function getRunMaterialStake(runMaterials = state.currentRun?.materials) {
+export function getRunMaterialStake(runMaterials = state.currentRun?.materials, oath = state.currentRun?.oath === true) {
   const materials = runMaterials || {};
   const currentTotal = getMaterialTotal(materials);
-  const deathBanked = getBankedMaterials(materials, "death");
+  // Under an oath (#2021) a death banks nothing.
+  const deathBanked = oath ? {} : getBankedMaterials(materials, "death");
   const deathLoss = MATERIAL_TYPES.reduce(
     (total, name) => total + Math.max(0, getMaterialQuantity(materials, name) - getMaterialQuantity(deathBanked, name)),
     0
@@ -117,6 +118,12 @@ export function createRunStakesSummary(
     companionLine.className = "run-stakes-companion";
     companionLine.textContent = `同行：${escortNames}。生還すれば街へ連れ帰る。死ねば・断念すれば連れ帰れない。`;
     flow.appendChild(companionLine);
+  }
+  if (state.currentRun?.oath === true) {
+    const oathLine = document.createElement("p");
+    oathLine.className = "run-stakes-companion run-stakes-oath";
+    oathLine.textContent = "誓約中：死ねば・断念すれば、手持ちの素材は1つも街に残らない。";
+    flow.appendChild(oathLine);
   }
   // A chapel offering already sent these home (#2018): they are not at stake.
   const offered = Object.values(state.currentRun?.offeredMaterials || {})

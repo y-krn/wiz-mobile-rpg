@@ -332,6 +332,18 @@ export function getFeatResultRows(featResult, run = null) {
       });
     });
   }
+  // An oath (#2021): kept by walking out, broken by a death or an abandoned run.
+  if (run?.oath === true) {
+    const kept = run.outcome === "retreat";
+    rows.push({
+      id: "oath",
+      status: "誓約",
+      completed: kept,
+      failed: !kept,
+      name: kept ? "誓約を果たした" : "誓約は破れた",
+      detail: kept ? "素材をすべて持ち帰った" : "手持ちの素材は街に残らなかった"
+    });
+  }
   // The chapel grave (#2018): what this death added to it waits at the altar.
   const graveTotal = Object.values(run?.graveResult || {}).reduce((sum, quantity) => sum + quantity, 0);
   if (graveTotal > 0) {
@@ -497,12 +509,17 @@ function leaveResult(overlay, { announce = true } = {}) {
 
 export function getEvaluationText(run, isSuccess) {
   if (!run) return "";
+  // A broken oath (#2021) banks none of the carried materials.
+  const banked = run.oath === true ? "誓約により、手持ちの素材は残らなかった。" : "素材の30%を持ち帰った。";
   if (run.returnReason === "abandon") {
-    return `${getFloorLabel(state, run.deepestFloor)}で冒険を断念し、素材の30%を持ち帰った。`;
+    return run.oath === true
+      ? `${getFloorLabel(state, run.deepestFloor)}で冒険を断念した。${banked}`
+      : `${getFloorLabel(state, run.deepestFloor)}で冒険を断念し、${banked}`;
   }
-  return isSuccess
-    ? `${getFloorLabel(state, run.deepestFloor)}から帰還した。`
-    : `${getFloorLabel(state, run.deepestFloor)}で力尽き、素材の30%を持ち帰った。`;
+  if (isSuccess) return `${getFloorLabel(state, run.deepestFloor)}から帰還した。`;
+  return run.oath === true
+    ? `${getFloorLabel(state, run.deepestFloor)}で力尽きた。${banked}`
+    : `${getFloorLabel(state, run.deepestFloor)}で力尽き、${banked}`;
 }
 
 export function renderResultScreen() {
@@ -546,7 +563,7 @@ export function renderResultScreen() {
   materialsHeading.appendChild(textElement("span", null, "素材収支"));
   materialsHeading.appendChild(textElement("strong", null, `${rawTotal} → ${bankedTotal}`));
   materialsSection.appendChild(materialsHeading);
-  materialsSection.appendChild(textElement("div", "result-banking-rate", `潜行中に取得 → ${isSuccess ? "帰還100%" : run.returnReason === "abandon" ? "断念30%（死亡時と同じ）" : "死亡30%"} 持ち帰り`));
+  materialsSection.appendChild(textElement("div", "result-banking-rate", `潜行中に取得 → ${isSuccess ? "帰還100%" : run.oath === true ? "誓約0%（献灯で送った分を除く）" : run.returnReason === "abandon" ? "断念30%（死亡時と同じ）" : "死亡30%"} 持ち帰り`));
   const materialFlow = textElement("div", "result-material-flow");
   const appendMaterialColumn = (label, materials) => {
     const column = document.createElement("div");

@@ -12,8 +12,8 @@
 // for the biome's special room until the keeper has been led home. `rescue`
 // is what freeing the keeper costs, in the same terms the biome's own room
 // uses (turns and noise, HP, materials, or a fight): "dig" and "drain" take
-// turns (digging is noisy), "blood" takes a share of max HP, "fight" is the
-// brood chamber's fight.
+// turns (digging is noisy), "blood" takes a share of max HP, "fuel" takes
+// carried materials, "fight" is the brood chamber's fight.
 
 const node = definition => Object.freeze({
   ...definition,
@@ -105,8 +105,16 @@ export const FACILITIES = Object.freeze([
       biomeId: "forgotten_catacomb",
       keeperRoom: "sealed_priest",
       omen: "この階のどこかで、かすかな祈りの声がする。",
-      // The seal takes blood, like the altar's own blessing.
-      rescue: { kind: "blood", hpRate: 0.25 }
+      // The seal takes blood, like the altar's own blessing. `{cost}` is the
+      // HP it takes right now.
+      rescue: {
+        kind: "blood",
+        hpRate: 0.25,
+        prompt: "祭壇の封印の奥に司祭が閉じ込められている。封印は血でしか解けない（HP{cost}）。",
+        action: "血を捧げて封印を解く（HP{cost}）",
+        done: "封印に血を捧げた（HP-{cost}）。司祭が祭壇の奥から歩み出た。「助かりました。街までお連れください」",
+        shortage: "いまのHPでは、封印に捧げる血が足りない。"
+      }
     },
     nodes: [
       node({
@@ -165,7 +173,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "weaver_kit",
         name: "忍び足キット",
-        description: "開始キットに「忍び足キット」が加わる。ダガーと探索者の外套で、静寂の香2個と鳴らし玉1個を毎回持って始まる。盾はない。",
+        description: "開始キットに「忍び足キット」が加わる。ダガーとローブで、静寂の香2個と鳴らし玉1個を毎回持って始まる。盾はない。",
         cost: { "毒腺": 6, "呪布": 4 },
         grants: { startingKit: "stalker" }
       }),
@@ -247,6 +255,122 @@ export const FACILITIES = Object.freeze([
         description: "魔力草2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
         cost: { "獣の牙": 2, "硬い皮": 2 },
         yields: ["MANA_POTION", "MANA_POTION"]
+      })
+    ]
+  }),
+  // The smithy (#2021): the smith shut in behind the dragon forge's cold
+  // furnace on B23F.
+  facility({
+    id: "smithy",
+    name: "鍛冶場",
+    keeper: "鍛冶師",
+    featId: "smith_rescue",
+    lockedHint: "竜火の鍛造殿の3階目で、火の消えた炉の奥から鎚の音がする。",
+    openDescription: "鍛冶師が戻り、鍛冶場の炉に火が入った。",
+    companion: { id: "smith", name: "鍛冶師", counterKey: "smithRescued" },
+    site: {
+      biomeId: "dragon_forge",
+      keeperRoom: "cold_forge",
+      omen: "この階のどこかで、鉄の扉を内側から叩く音がする。",
+      // The furnace door opens only while it burns: feed it materials, as
+      // the forge is fed for a temper.
+      rescue: { kind: "fuel", materials: 4 }
+    },
+    nodes: [
+      node({
+        id: "smith_kit",
+        name: "重装キット",
+        description: "開始キットに「重装キット」が加わる。ダガーとプレートメイルで、守りの薬を1個、毎回持って始まる。盾はない。",
+        cost: { "鉄片": 8, "黒角": 4 },
+        grants: { startingKit: "ironclad" }
+      }),
+      node({
+        id: "smith_forge",
+        name: "鍛冶師の炉",
+        description: "竜火の鍛造殿の3階目の炉が「鍛冶師の炉」になる。武器の鍛え直しが5戦続く（通常は3戦）。",
+        cost: { "鉄片": 8, "竜鱗": 4 },
+        requiresFeat: "depth_25",
+        grants: { room: "smith_forge" }
+      }),
+      node({
+        id: "smith_reforge",
+        name: "打ち直し",
+        description: "鍛冶師の炉で、鍛え直しの代わりに打ち直しを頼める。素材4個で、装備中の武器の強化値が1上がる（+6まで）。",
+        cost: { "竜鱗": 6, "黒角": 6 },
+        requiresFeat: "guardian_25",
+        requiresNode: "smith_forge",
+        grants: { roomOption: "reforge" }
+      })
+    ],
+    orders: [
+      order({
+        id: "smith_guard_potion",
+        name: "守りの薬の仕込み",
+        description: "守りの薬2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
+        cost: { "竜鱗": 1, "鉄片": 2 },
+        yields: ["GUARD_POTION", "GUARD_POTION"]
+      })
+    ]
+  }),
+  // The audience hall (#2021): the chamberlain caught inside the abyssal
+  // throne's mirror on B28F.
+  facility({
+    id: "audience_hall",
+    name: "謁見の間",
+    keeper: "侍従",
+    featId: "chamberlain_rescue",
+    lockedHint: "深淵の玉座の3階目で、鏡の中から誰かがこちらを見ている。",
+    openDescription: "侍従が戻り、謁見の間の扉が開いた。",
+    companion: { id: "chamberlain", name: "侍従", counterKey: "chamberlainRescued" },
+    site: {
+      biomeId: "abyssal_throne",
+      keeperRoom: "mirror_captive",
+      omen: "この階のどこかで、鏡を内側から叩く音がする。",
+      // The mirror takes life, as the mirror hall's vision does.
+      rescue: {
+        kind: "blood",
+        hpRate: 0.3,
+        prompt: "鏡の中に侍従が囚われている。鏡に生気を与えれば、出てこられる（HP{cost}）。",
+        action: "鏡に生気を与える（HP{cost}）",
+        done: "鏡に生気を吸われた（HP-{cost}）。侍従が鏡の中から歩み出た。「恩に着ます。どうか街まで」",
+        shortage: "いまのHPでは、鏡に与える生気が足りない。"
+      }
+    },
+    nodes: [
+      node({
+        id: "hall_kit",
+        name: "儀仗キット",
+        description: "開始キットに「儀仗キット」が加わる。メイスとラージシールドとローブで始まる。",
+        cost: { "竜鱗": 6, "黒角": 6 },
+        grants: { startingKit: "ceremonial" }
+      }),
+      node({
+        id: "hall_oath",
+        name: "誓約の祭壇",
+        description: "深淵の玉座の3階目の鏡の間が「誓約の祭壇」になる。鏡を覗く代わりに誓約を立てられる。HPとMPが全回復するが、その潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない。",
+        cost: { "竜鱗": 8, "霊粉": 6 },
+        requiresFeat: "depth_30",
+        grants: { room: "oath_altar" }
+      }),
+      node({
+        id: "hall_gallery",
+        name: "鏡の回廊",
+        description: "誓約の祭壇の鏡が、HPを払わずに覗けるようになり、次の階とその次の階の下り階段が地図に出る。",
+        cost: { "竜鱗": 8, "魔石片": 6 },
+        requiresFeat: "guardian_30",
+        requiresNode: "hall_oath",
+        grants: { roomOption: "gallery" }
+      })
+    ],
+    orders: [
+      // The wing has no typed recipe (departure craft takes any 8 materials),
+      // so this order names its own half-price cost.
+      order({
+        id: "hall_return_wing",
+        name: "帰還の翼の仕込み",
+        description: "帰還の翼1個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の数の素材で済む。",
+        cost: { "竜鱗": 2, "黒角": 2 },
+        yields: ["TOWN_PORTAL"]
       })
     ]
   })

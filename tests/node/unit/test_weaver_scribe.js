@@ -256,7 +256,7 @@ assert.deepEqual(
   ["stalker", "scribe"]
 );
 const stalker = createStartingKitCharacter("stalker");
-assert.deepEqual([stalker.equipment.weapon, stalker.equipment.shield, stalker.equipment.armor], ["DAGGER", null, "EXPLORER_CLOAK"]);
+assert.deepEqual([stalker.equipment.weapon, stalker.equipment.shield, stalker.equipment.armor], ["DAGGER", null, "ROBE"]);
 assert.deepEqual(getDepartureBagItems([], null, "stalker"), ["SILENCE_INCENSE", "SILENCE_INCENSE", "NOISE_BALL"]);
 getStartingKit("stalker").items.forEach(itemId => assert.ok(ITEMS[itemId], `${itemId} exists`));
 

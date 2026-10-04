@@ -7,6 +7,10 @@ import { closeSubmenu } from "../navigation.js";
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
 import { getCharEquipmentDef, getCharWeaponAtk } from "../rules/character_stats.js";
 import { addRunFragments } from "../systems/guidebook.js";
+import { convertToEquipObject } from "../craft.js";
+import { replaceRunObjectLoot } from "../state/run_loot.js";
+import { syncMediumState } from "../rules/magic_rules.js";
+import { getItemData } from "../rules/item_rules.js";
 import { getTotalMaterialCount, spendAnyMaterials } from "../rules/material_rules.js";
 import { hasStatusEffect, removeStatusEffect, STATUS_EFFECT_IDS } from "../combat_logic/status_effects.js";
 import { consumeExplorationTurn, createNoiseEvent, getCurrentExplorationCell } from "../movement.js";
@@ -26,9 +30,13 @@ import {
   MENDING_MATERIAL_COST,
   FORGE_MATERIAL_COST,
   FORGE_TEMPER_BATTLES,
+  GALLERY_VISION_FLOORS,
   OUTPOST_BLAST_NOISE_TTL,
   OUTPOST_SUPPLY_ITEM_IDS,
   READING_TURNS,
+  REFORGE_MATERIAL_COST,
+  REFORGE_MAX_LEVEL,
+  SMITH_TEMPER_BATTLES,
   SPECIAL_ROOMS,
   VEIN_AMBUSH_CHANCE,
   VEIN_DIG_TURNS,
@@ -46,6 +54,7 @@ import {
   getMirrorHpCost,
   getOfferingChoices,
   getReadingRoomTargets,
+  getReforgedLevel,
   getRescueBloodCost,
   getSpecialRoom,
   getSpecialRoomInfo,
@@ -266,6 +275,86 @@ function renderForge(optGrid, cell) {
   }, { disabled: !hero || hero.forgeTemper || materials < FORGE_MATERIAL_COST });
 }
 
+// Smith's forge (#2021): the temper holds longer, or (once bought) the
+// equipped weapon is reforged one grade up. Either one spends the room.
+function renderSmithForge(optGrid, cell) {
+  const hero = getHero();
+  const weaponAtk = hero ? getCharWeaponAtk(hero) : 0;
+  const bonus = getForgeTemperAmount(weaponAtk);
+  const materials = runMaterialCount();
+  const canReforge = isFacilityNodeBought(state.facilities, "smith_reforge");
+  const weapon = hero?.equipment?.weapon || null;
+  const reforgedLevel = weapon ? getReforgedLevel(weapon) : null;
+  addDescription(optGrid, canReforge
+    ? `鍛え直す（素材${FORGE_MATERIAL_COST}個、次の${SMITH_TEMPER_BATTLES}戦のあいだ攻撃力+${bonus}）か、打ち直す（素材${REFORGE_MATERIAL_COST}個、装備中の武器の強化値+1、+${REFORGE_MAX_LEVEL}まで）か、どちらか一方を選べる。所持素材：${materials}個`
+    : `素材${FORGE_MATERIAL_COST}個をくべると、武器の攻撃力が+${bonus}される（次の${SMITH_TEMPER_BATTLES}戦）。所持素材：${materials}個`);
+  addButton(optGrid, `武器を鍛え直す（素材${FORGE_MATERIAL_COST}個・${SMITH_TEMPER_BATTLES}戦）`, () => {
+    const paid = payRunMaterials(FORGE_MATERIAL_COST);
+    if (!paid) return;
+    const temper = applyForgeTemper(hero, weaponAtk, SMITH_TEMPER_BATTLES);
+    playSound("item");
+    addLog(`鍛冶師の炉に [${paid}] をくべた。武器が赤く輝く！（攻撃力+${temper.bonus}、${temper.battles}戦）`);
+    finishRoom(cell);
+    closeSubmenu();
+  }, { disabled: !hero || hero.forgeTemper || materials < FORGE_MATERIAL_COST });
+  if (!canReforge) return;
+  const label = reforgedLevel === null
+    ? (weapon ? `武器を打ち直す（これ以上は上がらない）` : "武器を打ち直す（武器を装備していない）")
+    : `武器を打ち直す（素材${REFORGE_MATERIAL_COST}個・強化値+${reforgedLevel}へ）`;
+  const reforgeButton = addButton(optGrid, label, () => {
+    const paid = payRunMaterials(REFORGE_MATERIAL_COST);
+    if (!paid) return;
+    const reforged = convertToEquipObject(weapon);
+    reforged.enhanceLevel = reforgedLevel;
+    replaceRunObjectLoot(state, weapon, reforged);
+    hero.equipment.weapon = reforged;
+    // The weapon keeps its identity as a medium: its runes stay set.
+    syncMediumState(hero, { preserveRunes: true });
+    playSound("level_up");
+    addLog(`鍛冶師の炉に [${paid}] をくべ、武器を打ち直した。➔ [${getItemData(reforged)?.name || "武器"}]`);
+    finishRoom(cell);
+    closeSubmenu();
+  }, { disabled: !hero || reforgedLevel === null || materials < REFORGE_MATERIAL_COST });
+  reforgeButton.setAttribute?.("data-smith-reforge", "true");
+}
+
+// Oath altar (#2021): the mirror as before, or an oath: full recovery now,
+// and nothing carried is banked if the run then dies or is abandoned. With
+// the mirror gallery the vision is free and reaches two floors ahead.
+function renderOathAltar(optGrid, cell) {
+  const hero = getHero();
+  const run = state.currentRun;
+  const hasGallery = isFacilityNodeBought(state.facilities, "hall_gallery");
+  const cost = hero && !hasGallery ? getMirrorHpCost(hero, getCharMaxHp(hero)) : 0;
+  const maxHp = hero ? getCharMaxHp(hero) : 0;
+  const maxMp = hero ? getCharMaxMp(hero) : 0;
+  addDescription(optGrid, `${hasGallery
+    ? `鏡を覗くと、次の階とその次の階の下り階段が地図に刻まれる。回廊の鏡は生気を奪わない。`
+    : `鏡を覗くとHP${cost}を奪われ、次の階の下り階段とその手前が地図に刻まれる。`}誓約を立てると、HPとMPが全回復する。代わりに、この潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない（生還すれば全部持ち帰る）。どちらか一方だけを選べる。`);
+  addButton(optGrid, hasGallery ? "鏡の回廊を覗く（2階先まで）" : `鏡を覗く（HP${cost}）`, () => {
+    hero.hp -= cost;
+    getSpecialRoom(cell).vision = hasGallery ? GALLERY_VISION_FLOORS : 1;
+    finishRoom(cell);
+    applyMirrorVision(state, state.floor + 1);
+    playSound("bump");
+    addLog(hasGallery
+      ? "鏡の回廊を覗いた。次の階とその次の階の下り階段の景色が、目に焼き付いた。"
+      : `鏡に生気を吸われた（HP-${cost}）。次の階の下り階段の景色が、目に焼き付いた。`);
+    closeSubmenu();
+  }, { disabled: !hero || (!hasGallery && cost <= 0) });
+  const oathButton = addButton(optGrid, "誓約を立てる（HP・MP全回復／死ねば素材は残らない）", () => {
+    hero.hp = maxHp;
+    hero.mp = maxMp;
+    run.oath = true;
+    playSound("heal");
+    addLog("祭壇に誓った。生きて帰る、と。傷が塞がり、力が満ちた。");
+    addLog("【誓約】この潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない。");
+    finishRoom(cell);
+    closeSubmenu();
+  }, { disabled: !hero || !run || run.oath === true });
+  oathButton.setAttribute?.("data-oath", "true");
+}
+
 // Mirror hall: pay HP to see where the next floor's down stairs lie.
 function renderMirrorHall(optGrid, cell) {
   const hero = getHero();
@@ -280,6 +369,9 @@ function renderMirrorHall(optGrid, cell) {
     closeSubmenu();
   }, { disabled: !hero || cost <= 0 });
 }
+
+/** What every rescue has in common, said in every keeper's room. */
+const RESCUE_TERMS = "助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。";
 
 // A waiting keeper (#2009, #2018): free them and they follow. They only count
 // as rescued once the run walks out by the Portal or the Wing.
@@ -316,26 +408,45 @@ function digOutKeeper(cell, facility) {
 function renderDigRescue(optGrid, cell, facility) {
   const room = getSpecialRoom(cell);
   const left = facility.site.rescue.turns - (room.progress || 0);
-  addDescription(optGrid, `崩れた岩の向こうに${facility.companion.name}が閉じ込められている。掘り出すと${left}手番かかり、物音が立つ。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
+  addDescription(optGrid, `崩れた岩の向こうに${facility.companion.name}が閉じ込められている。掘り出すと${left}手番かかり、物音が立つ。${RESCUE_TERMS}`);
   addButton(optGrid, `岩を掘って助け出す（${left}手番）`, () => {
     closeSubmenu();
     digOutKeeper(cell, facility);
   });
 }
 
-// A seal takes blood: a share of max HP, never the last point.
+// A seal or a mirror takes blood: a share of max HP, never the last point.
+// The facility data words it; `{cost}` is the HP it takes right now.
 function renderBloodRescue(optGrid, cell, facility) {
   const hero = getHero();
-  const cost = hero ? getRescueBloodCost(hero, getCharMaxHp(hero), facility.site.rescue.hpRate) : 0;
-  addDescription(optGrid, `祭壇の封印の奥に${facility.companion.name}が閉じ込められている。封印は血でしか解けない（HP${cost}）。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
-  addButton(optGrid, `血を捧げて封印を解く（HP${cost}）`, () => {
+  const rescue = facility.site.rescue;
+  const cost = hero ? getRescueBloodCost(hero, getCharMaxHp(hero), rescue.hpRate) : 0;
+  const worded = text => text.replaceAll("{cost}", String(cost));
+  addDescription(optGrid, `${worded(rescue.prompt)}${RESCUE_TERMS}`);
+  addButton(optGrid, worded(rescue.action), () => {
     hero.hp -= cost;
-    addLog(`封印に血を捧げた（HP-${cost}）。${facility.companion.name}が祭壇の奥から歩み出た。「助かりました。街までお連れください」`);
+    addLog(worded(rescue.done));
     addCompanion(facility);
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !hero || cost <= 0 });
-  if (hero && cost <= 0) addDescription(optGrid, "いまのHPでは、封印に捧げる血が足りない。");
+  if (hero && cost <= 0) addDescription(optGrid, rescue.shortage);
+}
+
+// A cold furnace takes fuel: carried materials, like the forge's temper.
+function renderFuelRescue(optGrid, cell, facility) {
+  const cost = facility.site.rescue.materials;
+  const materials = runMaterialCount();
+  addDescription(optGrid, `火の消えた炉の奥に${facility.companion.name}が閉じ込められている。素材${cost}個をくべて火を入れれば、扉が開く。所持素材：${materials}個。${RESCUE_TERMS}`);
+  addButton(optGrid, `素材をくべて火を入れる（素材${cost}個）`, () => {
+    const paid = payRunMaterials(cost);
+    if (!paid) return;
+    addLog(`炉に [${paid}] をくべた。火が入り、鉄の扉が開いた。${facility.companion.name}が出てきた。「助かった。街まで頼む」`);
+    addCompanion(facility);
+    finishRoom(cell);
+    closeSubmenu();
+  }, { disabled: materials < cost });
+  if (materials < cost) addDescription(optGrid, "くべる素材が足りない。");
 }
 
 // Draining a flooded room is quiet work: turns only, and it can be
@@ -363,7 +474,7 @@ function drainForKeeper(cell, facility) {
 function renderDrainRescue(optGrid, cell, facility) {
   const room = getSpecialRoom(cell);
   const left = facility.site.rescue.turns - (room.progress || 0);
-  addDescription(optGrid, `水の引かない閲覧室に${facility.companion.name}が取り残されている。水門を回して水を抜くと${left}手番かかる。物音は立たない。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
+  addDescription(optGrid, `水の引かない閲覧室に${facility.companion.name}が取り残されている。水門を回して水を抜くと${left}手番かかる。物音は立たない。${RESCUE_TERMS}`);
   addButton(optGrid, `水門を回して水を抜く（${left}手番）`, () => {
     closeSubmenu();
     drainForKeeper(cell, facility);
@@ -374,7 +485,7 @@ function renderDrainRescue(optGrid, cell, facility) {
 // nest. The room is spent only by winning; `freeKeeperAfterFight` finishes
 // the rescue from the victory.
 function renderFightRescue(optGrid, cell, facility) {
-  addDescription(optGrid, `繭の中に${facility.companion.name}が囚われている。繭を切れば巣の主（この階のエリート級）が目を覚ます。倒せば${facility.companion.name}は自由になり、卵室の荷（宝箱）も手に入る。逃げた場合は、繭は残り、もう一度挑める。助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。`);
+  addDescription(optGrid, `繭の中に${facility.companion.name}が囚われている。繭を切れば巣の主（この階のエリート級）が目を覚ます。倒せば${facility.companion.name}は自由になり、卵室の荷（宝箱）も手に入る。逃げた場合は、繭は残り、もう一度挑める。${RESCUE_TERMS}`);
   addButton(optGrid, "繭を切る（強敵と戦う）", () => {
     closeSubmenu();
     addLog("繭に刃を入れた。奥で巨大な影が身を起こす！");
@@ -386,7 +497,8 @@ const RESCUE_RENDERERS = {
   dig: renderDigRescue,
   blood: renderBloodRescue,
   drain: renderDrainRescue,
-  fight: renderFightRescue
+  fight: renderFightRescue,
+  fuel: renderFuelRescue
 };
 
 function renderKeeperRoom(optGrid, cell) {
@@ -535,7 +647,11 @@ const ROOM_RENDERERS = {
   [SPECIAL_ROOMS.COCOONED_WEAVER]: renderKeeperRoom,
   [SPECIAL_ROOMS.WEAVER_HAMMOCK]: renderWeaverHammock,
   [SPECIAL_ROOMS.STRANDED_SCRIBE]: renderKeeperRoom,
-  [SPECIAL_ROOMS.SCRIBE_READING_ROOM]: renderScribeReadingRoom
+  [SPECIAL_ROOMS.SCRIBE_READING_ROOM]: renderScribeReadingRoom,
+  [SPECIAL_ROOMS.COLD_FORGE]: renderKeeperRoom,
+  [SPECIAL_ROOMS.SMITH_FORGE]: renderSmithForge,
+  [SPECIAL_ROOMS.MIRROR_CAPTIVE]: renderKeeperRoom,
+  [SPECIAL_ROOMS.OATH_ALTAR]: renderOathAltar
 };
 
 export function renderSpecialRoom(optGrid) {
