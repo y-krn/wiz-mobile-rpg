@@ -17,7 +17,6 @@ import {
 import { resolvePlayerTechnique } from "../../../src/combat_logic/technique_resolution.js";
 import { assignCombatActor, isCombatAction } from "../../../src/combat_logic/combat_action.js";
 import { getCharWeaponAtk, resolveWeaponAttack } from "../../../src/data.js";
-import { TRIAL_PROFILES } from "../../../src/trial_profiles.js";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
@@ -32,13 +31,12 @@ function coreItem(baseId, coreId) {
   };
 }
 
-function reset(profile = TRIAL_PROFILES.PHASE3_EQUIPMENT, kit = "vanguard") {
+function reset(kit = "vanguard") {
   state.party = [createStartingKitCharacter(kit)];
   state.inventory = [];
   state.floor = 1;
   state.logs = [];
   state.currentRun = createDefaultCurrentRun();
-  state.currentRun.trialProfile = profile;
   state.combatState = { monsters: [], roundNumber: 1 };
   return state.party[0];
 }
@@ -47,9 +45,10 @@ function enemy(overrides = {}) {
   return { name: "的", hp: 200, maxHp: 200, atk: 5, def: 0, color: "#fff", ...overrides };
 }
 
-// The action exists only in the trial profile.
-let char = reset(TRIAL_PROFILES.NORMAL);
-assert.equal(getCharTechnique(char, state), null, "normal runs have no technique");
+// The action exists only during an active run.
+let char = reset();
+state.currentRun = null;
+assert.equal(getCharTechnique(char, state), null, "no technique outside a run");
 char = reset();
 assert.equal(getCharTechnique(char, state).id, "readingCut", "the vanguard sword owns the blade technique");
 char.equipment.weapon = "DAGGER";
@@ -59,7 +58,7 @@ assert.equal(getCharTechnique(char, state).id, "armorBreak");
 char.equipment.weapon = "CLAYMORE";
 char.equipment.shield = null;
 assert.equal(getCharTechnique(char, state).id, "allOutSwing");
-char = reset(TRIAL_PROFILES.PHASE3_EQUIPMENT, "arcana");
+char = reset("arcana");
 assert.equal(getCharTechnique(char, state).id, "focusMana");
 
 // Action contract.
@@ -137,7 +136,7 @@ resolvePlayerTechnique(char, { type: "technique", actorIdx: 0, targetIdx: 0 }, s
 assert.equal(log.filter(entry => /二連突き！.*ダメージ/.test(entry.msg)).length, 2);
 
 // Focus mana restores MP and primes the next spell.
-char = reset(TRIAL_PROFILES.PHASE3_EQUIPMENT, "arcana");
+char = reset("arcana");
 char.mp = 0;
 resolvePlayerTechnique(char, { type: "technique", actorIdx: 0, targetIdx: -1 }, state, [], [], { rng: alwaysHit });
 assert.equal(char.mp, TECHNIQUES.focusMana.mpRestore);

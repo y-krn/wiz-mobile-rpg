@@ -26,6 +26,7 @@ import {
   getCharDef,
   getCharWeaponAtk
 } from "../../../src/rules/character_stats.js";
+import { isVNextTrialCore } from "../../../src/rules/equipment_vnext_trial.js";
 import { getCharAffixSum } from "../../../src/rules/item_rules.js";
 import {
   applyKillAffixEffects,
@@ -194,35 +195,29 @@ test("工房追加coreはpoolノード解放前後で抽選が切り替わる", 
     return found;
   };
 
+  // Only Cores that survived the Build vNext audit can roll once unlocked.
+  const rollable = addedCoreIds.filter(isVNextTrialCore);
+  assert.ok(rollable.length > 0, "at least one Workshop core stays in the unified pool");
   assert.equal(collectGeneratedCoreIds([], 800).size, 0);
   assert.deepEqual(
     [...collectGeneratedCoreIds(addedCoreIds, 1600)].sort(),
-    [...addedCoreIds].sort()
+    [...rollable].sort()
   );
 });
 
 test("生成API: magic coreChanceがcorePoolの抽選へ反映", () => {
-  const originalComposition = AFFIX_BALANCE.rollComposition.magic;
-  const originalBudgets = AFFIX_BALANCE.budgetsByRarityAndFloor.magic;
-  try {
-    AFFIX_BALANCE.rollComposition.magic = { support: 1, core: 1, coreChance: 1 };
-    AFFIX_BALANCE.budgetsByRarityAndFloor.magic = [0, 10, 10, 10, 10, 10];
-    const guaranteedCore = generateRandomEquipment(5, {
-      forceRarity: "magic",
-      rng: () => 0
-    });
-    assert.equal(guaranteedCore.affixes.filter(affix => affix.kind === "core").length, 1);
+  // rng 0 always passes the magic core-chance roll; rng 0.99 never does.
+  const guaranteedCore = generateRandomEquipment(5, {
+    forceRarity: "magic",
+    rng: () => 0
+  });
+  assert.equal(guaranteedCore.affixes.filter(affix => affix.kind === "core").length, 1);
 
-    AFFIX_BALANCE.rollComposition.magic.coreChance = 0;
-    const supportOnly = generateRandomEquipment(5, {
-      forceRarity: "magic",
-      rng: () => 0
-    });
-    assert.equal(supportOnly.affixes.filter(affix => affix.kind === "core").length, 0);
-  } finally {
-    AFFIX_BALANCE.rollComposition.magic = originalComposition;
-    AFFIX_BALANCE.budgetsByRarityAndFloor.magic = originalBudgets;
-  }
+  const supportOnly = generateRandomEquipment(5, {
+    forceRarity: "magic",
+    rng: () => 0.99
+  });
+  assert.equal(supportOnly.affixes.filter(affix => affix.kind === "core").length, 0);
 });
 
 test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", () => {

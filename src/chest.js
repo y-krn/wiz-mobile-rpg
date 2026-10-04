@@ -104,8 +104,7 @@ function createRestoredMimicEncounter(restored) {
   const item = upgradeMimicChestReward(restored.item, {
     floor: state.floor,
     rng: Math.random,
-    party: character ? [character] : [],
-    trialProfile: state.currentRun?.trialProfile || "normal"
+    party: character ? [character] : []
   });
   return {
     trap: "none",

@@ -318,7 +318,8 @@ import assert from "assert";
       trapsTriggered: 0,
       goldGained: 0,
       itemsFound: [],
-      equipmentFound: []
+      equipmentFound: [],
+      buildSeedOffered: true
     };
     state.chestState = {
       x: state.x,
@@ -373,7 +374,8 @@ import assert from "assert";
       trapsTriggered: 0,
       goldGained: 0,
       itemsFound: [],
-      equipmentFound: []
+      equipmentFound: [],
+      buildSeedOffered: true
     };
     state.chestState = {
       x: state.x,
@@ -523,8 +525,11 @@ import assert from "assert";
         generatedBaseIds.add(eq.baseId);
       }
 
-      assert.ok(generatedBaseIds.has("ARCANE_ROBE"), "B4 pool should include Mage-favored armor");
-      assert.ok(generatedBaseIds.has("LONG_SWORD"), "B4 pool should include cross-class weapon supply");
+      // The unified pool rolls canonical bases only; a Mage party still sees
+      // the whole pool, including a robe and cross-class weapon/armor supply.
+      assert.ok(generatedBaseIds.has("ROBE"), "B4 pool should include Mage-favored armor");
+      assert.ok(generatedBaseIds.has("CLAYMORE") || generatedBaseIds.has("SHORT_SWORD"), "B4 pool should include cross-class weapon supply");
+      assert.ok(generatedBaseIds.has("PLATE_MAIL"), "B4 pool should include cross-class armor supply");
       console.log(`Generated B4 bases: ${[...generatedBaseIds].join(", ")}`);
       console.log("[PASS] class-independent candidate supply verified.");
 

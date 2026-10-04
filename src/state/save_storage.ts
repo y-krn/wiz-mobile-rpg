@@ -2,7 +2,7 @@ import { markMapChanged, markMapCellVisited, state as rawState, addLog } from ".
 import { captureException, captureMessage } from "../sentry.js";
 import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { createSavePayload, applySavePayload } from "./save_payload.js";
-import { SAVE_KEYS } from "../trial_profiles.js";
+import { SAVE_KEYS } from "../save_keys.js";
 import { migrateSavePayload } from "./save_migrations.js";
 import { START_X, START_Y, DIR_N } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";

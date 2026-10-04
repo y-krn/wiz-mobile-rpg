@@ -28,7 +28,7 @@ const {
 const { generateRunFloor } = await import("../../../src/run_map_generator.js");
 const { createDefaultCurrentRun, createSavePayload, createStartingKitCharacter, saveAutosave, state } = await import("../../../src/state.js");
 const { SAVE_VERSION, migrateSavePayload } = await import("../../../src/state/save_migrations.js");
-const { SAVE_KEYS } = await import("../../../src/trial_profiles.js");
+const { SAVE_KEYS } = await import("../../../src/save_keys.js");
 
 const roundTrip = value => JSON.parse(JSON.stringify(value));
 

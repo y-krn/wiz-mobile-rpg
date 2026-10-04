@@ -1,7 +1,6 @@
 import { BIOMES } from "../data/biomes.js";
 import { ENCOUNTER_SIZE_WEIGHTS } from "../data/encounters.js";
 import { MONSTERS } from "../data/monsters.js";
-import { isTrialProfile } from "../trial_profiles.js";
 
 const SPECIAL_UNITS = Object.freeze({ rare: 1.75, elite: 2, midboss: 2, boss: 3 });
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -84,11 +83,21 @@ function baseTemplateName(name) {
   return String(name || "").replace(/\s[A-Z]$/, "");
 }
 
+// Mimics and brood keepers fight with the floor elite's body under their own
+// names, so their EXP template is that floor's elite.
+function findExpTemplate(monster, floor) {
+  if (monster.isMimic === true || monster.isBroodKeeper === true) {
+    const eliteName = BIOMES[Math.floor((floor - 1) / 5)]?.eliteName;
+    return MONSTERS.find(entry => entry.name === eliteName);
+  }
+  return MONSTERS.find(entry => entry.name === baseTemplateName(monster.name));
+}
+
 export function preparePhase4jBEncounter(stateLike, monsters, context = {}) {
-  if (!isTrialProfile(stateLike?.currentRun?.trialProfile)) return { applied: false, initialCount: null };
+  if (!stateLike?.currentRun) return { applied: false, initialCount: null };
   const initialCount = monsters.length;
   const templates = monsters.map(monster => {
-    const template = MONSTERS.find(entry => entry.name === baseTemplateName(monster.name));
+    const template = findExpTemplate(monster, stateLike.floor);
     if (!template || !Number.isFinite(template.exp) || template.exp < 0) {
       throw new Error(`Phase 4j-B missing initial enemy EXP template: ${monster.name}`);
     }
@@ -107,7 +116,7 @@ export function preparePhase4jBEncounter(stateLike, monsters, context = {}) {
 }
 
 export function settlePhase4jBExpOwnership(stateLike, monsters) {
-  if (!isTrialProfile(stateLike?.currentRun?.trialProfile)) return false;
+  if (!stateLike?.currentRun) return false;
   const savedInitialCount = stateLike.combatState?.trialExpInitialCount;
   const initialCount = Number.isInteger(savedInitialCount) && savedInitialCount >= 0
     ? Math.min(savedInitialCount, monsters.length)

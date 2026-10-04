@@ -4,7 +4,7 @@ import { waitForPixiReady } from './ui-ux-helpers.js';
 
 test('New runs always use the unified rules without a mode selector @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?tryout=vnext&trialProfile=progression-exp');
+  await page.goto('/?tryout=vnext');
   await waitForPixiReady(page);
   await page.locator('#btn-town-dungeon').click();
   await page.locator('.solo-starting-kit-option').first().click();
@@ -16,9 +16,8 @@ test('New runs always use the unified rules without a mode selector @smoke', asy
 
   const run = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    return { profile: state.currentRun.trialProfile, runSeed: state.currentRun.runSeed, url: location.search };
+    return { runSeed: state.currentRun.runSeed, url: location.search };
   });
-  expect(run.profile).toBe('phase3-equipment');
   expect(run.url).toContain('tryout=vnext');
   await expect.poll(() => page.evaluate(() => JSON.parse(
     localStorage.getItem('mobile_wiz_rpg_autosave') || 'null'
@@ -55,14 +54,12 @@ test('Unified runs start and restore B1/B10/B20 runs @smoke', async ({ page }) =
     const started = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return {
-        profile: state.currentRun.trialProfile,
         startFloor: state.currentRun.startFloor,
         baseline: state.currentRun.phase4cV1Baseline,
         hp: state.party[0].hp,
         maxHp: state.party[0].maxHp,
       };
     });
-    expect(started.profile).toBe('phase3-equipment');
     expect(started.startFloor).toBe(startFloor);
     expect(started.maxHp).toBe(expectedHp[startFloor]);
     expect(started.hp).toBe(expectedHp[startFloor]);
@@ -78,14 +75,12 @@ test('Unified runs start and restore B1/B10/B20 runs @smoke', async ({ page }) =
       const { state } = await import('/src/state.js');
       return {
         gameState: state.gameState,
-        profile: state.currentRun?.trialProfile,
         startFloor: state.currentRun?.startFloor,
         baseline: state.currentRun?.phase4cV1Baseline,
         maxHp: state.party[0]?.maxHp,
       };
     });
     expect(restored.gameState).toBe('explore');
-    expect(restored.profile).toBe('phase3-equipment');
     expect(restored.startFloor).toBe(startFloor);
     expect(restored.maxHp).toBe(expectedHp[startFloor]);
     expect(restored.baseline).toBe(Math.floor(startFloor / 5));

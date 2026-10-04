@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { BIOMES, getBiomeCycle, getBiomeForFloor } from "../../../src/data/biomes.js";
 import { ITEMS } from "../../../src/data/items.js";
 import { MILESTONE_MERCHANT_STOCK, MILESTONE_UNCURSE_COST } from "../../../src/data/milestone_merchant.js";
-import { TRIAL_PROFILES } from "../../../src/trial_profiles.js";
 import { MATERIAL_DROP_BALANCE } from "../../../src/data/materials.js";
 import { getMilestoneEventCounts, generateRunFloor } from "../../../src/run_map_generator.js";
 import { getDepthMaterialExpectedQuantity } from "../../../src/rules/material_rules.js";
@@ -78,17 +77,12 @@ check("深層商人は装備を売らず、素材で補給品を購入する", (
   assert.equal(state.currentRun.materials["霊粉"], 0);
 });
 
-check("Build vNext商人は睡眠・麻痺治療品を外し、旧プロファイル在庫を維持する", () => {
-  for (const profile of [TRIAL_PROFILES.NORMAL, TRIAL_PROFILES.PROGRESSION_EXP]) {
-    const legacyStock = getMilestoneMerchantStock(profile);
-    assert.ok(legacyStock.some(entry => entry.itemId === "WAKE_POWDER"));
-    assert.ok(legacyStock.some(entry => entry.itemId === "PARALYZE_CURE"));
-  }
-  const vnextStock = getMilestoneMerchantStock(TRIAL_PROFILES.PHASE3_EQUIPMENT);
+check("Build vNext商人は睡眠・麻痺治療品を外す", () => {
+  const vnextStock = getMilestoneMerchantStock();
   assert.ok(!vnextStock.some(entry => entry.itemId === "WAKE_POWDER"));
   assert.ok(!vnextStock.some(entry => entry.itemId === "PARALYZE_CURE"));
   const vnextState = {
-    currentRun: { trialProfile: TRIAL_PROFILES.PHASE3_EQUIPMENT, materials: { "霊粉": 1, "硬い皮": 1 } },
+    currentRun: { materials: { "霊粉": 1, "硬い皮": 1 } },
     inventory: [],
     identifyTickets: 0
   };

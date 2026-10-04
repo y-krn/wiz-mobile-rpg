@@ -1,11 +1,11 @@
 import { MONSTERS } from "../data/monsters.js";
 import { getMilestoneBossStatRule } from "./boss_rules.js";
-import { isTrialProfile } from "../trial_profiles.js";
 
 const clampBaseline = value => Math.max(0, Math.min(5, Math.floor(Number(value) || 0)));
 
+// The Phase 4c v1 baseline is the standard rule set for every active run.
 export function isProgressionTrial(stateLike) {
-  return isTrialProfile(stateLike?.currentRun?.trialProfile);
+  return Boolean(stateLike?.currentRun);
 }
 
 export function resolvePhase4cV1Baseline(currentRun) {
@@ -72,6 +72,9 @@ export function applyPhase4cV1EnemyBaseline(monsters, floor) {
       }
       continue;
     }
+    // Mimics and brood keepers fight with the floor elite's depth-scaled body
+    // under their own names, so they have no generic template to rebaseline.
+    if (monster.isMimic === true || monster.isBroodKeeper === true) continue;
     const template = MONSTERS.find(entry => entry.name === templateName(monster.name));
     if (!template) throw new Error(`Phase 4c v1 missing generic enemy template: ${monster.name}`);
     const hp = Math.max(1, Math.round(template.hp * (1 + 0.20 * band)));

@@ -1,3 +1,4 @@
+import { isVNextTrialSupport } from "../../../src/rules/equipment_vnext_trial.js";
 import assert from "assert";
 import {
   AFFIX_BALANCE,
@@ -49,8 +50,8 @@ assert.ok(
 );
 
 for (const [source, generator, expectedCounts] of [
-  ["equipment", generateRandomEquipment, { magic: 1, rare: 2, epic: 3 }],
-  ["accessory", generateRandomAccessory, { magic: 1, rare: 1, epic: 2 }]
+  ["equipment", generateRandomEquipment, { magic: 1, rare: 2, epic: 2 }],
+  ["accessory", generateRandomAccessory, { magic: 1, rare: 2, epic: 2 }]
 ]) {
   for (const [rarity, expectedCount] of Object.entries(expectedCounts)) {
     const item = generator(5, { forceRarity: rarity, rng: lcg(source.length + rarity.length), allowCores: false });
@@ -88,97 +89,38 @@ function findGeneratedAffix(generator, floor, type, maxSeed = 5000, rarity = "ep
   return null;
 }
 
-for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
-  for (const [rarity, expectedValue] of Object.entries(AFFIX_BALANCE.spellPowerByRarity)) {
-    const generated = findGeneratedAffix(generator, 2, "spellPower", 5000, rarity);
-    assert.ok(generated, `${generator.name} should offer spellPower at B2 (${rarity})`);
-    assert.strictEqual(generated.affix.value, expectedValue, `spellPower ${rarity} value`);
-    const deeper = findGeneratedAffix(generator, 5, "spellPower", 5000, rarity);
-    assert.ok(deeper, `${generator.name} should offer spellPower at B5 (${rarity})`);
-    assert.strictEqual(deeper.affix.value, expectedValue, `spellPower ${rarity} must not scale by floor`);
+// The unified Build vNext pool keeps only the audited Supports. Supports that
+// the audit retired are registered but never generated, on any floor.
+for (const type of ["spellPower", "antiDemon", "antiUndead", "antiDragon"]) {
+  assert.equal(isVNextTrialSupport(type), false, `${type} is outside the audited Support pool`);
+  for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
+    for (const floor of [1, 5, 12]) {
+      assert.strictEqual(
+        findGeneratedAffix(generator, floor, type, 400),
+        null,
+        `${generator.name} never generates retired Support ${type} (B${floor})`
+      );
+    }
   }
 }
-
-for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
-  assert.strictEqual(findGeneratedAffix(generator, 1, "antiDemon"), null, "antiDemon is unavailable on B1");
-  for (const rarity of ["magic", "rare", "epic"]) {
-    assert.strictEqual(
-      findGeneratedAffix(generator, 2, "antiDemon", 5000, rarity)?.affix.value,
-      getSupportValueByRarity("antiDemon", rarity),
-      `antiDemon ${rarity} uses its rarity value`
-    );
-    assert.strictEqual(
-      findGeneratedAffix(generator, 4, "antiDemon", 5000, rarity)?.affix.value,
-      getSupportValueByRarity("antiDemon", rarity),
-      `antiDemon ${rarity} is floor-independent`
-    );
-  }
-}
-
-for (const rarity of ["magic", "rare", "epic"]) {
-  const antiValues = [
-    findGeneratedAffix(generateRandomEquipment, 3, "antiUndead", 5000, rarity)?.affix.value,
-    findGeneratedAffix(generateRandomAccessory, 4, "antiDragon", 5000, rarity)?.affix.value,
-    findGeneratedAffix(generateRandomEquipment, 2, "antiDemon", 5000, rarity)?.affix.value
-  ];
-  assert.deepStrictEqual(
-    antiValues,
-    [
-      getSupportValueByRarity("antiUndead", rarity),
-      getSupportValueByRarity("antiDragon", rarity),
-      getSupportValueByRarity("antiDemon", rarity)
-    ],
-    `antiUndead/antiDragon/antiDemon share the ${rarity} rule`
-  );
-}
-const generatedAntiDemonEquipment = findGeneratedAffix(
-  generateRandomEquipment,
-  2,
-  "antiDemon"
-);
-assert.strictEqual(
-  ITEMS[generatedAntiDemonEquipment.item.baseId].type,
-  "weapon",
-  "equipment antiDemon is limited to weapons"
-);
 
 // #313: 毒刃は前衛が自力で状態異常を撒ける唯一の供給経路。武器限定で生成される。
 const generatedPoisonAtk = findGeneratedAffix(generateRandomEquipment, 4, "poisonAtk");
 assert.ok(generatedPoisonAtk, "poisonAtk enters the equipment pool");
 assert.strictEqual(generatedPoisonAtk.affix.value, 12, "poisonAtk scales to 12% on B4");
-assert.strictEqual(
-  ITEMS[generatedPoisonAtk.item.baseId].type,
-  "weapon",
-  "poisonAtk is limited to weapons"
-);
-assert.strictEqual(
-  findGeneratedAffix(generateRandomEquipment, 2, "poisonAtk"),
-  null,
-  "poisonAtk is unavailable before B3, matching the other trigger supports"
-);
+assert.strictEqual(ITEMS[generatedPoisonAtk.item.baseId].type, "weapon", "poisonAtk is limited to weapons");
+assert.strictEqual(findGeneratedAffix(generateRandomEquipment, 2, "poisonAtk"), null, "poisonAtk is unavailable before B3, matching the other trigger supports");
 assert.strictEqual(
   findGeneratedAffix(generateRandomEquipment, 3, "poisonAtk", 5000, "magic")?.affix.value,
   8,
   "poisonAtk enters the B3 pool at its magic value"
 );
-assert.strictEqual(
-  findGeneratedAffix(generateRandomAccessory, 4, "poisonAtk"),
-  null,
-  "poisonAtk does not enter the accessory pool"
-);
+assert.strictEqual(findGeneratedAffix(generateRandomAccessory, 4, "poisonAtk"), null, "poisonAtk does not enter the accessory pool");
 const generatedBleedingAtk = findGeneratedAffix(generateRandomEquipment, 4, "bleedingAtk");
 assert.ok(generatedBleedingAtk, "bleedingAtk enters the weapon pool");
 assert.strictEqual(generatedBleedingAtk.affix.value, 12, "bleedingAtk scales to 12% on B4");
-assert.equal(
-  findGeneratedAffix(generateRandomEquipment, 2, "bleedingAtk"),
-  null,
-  "bleedingAtk is unavailable before B3"
-);
-assert.equal(
-  findGeneratedAffix(generateRandomAccessory, 4, "bleedingAtk"),
-  null,
-  "bleedingAtk does not enter the accessory pool"
-);
+assert.equal(findGeneratedAffix(generateRandomEquipment, 2, "bleedingAtk"), null, "bleedingAtk is unavailable before B3");
+assert.equal(findGeneratedAffix(generateRandomAccessory, 4, "bleedingAtk"), null, "bleedingAtk does not enter the accessory pool");
 const trapBonusValues = [
   [generateRandomEquipment, 1],
   [generateRandomEquipment, 3],

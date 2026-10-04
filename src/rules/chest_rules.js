@@ -1,7 +1,6 @@
 import { ITEMS } from "../data/items.js";
 import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
-import { TRIAL_PROFILES } from "../trial_profiles.js";
 import { getVNextTrialChestCandidates } from "./equipment_vnext_trial.js";
 import { isSpecialOrQuestItem } from "./item_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
@@ -244,7 +243,9 @@ export function rollChestTrap(floor, rng, runtimeDiagnostics = null) {
   return traps[Math.floor(rng() * traps.length)];
 }
 
-export function rollChestAccessory(floor, rng, party, coreMinFloor = CHEST_ACCESSORY_CORE_MIN_FLOOR, trialProfile = "normal") {
+// Build vNext: rule-changing Cores are part of the build seed from B1. The
+// coreMinFloor knobs remain so measurement scripts can override that floor.
+export function rollChestAccessory(floor, rng, party, coreMinFloor = 1) {
   const chance = floor >= 5 ? 0.16 : (floor === 4 ? 0.14 : (floor === 3 ? 0.12 : 0.08));
   if (rng() >= chance) return null;
   const rarityRoll = rng();
@@ -261,14 +262,13 @@ export function rollChestAccessory(floor, rng, party, coreMinFloor = CHEST_ACCES
     forceRarity: rarity,
     rng,
     party,
-    allowCores: trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT || floor >= coreMinFloor,
-    trialProfile
+    allowCores: floor >= coreMinFloor
   });
 }
 
 // A defeated mimic leaves its chest behind, and its main reward is always at
 // least a rare piece of equipment for the floor.
-export function upgradeMimicChestReward(item, { floor, rng = Math.random, party = [], trialProfile = "normal" } = {}) {
+export function upgradeMimicChestReward(item, { floor, rng = Math.random, party = [] } = {}) {
   if (item && typeof item === "object" && item.kind === "equipment" &&
       (item.rarity === "rare" || item.rarity === "epic")) {
     return item;
@@ -277,7 +277,6 @@ export function upgradeMimicChestReward(item, { floor, rng = Math.random, party 
     forceRarity: "rare",
     rng,
     party,
-    trialProfile,
     excludeHighEnd: true,
     allowCores: floor >= CHEST_EQUIPMENT_CORE_MIN_FLOOR
   });
@@ -293,7 +292,7 @@ export function rollChestReward({
   currentRun = null,
   trap,
   firstChestGuaranteed = false,
-  coreMinFloor = CHEST_EQUIPMENT_CORE_MIN_FLOOR,
+  coreMinFloor = 1,
   itemCandidateFilter = null,
   itemCandidates = null,
   itemWeights = null,
@@ -301,8 +300,6 @@ export function rollChestReward({
   runtimeDiagnostics = null
 }) {
   recordRuntimeCall(runtimeDiagnostics, "chests.reward-roll", { floor });
-  // Build vNext trial: rule-changing Cores are part of the build seed from B1.
-  if (currentRun?.trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT) coreMinFloor = 1;
   let isGuaranteed = false;
   if (floor === 1) {
     if (currentRun) {
@@ -332,7 +329,6 @@ export function rollChestReward({
       forceRarity: "magic",
       rng,
       party,
-      trialProfile: currentRun?.trialProfile || "normal",
       excludeHighEnd: true,
       allowCores: floor >= coreMinFloor,
       runtimeDiagnostics
@@ -353,9 +349,7 @@ export function rollChestReward({
   if (itemCandidateFilter) {
     candidates = candidates.filter(itemCandidateFilter);
   }
-  if (currentRun?.trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT) {
-    candidates = getVNextTrialChestCandidates(candidates);
-  }
+  candidates = getVNextTrialChestCandidates(candidates);
   let item = selectChestItemCandidate(candidates, rng, itemWeights);
 
   const itemData = ITEMS[item];
@@ -386,7 +380,6 @@ export function rollChestReward({
       forceRarity: null,
       rng,
       party,
-      trialProfile: currentRun?.trialProfile || "normal",
       excludeHighEnd: true,
       allowCores: floor >= coreMinFloor,
       runtimeDiagnostics

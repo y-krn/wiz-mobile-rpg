@@ -243,7 +243,10 @@ function coreIdsFor(unlockedAffixIds) {
 {
   const baseline = coreIdsFor([]);
   const trapEaterUnlocked = coreIdsFor(["CORE_TRAP_EATER"]);
-  assert.equal(trapEaterUnlocked.size, baseline.size, "lateral unlock keeps the authored core candidate count");
+  // Unified generation gates Trap Eater behind its Workshop pool node and adds
+  // it to the slot's candidates when unlocked; it does not reserve a slot.
+  assert.equal(baseline.has("CORE_TRAP_EATER"), false, "Trap Eater stays locked without the pool node");
   assert.equal(trapEaterUnlocked.has("CORE_TRAP_EATER"), true);
-  console.log("[PASS] lateral core unlock replaces a reserved same-slot candidate instead of diluting the pool");
+  assert.equal(trapEaterUnlocked.size, baseline.size + 1, "the unlocked core joins the slot candidates");
+  console.log("[PASS] lateral core unlock adds the unlocked core to the slot candidates");
 }

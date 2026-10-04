@@ -57,14 +57,14 @@ function getSelectedLabel() {
   if (selectedOffer.kind === "uncurse") {
     return `${getItemData(selectedOffer.item).name}の呪いを解く`;
   }
-  const entry = getMilestoneMerchantStock(state.currentRun?.trialProfile).find(item => item.id === selectedOffer.id);
+  const entry = getMilestoneMerchantStock().find(item => item.id === selectedOffer.id);
   return entry ? `${getEntryDisplayName(entry)}を購入` : "商品を選択してください";
 }
 
 function getSelectedCost() {
   if (!selectedOffer) return null;
   if (selectedOffer.kind === "uncurse") return MILESTONE_UNCURSE_COST;
-  return getMilestoneMerchantStock(state.currentRun?.trialProfile).find(item => item.id === selectedOffer.id)?.cost || null;
+  return getMilestoneMerchantStock().find(item => item.id === selectedOffer.id)?.cost || null;
 }
 
 function renderMaterialBalance(materials) {
@@ -146,7 +146,7 @@ export function renderMilestoneMerchant(optGrid) {
   optGrid.appendChild(renderMaterialBalance(materials));
   optGrid.appendChild(createSection("購入できる品"));
 
-  getMilestoneMerchantStock(state.currentRun?.trialProfile).forEach(entry => {
+  getMilestoneMerchantStock().forEach(entry => {
     const inventorySlots = entry.kind === "item"
       ? Math.max(0, INVENTORY_CAPACITY - state.inventory.length)
       : Infinity;

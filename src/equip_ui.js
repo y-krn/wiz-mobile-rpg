@@ -30,7 +30,6 @@ import {
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
 import { getDiscardRisk } from "./systems/equipment_discard.js";
-import { TRIAL_PROFILES } from "./trial_profiles.js";
 import { getVNextTrialCanonicalBaseId } from "./rules/equipment_vnext_trial.js";
 import { getItemEquippedStatus } from "./rules/equipment_equipped.js";
 import {
@@ -1283,7 +1282,7 @@ function createDetailPanel(char) {
   name.className = "equip-detail-name";
   name.textContent = `${hidden ? "? " : ""}${item.name}`;
   titleLine.appendChild(name);
-  if (!hidden && state.currentRun?.trialProfile === TRIAL_PROFILES.PHASE3_EQUIPMENT) {
+  if (!hidden && state.currentRun) {
     const baseId = getVNextTrialCanonicalBaseId(itemKey?.baseId || itemKey?.id || itemKey);
     const baseLabels = {
       dagger: "短剣", sword: "剣", mace: "打撃武器", greatsword: "大剣", wand: "片手杖", staff: "両手杖",

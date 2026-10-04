@@ -65,11 +65,8 @@ async function applyTurn(page, turn) {
     const { combatSelection } = await import('/src/combat.js');
     const { updateUI } = await import('/src/ui.js');
     const { getCharTechnique } = await import('/src/rules/technique_rules.js');
-    const { TRIAL_PROFILES } = await import('/src/trial_profiles.js');
     state.combatState.lastActions = turn.lastActions;
     state.combatState.techniqueCooldowns = turn.cooldowns || {};
-    // Only a Build vNext run grants the default blade profile's 見切り斬り.
-    state.currentRun.trialProfile = turn.technique ? TRIAL_PROFILES.PHASE3_EQUIPMENT : undefined;
     combatSelection.charIdx = turn.charIdx;
     combatSelection.actions = turn.charIdx > 0 ? [{ type: 'defend', actorIdx: 0 }] : [];
     updateUI();
@@ -106,8 +103,8 @@ const TURNS = [
   { name: 'repeat usable', charIdx: 0, lastActions: [{ type: 'defend', actorIdx: 0 }] },
   { name: 'repeat target vanished', charIdx: 0, lastActions: [{ type: 'fight', actorIdx: 0, targetIdx: 5 }] },
   { name: 'repeat usable, second actor', charIdx: 1, lastActions: [{ type: 'defend', actorIdx: 1 }] },
-  { name: 'technique ready', charIdx: 0, lastActions: null, technique: true },
-  { name: 'technique cooling down, repeat usable', charIdx: 0, lastActions: [{ type: 'defend', actorIdx: 0 }], technique: true, cooldowns: { 0: 3 } },
+  { name: 'technique ready', charIdx: 0, lastActions: null },
+  { name: 'technique cooling down, repeat usable', charIdx: 0, lastActions: [{ type: 'defend', actorIdx: 0 }], cooldowns: { 0: 3 } },
 ];
 
 for (const viewport of VIEWPORTS) {
@@ -119,17 +116,15 @@ for (const viewport of VIEWPORTS) {
     const techniqueRects = [];
     for (const turn of TURNS) {
       const current = await applyTurn(page, turn);
-      expect(current.hasTechnique, turn.name).toBe(Boolean(turn.technique));
+      expect(current.hasTechnique, turn.name).toBe(true);
       expect(current.grid, turn.name).toEqual(baseline.grid);
       for (const id of COMMAND_IDS) {
         expect(current.rects[id], `${turn.name}: ${id}`).toEqual(baseline.rects[id]);
       }
-      if (turn.technique) {
-        expect(current.technique.visible, turn.name).toBe(true);
-        expect(current.technique.lines, `${turn.name}: ${current.technique.text}`).toBe(1);
-        expect(current.technique.clipped, `${turn.name}: ${current.technique.text}`).toBe(false);
-        techniqueRects.push(current.technique.rect);
-      }
+      expect(current.technique.visible, turn.name).toBe(true);
+      expect(current.technique.lines, `${turn.name}: ${current.technique.text}`).toBe(1);
+      expect(current.technique.clipped, `${turn.name}: ${current.technique.text}`).toBe(false);
+      techniqueRects.push(current.technique.rect);
       for (const rect of Object.values(current.rects)) {
         expect(rect.height).toBeGreaterThanOrEqual(44);
         expect(rect.y + rect.height).toBeLessThanOrEqual(viewport.height + 1);

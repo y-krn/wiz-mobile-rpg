@@ -60,7 +60,7 @@ const crossClassWeapon = generateRandomEquipment(5, {
   party: mageParty,
   allowCores: false
 });
-assert.equal(crossClassWeapon.baseId, "DRAGON_SCALE", "loot keeps the complete floor pool instead of pruning by class");
+assert.equal(crossClassWeapon.baseId, "PLATE_MAIL", "loot keeps the complete floor pool instead of pruning by class");
 
 const crossClassAccessory = generateRandomAccessory(5, {
   forceRarity: "magic",
@@ -68,7 +68,7 @@ const crossClassAccessory = generateRandomAccessory(5, {
   party: mageParty,
   allowCores: false
 });
-assert.equal(crossClassAccessory.baseId, "DRAGON_RING", "accessory loot is also not pruned by class");
+assert.equal(crossClassAccessory.baseId, "VNEXT_RING", "accessory loot is also not pruned by class");
 assert.equal(CORE_AFFIXES.some(affix => Object.hasOwn(affix, "allowedClasses")), false, "Core candidates have no class allowlist");
 
 console.log("[PASS] Build vNext class dependency boundary");
