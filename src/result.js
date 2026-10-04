@@ -5,6 +5,8 @@ import { bankRunMaterials } from "./rules/material_rules.js";
 import { settleRunFeats } from "./systems/feats.js";
 import { normalizeRunFeatResult } from "./state/feats_state.js";
 import { settleRunFragments } from "./systems/guidebook.js";
+import { settleFacilityOrders } from "./systems/facilities.js";
+import { normalizeRunOrderResult } from "./state/facilities_state.js";
 import { normalizeRunGuideResult } from "./state/guidebook_state.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 import { trackCombatEnd, trackLootStakeSnapshot, trackRunEnd } from "./telemetry.js";
@@ -112,6 +114,12 @@ export function triggerRunResult(reason) {
   Object.entries(run.featResult?.rewards || {}).forEach(([name, quantity]) => {
     state.metaMaterials[name] = (state.metaMaterials[name] || 0) + quantity;
   });
+  // Orders placed at a facility are finished by a safe return (#2014). This
+  // runs after the run's unused supplies went back, so those keep their room.
+  const orderSettlement = settleFacilityOrders(state.facilities, state.storage, state.storageMax, outcome);
+  state.facilities = orderSettlement.facilities;
+  state.storage = orderSettlement.storage;
+  run.orderResult = normalizeRunOrderResult(orderSettlement.result);
   // Guidebook fragments come home only with the adventurer (#2013).
   const fragmentSettlement = settleRunFragments(state.guidebook, run, outcome);
   state.guidebook = fragmentSettlement.guidebook;

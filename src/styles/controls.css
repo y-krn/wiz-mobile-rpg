@@ -1212,6 +1212,16 @@
   font-size: var(--fs-md);
 }
 
+.facility-order-open {
+  margin: 0;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--neon-amber);
+  border-radius: var(--sp-sm);
+  color: var(--text-main);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+
 .facility-intro {
   margin: 0;
   color: var(--text-secondary);

@@ -63,6 +63,8 @@ export const createDefaultCurrentRun = () => ({
   // Guidebook fragments carried by this run, and what became of them (#2013).
   guideFragments: 0,
   guideResult: null,
+  // What the end of the run did with orders placed at facilities (#2014).
+  orderResult: null,
   lootSequence: 0,
   itemsFound: [],
   equipmentFound: [],

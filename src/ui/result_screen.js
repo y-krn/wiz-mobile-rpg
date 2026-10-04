@@ -303,6 +303,14 @@ function createRecordSection(run) {
 
 // Feats achieved this run and how far the closest ones moved. The stored
 // result holds ids and numbers only; names and wording come from the catalog.
+function formatItemCounts(itemIds) {
+  const counts = new Map();
+  itemIds.forEach(itemId => counts.set(itemId, (counts.get(itemId) || 0) + 1));
+  return [...counts.entries()]
+    .map(([itemId, count]) => `${getNearMissItemName(itemId)}×${count}`)
+    .join("・");
+}
+
 export function getFeatResultRows(featResult, run = null) {
   const rows = [];
   // Someone who was being led out stays in the dungeon unless the run walked
@@ -320,6 +328,25 @@ export function getFeatResultRows(featResult, run = null) {
       failed: true,
       name: feat?.name || companion.name,
       detail: `${companion.name}は迷宮に残された`
+    });
+  }
+  // Orders placed at a facility: finished into storage by a safe return.
+  const orders = run?.orderResult;
+  if (orders?.delivered?.length > 0) {
+    rows.push({
+      id: "facility_orders",
+      status: "仕上がり",
+      completed: true,
+      name: `仕込みの品 ${formatItemCounts(orders.delivered)}`,
+      detail: orders.waiting > 0 ? `倉庫に入った。倉庫が満杯で${orders.waiting}個は預かり` : "倉庫に入った"
+    });
+  } else if (orders?.waiting > 0) {
+    rows.push({
+      id: "facility_orders",
+      status: "持ち越し",
+      completed: false,
+      name: `仕込み中の品 ${orders.waiting}個`,
+      detail: run.outcome === "retreat" ? "倉庫が満杯のため預かり" : "生還すると仕上がる"
     });
   }
   // Guidebook fragments: brought home by a safe return, lost otherwise.

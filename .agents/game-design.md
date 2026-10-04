@@ -175,6 +175,13 @@ existing room. A node may name a feat as its condition; the condition and its
 progress are shown before it can be bought. Supplies a kit carries are handed
 out at every departure and never return to storage.
 
+A facility may also take an order (仕込み): materials are paid when it is
+placed, and the goods enter storage at the next safe return. An order costs
+less than departure craft because it only pays off for a run that walks out;
+that price gap is the reason to return alive, not a discount to farm. A death
+or an abandoned run leaves the order open, and goods that do not fit in storage
+stay owed, so a paid order is never lost. One order may be open per facility.
+
 The Workshop should broaden combinations involving HP, MP, status, actions,
 information, and curses while keeping resource competition and improvisation as
 the source of power.

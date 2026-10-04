@@ -25,13 +25,18 @@ global.document = {
 global.window = { innerWidth: 390, innerHeight: 844, addEventListener: () => {} };
 Object.defineProperty(global, "navigator", { value: { userAgent: "node" }, configurable: true });
 
-const { FACILITIES, FACILITY_BY_ID, FACILITY_NODE_BY_ID } = await import("../../../src/data/facilities.js");
+const { FACILITIES, FACILITY_BY_ID, FACILITY_NODE_BY_ID, FACILITY_ORDER_BY_ID } =
+  await import("../../../src/data/facilities.js");
 const { FEAT_BY_ID } = await import("../../../src/data/feats.js");
 const { MATERIAL_TYPES } = await import("../../../src/data/materials.js");
 const { ITEMS } = await import("../../../src/data/items.js");
 const {
   getFacilityNodeBlockReason,
+  getFacilityOrderBlockReason,
+  getOpenFacilityOrder,
   getUnlockedStartingKitIds,
+  placeFacilityOrder,
+  settleFacilityOrders,
   isFacilityOpen,
   listFacilities,
   listFacilityNodes,
@@ -80,6 +85,7 @@ const {
   initNewGame
 } = await import("../../../src/state.js");
 const { CRAFT_RECIPES } = await import("../../../src/craft.js");
+const { getDepartureCraftCost } = await import("../../../src/systems/workshop.js");
 const { createSavePayload } = await import("../../../src/state/save_payload.js");
 const { normalizeSavePayload } = await import("../../../src/state/save_migrations.js");
 const { isNormalizedCurrentRun } = await import("../../../src/state/run_state.js");
@@ -202,8 +208,8 @@ const bought = purchaseFacilityNode("miner_kit", openContext);
 assert.equal(bought.ok, true);
 assert.equal(bought.metaMaterials["獣の牙"], 3);
 assert.equal(bought.metaMaterials["鉄片"], 5);
-assert.deepEqual(bought.facilities, { nodes: ["miner_kit"] });
-assert.deepEqual(closedContext.facilities, { nodes: [] }, "a purchase does not mutate its inputs");
+assert.deepEqual(bought.facilities, { nodes: ["miner_kit"], orders: {} });
+assert.deepEqual(closedContext.facilities, { nodes: [], orders: {} }, "a purchase does not mutate its inputs");
 assert.equal(purchaseFacilityNode("miner_kit", { ...openContext, facilities: bought.facilities }).reason, "解放済み");
 assert.deepEqual(listFacilityNodes("miner_guild", { ...openContext, facilities: bought.facilities })
   .map(entry => [entry.node.id, entry.bought, entry.canBuy]),
@@ -352,6 +358,96 @@ assert.equal(rubbleGrid[0][2].obstacle.state, "closed", "other obstacles are unt
 assert.equal(clearFloorRubble(rubbleGrid), 0);
 console.log("[PASS] the outpost and the blast need their feats, replace the vein on B3F, and clear only rubble");
 
+// --- Orders: pay now, receive at the next safe return (#2014) --------------------------
+
+const trapOrder = FACILITY_ORDER_BY_ID.get("miner_trap_kits");
+assert.ok(trapOrder);
+assert.deepEqual([...trapOrder.yields], ["TRAP_KIT", "TRAP_KIT"]);
+Object.keys(trapOrder.cost).forEach(name => assert.ok(MATERIAL_TYPES.includes(name)));
+// The order is cheaper than crafting the same goods at departure.
+const craftedCost = trapOrder.yields.reduce((total, itemId) => {
+  const recipe = CRAFT_RECIPES.find(candidate => candidate.resultId === itemId);
+  return total + Object.values(recipe.mats).reduce((sum, quantity) => sum + quantity, 0);
+}, 0);
+const orderCost = Object.values(trapOrder.cost).reduce((sum, quantity) => sum + quantity, 0);
+assert.ok(orderCost < craftedCost, "an order costs less than departure craft");
+
+const orderContext = { feats: rescued.feats, facilities: createDefaultFacilitiesState(), metaMaterials: { "鉄片": 5, "硬い皮": 3 } };
+assert.equal(getFacilityOrderBlockReason("miner_trap_kits", { ...orderContext, feats: fresh }), "坑夫組合がまだ開いていない");
+assert.equal(getFacilityOrderBlockReason("miner_trap_kits", { ...orderContext, metaMaterials: { "鉄片": 1 } }), "素材不足");
+assert.equal(getFacilityOrderBlockReason("missing", orderContext), "存在しない仕込み");
+const placed = placeFacilityOrder("miner_trap_kits", orderContext);
+assert.equal(placed.ok, true);
+assert.equal(placed.metaMaterials["鉄片"], 3, "the materials are paid when the order is placed");
+assert.equal(placed.metaMaterials["硬い皮"], 2);
+assert.deepEqual(placed.facilities.orders, { miner_guild: { orderId: "miner_trap_kits", items: ["TRAP_KIT", "TRAP_KIT"] } });
+assert.deepEqual(orderContext.facilities.orders, {}, "placing an order does not mutate its inputs");
+assert.equal(getOpenFacilityOrder(placed.facilities, "miner_guild").order, trapOrder);
+assert.equal(getOpenFacilityOrder(createDefaultFacilitiesState(), "miner_guild"), null);
+assert.equal(
+  placeFacilityOrder("miner_trap_kits", { ...orderContext, facilities: placed.facilities }).reason,
+  "仕込み中の品がある",
+  "one open order per facility"
+);
+
+const died = settleFacilityOrders(placed.facilities, [], 30, "death");
+assert.deepEqual(died.result, { delivered: [], waiting: 2 });
+assert.deepEqual(died.facilities.orders, placed.facilities.orders, "a death leaves the order open");
+assert.deepEqual(died.storage, []);
+assert.deepEqual(settleFacilityOrders(placed.facilities, [], 30, "abandon").result, { delivered: [], waiting: 2 });
+
+const returned = settleFacilityOrders(placed.facilities, ["HEAL_POTION"], 30, "retreat");
+assert.deepEqual(returned.result, { delivered: ["TRAP_KIT", "TRAP_KIT"], waiting: 0 });
+assert.deepEqual(returned.storage, ["HEAL_POTION", "TRAP_KIT", "TRAP_KIT"]);
+assert.deepEqual(returned.facilities.orders, {}, "a finished order is closed");
+assert.deepEqual(placed.facilities.orders.miner_guild.items, ["TRAP_KIT", "TRAP_KIT"], "settlement does not mutate its inputs");
+// Finished goods are ordinary storage stock: departure craft uses them before materials (#1997).
+assert.deepEqual(getDepartureCraftCost(["TRAP_KIT", "TRAP_KIT"], returned.storage), { typed: {}, any: 0 });
+assert.deepEqual(getDepartureCraftCost(["TRAP_KIT"], []).typed, { "鉄片": 2, "硬い皮": 1 }, "the order yields two for the price of one crafted kit");
+
+const crowded = settleFacilityOrders(placed.facilities, Array(29).fill("HEAL_POTION"), 30, "retreat");
+assert.deepEqual(crowded.result, { delivered: ["TRAP_KIT"], waiting: 1 }, "what does not fit is kept, not discarded");
+assert.equal(crowded.storage.length, 30);
+assert.deepEqual(crowded.facilities.orders, { miner_guild: { orderId: "miner_trap_kits", items: ["TRAP_KIT"] } });
+const nextReturn = settleFacilityOrders(crowded.facilities, [], 30, "retreat");
+assert.deepEqual(nextReturn.result, { delivered: ["TRAP_KIT"], waiting: 0 });
+
+assert.deepEqual(settleFacilityOrders(createDefaultFacilitiesState(), ["HEAL_POTION"], 30, "retreat"),
+  { facilities: createDefaultFacilitiesState(), storage: ["HEAL_POTION"], result: null });
+
+assert.deepEqual(
+  getFeatResultRows(null, { outcome: "retreat", orderResult: returned.result })
+    .find(row => row.id === "facility_orders"),
+  { id: "facility_orders", status: "仕上がり", completed: true, name: "仕込みの品 罠外しキット×2", detail: "倉庫に入った" }
+);
+assert.deepEqual(
+  getFeatResultRows(null, { outcome: "death", orderResult: died.result }).find(row => row.id === "facility_orders"),
+  { id: "facility_orders", status: "持ち越し", completed: false, name: "仕込み中の品 2個", detail: "生還すると仕上がる" }
+);
+
+// The end of a run: unused supplies return first, then the order is finished.
+initNewGame();
+state.feats = rescued.feats;
+state.facilities = placed.facilities;
+state.storage = [];
+state.party = [createStartingKitCharacter("vanguard")];
+state.currentRun = createDefaultCurrentRun();
+state.currentRun.deepestFloor = 2;
+state.gameState = "explore";
+triggerRunResult("gameover");
+assert.deepEqual(state.storage, [], "nothing is delivered by a death");
+assert.deepEqual(state.currentRun.orderResult, { delivered: [], waiting: 2 });
+assert.ok(getOpenFacilityOrder(state.facilities, "miner_guild"));
+state.party = [createStartingKitCharacter("vanguard")];
+state.currentRun = createDefaultCurrentRun();
+state.currentRun.deepestFloor = 2;
+state.gameState = "explore";
+triggerRunResult("escape_scroll");
+assert.deepEqual(state.storage, ["TRAP_KIT", "TRAP_KIT"], "the Wing is a safe return and finishes the order");
+assert.deepEqual(state.currentRun.orderResult, { delivered: ["TRAP_KIT", "TRAP_KIT"], waiting: 0 });
+assert.equal(getOpenFacilityOrder(state.facilities, "miner_guild"), null);
+console.log("[PASS] an order is paid when placed, finished by a safe return, and never discarded");
+
 // --- Save round trip ---------------------------------------------------------------
 
 initNewGame();
@@ -362,7 +458,7 @@ state.currentRun.companion = "foreman";
 state.currentRun.startingKit = "miner";
 state.gameState = "explore";
 const reloaded = normalizeSavePayload(JSON.parse(JSON.stringify(createSavePayload())));
-assert.deepEqual(reloaded.facilities, { nodes: ["miner_kit"] });
+assert.deepEqual(reloaded.facilities, { nodes: ["miner_kit"], orders: {} });
 assert.equal(reloaded.currentRun.companion, "foreman", "the escort survives a reload mid-run");
 assert.equal(reloaded.currentRun.startingKit, "miner");
 assert.equal(reloaded.party[0].startingKit, "miner");
@@ -371,10 +467,17 @@ const legacy = JSON.parse(JSON.stringify(createSavePayload()));
 delete legacy.facilities;
 delete legacy.currentRun.companion;
 const migrated = normalizeSavePayload(legacy);
-assert.deepEqual(migrated.facilities, { nodes: [] }, "a save from before facilities has nothing bought");
+assert.deepEqual(migrated.facilities, { nodes: [], orders: {} }, "a save from before facilities has nothing bought");
 assert.equal(migrated.currentRun.companion, null);
 assert.equal(isNormalizedFacilitiesState({ nodes: ["a", "a"] }), false);
-assert.deepEqual(normalizeFacilitiesState({ nodes: ["a", "a", 3, ""] }), { nodes: ["a"] });
+assert.deepEqual(normalizeFacilitiesState({ nodes: ["a", "a", 3, ""] }), { nodes: ["a"], orders: {} });
+assert.deepEqual(
+  normalizeFacilitiesState({ nodes: [], orders: { miner_guild: { orderId: "miner_trap_kits", items: ["TRAP_KIT", 4] }, empty: { orderId: "x", items: [] } } }),
+  { nodes: [], orders: { miner_guild: { orderId: "miner_trap_kits", items: ["TRAP_KIT"] } } }
+);
+state.facilities = placed.facilities;
+const orderReload = normalizeSavePayload(JSON.parse(JSON.stringify(createSavePayload())));
+assert.deepEqual(orderReload.facilities.orders, placed.facilities.orders, "an open order survives a reload");
 assert.equal(isNormalizedCompanion("foreman"), true);
 assert.equal(normalizeCompanion("stranger"), null);
 console.log("[PASS] facility purchases and the escort survive a save round trip");
