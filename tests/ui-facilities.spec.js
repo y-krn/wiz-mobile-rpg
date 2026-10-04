@@ -3,7 +3,23 @@ import { test, expect } from './fixtures/browser-health.js';
 // Town facilities (#2009): the foreman is dug out on B3F, led home by a safe
 // return, and opens the miner guild, which sells the miner kit.
 
+// Opening a room arms the controls guard for a moment; a tap during it is
+// ignored. Wait it out before pressing a button in the room.
+async function waitForControls(page) {
+  await expect.poll(async () => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { isControlsGuarded } = await import('/src/controls_guard.js');
+    return !state.transitioning && !isControlsGuarded();
+  })).toBe(true);
+}
+
 async function seedForemanRoom(page) {
+  const room = await seedForemanRoomState(page);
+  await waitForControls(page);
+  return room;
+}
+
+async function seedForemanRoomState(page) {
   return page.evaluate(async () => {
     const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
@@ -192,7 +208,13 @@ test('A foreman led into a death stays in the dungeon and waits on the next run'
   expect(nextRoom.kind).toBe('trapped_foreman');
 });
 
-async function seedOutpostRoom(page, { nodes, inventory = [] }) {
+async function seedOutpostRoom(page, options) {
+  const room = await seedOutpostRoomState(page, options);
+  await waitForControls(page);
+  return room;
+}
+
+async function seedOutpostRoomState(page, { nodes, inventory = [] }) {
   return page.evaluate(async ({ nodes, inventory }) => {
     const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
