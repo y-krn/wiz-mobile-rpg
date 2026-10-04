@@ -9,7 +9,7 @@ export const EQUIPMENT_LOAD_LABELS = Object.freeze({
 });
 export const EQUIPMENT_LOAD_DESCRIPTIONS = Object.freeze({
   light: "先に動きやすい",
-  standard: "行動順の基準",
+  standard: "速くも遅くもない",
   heavy: "後手になりやすい"
 });
 export const EQUIPMENT_LOAD_INITIATIVE_MODIFIERS = Object.freeze({

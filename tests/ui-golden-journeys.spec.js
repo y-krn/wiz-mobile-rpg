@@ -41,8 +41,8 @@ test('Fresh start reaches B1F with observable input feedback and no horizontal o
   await page.locator('#btn-town-dungeon').click();
   await recordJourneyStep(page, 'starting-kit');
   await page.getByRole('button', { name: /鋼の前線キット/ }).click();
+  await page.locator('#btn-kit-confirm').click();
   await recordJourneyStep(page, 'kit-selected');
-  await page.getByRole('button', { name: /B1Fから開始/ }).click();
   await recordJourneyStep(page, 'floor-selected');
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
   await expect(page.locator('#explore-controls')).toBeVisible();
@@ -60,7 +60,7 @@ test('Preparation start is a single synchronous world transition under replayed 
   await page.goto('/');
   await page.locator('#btn-town-dungeon').click();
   await page.getByRole('button', { name: /鋼の前線キット/ }).click();
-  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await page.locator('#btn-kit-confirm').click();
 
   const result = await page.locator('#btn-departure-start').evaluate(async button => {
     const { state } = await import('/src/state.js');

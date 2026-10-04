@@ -8,8 +8,8 @@ test('New runs always use the unified rules without a mode selector @smoke', asy
   await waitForPixiReady(page);
   await page.locator('#btn-town-dungeon').click();
   await page.locator('.solo-starting-kit-option').first().click();
+  await page.locator('#btn-kit-confirm').click();
   await expect(page.locator('[data-trial-profile]')).toHaveCount(0);
-  await page.getByRole('button', { name: /B1Fから開始/ }).click();
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
   await expect(page.locator('#explore-controls')).toBeVisible();
   await expect(page.locator('#trial-mode-badge')).toHaveCount(0);
@@ -47,6 +47,7 @@ test('Unified runs start and restore B1/B10/B20 runs @smoke', async ({ page }) =
     await expect(page.locator('#btn-town-dungeon')).toBeVisible();
     await page.locator('#btn-town-dungeon').click();
     await page.locator('.solo-starting-kit-option').first().click();
+    await page.locator('#btn-kit-confirm').click();
     await page.locator(`[data-start-floor="${startFloor}"]`).click();
     await page.locator('#btn-departure-start').click();
     await expect(page.locator('#explore-controls')).toBeVisible();
@@ -121,7 +122,7 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
   await page.locator('#btn-town-dungeon').click();
   await expect(page.locator('#submenu-controls')).toBeVisible();
   await page.locator('.solo-starting-kit-option').first().click();
-  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await page.locator('#btn-kit-confirm').click();
   const departButton = page.getByRole('button', { name: '迷宮へ向かう' });
   if (await departButton.isVisible()) await departButton.click();
   await expectSingleDock('explore-controls');

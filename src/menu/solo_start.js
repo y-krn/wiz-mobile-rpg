@@ -34,10 +34,18 @@ import {
 } from "../rules/magic_rules.js";
 import { restoreFocusAfterRender } from "../ui/focus_manager.js";
 import { getVNextTrialBaseId } from "../rules/equipment_vnext_trial.js";
+import { getStartingKitCopy } from "../data/starting_kit_copy.js";
+import { TECHNIQUE_BY_PROFILE } from "../data/techniques.js";
+import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
+import { getCharDerivedStats } from "../rules/character_stats.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
 let selectedStartFloor = null;
+// Kit selection is a two-step choice: pick a kit to read its details, then
+// confirm. The picked kit and weapon swap survive "choose again".
+let selectedKitId = null;
+let selectedStartingGear = null;
 const DEPARTURE_BAG_CAPACITY = INVENTORY_CAPACITY;
 const DEPARTURE_ITEM_LIMITS = Object.freeze({ TOWN_PORTAL: 1 });
 
@@ -78,24 +86,40 @@ function formatCraftPaymentWithBalance(recipe, balance, selectedRecipeIds) {
   return `倉庫0個・${materialCost}`;
 }
 
-function startRun(startingKitId, startingGear = null, startFloor = 1) {
-  // The first call synchronously replaces the preparation surface with the
-  // exploration surface. Replayed events from the old button must not start
-  // another run or charge its preparation choices twice.
-  if (state.gameState !== "submenu") return false;
-  const kit = getStartingKit(startingKitId);
+// Build the character exactly as a run would start it: the kit's equipment
+// resolved to the bases actually in play, then the optional Workshop weapon.
+// The departure screens preview this same character, so what the player reads
+// is what the run starts with.
+function createDepartureCharacter(startingKitId, startingGear = null) {
   const character = applyWorkshopToCharacter(createStartingKitCharacter(startingKitId), state.workshop);
   const trialStartingGear = getVNextTrialBaseId(startingGear) || startingGear;
   Object.keys(character.equipment || {}).forEach(slotId => {
     const productionId = character.equipment[slotId];
     character.equipment[slotId] = getVNextTrialBaseId(productionId) || productionId;
   });
-  // A medium raises max MP; start the run with that capacity filled, as the
-  // kit card (HP / MP max) promises.
+  // A medium raises max MP; start the run with the kit's capacity filled.
+  // This is set before the Workshop weapon is applied, as it always has been,
+  // so swapping the weapon does not change the starting MP rule.
   character.mp = getCharMaxMp(character);
   const item = ITEMS[trialStartingGear];
   const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
   const handConflict = slot ? getEquipmentHandConflict(character, trialStartingGear, slot) : null;
+  if (startingGear && slot && !handConflict) {
+    character.equipment[slot] = trialStartingGear;
+    syncMediumState(character, {
+      preserveRunes: startingKitId === "arcana" && isMedium(trialStartingGear)
+    });
+  }
+  return { character, handConflict };
+}
+
+function startRun(startingKitId, startingGear = null, startFloor = 1) {
+  // The first call synchronously replaces the preparation surface with the
+  // exploration surface. Replayed events from the old button must not start
+  // another run or charge its preparation choices twice.
+  if (state.gameState !== "submenu") return false;
+  const kit = getStartingKit(startingKitId);
+  const { character, handConflict } = createDepartureCharacter(startingKitId, startingGear);
   if (handConflict) {
     addLog(`[開始不可] ${handConflict.message}`);
     return;
@@ -119,13 +143,6 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
     }
   }
   departureCraftQuantities = new Map();
-  if (startingGear) {
-    if (slot) {
-      const preserveRunes = startingKitId === "arcana" && isMedium(trialStartingGear);
-      character.equipment[slot] = trialStartingGear;
-      syncMediumState(character, { preserveRunes });
-    }
-  }
   state.party = [character];
   addLog(`${kit.name}で単独潜行を開始する。`);
   executeEnterDungeon(startFloor, { departureCraft, runQuestTemplateIds });
@@ -188,19 +205,11 @@ function getShortItemName(itemId) {
 }
 
 function createDeparturePreviewCharacter(startingKitId, startingGear = null) {
-  const character = applyWorkshopToCharacter(
-    createStartingKitCharacter(startingKitId),
-    state.workshop
-  );
-  if (!startingGear) return character;
-  const item = ITEMS[startingGear];
-  const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
-  if (!slot) return character;
-  character.equipment[slot] = startingGear;
-  syncMediumState(character, {
-    preserveRunes: startingKitId === "arcana" && isMedium(startingGear)
-  });
-  return character;
+  return createDepartureCharacter(startingKitId, startingGear).character;
+}
+
+function formatLoadCopy(load) {
+  return `${load.label}（${load.description}）`;
 }
 
 function appendPreparationRow(container, label, value, className = "") {
@@ -263,14 +272,14 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
   appendPreparationRow(conditions, "開始キット", `${getStartingKit(startingKitId)?.name || "—"}（装備セット）`);
   appendPreparationRow(
     conditions,
-    "行動傾向",
-    `${equipmentLoad.label}：${equipmentLoad.description}`,
+    "行動の速さ",
+    formatLoadCopy(equipmentLoad),
     "solo-preparation-load"
   );
   appendPreparationRow(
     conditions,
-    "開始装備",
-    startingGear ? `${ITEMS[startingGear]?.name || startingGear}（バッグ外）` : "なし（バッグ外）",
+    "開始武器の差し替え",
+    startingGear ? `${getStartingGearName(startingGear)}（工房で解放）` : "なし",
     "solo-preparation-equipment"
   );
   const startingEquipment = Object.values(startingCharacter.equipment || {})
@@ -448,6 +457,10 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   floorSection.appendChild(floorHeading);
 
   const floors = [1, ...(state.unlockedMilestones || [])];
+  // With a single candidate there is nothing to choose: start with it
+  // selected so the confirm button is ready. Several candidates keep the
+  // explicit choice.
+  if (floors.length === 1 && selectedStartFloor === null) selectedStartFloor = floors[0];
   floors.forEach(floor => {
     const multiplier = floor === 1 ? 1 : MATERIAL_DROP_BALANCE.milestoneStartMultiplier;
     const theme = getFloorTheme(floor);
@@ -493,76 +506,239 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   );
 }
 
+function getStartingGearName(startingGear) {
+  const resolved = getVNextTrialBaseId(startingGear) || startingGear;
+  return ITEMS[resolved]?.name || ITEMS[startingGear]?.name || startingGear;
+}
+
+// Workshop weapons that would actually change the kit's starting weapon.
+// A swap that resolves to the weapon the kit already carries is not a choice.
+function getStartingGearOptions(startingKitId) {
+  const kitWeapon = createDepartureCharacter(startingKitId).character.equipment?.weapon;
+  const seen = new Set();
+  return (getWorkshopGrants(state.workshop).startingGear || [])
+    .filter(itemId => ITEMS[itemId])
+    .map(itemId => ({
+      itemId,
+      resolvedId: getVNextTrialBaseId(itemId) || itemId,
+      conflict: createDepartureCharacter(startingKitId, itemId).handConflict
+    }))
+    .filter(option => {
+      if (option.resolvedId === kitWeapon || seen.has(option.resolvedId)) return false;
+      seen.add(option.resolvedId);
+      return true;
+    });
+}
+
+function appendKitDetailRow(container, label, value, className = "") {
+  const row = document.createElement("div");
+  row.className = `solo-kit-detail-row${className ? ` ${className}` : ""}`;
+  const rowLabel = document.createElement("span");
+  rowLabel.textContent = label;
+  const rowValue = document.createElement("strong");
+  rowValue.textContent = value;
+  row.append(rowLabel, rowValue);
+  container.appendChild(row);
+  return row;
+}
+
+function appendKitDetailList(container, label, lines, className) {
+  if (!lines.length) return;
+  const row = document.createElement("div");
+  row.className = `solo-kit-detail-row ${className}`;
+  const rowLabel = document.createElement("span");
+  rowLabel.textContent = label;
+  const list = document.createElement("ul");
+  lines.forEach(line => {
+    const item = document.createElement("li");
+    item.textContent = line;
+    list.appendChild(item);
+  });
+  row.append(rowLabel, list);
+  container.appendChild(row);
+}
+
+function renderKitDetail(optGrid, kit) {
+  const copy = getStartingKitCopy(kit.id);
+  const character = createDeparturePreviewCharacter(kit.id, selectedStartingGear);
+  const stats = getCharDerivedStats(character);
+  const load = getEquipmentLoadPlayerCopy(character);
+  const technique = TECHNIQUE_BY_PROFILE[getWeaponBehaviorProfile(character)?.id] || null;
+
+  const detail = document.createElement("section");
+  detail.className = "solo-kit-detail";
+  detail.dataset.detailKitId = kit.id;
+  detail.dataset.loadClass = load.class;
+  detail.setAttribute("aria-label", "選択中の開始キット");
+  detail.setAttribute("aria-live", "polite");
+
+  const heading = document.createElement("div");
+  heading.className = "solo-kit-detail-heading";
+  const name = document.createElement("strong");
+  name.textContent = kit.name;
+  heading.appendChild(name);
+  if (copy.role) {
+    const role = document.createElement("span");
+    role.className = "solo-kit-role";
+    role.textContent = copy.role;
+    heading.appendChild(role);
+  }
+  detail.appendChild(heading);
+  if (copy.playstyle) {
+    const playstyle = document.createElement("p");
+    playstyle.className = "solo-kit-playstyle";
+    playstyle.textContent = copy.playstyle;
+    detail.appendChild(playstyle);
+  }
+
+  const stat = document.createElement("div");
+  stat.className = "solo-kit-stats";
+  [
+    ["攻撃", stats.attack],
+    ["防御", stats.defense],
+    ["HP", character.maxHp],
+    ["MP", getCharMaxMp(character)]
+  ].forEach(([label, value]) => {
+    const cell = document.createElement("span");
+    cell.textContent = `${label} `;
+    const number = document.createElement("strong");
+    number.textContent = String(value);
+    cell.appendChild(number);
+    stat.appendChild(cell);
+  });
+  detail.appendChild(stat);
+
+  appendKitDetailRow(detail, "行動の速さ", formatLoadCopy(load), "solo-kit-load");
+  const equipment = Object.values(character.equipment || {})
+    .filter(Boolean)
+    .map(itemId => ITEMS[itemId]?.name || itemId)
+    .join("・") || "なし";
+  appendKitDetailRow(detail, "装備", equipment, "solo-kit-equipment");
+  const runes = getActiveRuneSpellKeys(character)
+    .map(spellKey => ITEMS[getRuneItemId(spellKey)]?.name || spellKey);
+  if (runes.length > 0) appendKitDetailRow(detail, "ルーン", runes.join("・"), "solo-kit-runes");
+  if (technique) {
+    const row = appendKitDetailRow(detail, "武器の技", technique.name, "solo-kit-technique");
+    const description = document.createElement("p");
+    description.textContent = technique.desc;
+    row.appendChild(description);
+  }
+  appendKitDetailList(detail, "強み", copy.strengths, "solo-kit-strengths");
+  appendKitDetailList(detail, "弱み", copy.weaknesses, "solo-kit-weaknesses");
+
+  const gearOptions = getStartingGearOptions(kit.id);
+  if (gearOptions.length > 0) {
+    const group = document.createElement("div");
+    group.className = "solo-kit-gear-options";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", "開始武器（工房で解放済み）");
+    const groupLabel = document.createElement("span");
+    groupLabel.textContent = "開始武器（工房で解放済み）";
+    group.appendChild(groupLabel);
+    const appendGearButton = (itemId, label, conflict = null) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      const selected = selectedStartingGear === itemId;
+      button.className = `btn solo-starting-gear-option${selected ? " is-selected" : ""}`;
+      button.dataset.startingGear = itemId || "kit";
+      button.setAttribute("aria-pressed", String(selected));
+      button.disabled = Boolean(conflict);
+      const title = document.createElement("strong");
+      title.textContent = label;
+      button.appendChild(title);
+      if (conflict) {
+        const reason = document.createElement("small");
+        reason.textContent = `選択不可：${conflict.message}`;
+        button.appendChild(reason);
+      } else {
+        button.addEventListener("click", () => {
+          selectedStartingGear = itemId;
+          renderSoloStart(optGrid, `[data-starting-gear="${itemId || "kit"}"]`);
+        });
+      }
+      group.appendChild(button);
+    };
+    appendGearButton(null, "キットの武器のまま");
+    gearOptions.forEach(option => appendGearButton(
+      option.itemId,
+      getStartingGearName(option.itemId),
+      option.conflict
+    ));
+    detail.appendChild(group);
+  }
+  optGrid.appendChild(detail);
+}
+
 export function renderSoloStart(optGrid, focusSelector = null) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-grid";
   clearDepartureStartFooter();
   departureCraftQuantities = new Map();
   selectedStartFloor = null;
+  if (!getStartingKit(selectedKitId)) {
+    selectedKitId = STARTING_KITS[0]?.id || null;
+    selectedStartingGear = null;
+  }
+  if (selectedStartingGear && !getStartingGearOptions(selectedKitId)
+    .some(option => option.itemId === selectedStartingGear && !option.conflict)) {
+    selectedStartingGear = null;
+  }
 
+  const kitList = document.createElement("div");
+  kitList.className = "solo-kit-list";
+  kitList.setAttribute("role", "group");
+  kitList.setAttribute("aria-label", "開始キット");
   STARTING_KITS.forEach(kit => {
-    const character = createStartingKitCharacter(kit.id);
-    const load = getEquipmentLoadPlayerCopy(character);
+    const copy = getStartingKitCopy(kit.id);
+    const load = getEquipmentLoadPlayerCopy(createDeparturePreviewCharacter(kit.id));
+    const selected = kit.id === selectedKitId;
     const button = document.createElement("button");
-    button.className = "btn btn-neon btn-block solo-starting-kit-option";
+    button.type = "button";
+    button.className = `btn btn-neon btn-block solo-starting-kit-option${selected ? " is-selected" : ""}`;
+    button.dataset.kitId = kit.id;
+    button.dataset.loadClass = load.class;
+    button.setAttribute("aria-pressed", String(selected));
+    if (copy.role) {
+      const role = document.createElement("span");
+      role.className = "solo-kit-role";
+      role.textContent = copy.role;
+      button.appendChild(role);
+    }
     const name = document.createElement("strong");
     name.textContent = kit.name;
-    const gear = document.createElement("span");
-    gear.textContent = kit.description;
-    const loadHint = document.createElement("span");
-    loadHint.className = "solo-starting-kit-load";
-    loadHint.textContent = `行動傾向: ${load.label} · ${load.description}`;
-    const vitals = document.createElement("span");
-    vitals.textContent = `HP ${character.maxHp} / MP ${getCharMaxMp(character)}`;
-    button.append(name, gear, loadHint, vitals);
-    button.dataset.loadClass = load.class;
-    button.addEventListener("click", () => renderStartFloorChoices(
-      optGrid,
-      kit.id,
-      null,
-      '[data-start-floor="1"]'
-    ));
-    optGrid.appendChild(button);
-
-    getWorkshopGrants(state.workshop).startingGear.forEach(itemId => {
-      const item = ITEMS[itemId];
-      if (!item) return;
-      const option = document.createElement("button");
-      option.className = "btn btn-neon btn-block solo-starting-kit-option";
-      const conflict = getEquipmentHandConflict(
-        createStartingKitCharacter(kit.id),
-        itemId,
-        getEquipmentSlotsForType(item.type)[0]?.id
-      );
-      option.disabled = Boolean(conflict);
-      option.title = conflict?.message || "";
-      const previewCharacter = createDeparturePreviewCharacter(kit.id, itemId);
-      const load = getEquipmentLoadPlayerCopy(previewCharacter);
-      const optionTitle = document.createElement("strong");
-      optionTitle.textContent = `${kit.name} + ${item.name}`;
-      option.appendChild(optionTitle);
-      if (conflict) {
-        const conflictText = document.createElement("span");
-        conflictText.textContent = `選択不可：${conflict.message}`;
-        option.appendChild(conflictText);
-      } else {
-        const unlockedText = document.createElement("span");
-        unlockedText.textContent = "工房アンロック装備";
-        const loadText = document.createElement("span");
-        loadText.className = "solo-starting-kit-load";
-        loadText.textContent = `行動傾向: ${load.label} · ${load.description}`;
-        option.append(unlockedText, loadText);
-      }
-      option.dataset.loadClass = load.class;
-      if (!conflict) option.addEventListener("click", () => renderStartFloorChoices(
-        optGrid,
-        kit.id,
-        itemId,
-        '[data-start-floor="1"]'
-      ));
-      optGrid.appendChild(option);
+    button.appendChild(name);
+    if (copy.playstyle) {
+      const playstyle = document.createElement("span");
+      playstyle.className = "solo-kit-card-playstyle";
+      playstyle.textContent = copy.playstyle;
+      button.appendChild(playstyle);
+    }
+    button.addEventListener("click", () => {
+      if (selectedKitId !== kit.id) selectedStartingGear = null;
+      selectedKitId = kit.id;
+      renderSoloStart(optGrid, `[data-kit-id="${kit.id}"]`);
     });
+    kitList.appendChild(button);
   });
+  optGrid.appendChild(kitList);
+
+  const selectedKit = getStartingKit(selectedKitId);
+  if (selectedKit) renderKitDetail(optGrid, selectedKit);
+
+  const footer = document.getElementById("departure-start-footer");
+  const confirm = document.createElement("button");
+  confirm.id = "btn-kit-confirm";
+  confirm.type = "button";
+  confirm.className = "btn btn-neon btn-block solo-start-confirm";
+  confirm.textContent = "このキットで準備へ";
+  confirm.disabled = !selectedKit;
+  confirm.addEventListener("click", () => {
+    if (!getStartingKit(selectedKitId)) return;
+    renderStartFloorChoices(optGrid, selectedKitId, selectedStartingGear, '[data-start-floor="1"]');
+  });
+  if (footer) footer.appendChild(confirm);
+  else optGrid.appendChild(confirm);
+
   restoreFocusAfterRender(
     "submenu-controls",
     document.getElementById("submenu-controls"),

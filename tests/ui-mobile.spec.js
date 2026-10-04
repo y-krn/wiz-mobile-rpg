@@ -154,7 +154,7 @@ for (const vp of VIEWPORTS) {
       await page.locator('#btn-town-dungeon').click();
       await expect(page.locator('#submenu-controls')).toBeVisible();
       await page.getByRole('button', { name: /鋼の前線キット/ }).click();
-      await page.getByRole('button', { name: /B1Fから開始/ }).click();
+      await page.locator('#btn-kit-confirm').click();
       await page.getByRole('button', { name: '迷宮へ向かう' }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
 
@@ -799,7 +799,7 @@ for (const vp of VIEWPORTS) {
       await page.locator('#btn-town-dungeon').click();
       await expect(page.locator('#submenu-title')).toContainText('開始キットを選択');
       await page.getByRole('button', { name: /軽装探索キット/ }).click();
-      await page.getByRole('button', { name: /B1Fから開始/ }).click();
+      await page.locator('#btn-kit-confirm').click();
       await page.getByRole('button', { name: '迷宮へ向かう' }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
       const character = await page.evaluate(async () => {
