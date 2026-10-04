@@ -1,4 +1,4 @@
-import { state, saveGame, addLog } from "../state.js";
+import { state, saveGame, addLog, getStartingKit } from "../state.js";
 import { getItemBaseId, getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
@@ -11,6 +11,22 @@ const ACHIEVEMENT_LABELS = {
   first_b5_broken: "初めてB5Fを突破",
   first_b10_reached: "初めてB10Fへ到達"
 };
+
+// The repeat departure lives with the preparation menu. It is injected so
+// this screen does not import the departure and dungeon-entry modules.
+let departureActions = null;
+
+/**
+ * @param {{
+ *   getPlan: () => object | null,
+ *   formatCost: (plan: object) => string,
+ *   repeat: () => boolean,
+ *   review: () => void
+ * } | null} actions
+ */
+export function setResultDepartureActions(actions) {
+  departureActions = actions;
+}
 
 function textElement(tagName, className, text) {
   const element = document.createElement(tagName);
@@ -365,13 +381,13 @@ function createReturnProcessingSection(run) {
   return section;
 }
 
-function leaveResult(overlay) {
+function leaveResult(overlay, { announce = true } = {}) {
   overlay.style.display = "none";
   state.gameState = "town";
   clearPhase4cV1CharacterBaseline(state);
   state.currentRun = null;
   state.party = [];
-  addLog("街へ戻った。次の潜行に備えよう。");
+  if (announce) addLog("街へ戻った。次の潜行に備えよう。");
   saveGame();
   updateUI();
 }
@@ -461,15 +477,11 @@ export function renderResultScreen() {
   body.appendChild(textElement("div", "result-run-note", getEvaluationText(run, isSuccess)));
 
   const footer = textElement("div", "result-footer-actions");
-  const castleButton = textElement("button", "btn btn-neon btn-block", "街へ戻る");
-  castleButton.id = "btn-result-castle";
-  setAttributeSafe(castleButton, "data-result-next", "town");
-  footer.appendChild(castleButton);
-  overlay.appendChild(header);
-  overlay.appendChild(body);
-  overlay.appendChild(footer);
-
-  castleButton.addEventListener("click", () => {
+  // Every exit from the result settles the same things first: the first-clear
+  // record, the run and party, and the save. The guard makes a replayed tap
+  // on any exit a no-op, so a repeat departure pays and starts only once.
+  const settleResult = ({ announce = true } = {}) => {
+    if (state.gameState !== "result" || state.currentRun !== run) return false;
     const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
     if (hasCrystal) {
       state.cleared = true;
@@ -479,7 +491,57 @@ export function renderResultScreen() {
     } else {
       playSound(isSuccess ? "heal" : "bump");
     }
-    leaveResult(overlay);
+    leaveResult(overlay, { announce });
+    return true;
+  };
+
+  const plan = departureActions?.getPlan() || null;
+  if (plan) {
+    const kitName = getStartingKit(plan.kitId)?.name || "前回のキット";
+    const againButton = textElement("button", "btn btn-neon btn-primary btn-block result-again-button");
+    againButton.id = "btn-result-again";
+    setAttributeSafe(againButton, "type", "button");
+    if (plan.canRepeat) {
+      setAttributeSafe(againButton, "data-result-next", "repeat");
+      againButton.appendChild(textElement("strong", null, "同じ準備でもう一度"));
+      againButton.appendChild(textElement(
+        "span",
+        "result-again-detail",
+        `${kitName}・B${plan.startFloor}Fから・${departureActions.formatCost(plan)}`
+      ));
+      againButton.addEventListener("click", () => {
+        if (settleResult({ announce: false })) departureActions.repeat();
+      });
+    } else {
+      setAttributeSafe(againButton, "data-result-next", "review");
+      againButton.appendChild(textElement("strong", null, "準備を見直して出発"));
+      againButton.appendChild(textElement(
+        "span",
+        "result-again-detail",
+        `${kitName}・前回と同じ準備は揃えられない`
+      ));
+      againButton.addEventListener("click", () => {
+        if (settleResult({ announce: false })) departureActions.review();
+      });
+    }
+    footer.appendChild(againButton);
+  }
+  // One filled primary action: the repeat departure when it is offered,
+  // otherwise the return to town.
+  const castleButton = textElement(
+    "button",
+    `btn btn-block ${plan ? "btn-secondary" : "btn-neon btn-primary"}`,
+    "街へ戻る"
+  );
+  castleButton.id = "btn-result-castle";
+  setAttributeSafe(castleButton, "data-result-next", "town");
+  footer.appendChild(castleButton);
+  overlay.appendChild(header);
+  overlay.appendChild(body);
+  overlay.appendChild(footer);
+
+  castleButton.addEventListener("click", () => {
+    settleResult();
   });
 
   const historyButtons = typeof overlay.querySelectorAll === "function"

@@ -22,6 +22,8 @@ import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
 import { isFullMapOpen } from "./ui/full_map_overlay.js";
 import { handleMove, enterDungeon, resumePendingCampEntry } from "./movement.js";
 import { handleExploreAction, handleTownOption } from "./menu.js";
+import { formatRepeatDepartureCost, getRepeatDeparturePlan, repeatLastDeparture } from "./menu/solo_start.js";
+import { setResultDepartureActions } from "./ui/result_screen.js";
 import { initWorldGestures, markWorldTouch } from "./ui/world_gestures.js";
 import { selectCombatAction, cancelCombatAction, toggleCombatAuto, repeatLastCombatAction, resumeCombat } from "./combat.js";
 import { commitCombatTarget } from "./combat_ui/combat_overlay.js";
@@ -399,6 +401,13 @@ function bindButtons() {
 
   // Town
   document.getElementById("btn-town-dungeon").addEventListener("click", () => enterDungeon());
+  // Result: depart again with the previous preparation (#2002).
+  setResultDepartureActions({
+    getPlan: getRepeatDeparturePlan,
+    formatCost: formatRepeatDepartureCost,
+    repeat: repeatLastDeparture,
+    review: enterDungeon
+  });
   document.getElementById("btn-town-quest-board").addEventListener("click", () => handleTownOption("run_quest_board"));
   document.getElementById("btn-town-castle").addEventListener("click", () => handleTownOption("castle"));
   document.getElementById("btn-town-workshop").addEventListener("click", () => handleTownOption("workshop"));

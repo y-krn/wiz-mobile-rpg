@@ -637,6 +637,9 @@ test('Preparation explains bag cap and Return Wing individual limit', async ({ p
   });
   await page.locator('.solo-starting-kit-option').first().click();
   await page.locator('#btn-kit-confirm').click();
+  // Choosing the kit again keeps the tools already selected.
+  await expect(portal).toContainText('1個');
+  await page.locator('.solo-start-craft-decrement[data-craft-recipe-id="TOWN_PORTAL"]').click();
   const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
   for (let index = 0; index < 20; index += 1) await heal.click();
   await expect(page.locator('.solo-preparation-summary')).toContainText('持ち込み 20/20');

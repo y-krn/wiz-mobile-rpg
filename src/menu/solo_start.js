@@ -1,22 +1,29 @@
-import { STARTING_KITS, addLog, createStartingKitCharacter, getStartingKit, state, INVENTORY_CAPACITY } from "../state.js";
+import { STARTING_KITS, addLog, getStartingKit, state } from "../state.js";
 import { executeEnterDungeon } from "../movement.js";
 import { ITEMS } from "../data/items.js";
 import { getCharMaxMp } from "../data.js";
 import {
-  applyWorkshopToCharacter,
-  canAffordDepartureCraft,
   getAdditionalCraftableCount,
   getDepartureCraftBalance,
   getDepartureCraftCost,
   getDepartureCraftRecipes,
-  getWorkshopGrants,
   purchaseDepartureCraft
 } from "../systems/workshop.js";
+import {
+  DEPARTURE_BAG_CAPACITY,
+  DEPARTURE_ITEM_LIMITS,
+  createDepartureCharacter as buildDepartureCharacter,
+  describeDroppedPreparation,
+  getCraftSelectionBlockReason as getSelectionBlockReason,
+  getDepartureBagItems,
+  getStartingGearName,
+  getStartingGearOptions as listStartingGearOptions,
+  resolveLastPreparation
+} from "../systems/departure_preparation.js";
+import { normalizeLastPreparation } from "../state/last_preparation.js";
 import { CRAFT_RECIPES } from "../craft.js";
 import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
-import { getEquipmentSlotsForType } from "../rules/equipment_slots.js";
-import { getEquipmentHandConflict } from "../rules/equipment_hands.js";
 import { getEquipmentLoadPlayerCopy } from "../rules/equipment_load.js";
 import {
   consumeSelectedRunQuestTemplateIds,
@@ -28,12 +35,9 @@ import { getFloorTheme } from "../data/floor_themes.js";
 import {
   getActiveRuneSpellKeys,
   getEquippedMedium,
-  getRuneItemId,
-  isMedium,
-  syncMediumState
+  getRuneItemId
 } from "../rules/magic_rules.js";
 import { restoreFocusAfterRender } from "../ui/focus_manager.js";
-import { getVNextTrialBaseId } from "../rules/equipment_vnext_trial.js";
 import { getStartingKitCopy } from "../data/starting_kit_copy.js";
 import { TECHNIQUE_BY_PROFILE } from "../data/techniques.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
@@ -46,8 +50,9 @@ let selectedStartFloor = null;
 // confirm. The picked kit and weapon swap survive "choose again".
 let selectedKitId = null;
 let selectedStartingGear = null;
-const DEPARTURE_BAG_CAPACITY = INVENTORY_CAPACITY;
-const DEPARTURE_ITEM_LIMITS = Object.freeze({ TOWN_PORTAL: 1 });
+// Choices of the previous preparation that cannot be made right now. Shown
+// once on the preparation screen so nothing is dropped silently (#2002).
+let droppedPreparationLines = [];
 
 function formatCraftPayment(payment) {
   const typed = Object.entries(payment?.typed || {})
@@ -86,47 +91,23 @@ function formatCraftPaymentWithBalance(recipe, balance, selectedRecipeIds) {
   return `倉庫0個・${materialCost}`;
 }
 
-// Build the character exactly as a run would start it: the kit's equipment
-// resolved to the bases actually in play, then the optional Workshop weapon.
-// The departure screens preview this same character, so what the player reads
-// is what the run starts with.
 function createDepartureCharacter(startingKitId, startingGear = null) {
-  const character = applyWorkshopToCharacter(createStartingKitCharacter(startingKitId), state.workshop);
-  const trialStartingGear = getVNextTrialBaseId(startingGear) || startingGear;
-  Object.keys(character.equipment || {}).forEach(slotId => {
-    const productionId = character.equipment[slotId];
-    character.equipment[slotId] = getVNextTrialBaseId(productionId) || productionId;
-  });
-  // A medium raises max MP; start the run with the kit's capacity filled.
-  // This is set before the Workshop weapon is applied, as it always has been,
-  // so swapping the weapon does not change the starting MP rule.
-  character.mp = getCharMaxMp(character);
-  const item = ITEMS[trialStartingGear];
-  const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
-  const handConflict = slot ? getEquipmentHandConflict(character, trialStartingGear, slot) : null;
-  if (startingGear && slot && !handConflict) {
-    character.equipment[slot] = trialStartingGear;
-    syncMediumState(character, {
-      preserveRunes: startingKitId === "arcana" && isMedium(trialStartingGear)
-    });
-  }
-  return { character, handConflict };
+  return buildDepartureCharacter(startingKitId, startingGear, state.workshop);
 }
 
-function startRun(startingKitId, startingGear = null, startFloor = 1) {
-  // The first call synchronously replaces the preparation surface with the
-  // exploration surface. Replayed events from the old button must not start
-  // another run or charge its preparation choices twice.
-  if (state.gameState !== "submenu") return false;
+// Every departure goes through here: the preparation screen and the repeat
+// departure from the result screen pay and start by the same steps.
+function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds, { useBoardQuests }) {
   const kit = getStartingKit(startingKitId);
+  if (!kit) return false;
   const { character, handConflict } = createDepartureCharacter(startingKitId, startingGear);
   if (handConflict) {
     addLog(`[開始不可] ${handConflict.message}`);
-    return;
+    return false;
   }
   clearDepartureStartFooter();
-  const runQuestTemplateIds = consumeSelectedRunQuestTemplateIds();
-  const selectedRecipeIds = getSelectedRecipeIds();
+  const boardQuestTemplateIds = consumeSelectedRunQuestTemplateIds();
+  const runQuestTemplateIds = useBoardQuests ? boardQuestTemplateIds : null;
   let departureCraft = [];
   if (selectedRecipeIds.length > 0) {
     const purchase = purchaseDepartureCraft(state.metaMaterials, selectedRecipeIds, state.storage);
@@ -142,10 +123,54 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
       addLog("出発クラフトの素材が不足したため、何も持たずに出発する。");
     }
   }
+  state.lastPreparation = normalizeLastPreparation({
+    kitId: startingKitId,
+    startingGear,
+    recipeIds: departureCraft,
+    startFloor
+  });
   departureCraftQuantities = new Map();
+  droppedPreparationLines = [];
   state.party = [character];
   addLog(`${kit.name}で単独潜行を開始する。`);
   executeEnterDungeon(startFloor, { departureCraft, runQuestTemplateIds });
+  return true;
+}
+
+function startRun(startingKitId, startingGear = null, startFloor = 1) {
+  // The first call synchronously replaces the preparation surface with the
+  // exploration surface. Replayed events from the old button must not start
+  // another run or charge its preparation choices twice.
+  if (state.gameState !== "submenu") return false;
+  return launchRun(startingKitId, startingGear, startFloor, getSelectedRecipeIds(), { useBoardQuests: true });
+}
+
+/** The previous preparation checked against what can be chosen right now. */
+export function getRepeatDeparturePlan() {
+  return resolveLastPreparation(state.lastPreparation, state);
+}
+
+/** What a repeat departure pays, for the button that starts it. */
+export function formatRepeatDepartureCost(plan) {
+  if (!plan || plan.recipeIds.length === 0) return "持ち込む道具なし";
+  const paidCount = plan.recipeIds.length - plan.storedCount;
+  const parts = [];
+  if (plan.storedCount > 0) parts.push(`倉庫から${plan.storedCount}品`);
+  if (paidCount > 0) parts.push(`支払い：${formatCraftPayment(plan.payment)}`);
+  return `道具${plan.recipeIds.length}品（${parts.join("・")}）`;
+}
+
+/**
+ * Start the next run from the town with the previous preparation, without
+ * opening the preparation screen. Refuses unless every previous choice can
+ * be made again, so it never leaves with less than last time. No quests are
+ * picked, exactly like leaving the quest board without choosing.
+ */
+export function repeatLastDeparture() {
+  if (state.gameState !== "town") return false;
+  const plan = getRepeatDeparturePlan();
+  if (!plan?.canRepeat) return false;
+  return launchRun(plan.kitId, plan.startingGear, plan.startFloor, plan.recipeIds, { useBoardQuests: false });
 }
 
 function getSelectedRecipeIds() {
@@ -155,26 +180,11 @@ function getSelectedRecipeIds() {
 }
 
 function getSelectedBagItems(recipeIds = getSelectedRecipeIds()) {
-  const fixedItems = getWorkshopGrants(state.workshop).returnItems || [];
-  const craftedItems = getDepartureCraftRecipes(recipeIds)
-    .filter(recipe => !recipe.identifyPowder)
-    .map(recipe => recipe.resultId);
-  return [...fixedItems, ...craftedItems];
+  return getDepartureBagItems(recipeIds, state.workshop);
 }
 
 function getCraftSelectionBlockReason(recipe, selectedRecipeIds) {
-  const selectedItems = getSelectedBagItems(selectedRecipeIds);
-  if (!recipe.identifyPowder && selectedItems.length >= DEPARTURE_BAG_CAPACITY) {
-    return "バッグ上限（20枠）";
-  }
-  const itemLimit = DEPARTURE_ITEM_LIMITS[recipe.resultId];
-  if (itemLimit && selectedItems.filter(itemId => itemId === recipe.resultId).length >= itemLimit) {
-    return "帰還の翼は1個まで";
-  }
-  if (!canAffordDepartureCraft(state.metaMaterials, [...selectedRecipeIds, recipe.resultId], state.storage)) {
-    return "素材不足";
-  }
-  return "";
+  return getSelectionBlockReason(recipe, selectedRecipeIds, state);
 }
 
 function getCraftAvailability(recipe, selectedRecipeIds) {
@@ -439,8 +449,24 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   changeKit.type = "button";
   changeKit.className = "btn btn-block solo-start-change";
   changeKit.textContent = "開始キットを選び直す";
-  changeKit.addEventListener("click", () => renderSoloStart(optGrid, ".solo-starting-kit-option"));
+  changeKit.addEventListener("click", () => renderKitChoice(optGrid, ".solo-starting-kit-option"));
   optGrid.appendChild(changeKit);
+
+  if (droppedPreparationLines.length > 0) {
+    const dropped = document.createElement("section");
+    dropped.className = "solo-preparation-dropped";
+    dropped.setAttribute("role", "status");
+    const droppedTitle = document.createElement("strong");
+    droppedTitle.textContent = "前回の準備から外したもの";
+    const droppedList = document.createElement("ul");
+    droppedPreparationLines.forEach(line => {
+      const item = document.createElement("li");
+      item.textContent = line;
+      droppedList.appendChild(item);
+    });
+    dropped.append(droppedTitle, droppedList);
+    optGrid.appendChild(dropped);
+  }
 
   // Floor choices live in the single scrolling surface; only the confirm
   // action stays pinned in the footer so it is always reachable.
@@ -506,28 +532,8 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   );
 }
 
-function getStartingGearName(startingGear) {
-  const resolved = getVNextTrialBaseId(startingGear) || startingGear;
-  return ITEMS[resolved]?.name || ITEMS[startingGear]?.name || startingGear;
-}
-
-// Workshop weapons that would actually change the kit's starting weapon.
-// A swap that resolves to the weapon the kit already carries is not a choice.
 function getStartingGearOptions(startingKitId) {
-  const kitWeapon = createDepartureCharacter(startingKitId).character.equipment?.weapon;
-  const seen = new Set();
-  return (getWorkshopGrants(state.workshop).startingGear || [])
-    .filter(itemId => ITEMS[itemId])
-    .map(itemId => ({
-      itemId,
-      resolvedId: getVNextTrialBaseId(itemId) || itemId,
-      conflict: createDepartureCharacter(startingKitId, itemId).handConflict
-    }))
-    .filter(option => {
-      if (option.resolvedId === kitWeapon || seen.has(option.resolvedId)) return false;
-      seen.add(option.resolvedId);
-      return true;
-    });
+  return listStartingGearOptions(startingKitId, state.workshop);
 }
 
 function appendKitDetailRow(container, label, value, className = "") {
@@ -653,7 +659,7 @@ function renderKitDetail(optGrid, kit) {
       } else {
         button.addEventListener("click", () => {
           selectedStartingGear = itemId;
-          renderSoloStart(optGrid, `[data-starting-gear="${itemId || "kit"}"]`);
+          renderKitChoice(optGrid, `[data-starting-gear="${itemId || "kit"}"]`);
         });
       }
       group.appendChild(button);
@@ -669,12 +675,39 @@ function renderKitDetail(optGrid, kit) {
   optGrid.appendChild(detail);
 }
 
-export function renderSoloStart(optGrid, focusSelector = null) {
+// Pre-fill the selections from the previous preparation. Choices that cannot
+// be made right now are left out and listed for the player.
+function seedFromLastPreparation() {
+  departureCraftQuantities = new Map();
+  selectedStartFloor = null;
+  droppedPreparationLines = [];
+  const plan = getRepeatDeparturePlan();
+  if (!plan) return false;
+  selectedKitId = plan.kitId;
+  selectedStartingGear = plan.startingGear;
+  plan.recipeIds.forEach(recipeId => {
+    departureCraftQuantities.set(recipeId, (departureCraftQuantities.get(recipeId) || 0) + 1);
+  });
+  selectedStartFloor = plan.startFloor;
+  droppedPreparationLines = describeDroppedPreparation(plan.dropped);
+  return true;
+}
+
+// Entry point when the preparation submenu opens. With a previous
+// preparation the player lands on the pre-filled tools and floor, one tap
+// from departure; "開始キットを選び直す" still leads to the kit choice.
+export function renderSoloStart(optGrid) {
+  if (seedFromLastPreparation()) {
+    renderStartFloorChoices(optGrid, selectedKitId, selectedStartingGear, "#btn-departure-start");
+    return;
+  }
+  renderKitChoice(optGrid);
+}
+
+function renderKitChoice(optGrid, focusSelector = null) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-grid";
   clearDepartureStartFooter();
-  departureCraftQuantities = new Map();
-  selectedStartFloor = null;
   if (!getStartingKit(selectedKitId)) {
     selectedKitId = STARTING_KITS[0]?.id || null;
     selectedStartingGear = null;
@@ -716,7 +749,7 @@ export function renderSoloStart(optGrid, focusSelector = null) {
     button.addEventListener("click", () => {
       if (selectedKitId !== kit.id) selectedStartingGear = null;
       selectedKitId = kit.id;
-      renderSoloStart(optGrid, `[data-kit-id="${kit.id}"]`);
+      renderKitChoice(optGrid, `[data-kit-id="${kit.id}"]`);
     });
     kitList.appendChild(button);
   });

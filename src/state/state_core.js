@@ -78,6 +78,8 @@ export const state = {
   storageMigrationVersion: 1,
   identifyTickets: 0,
   dungeonMemory: { mapFragments: {}, visitedFloors: [1] },
+  // Choices of the previous departure; pre-fills the next preparation (#2002).
+  lastPreparation: null,
 
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",

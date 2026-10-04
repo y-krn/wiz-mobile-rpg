@@ -216,6 +216,138 @@ test('Return result shows no near-miss section', async ({ page }) => {
   expect(sections).toEqual([0, 0]);
 });
 
+async function seedResultWithLastPreparation(page, { materials, storage = [], reason = 'gameover', lastPreparation }) {
+  await page.evaluate(async ({ materials, storage, reason, lastPreparation }) => {
+    const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
+    const { triggerRunResult } = await import('/src/result.js');
+    initNewGame();
+    state.party = [createStartingKitCharacter('vanguard')];
+    state.currentRun = createDefaultCurrentRun();
+    state.currentRun.deepestFloor = 2;
+    state.floor = 2;
+    state.gameState = 'explore';
+    state.metaMaterials = materials;
+    state.storage = storage;
+    state.lastPreparation = lastPreparation;
+    triggerRunResult(reason);
+  }, { materials, storage, reason, lastPreparation });
+}
+
+for (const reason of ['gameover', 'abandon', 'milestone_portal']) {
+  test(`Result offers the same preparation again after ${reason}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await seedResultWithLastPreparation(page, {
+      materials: { '硬い皮': 3, '獣の牙': 3 },
+      storage: ['HEAL_POTION'],
+      reason,
+      lastPreparation: { kitId: 'vanguard', startingGear: null, recipeIds: ['HEAL_POTION', 'HEAL_POTION'], startFloor: 1 }
+    });
+
+    const again = page.locator('#btn-result-again');
+    await expect(again).toHaveAttribute('data-result-next', 'repeat');
+    await expect(again).toContainText('同じ準備でもう一度');
+    await expect(again).toContainText('鋼の前線キット・B1Fから・道具2品（倉庫から1品・支払い：硬い皮1・獣の牙1）');
+    await expect(page.locator('#btn-result-castle')).toHaveText('街へ戻る');
+
+    // A replayed activation must not start or charge a second departure.
+    const after = await page.evaluate(async () => {
+      const button = document.getElementById('btn-result-again');
+      button.click();
+      button.click();
+      const { state } = await import('/src/state.js');
+      return {
+        gameState: state.gameState,
+        kit: state.currentRun?.startingKit,
+        startFloor: state.currentRun?.startFloor,
+        potions: state.inventory.filter(item => (item?.baseId || item) === 'HEAL_POTION').length,
+        storage: state.storage.length,
+        hide: state.metaMaterials['硬い皮'],
+        fang: state.metaMaterials['獣の牙'],
+        questCount: state.currentRun?.quests?.length || 0
+      };
+    });
+    expect(after.gameState).toBe('explore');
+    expect(after.kit).toBe('vanguard');
+    expect(after.startFloor).toBe(1);
+    expect(after.potions).toBe(2);
+    expect(after.storage).toBe(0);
+    expect(after.hide).toBe(2);
+    expect(after.fang).toBe(2);
+    await expect(page.locator('#result-overlay')).toBeHidden();
+    await expect(page.locator('#submenu-controls')).toBeHidden();
+  });
+}
+
+test('Result sends an unaffordable repeat to the pre-filled preparation instead of leaving with less', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await seedResultWithLastPreparation(page, {
+    materials: { '硬い皮': 1, '獣の牙': 1 },
+    lastPreparation: { kitId: 'scout', startingGear: null, recipeIds: ['HEAL_POTION', 'HEAL_POTION'], startFloor: 1 }
+  });
+
+  const again = page.locator('#btn-result-again');
+  await expect(again).toHaveAttribute('data-result-next', 'review');
+  await expect(again).toContainText('準備を見直して出発');
+  await expect(again).toContainText('前回と同じ準備は揃えられない');
+  await again.click();
+
+  await expect(page.locator('#btn-departure-start')).toBeEnabled();
+  await expect(page.locator('.solo-preparation-dropped')).toContainText('前回の準備から外したもの');
+  await expect(page.locator('.solo-preparation-dropped li')).toHaveText(['傷薬×1（素材不足）']);
+  await expect(page.locator('.solo-preparation-summary')).toContainText('軽装探索キット');
+  await expect(page.locator('[data-recipe-id="HEAL_POTION"]')).toContainText('1個');
+  await expect(page.locator('[data-start-floor="1"]')).toHaveAttribute('aria-pressed', 'true');
+  const materials = await page.evaluate(async () => (await import('/src/state.js')).state.metaMaterials);
+  expect(materials['硬い皮']).toBe(1);
+});
+
+test('Result without a previous preparation only offers the town', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await seedResultWithLastPreparation(page, { materials: {}, lastPreparation: null });
+  await expect(page.locator('#btn-result-again')).toHaveCount(0);
+  await expect(page.locator('#btn-result-castle')).toHaveClass(/btn-primary/);
+  await page.locator('#btn-result-castle').click();
+  await expect(page.locator('#town-controls')).toBeVisible();
+});
+
+test('Town preparation opens with the previous choices and still allows changing the kit', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { initNewGame, state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    initNewGame();
+    state.gameState = 'town';
+    state.metaMaterials = { '硬い皮': 4, '獣の牙': 4 };
+    state.unlockedMilestones = [5];
+    state.lastPreparation = { kitId: 'devotion', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 5 };
+    updateUI();
+  });
+  await page.locator('#btn-town-dungeon').click();
+
+  await expect(page.locator('.solo-preparation-summary')).toContainText('祈りの旅装キット');
+  await expect(page.locator('[data-start-floor="5"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-recipe-id="HEAL_POTION"]')).toContainText('1個');
+  await expect(page.locator('.solo-preparation-dropped')).toHaveCount(0);
+  await expect(page.locator('#btn-departure-start')).toBeEnabled();
+
+  await page.getByRole('button', { name: '開始キットを選び直す' }).click();
+  await expect(page.locator('[data-kit-id="devotion"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-kit-id="scout"]').click();
+  await page.locator('#btn-kit-confirm').click();
+  await expect(page.locator('.solo-preparation-summary')).toContainText('軽装探索キット');
+  // Changing the kit keeps the tools and floor already chosen.
+  await expect(page.locator('[data-recipe-id="HEAL_POTION"]')).toContainText('1個');
+  await expect(page.locator('[data-start-floor="5"]')).toHaveAttribute('aria-pressed', 'true');
+
+  await page.locator('#btn-departure-start').click();
+  const remembered = await page.evaluate(async () => (await import('/src/state.js')).state.lastPreparation);
+  expect(remembered).toEqual({ kitId: 'scout', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 5 });
+});
+
 test('Town home is organized as previous run, next descent, and accumulated knowledge', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

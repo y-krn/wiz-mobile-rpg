@@ -46,8 +46,14 @@ test('Unified runs start and restore B1/B10/B20 runs @smoke', async ({ page }) =
 
     await expect(page.locator('#btn-town-dungeon')).toBeVisible();
     await page.locator('#btn-town-dungeon').click();
-    await page.locator('.solo-starting-kit-option').first().click();
-    await page.locator('#btn-kit-confirm').click();
+    if (startFloor === 1) {
+      // First departure: no previous preparation, so the kit is chosen first.
+      await page.locator('.solo-starting-kit-option').first().click();
+      await page.locator('#btn-kit-confirm').click();
+    } else {
+      // Later departures open pre-filled with the previous preparation.
+      await expect(page.locator('.solo-preparation-summary')).toContainText('鋼の前線キット');
+    }
     await page.locator(`[data-start-floor="${startFloor}"]`).click();
     await page.locator('#btn-departure-start').click();
     await expect(page.locator('#explore-controls')).toBeVisible();
