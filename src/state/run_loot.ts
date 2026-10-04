@@ -2,8 +2,6 @@ import { getItemBaseId, getItemData, isSpecialOrQuestItem } from "../rules/item_
 import { trackLootLifecycle } from "../telemetry.js";
 import { isRuntimeItemCollection, isRuntimeItemRef, type RuntimeItemRef } from "./item.js";
 
-// An item can be equipped and still remain run-owned until the run ends.
-
 export interface NormalizedRunObjectLootEntry {
   id: string;
   item: RuntimeItemRef;
@@ -436,12 +434,12 @@ export function settleRunObjectLoot(
   }
 
   returnedLoot.forEach(entry => trackLootLifecycle("banked", {
-      state: stateLike,
-      itemKey: entry.item,
-      source: "dungeon",
-      lootId: entry.id,
-      ownership: "town"
-    }));
+    state: stateLike,
+    itemKey: entry.item,
+    source: "dungeon",
+    lootId: entry.id,
+    ownership: "town"
+  }));
   lostLoot.forEach(entry => trackLootLifecycle("lost", {
     state: stateLike,
     itemKey: entry.item,

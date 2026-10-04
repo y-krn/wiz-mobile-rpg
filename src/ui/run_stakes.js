@@ -2,6 +2,7 @@ import { state } from "../state.js";
 import { MATERIAL_TYPES } from "../data/materials.js";
 import { getBankedMaterials } from "../rules/material_rules.js";
 import { getItemBaseId } from "../data.js";
+import { getItemData } from "../rules/item_rules.js";
 
 function getMaterialQuantity(materials, name) {
   return Math.max(0, Math.floor(Number(materials?.[name]) || 0));
@@ -26,27 +27,53 @@ export function getRunMaterialStake(runMaterials = state.currentRun?.materials) 
   return { currentTotal, deathLoss };
 }
 
-export function getUnusedDepartureItemCount(run = state.currentRun, inventory = state.inventory) {
+function getUnusedDepartureItems(run, inventory, excludedInventoryIndex) {
   const remaining = new Map();
-  (Array.isArray(inventory) ? inventory : []).forEach(item => {
+  (Array.isArray(inventory) ? inventory : []).forEach((item, index) => {
+    if (index === excludedInventoryIndex) return;
     const id = getItemBaseId(item);
     if (id) remaining.set(id, (remaining.get(id) || 0) + 1);
   });
-  let count = 0;
-  (Array.isArray(run?.townInventory) ? run.townInventory : []).forEach(item => {
-    const id = getItemBaseId(item);
-    const available = remaining.get(id) || 0;
-    if (id && available > 0) {
-      count += 1;
-      remaining.set(id, available - 1);
-    }
-  });
-  return count;
+  const unusedItems = [];
+  (Array.isArray(run?.departureCraftItems) ? run.departureCraftItems : [])
+    .filter(item => getItemData(item)?.type === "usable")
+    .forEach(item => {
+      const id = getItemBaseId(item);
+      const available = remaining.get(id) || 0;
+      if (id && available > 0) {
+        unusedItems.push(item);
+        remaining.set(id, available - 1);
+      }
+    });
+  return unusedItems;
 }
 
-export function createRunStakesSummary(runMaterials = state.currentRun?.materials) {
+export function getUnusedDepartureItemCount(
+  run = state.currentRun,
+  inventory = state.inventory,
+  excludedInventoryIndex = null
+) {
+  return getUnusedDepartureItems(run, inventory, excludedInventoryIndex).length;
+}
+
+function getDepartureItemReturnSummary(run, inventory, excludedInventoryIndex) {
+  const count = getUnusedDepartureItemCount(run, inventory, excludedInventoryIndex);
+  const storageMax = Number.isFinite(state.storageMax) ? Math.max(0, Math.floor(state.storageMax)) : 30;
+  const storageSlots = Math.max(0, storageMax - (Array.isArray(state.storage) ? state.storage.length : 0));
+  const returnableCount = Math.min(count, storageSlots);
+  return { count, overflowCount: count - returnableCount };
+}
+
+export function createRunStakesSummary(
+  runMaterials = state.currentRun?.materials,
+  { excludedInventoryIndex = null } = {}
+) {
   const { currentTotal, deathLoss } = getRunMaterialStake(runMaterials);
-  const unusedItems = getUnusedDepartureItemCount();
+  const { count: unusedItems, overflowCount } = getDepartureItemReturnSummary(
+    state.currentRun,
+    state.inventory,
+    excludedInventoryIndex
+  );
 
   const summary = document.createElement("section");
   summary.className = "run-stakes-summary";
@@ -77,6 +104,12 @@ export function createRunStakesSummary(runMaterials = state.currentRun?.material
   death.append(deathLabel, deathValue);
 
   flow.append(retreat, death);
+  if (overflowCount > 0) {
+    const overflow = document.createElement("p");
+    overflow.className = "run-stakes-overflow";
+    overflow.textContent = `倉庫満杯のため未使用品 ${overflowCount}個は戻らない`;
+    flow.appendChild(overflow);
+  }
   summary.append(title, flow);
   return summary;
 }

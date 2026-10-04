@@ -21,6 +21,7 @@ async function seedPortalRun(page) {
     state.currentRun.startedAt = 1;
     state.currentRun.materials = { '獣の牙': 3, '鉄片': 2 };
     state.currentRun.townInventory = ['TOWN_PORTAL'];
+    state.currentRun.departureCraftItems = ['TOWN_PORTAL'];
     state.currentRun.unbankedObjectLoot = [
       { id: 'loot-sword', item: { baseId: 'LONG_SWORD', instanceId: 'sword-1', identified: true } },
       { id: 'loot-potion', item: 'GREATER_HEAL' },
@@ -116,6 +117,8 @@ test('Wing confirms only protected stakes, preserves the item on cancel, and ban
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { openSubmenu } = await import('/src/navigation.js');
+    state.currentRun.departureCraftItems = ['TOWN_PORTAL', 'GREATER_HEAL'];
+    state.storageMax = 0;
     state.gameState = 'explore';
     openSubmenu('item_inventory', 'バッグ');
   });
@@ -123,6 +126,7 @@ test('Wing confirms only protected stakes, preserves the item on cancel, and ban
   await page.getByRole('button', { name: '帰還の翼' }).click();
   await expect(page.locator('#confirm-dialog')).toContainText('素材 5個');
   await expect(page.locator('#confirm-dialog')).toContainText('未使用の持ち込み品 1個');
+  await expect(page.locator('#confirm-dialog')).toContainText('倉庫満杯のため未使用品 1個は戻らない');
   await page.locator('#btn-confirm-dialog-cancel').click();
   const afterCancel = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -152,6 +156,25 @@ test('Wing confirms only protected stakes, preserves the item on cancel, and ban
     .map((event) => [event.properties.portalType, event.properties.decision, Object.hasOwn(event.properties, 'wingSalvageCount')]))).toEqual([
     ['return_wing', 'return', false],
   ]);
+});
+
+test('Stakes summary explains supply overflow when storage is full', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const text = await page.evaluate(async () => {
+    const { createDefaultCurrentRun, state } = await import('/src/state.js');
+    const { createRunStakesSummary } = await import('/src/ui/run_stakes.js');
+    state.currentRun = createDefaultCurrentRun();
+    state.currentRun.materials = {};
+    state.currentRun.departureCraftItems = ['HEAL_POTION', 'GREATER_HEAL'];
+    state.inventory = ['HEAL_POTION', 'GREATER_HEAL'];
+    state.storage = [];
+    state.storageMax = 1;
+    return createRunStakesSummary().textContent;
+  });
+
+  expect(text).toContain('未使用品 2個');
+  expect(text).toContain('倉庫満杯のため未使用品 1個は戻らない');
 });
 
 test('Combat Wing uses the same confirmation and return settlement', async ({ page }) => {

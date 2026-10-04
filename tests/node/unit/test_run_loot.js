@@ -77,9 +77,13 @@ assert.deepEqual(migratedStorageRoundTrip.storage, [], "one-time storage reset r
 console.log("[PASS] legacy storage resets once while the save payload remains valid");
 
 setupRun();
-state.currentRun.townInventory = ["HEAL_POTION", "HEAL_POTION", "TOWN_PORTAL"];
+state.currentRun.townInventory = ["HEAL_POTION", "HEAL_POTION", "TOWN_PORTAL", "GREATER_HEAL"];
 state.inventory = ["HEAL_POTION", "TOWN_PORTAL", "GREATER_HEAL"];
-assert.equal(getUnusedDepartureItemCount(), 2, "counts only remaining carried items with duplicate quantities");
+state.currentRun.departureCraftItems = ["HEAL_POTION", "HEAL_POTION", "TOWN_PORTAL"];
+assert.equal(getUnusedDepartureItemCount(), 2,
+  "counts only usable departure-craft supplies still in inventory");
+assert.equal(getUnusedDepartureItemCount(state.currentRun, state.inventory, 1), 1,
+  "excludes the Wing being consumed from the carried-supply stakes");
 state.currentRun.materials = { "獣の牙": 3, "鉄片": 2 };
 const stake = getRunMaterialStake();
 assert.equal(stake.currentTotal, 5);

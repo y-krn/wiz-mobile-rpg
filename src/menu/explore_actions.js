@@ -205,7 +205,7 @@ function getInventorySections() {
   };
 }
 
-// Town items are the safe default; the bag only flags items that can still be lost.
+// Only carried usable supplies receive a return-to-storage badge.
 function appendBagOwnershipBadge(row, ownership) {
   if (ownership === OWNERSHIP_STATES.TOWN_CONFIRMED) {
     appendOwnershipBadge(row, ownership, { label: "持ち込み品・生還時に倉庫へ" });
@@ -486,7 +486,9 @@ export function renderItemTargetSelect(optGrid) {
 
   if (menuContext.itemKey === "TOWN_PORTAL") {
     optGrid.replaceChildren();
-    const summary = createRunStakesSummary();
+    const summary = createRunStakesSummary(undefined, {
+      excludedInventoryIndex: menuContext.itemIdx
+    });
     optGrid.appendChild(summary);
     const use = document.createElement("button");
     use.id = "btn-use-return-wing";
@@ -585,9 +587,11 @@ export function renderItemTargetSelect(optGrid) {
 
 async function useReturnWing() {
   if (menuContext.itemKey !== "TOWN_PORTAL" || !state.currentRun) return false;
+  const selectedItemIndex = menuContext.itemIdx;
+  if (getItemData(state.inventory?.[selectedItemIndex])?.id !== "TOWN_PORTAL") return false;
+  if (!await confirmReturnWing({ excludedInventoryIndex: selectedItemIndex })) return false;
   const itemIndex = state.inventory.findIndex(item => getItemData(item)?.id === "TOWN_PORTAL");
   if (itemIndex < 0) return false;
-  if (!await confirmReturnWing()) return false;
   trackPortalDecision("return", {
     state,
     character: state.party[0],

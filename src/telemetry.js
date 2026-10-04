@@ -472,8 +472,8 @@ export function buildResourceSnapshot(stateSnapshot) {
   const materials = stateSnapshot?.currentRun?.materials || {};
   const metaMaterials = stateSnapshot?.metaMaterials || {};
   return {
-    inventoryCapacity: INVENTORY_CAPACITY,
     inventoryCount: inventory.length,
+    inventoryCapacity: INVENTORY_CAPACITY,
     inventoryEquipmentCount: categoryCounts.equipment || 0,
     inventoryQuestCount: categoryCounts.quest || 0,
     inventoryConsumableCount: inventory.length - (categoryCounts.equipment || 0) - (categoryCounts.quest || 0),

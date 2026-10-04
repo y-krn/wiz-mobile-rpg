@@ -360,7 +360,7 @@ export function selectCombatAction(type) {
       }
       if (itemKey === "TOWN_PORTAL") {
         // balance-impact: none — confirmation gates the existing return action only.
-        confirmReturnWing().then(confirmed => {
+        confirmReturnWing({ excludedInventoryIndex: itemIdx }).then(confirmed => {
           if (!confirmed || state.combatState?.phase !== "choose_actions" ||
               getItemBaseId(state.inventory?.[itemIdx]) !== "TOWN_PORTAL") return;
           state.gameState = "combat";
