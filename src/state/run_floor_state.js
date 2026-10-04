@@ -179,7 +179,11 @@ export function ensureRunFloor(stateLike, floor) {
   const generated = generateRunFloor({ runSeed, floor });
   // A facility keeper still in the dungeon takes over this floor's special
   // room. Only the kind on the placed cell changes (#2009).
-  applyFacilityRoom(generated.grid, floor, { feats: stateLike.feats, run: stateLike.currentRun });
+  applyFacilityRoom(generated.grid, floor, {
+    feats: stateLike.feats,
+    run: stateLike.currentRun,
+    facilities: stateLike.facilities
+  });
   stateLike.maps ||= [];
   stateLike.visitedMaps ||= [];
   stateLike.floorChestsOpened ||= [];

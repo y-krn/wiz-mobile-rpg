@@ -39,7 +39,13 @@ const {
 } = await import("../../../src/systems/facilities.js");
 const { applyFacilityRoom, getFacilityRoomKind, hasWaitingKeeper, isForemanFloor } =
   await import("../../../src/systems/facility_rooms.js");
-const { SPECIAL_ROOMS, SPECIAL_ROOM_EVENT, getSpecialRoomInfo } = await import("../../../src/rules/special_rooms.js");
+const {
+  OUTPOST_SUPPLY_ITEM_IDS,
+  SPECIAL_ROOMS,
+  SPECIAL_ROOM_EVENT,
+  clearFloorRubble,
+  getSpecialRoomInfo
+} = await import("../../../src/rules/special_rooms.js");
 const {
   addRunToFeatCounters,
   formatFeatProgress,
@@ -200,7 +206,8 @@ assert.deepEqual(bought.facilities, { nodes: ["miner_kit"] });
 assert.deepEqual(closedContext.facilities, { nodes: [] }, "a purchase does not mutate its inputs");
 assert.equal(purchaseFacilityNode("miner_kit", { ...openContext, facilities: bought.facilities }).reason, "解放済み");
 assert.deepEqual(listFacilityNodes("miner_guild", { ...openContext, facilities: bought.facilities })
-  .map(entry => [entry.node.id, entry.bought, entry.canBuy]), [["miner_kit", true, false]]);
+  .map(entry => [entry.node.id, entry.bought, entry.canBuy]),
+[["miner_kit", true, false], ["miner_outpost", false, false], ["miner_blast", false, false]]);
 assert.deepEqual(getUnlockedStartingKitIds(bought.facilities), ["miner"]);
 assert.deepEqual(getUnlockedStartingKitIds(createDefaultFacilitiesState()), []);
 assert.ok(FACILITY_BY_ID.get("miner_guild"));
@@ -267,6 +274,83 @@ console.log("[PASS] a miner kit run carries the supplies and returns only the cr
 
 // The base-kit feat keeps counting the four base kits only.
 assert.equal(Object.hasOwn(state.feats.counters.kitDepths, "miner"), false);
+
+// --- Dungeon rebuilds: the outpost and the blast (#2010) -----------------------------
+
+const withFeats = completed => ({
+  counters: { ...createDefaultFeatsState().counters, foremanRescued: 1, bestDepth: 5, guardianDepth: 5 },
+  completed: Object.fromEntries(completed.map(id => [id, { runNumber: 1 }]))
+});
+const plenty = { "硬い皮": 20, "獣の牙": 20, "鉄片": 20 };
+const noNodes = createDefaultFacilitiesState();
+
+const rescuedOnly = withFeats(["foreman_rescue"]);
+assert.match(
+  getFacilityNodeBlockReason("miner_outpost", { feats: rescuedOnly, facilities: noNodes, metaMaterials: plenty }),
+  /^条件：偉業「坑道を抜ける」（B5Fに到達する／B5F \/ B5F）$/,
+  "the outpost names the feat it needs, with its progress"
+);
+const reached = withFeats(["foreman_rescue", "depth_5"]);
+const outpost = purchaseFacilityNode("miner_outpost", { feats: reached, facilities: noNodes, metaMaterials: plenty });
+assert.equal(outpost.ok, true);
+assert.equal(outpost.metaMaterials["硬い皮"], 14);
+assert.equal(outpost.metaMaterials["獣の牙"], 16);
+
+assert.equal(
+  getFacilityNodeBlockReason("miner_blast", { feats: reached, facilities: outpost.facilities, metaMaterials: plenty }),
+  "条件：偉業「坑道の主を倒す」（B5Fの階層守護者を倒す／B5F / B5F）"
+);
+const guardianDown = withFeats(["foreman_rescue", "depth_5", "guardian_5"]);
+assert.equal(
+  getFacilityNodeBlockReason("miner_blast", { feats: guardianDown, facilities: noNodes, metaMaterials: plenty }),
+  "条件：「坑夫の詰所」の解放",
+  "the blast needs the outpost first"
+);
+const blast = purchaseFacilityNode("miner_blast", { feats: guardianDown, facilities: outpost.facilities, metaMaterials: plenty });
+assert.equal(blast.ok, true);
+assert.deepEqual(blast.facilities.nodes, ["miner_outpost", "miner_blast"]);
+assert.deepEqual(getUnlockedStartingKitIds(blast.facilities), [], "rebuild nodes open no kit");
+
+// The room: vein until the outpost is bought, outpost afterwards, never elsewhere.
+assert.equal(getFacilityRoomKind(3, { feats: reached, run: {}, facilities: noNodes }), null);
+assert.equal(getFacilityRoomKind(3, { feats: reached, run: {}, facilities: outpost.facilities }), SPECIAL_ROOMS.MINER_OUTPOST);
+assert.equal(getFacilityRoomKind(33, { feats: reached, run: {}, facilities: outpost.facilities }), SPECIAL_ROOMS.MINER_OUTPOST);
+assert.equal(getFacilityRoomKind(4, { feats: reached, run: {}, facilities: outpost.facilities }), null);
+assert.equal(getFacilityRoomKind(8, { feats: reached, run: {}, facilities: outpost.facilities }), null);
+assert.equal(getFacilityRoomKind(3, { feats: createDefaultFeatsState(), run: {}, facilities: outpost.facilities }),
+  SPECIAL_ROOMS.TRAPPED_FOREMAN, "an unrescued foreman still comes first");
+assert.ok(getSpecialRoomInfo(SPECIAL_ROOMS.MINER_OUTPOST).name);
+
+const outpostFloorKind = facilities => {
+  initNewGame();
+  state.feats = reached;
+  state.facilities = facilities;
+  state.currentRun = createDefaultCurrentRun();
+  state.currentRun.runSeed = "facility-room-test";
+  state.maps = [];
+  state.visitedMaps = [];
+  state.floor = 3;
+  state._freshRunFloor = 3;
+  return ensureRunFloor(state, 3).flat().find(cell => cell.specialRoom)?.specialRoom.kind || null;
+};
+assert.equal(outpostFloorKind(noNodes), SPECIAL_ROOMS.MINE_VEIN);
+assert.equal(outpostFloorKind(outpost.facilities), SPECIAL_ROOMS.MINER_OUTPOST);
+
+assert.deepEqual([...OUTPOST_SUPPLY_ITEM_IDS], ["HEAL_POTION", "ANTIDOTE", "TRAP_KIT"]);
+OUTPOST_SUPPLY_ITEM_IDS.forEach(itemId => assert.ok(ITEMS[itemId], `${itemId} exists`));
+
+const rubbleGrid = [[
+  { obstacle: { kind: "rubble", state: "intact", progress: 1, discovered: false } },
+  { obstacle: { kind: "rubble", state: "cleared", progress: 3, discovered: true } },
+  { obstacle: { kind: "seal", state: "closed" } },
+  {}
+]];
+assert.equal(clearFloorRubble(rubbleGrid), 1, "only intact rubble is counted");
+assert.equal(rubbleGrid[0][0].obstacle.state, "cleared");
+assert.equal(rubbleGrid[0][0].obstacle.discovered, true);
+assert.equal(rubbleGrid[0][2].obstacle.state, "closed", "other obstacles are untouched");
+assert.equal(clearFloorRubble(rubbleGrid), 0);
+console.log("[PASS] the outpost and the blast need their feats, replace the vein on B3F, and clear only rubble");
 
 // --- Save round trip ---------------------------------------------------------------
 

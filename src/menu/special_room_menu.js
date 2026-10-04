@@ -1,7 +1,7 @@
 // Biome special rooms (#1965): one choice menu per room kind. Each option
 // spends something the run already tracks (turns and noise, materials, HP,
 // or a fight) and the room is used once.
-import { state, addLog, saveAutosave, markMapChanged } from "../state.js";
+import { state, addLog, saveAutosave, markMapChanged, addInventoryItem, hasInventorySpace } from "../state.js";
 import { playSound } from "../audio.js";
 import { closeSubmenu } from "../navigation.js";
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
@@ -13,11 +13,15 @@ import { generateChestMaterials } from "../chest.js";
 import { startCombat } from "../combat.js";
 import { applyMirrorVision } from "../state/run_floor_state.js";
 import { COMPANIONS } from "../data/facilities.js";
+import { isFacilityNodeBought } from "../systems/facilities.js";
+import { ITEMS } from "../data/items.js";
 import {
   ALTAR_CLEANSE_MATERIAL_COST,
   FORGE_MATERIAL_COST,
   FORGE_TEMPER_BATTLES,
   FOREMAN_DIG_TURNS,
+  OUTPOST_BLAST_NOISE_TTL,
+  OUTPOST_SUPPLY_ITEM_IDS,
   READING_TURNS,
   SPECIAL_ROOMS,
   VEIN_AMBUSH_CHANCE,
@@ -25,6 +29,7 @@ import {
   VEIN_MATERIAL_BONUS,
   applyForgeTemper,
   cleanseAltarStatuses,
+  clearFloorRubble,
   describeDirection,
   getAltarBloodCost,
   getForgeTemperAmount,
@@ -255,6 +260,41 @@ function renderTrappedForeman(optGrid, cell) {
   });
 }
 
+// Miner outpost (#2010): one supply per run, or a blast once the guild sells
+// it. Either one spends the room. The supply is dungeon loot: it is used in
+// this run and never returns to storage.
+function renderMinerOutpost(optGrid, cell) {
+  const bagFull = !hasInventorySpace(state.inventory);
+  const canBlast = isFacilityNodeBought(state.facilities, "miner_blast");
+  addDescription(optGrid, canBlast
+    ? "補給を1つ受け取るか、発破を頼むか、どちらか一方を選べる。詰所が応じるのは潜行ごとに1回だけ。"
+    : "補給を1つ受け取れる。詰所が応じるのは潜行ごとに1回だけ。");
+  OUTPOST_SUPPLY_ITEM_IDS.forEach(itemId => {
+    const name = String(ITEMS[itemId]?.name || itemId).replace(/\s*[（(].*?[）)]/g, "");
+    addButton(optGrid, `${name}を受け取る`, () => {
+      if (!addInventoryItem(itemId, { dungeonLoot: true, source: "special_room" })) return;
+      playSound("item");
+      addLog(`詰所の坑夫から${name}を受け取った。`);
+      finishRoom(cell);
+      closeSubmenu();
+    }, { disabled: bagFull });
+  });
+  if (bagFull) addDescription(optGrid, "バッグが満杯で、補給は受け取れない。");
+  if (!canBlast) return;
+  addButton(optGrid, "発破を頼む（瓦礫を一掃・大きな物音）", () => {
+    const cleared = clearFloorRubble(state.map);
+    const { stairs } = getReadingRoomTargets(state.map);
+    revealCells(state.visitedMap, stairs);
+    createNoiseEvent(state.x, state.y, OUTPOST_BLAST_NOISE_TTL);
+    playSound("bump");
+    const stairsText = stairs[0] ? `下り階段は${describeDirection(state, stairs[0])}にある。` : "";
+    addLog(`轟音が坑道を揺らした。${cleared > 0 ? `瓦礫${cleared}か所が吹き飛んだ。` : "この階に瓦礫は残っていなかった。"}${stairsText}`);
+    addLog("[物音] 発破の音が階じゅうに響いた。魔物が集まってくるかもしれない。");
+    finishRoom(cell);
+    closeSubmenu();
+  });
+}
+
 const ROOM_RENDERERS = {
   [SPECIAL_ROOMS.MINE_VEIN]: renderMineVein,
   [SPECIAL_ROOMS.ALTAR]: renderAltar,
@@ -262,7 +302,8 @@ const ROOM_RENDERERS = {
   [SPECIAL_ROOMS.READING_ROOM]: renderReadingRoom,
   [SPECIAL_ROOMS.FORGE]: renderForge,
   [SPECIAL_ROOMS.MIRROR_HALL]: renderMirrorHall,
-  [SPECIAL_ROOMS.TRAPPED_FOREMAN]: renderTrappedForeman
+  [SPECIAL_ROOMS.TRAPPED_FOREMAN]: renderTrappedForeman,
+  [SPECIAL_ROOMS.MINER_OUTPOST]: renderMinerOutpost
 };
 
 export function renderSpecialRoom(optGrid) {
