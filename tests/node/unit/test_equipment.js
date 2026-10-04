@@ -318,7 +318,7 @@ import { createStartingKitCharacter } from "../../../src/state.js";
     const { ITEMS } = await import("../../../src/data/items.js");
     const { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } = await import("../../../src/data/equipment_tables.js");
     const { generateRandomEquipment } = await import("../../../src/systems/equipment_generation.js");
-    const { isVNextTrialSupport } = await import("../../../src/rules/equipment_vnext_trial.js");
+    const { isVNextTrialSupport, isVNextDevotionWeapon } = await import("../../../src/rules/equipment_vnext_trial.js");
     const craftModule = await import("../../../src/craft.js");
     assert.ok(!Object.hasOwn(craftModule, "getDismantleResults"));
     assert.ok(!Object.hasOwn(craftModule, "executeDismantle"));
@@ -412,7 +412,9 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       const { found, unidentifiedName } = collectAffixTypes(baseId, expected.floor);
       // Only Supports in the audited pool can roll; retired ones never do.
       expectedAffixes[baseId].forEach(type => {
-        if (isVNextTrialSupport(type)) assert.ok(found.has(type), `${baseId} should be eligible for ${type}`);
+        const eligible = isVNextTrialSupport(type, { slot: "weapon", baseId }) &&
+          (type !== "devotion" || isVNextDevotionWeapon(baseId));
+        if (eligible) assert.ok(found.has(type), `${baseId} should be eligible for ${type}`);
         else assert.ok(!found.has(type), `${baseId} never rolls retired Support ${type}`);
       });
       assert.ok(found.size > 0, `${baseId} rolls at least one affix`);
@@ -535,7 +537,7 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       antiDemon: 25,
       poisonWard: 25,
       treasureSense: 8,
-      hearRange: 2,
+      hearRange: 3, // vNext epic table value (src/data/affixes.js)
       arcaneSense: 3,
       traceRead: 3,
       deepAssault: 15,

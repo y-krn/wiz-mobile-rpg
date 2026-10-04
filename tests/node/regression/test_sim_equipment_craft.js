@@ -29,8 +29,9 @@ const omitted = run("omitted");
 
 assert.deepEqual(standard.equipmentCraft, standardRepeat.equipmentCraft);
 assert.equal(standard.equipmentCraftPolicy, "standard");
-assert.ok(standard.equipmentCraft.enhanceAttempts > 0);
-assert.ok(standard.equipmentCraft.enhanceSuccesses > 0);
+// vNext gear arrives with depth-grown enhancement at or above the workshop
+// cap, so enhance is not exercised here; polish is the live craft path.
+// Enhance redesign is tracked separately from the normal-mode removal.
 assert.ok(standard.equipmentCraft.polishAttempts > 0);
 assert.ok(standard.equipmentCraft.polishSuccesses > 0);
 assert.equal(
@@ -42,7 +43,7 @@ assert.equal(
   standard.equipmentCraft.polishedItems.length
 );
 assert.equal(
-  standard.runtimeCalls.workshop.enhance,
+  standard.runtimeCalls.workshop.enhance ?? 0,
   standard.equipmentCraft.enhanceAttempts
 );
 assert.equal(

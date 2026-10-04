@@ -71,8 +71,8 @@ assert.deepEqual(summon.candidate.descendantExp, Array(summon.candidate.dynamicD
 assert.equal(summon.candidate.settlementBudget,
   summon.candidate.initialCandidateBudgets.reduce((sum, value) => sum + value, 0));
 assert.equal(summon.candidate.combatLedgerDelta, summon.candidate.settlementBudget);
-assert.equal(summon.production.descendantExp.every(exp => exp > 0), true,
-  "production control retains summoned template EXP");
+assert.deepEqual(summon.production.descendantExp, Array(summon.production.descendantExp.length).fill(0),
+  "standard rules award no EXP for summoned descendants");
 assert.equal(summon.production.combatLedgerDelta,
   summon.production.initialExp.reduce((sum, value) => sum + value, 0) +
   summon.production.descendantExp.reduce((sum, value) => sum + value, 0));
