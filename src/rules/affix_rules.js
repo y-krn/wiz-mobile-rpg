@@ -226,9 +226,11 @@ export function paySpellCost(char, mpCost) {
 }
 
 export function getStatusEffectChance(char, baseChance, { telemetry = null } = {}) {
-  const resistance = Math.max(0, Math.min(100, getCharAffixSum(char, "statusResistance")));
-  const resolvedChance = Math.max(0, baseChance * (1 - resistance / 100));
   const normalizedBaseChance = Number(baseChance);
+  const resistance = Math.min(100, getCharAffixSum(char, "statusResistance"));
+  const resolvedChance = Math.max(0, Math.min(1,
+    normalizedBaseChance * (1 - resistance / 100)
+  ));
   if (telemetry && Number.isFinite(normalizedBaseChance) && resolvedChance < normalizedBaseChance) {
     telemetry.statusMitigations ||= [];
     telemetry.statusMitigations.push({

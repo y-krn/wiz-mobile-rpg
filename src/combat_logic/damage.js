@@ -10,6 +10,7 @@ import {
   getEffectiveDef
 } from "../data.js";
 import { recordCharDeath, queueCharDeathLog } from "../state.js";
+import { getEffectiveHealAmount } from "../rules/item_rules.js";
 import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
 import {
   getCharCoreParams,
@@ -136,7 +137,8 @@ export function applyKillAffixEffects(char, target, state, logQueue, options = {
   const killHeal = getCharAffixSum(char, "killHeal");
   if (killHeal > 0 && char.hp > 0) {
     const hpBefore = char.hp;
-    char.hp = Math.min(getCharMaxHp(char), char.hp + killHeal);
+    const effectiveHeal = getEffectiveHealAmount(char, killHeal);
+    char.hp = Math.min(getCharMaxHp(char), char.hp + effectiveHeal);
     if (options.measurement) {
       options.measurement.killHealActivations =
         (options.measurement.killHealActivations || 0) + 1;
@@ -174,16 +176,18 @@ export function applyKillAffixEffects(char, target, state, logQueue, options = {
       mpRecovery: purify.mpRecovery,
       fullMpHpRecovery: purify.fullMpHpRecovery
     });
-    if (recovery.mpRecovered > 0 || recovery.hpRecovered > 0) {
-      char.mp += recovery.mpRecovered;
-      char.hp += recovery.hpRecovered;
-      const recovered = recovery.mpRecovered > 0
-        ? `MPが${recovery.mpRecovered}`
-        : `HPが${recovery.hpRecovered}`;
+    const hpRecovered = getEffectiveHealAmount(char, recovery.hpRecovered);
+    const effectiveRecovery = { ...recovery, hpRecovered };
+    if (effectiveRecovery.mpRecovered > 0 || effectiveRecovery.hpRecovered > 0) {
+      char.mp += effectiveRecovery.mpRecovered;
+      char.hp += effectiveRecovery.hpRecovered;
+      const recovered = effectiveRecovery.mpRecovered > 0
+        ? `MPが${effectiveRecovery.mpRecovered}`
+        : `HPが${effectiveRecovery.hpRecovered}`;
       logCoreActivation(state, logQueue, char, "CORE_PURIFY_RING", {
         once: false,
         message: `[浄化の環] ${char.name}は${recovered}回復した！`,
-        metadata: { purifyRecovery: recovery }
+        metadata: { purifyRecovery: effectiveRecovery }
       });
     }
   }
@@ -267,22 +271,22 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
   }
   if (char.hp / char.maxHp <= 0.25) {
     const guardian = getCharAffixSum(char, "guardian");
-    if (guardian > 0) {
+    if (guardian !== 0) {
       const before = next;
       next = Math.max(1, Math.round(next * (1 - guardian / 100)));
       if (next < before) reductions.push("守護");
+      if (next > before) incomingPenalties.push("守護適性低下");
       recordMitigation("guardian", before, next);
     }
   }
   if (options.spell) {
-    let resistPct = 0;
     const spellGuard = getCharAffixSum(char, "spellGuard");
     const mabarrierActive = char.mabarrierTurns > 0;
-    if (spellGuard > 0) resistPct += spellGuard;
-    if (mabarrierActive) resistPct += 30;
-    resistPct = Math.min(60, resistPct);
+    const resistPct = Math.max(-60, Math.min(60,
+      spellGuard + (mabarrierActive ? 30 : 0)
+    ));
 
-    if (resistPct > 0) {
+    if (resistPct !== 0) {
       const before = next;
       const eventId = mitigations?.length;
       next = Math.max(1, Math.round(next * (1 - resistPct / 100)));
@@ -295,7 +299,8 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
           reductions.push("魔除け");
         }
       }
-      if (spellGuard > 0) {
+      if (next > before && resistPct < 0) incomingPenalties.push("魔法耐性低下");
+      if (spellGuard !== 0) {
         recordMitigation("spellGuard", before, next, {
           eventId,
           combinedStage: mabarrierActive

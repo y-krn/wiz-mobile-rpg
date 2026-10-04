@@ -409,6 +409,7 @@ export function triggerChestTrap(char, rng = Math.random, action = "open", extra
     character: char,
     inventory: state.inventory,
     poisonWard: getCharAffixSum(char, "poisonWard"),
+    statusResistance: getCharAffixSum(char, "statusResistance"),
     rng
   }), {
     trapGuard: getCharAffixSum(char, "trapGuard")

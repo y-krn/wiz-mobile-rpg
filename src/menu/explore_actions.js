@@ -2,7 +2,7 @@ import { state, initNewGame, saveAutosave, addLog, markMapChanged, INVENTORY_CAP
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { getItemBaseId, getPartyMaxAffix, getCharMaxMp, DX, DY, DIR_NAMES } from "../data.js";
+import { getItemBaseId, getPartyMaxAffix, getCharMaxMp, getEffectiveHealAmount, DX, DY, DIR_NAMES } from "../data.js";
 import { getItemData } from "../rules/item_rules.js";
 import { ITEM_EFFECTS } from "../systems/item_effects.js";
 import { isSpellcaster } from "../rules/magic_rules.js";
@@ -767,7 +767,7 @@ export function renderEventSpring(optGrid) {
     if (rand < 0.40) {
       state.party.forEach(char => {
         if (char.status !== "dead") {
-          char.hp = Math.min(char.maxHp, char.hp + 20);
+          char.hp = Math.min(char.maxHp, char.hp + getEffectiveHealAmount(char, 20));
         }
       });
       playSound("heal");
@@ -863,4 +863,3 @@ export function renderEventCamp(optGrid) {
   });
   optGrid.appendChild(btnLeave);
 }
-

@@ -53,14 +53,14 @@ assert.equal(greaterHealCharacter.hp, 45);
 const holyWaterCharacter = {
   name: "聖水役",
   hp: 10,
-  maxHp: 20,
+  maxHp: 100,
   status: "poisoned",
   equipment: {
     accessory: { baseId: "RING_STR", identified: true, curseEffectId: "curse_blood_thirst" }
   }
 };
-assert.equal(itemEffectsFacade.ITEM_EFFECTS.HOLY_WATER({ char: holyWaterCharacter }), "聖水役は祝福の聖水を使い、HPが15回復した。毒も綺麗に消え去った！");
-assert.equal(holyWaterCharacter.hp, 20);
+assert.equal(itemEffectsFacade.ITEM_EFFECTS.HOLY_WATER({ char: holyWaterCharacter }), "聖水役は祝福の聖水を使い、HPが12回復した。毒も綺麗に消え去った！");
+assert.equal(holyWaterCharacter.hp, 22);
 assert.equal(holyWaterCharacter.status, "ok");
 assert.equal(holyWaterCharacter.equipment.accessory.curseEffectId, "curse_blood_thirst");
 

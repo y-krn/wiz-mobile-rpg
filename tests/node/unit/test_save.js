@@ -896,6 +896,20 @@ check("floor transition applies 50 percent solo heal with cap and death guards",
   assert.equal(state.party[0].hp, 10 + half);
   assert.match(state.logs.at(-1), new RegExp(`HPが${half}回復`));
 
+  state.party[0].equipment.accessory = {
+    kind: "equipment",
+    baseId: "RING_AGI",
+    identified: true,
+    curseEffectId: "curse_blood_thirst",
+    cursePower: 1,
+    affixes: []
+  };
+  state.party[0].hp = 10;
+  const cursedHalf = Math.round(half * 0.8);
+  assert.equal(applyFloorTransitionHeal(), cursedHalf);
+  assert.equal(state.party[0].hp, 10 + cursedHalf);
+  state.party[0].equipment.accessory = null;
+
   state.party[0].hp = maxHp - 1;
   assert.equal(applyFloorTransitionHeal(), 1);
   assert.equal(state.party[0].hp, maxHp);

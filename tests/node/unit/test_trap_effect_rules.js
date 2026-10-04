@@ -59,6 +59,53 @@ const poison = resolveChestTrapEffect({
 check("full poison needle damage", poison.damage, 12);
 check("full poison needle poison roll", poison.poisonTriggered, true);
 
+const cursedPoisonRisk = calculateChestTrapExpectedRisk({
+  trap: "poison needle",
+  character: { ...soloFighter, hp: 20, maxHp: 20 },
+  statusResistance: -30,
+  poisonWard: 50
+});
+check("negative status resistance raises chest poison probability", cursedPoisonRisk.poisonProbability, 0.65);
+const cappedCursedPoisonRisk = calculateChestTrapExpectedRisk({
+  trap: "poison needle",
+  character: { ...soloFighter, hp: 20, maxHp: 20 },
+  statusResistance: -100,
+  poisonWard: 50
+});
+check("negative status resistance poison probability caps at one", cappedCursedPoisonRisk.poisonProbability, 1);
+const negativeResistanceEffect = resolveChestTrapEffect({
+  trap: "poison needle",
+  character: soloFighter,
+  statusResistance: -100,
+  poisonWard: 50,
+  rng: () => 0.99
+});
+check("negative resistance capped probability cannot be resisted", negativeResistanceEffect.poisonResisted, false);
+
+const combinedPoisonRisk = calculateChestTrapExpectedRisk({
+  trap: "poison needle",
+  character: { ...soloFighter, hp: 20, maxHp: 20 },
+  statusResistance: 30,
+  poisonWard: 50
+});
+check("status resistance and poisonWard multiply", combinedPoisonRisk.poisonProbability, 0.35);
+const resistedPoison = resolveChestTrapEffect({
+  trap: "poison needle",
+  character: soloFighter,
+  statusResistance: 30,
+  poisonWard: 50,
+  rng: () => 0.5
+});
+check("deterministic roll confirms combined poison resistance", resistedPoison.poisonResisted, true);
+const unresistedPoison = resolveChestTrapEffect({
+  trap: "poison needle",
+  character: soloFighter,
+  statusResistance: 30,
+  poisonWard: 50,
+  rng: () => 0.3
+});
+check("deterministic roll below combined probability is not resisted", unresistedPoison.poisonResisted, false);
+
 const corrosion = resolveChestTrapEffect({
   trap: "corrosion",
   character: soloFighter,

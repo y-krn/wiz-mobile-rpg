@@ -25,9 +25,12 @@ export function isSpecialOrQuestItem(itemId) {
          itemId === "LEGENDARY_SHIELD";
 }
 
-export function getEffectiveHealAmount(target, amount) {
+export function getEffectiveHealAmount(target, amount, { applyDevotion = true } = {}) {
   if (amount <= 0) return amount;
   let mult = 1;
+  if (applyDevotion) {
+    mult *= 1 + Math.min(0, getCharAffixSum(target, "devotion")) / 100;
+  }
   if (target?.antiHealTurns > 0) {
     mult *= 0.5;
   }
@@ -107,11 +110,13 @@ export function getCharAffixSum(char, affixType) {
   }
   sum += getCurseKeeperBonus(char, affixType);
   const total = sum;
+  if (affixType === "spellGuard") {
+    return Math.max(-60, Math.min(50, total));
+  }
   const caps = {
     poisonWard: 75,
     firstStrike: 15,
     guardian: 50,
-    spellGuard: 50,
     arcane: 50,
     devotion: 50,
     followUp: 50,

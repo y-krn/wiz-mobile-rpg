@@ -21,16 +21,18 @@ export const EQUIPMENT_PREVIEW_STATS = [
   { key: "maxHp", label: "最大HP" },
   { key: "maxMp", label: "最大MP" },
   { key: "magic", label: "魔力" },
-  { key: "healing", label: "回復" },
+  { key: "healing", label: "回復効果" },
   { key: "speed", label: "速度" },
   { key: "trap", label: "罠" },
   { key: "treasure", label: "探宝" },
   { key: "spellGuard", label: "魔法耐性" },
+  { key: "guardian", label: "守護適性" },
   { key: "antiDragon", label: "竜特効" },
   { key: "antiUndead", label: "不死特効" },
   { key: "firstStrike", label: "先制" },
   { key: "initiativeLoad", label: "行動" },
   { key: "poisonWard", label: "毒耐性" },
+  { key: "statusResistance", label: "状態異常耐性" },
   { key: "poisonAtk", label: "毒付与" }
 ];
 
@@ -68,11 +70,13 @@ function getDisplayStats(char, floor) {
     maxHp: getCharMaxHp(char),
     maxMp: getCharMaxMp(char),
     spellGuard: getCharAffixSum(char, "spellGuard"),
+    guardian: getCharAffixSum(char, "guardian"),
     antiDragon: getCharAffixSum(char, "antiDragon"),
     antiUndead: getCharAffixSum(char, "antiUndead"),
     firstStrike: getCharAffixSum(char, "firstStrike"),
     initiativeLoad: getCharacterEquipmentLoad(char).label,
     poisonWard: getCharAffixSum(char, "poisonWard"),
+    statusResistance: getCharAffixSum(char, "statusResistance"),
     poisonAtk: getCharAffixSum(char, "poisonAtk")
   };
 }
