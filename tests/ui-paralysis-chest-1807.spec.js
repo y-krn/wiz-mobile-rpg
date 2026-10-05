@@ -22,7 +22,13 @@ async function seedExplore(page) {
     state.roamingMonsters = [];
     state.floor = 1;
     state._freshRunFloor = 1;
-    ensureRunFloor(state, 1);
+    const grid = ensureRunFloor(state, 1);
+    // initNewGame leaves a position that may lie outside this floor: stand at
+    // its entrance.
+    const entranceY = grid.findIndex(row => row.some(cell => cell.type === 'stairs-up'));
+    state.y = entranceY;
+    state.x = grid[entranceY].findIndex(cell => cell.type === 'stairs-up');
+    state.dir = 0;
     state.repelTurns = 999;
     state.encounterQuietSteps = 99;
     state.gameState = 'explore';
