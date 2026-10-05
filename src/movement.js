@@ -17,6 +17,7 @@ import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { detectAdjacentTraps, startTrapEncounter, triggerTrap, triggerPitfall } from "./systems/traps.js";
 import {
   clearCharIncapacitationOnDamage,
+  resolveExplorationParalysisStep,
   resolveExplorationPoisonStep
 } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/elite_perception.js";
@@ -898,6 +899,10 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 export function applyExplorationPoison() {
   let tookDamage = false;
   state.party.forEach(c => {
+    // Paralysis fades with the same exploration time poison runs on (#1807).
+    if (resolveExplorationParalysisStep(c).naturalCure) {
+      addLog(`[!] ${c.name}のしびれが取れた。`);
+    }
     if (c.status === "poisoned" && c.hp > 0) {
       const result = resolveExplorationPoisonStep(c);
       if (result.damage > 0) {
