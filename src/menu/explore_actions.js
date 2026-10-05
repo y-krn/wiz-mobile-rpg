@@ -16,6 +16,7 @@ import { openEquipOverlay, getItemUseStatus } from "../equip.js";
 import { openWall } from "../map_generator.js";
 import {
   applyStatusEffect,
+  rollExplorationParalysisDuration,
   rollExplorationPoisonDuration,
   STATUS_EFFECT_IDS
 } from "../combat_logic/status_effects.js";
@@ -52,6 +53,11 @@ function getSecretDoorCandidate() {
     }
   }
   return null;
+}
+
+/** Whether a wall of the current cell still hides a passage. */
+export function hasHiddenSecretDoorHere() {
+  return getSecretDoorCandidate() !== null;
 }
 
 function consumeSearchTurn() {
@@ -125,11 +131,17 @@ export function handleExploreAction(action) {
       updateUI();
       return;
     }
-    if (cell.type === "stairs-up" || cell.type === "stairs-down") {
+    // Searching on stairs shows the stairs. A hidden passage beside the
+    // entrance stairs is searched instead: those stairs have nothing to offer.
+    // Beside the down stairs, the stairs menu carries the wall search (#1822).
+    if (cell.type === "stairs-down" || (cell.type === "stairs-up" && !hasHiddenSecretDoorHere())) {
       checkCellEvents(state.x, state.y);
     } else {
       searchSecretDoor();
     }
+  } else if (action === "search-walls") {
+    // From the stairs menu: search the walls of the stairs cell itself.
+    if (getCurrentExplorationCell()) searchSecretDoor();
   } else if (action === "abandon") {
     confirmAbandonRun();
   } else if (action === "manage") {
@@ -704,9 +716,13 @@ export function renderEventSpring(optGrid) {
       const aliveChars = state.party.filter(char => char.status !== "dead");
       if (aliveChars.length > 0) {
         const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
-        target.status = "paralyzed";
+        applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, {
+          remainingTurns: rollExplorationParalysisDuration(),
+          source: "spring"
+        });
         playSound("bump");
-        addLog(`[!] うわっ、水が急に冷たくなり体が動かない！${target.name}は麻痺状態になった！`);
+        addLog(`[!] うわっ、水が急に冷たくなり、手足がしびれた！${target.name}は麻痺状態になった！`);
+        addLog("しびれは、しばらく歩けば取れるだろう。");
       }
     }
     const currentCell = state.map[state.y][state.x];

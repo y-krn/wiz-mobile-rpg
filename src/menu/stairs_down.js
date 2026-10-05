@@ -11,6 +11,7 @@ import {
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { trackExplorationDecision } from "../telemetry.js";
 import { getExplorationRecoveryOutlook } from "../systems/exploration_recovery.js";
+import { handleExploreAction, hasHiddenSecretDoorHere } from "./explore_actions.js";
 
 function findMilestoneEvent(eventType) {
   for (let y = 0; y < state.map?.length; y++) {
@@ -134,6 +135,24 @@ export function renderStairsDown(optGrid) {
     closeSubmenu();
   });
 
+  // "調べる" on the stairs opens this menu, so a passage hidden in a wall of
+  // the stairs cell is searched from here (#1822). Without this it could
+  // never be found when the stairs are its only reachable side.
+  const searchWalls = [];
+  if (hasHiddenSecretDoorHere()) {
+    const search = document.createElement("button");
+    search.type = "button";
+    search.className = "btn btn-block";
+    search.textContent = "あたりの壁を調べる";
+    if (search.dataset) search.dataset.stairsSearchWalls = "true";
+    search.addEventListener("click", () => {
+      if (state.transitioning) return;
+      closeSubmenu();
+      handleExploreAction("search-walls");
+    });
+    searchWalls.push(search);
+  }
+
   const recoveryNote = createRecoveryNote();
-  optGrid.append(createRunStakesSummary(), ...(recoveryNote ? [recoveryNote] : []), descend, stay);
+  optGrid.append(createRunStakesSummary(), ...(recoveryNote ? [recoveryNote] : []), descend, stay, ...searchWalls);
 }
