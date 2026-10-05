@@ -58,7 +58,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "miner_kit",
         name: "坑夫キット",
-        description: "開始キットに「坑夫キット」が加わる。メイスとレザーアーマーで、罠外しキット2個と探知石を毎回持って始まる。盾はない。",
+        description: "「坑夫キット」で出発できるようになる。メイスとレザーアーマー。罠外しキット2個と探知石を毎回持って出る。盾はない。",
         cost: { "獣の牙": 6, "鉄片": 4 },
         grants: { startingKit: "miner" }
       }),
@@ -67,7 +67,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "miner_outpost",
         name: "坑夫の詰所",
-        description: "崩れた坑道の3階目の特別部屋が「坑夫の詰所」になる。潜行ごとに1回、傷薬・解毒薬・罠外しキットから1つを受け取れる。",
+        description: "崩れた坑道の3階目に、坑夫の詰所ができる。立ち寄ると、傷薬・解毒薬・罠外しキットのどれか1つを分けてもらえる。",
         cost: { "硬い皮": 6, "獣の牙": 4 },
         requiresFeat: "depth_5",
         grants: { room: "miner_outpost" }
@@ -75,7 +75,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "miner_blast",
         name: "発破",
-        description: "坑夫の詰所で、補給の代わりに発破を頼める。その階の瓦礫がすべて取り除かれ、下り階段の位置が地図に出る。大きな物音が立つ。",
+        description: "詰所で、補給の代わりに発破を頼めるようになる。その階の瓦礫が吹き飛び、下り階段の場所が分かる。大きな音が響く。",
         cost: { "鉄片": 6, "硬い皮": 4 },
         requiresFeat: "guardian_5",
         requiresNode: "miner_outpost",
@@ -86,7 +86,7 @@ export const FACILITIES = Object.freeze([
       order({
         id: "miner_trap_kits",
         name: "罠外しキットの仕込み",
-        description: "罠外しキット2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
+        description: "頼んでおくと、次に生還したときに倉庫へ届く。出発前に作るより、素材は半分で済む。",
         cost: { "鉄片": 2, "硬い皮": 1 },
         yields: ["TRAP_KIT", "TRAP_KIT"]
       })
@@ -110,7 +110,7 @@ export const FACILITIES = Object.freeze([
       rescue: {
         kind: "blood",
         hpRate: 0.25,
-        prompt: "祭壇の封印の奥に司祭が閉じ込められている。封印は血でしか解けない（HP{cost}）。",
+        prompt: "司祭を閉じ込めた封印は血でしか解けない。",
         action: "血を捧げて封印を解く（HP{cost}）",
         done: "封印に血を捧げた（HP-{cost}）。司祭が祭壇の奥から歩み出た。「助かりました。街までお連れください」",
         shortage: "いまのHPでは、封印に捧げる血が足りない。"
@@ -120,14 +120,14 @@ export const FACILITIES = Object.freeze([
       node({
         id: "chapel_kit",
         name: "巡礼キット",
-        description: "開始キットに「巡礼キット」が加わる。剣と魔法盾とローブで、祝福の聖水を1個、毎回持って始まる。",
+        description: "「巡礼キット」で出発できるようになる。剣と魔法盾とローブ。祝福の聖水を1個、毎回持って出る。",
         cost: { "骨片": 6, "霊粉": 4 },
         grants: { startingKit: "pilgrim" }
       }),
       node({
         id: "chapel_offering",
         name: "献灯台",
-        description: "地下墓地の3階目の祭壇が「礼拝堂の祭壇」になる。浄め・血の祝福に加えて「献灯」を選べる。手持ちの素材から1種類を最大6個、街へ送る。送った素材は、その後に死んでも街に届く。",
+        description: "地下墓地の3階目の祭壇で、献灯ができるようになる。手持ちの素材を1種類、6個まで街へ送れる。送った素材は、そのあと死んでも失わない。",
         cost: { "霊粉": 6, "呪布": 4 },
         requiresFeat: "depth_10",
         grants: { room: "chapel_altar" }
@@ -135,7 +135,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "chapel_grave",
         name: "墓標",
-        description: "死んだ時、失った素材の半分が礼拝堂の墓標に残る。礼拝堂の祭壇で「墓標に祈る」と、手持ちの素材に加わる。取り戻すまで消えず、合計8個まで積まれる。",
+        description: "死んだとき、失った素材の半分が墓標に残る。次に地下墓地の祭壇で祈れば、取り戻せる。墓標に残るのは8個まで。",
         cost: { "骨片": 6, "魔石片": 4 },
         requiresFeat: "guardian_10",
         requiresNode: "chapel_offering",
@@ -146,7 +146,7 @@ export const FACILITIES = Object.freeze([
       order({
         id: "chapel_greater_heal",
         name: "上薬の仕込み",
-        description: "上薬2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
+        description: "頼んでおくと、次に生還したときに倉庫へ届く。出発前に作るより、素材は半分で済む。",
         cost: { "黒角": 2, "骨片": 2 },
         yields: ["GREATER_HEAL", "GREATER_HEAL"]
       })
@@ -173,14 +173,14 @@ export const FACILITIES = Object.freeze([
       node({
         id: "weaver_kit",
         name: "忍び足キット",
-        description: "開始キットに「忍び足キット」が加わる。ダガーとローブで、静寂の香2個と鳴らし玉1個を毎回持って始まる。盾はない。",
+        description: "「忍び足キット」で出発できるようになる。ダガーとローブ。静寂の香2個と鳴らし玉1個を毎回持って出る。盾はない。",
         cost: { "毒腺": 6, "呪布": 4 },
         grants: { startingKit: "stalker" }
       }),
       node({
         id: "weaver_hammock",
         name: "吊り寝床",
-        description: "大裂溝の巣窟の3階目の卵室が「織り手の吊り寝床」になる。潜行ごとに1回、4手番かけて休み、最大HPの30%を回復する。",
+        description: "大裂溝の巣窟の3階目の卵室に、吊り寝床ができる。ひと休みして、最大HPの3割を取り戻せる。",
         cost: { "呪布": 6, "硬い皮": 6 },
         requiresFeat: "depth_15",
         grants: { room: "weaver_hammock" }
@@ -188,7 +188,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "weaver_mending",
         name: "繕い台",
-        description: "織り手の吊り寝床で、休む代わりに防具を繕える。素材2個で、次の3戦のあいだ防御力が上がる。",
+        description: "吊り寝床で、休む代わりに防具を繕ってもらえるようになる。素材2個で、3戦のあいだ防御力が上がる。",
         cost: { "呪布": 6, "鉄片": 6 },
         requiresFeat: "guardian_15",
         requiresNode: "weaver_hammock",
@@ -199,7 +199,7 @@ export const FACILITIES = Object.freeze([
       order({
         id: "weaver_silence_incense",
         name: "静寂の香の仕込み",
-        description: "静寂の香2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
+        description: "頼んでおくと、次に生還したときに倉庫へ届く。出発前に作るより、素材は半分で済む。",
         cost: { "霊粉": 1, "呪布": 1 },
         yields: ["SILENCE_INCENSE", "SILENCE_INCENSE"]
       })
@@ -226,14 +226,14 @@ export const FACILITIES = Object.freeze([
       node({
         id: "scribe_kit",
         name: "写本師キット",
-        description: "開始キットに「写本師キット」が加わる。両手の杖とローブで、最初から呪文を使え、魔力草2個を毎回持って始まる。",
+        description: "「写本師キット」で出発できるようになる。両手の杖とローブ。最初から呪文を使え、魔力草2個を毎回持って出る。",
         cost: { "魔石片": 6, "霊粉": 4 },
         grants: { startingKit: "scribe" }
       }),
       node({
         id: "scribe_waymark",
         name: "道しるべ",
-        description: "水没した魔導書庫の3階目の閲覧室が「写本師の閲覧室」になる。見取り図を読むと、この階の下り階段と宝箱に加えて、次の階の下り階段も地図に出る。",
+        description: "水没した魔導書庫の3階目の閲覧室で、見取り図に次の階の下り階段も載るようになる。",
         cost: { "魔石片": 6, "骨片": 6 },
         requiresFeat: "depth_20",
         grants: { room: "scribe_reading_room" }
@@ -241,7 +241,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "scribe_copy_desk",
         name: "写本台",
-        description: "写本師の閲覧室で、見取り図の代わりに写本を写せる。3手番かけて、手引き書の断片を1枚得る。",
+        description: "閲覧室で、見取り図を読む代わりに写本を写せるようになる。手引き書の断片が1枚手に入る。",
         cost: { "魔石片": 6, "黒角": 6 },
         requiresFeat: "guardian_20",
         requiresNode: "scribe_waymark",
@@ -252,7 +252,7 @@ export const FACILITIES = Object.freeze([
       order({
         id: "scribe_mana_potion",
         name: "魔力草の仕込み",
-        description: "魔力草2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
+        description: "頼んでおくと、次に生還したときに倉庫へ届く。出発前に作るより、素材は半分で済む。",
         cost: { "獣の牙": 2, "硬い皮": 2 },
         yields: ["MANA_POTION", "MANA_POTION"]
       })
@@ -280,14 +280,14 @@ export const FACILITIES = Object.freeze([
       node({
         id: "smith_kit",
         name: "重装キット",
-        description: "開始キットに「重装キット」が加わる。ダガーとプレートメイルで、守りの薬を1個、毎回持って始まる。盾はない。",
+        description: "「重装キット」で出発できるようになる。ダガーとプレートメイル。守りの薬を1個、毎回持って出る。盾はない。",
         cost: { "鉄片": 8, "黒角": 4 },
         grants: { startingKit: "ironclad" }
       }),
       node({
         id: "smith_forge",
         name: "鍛冶師の炉",
-        description: "竜火の鍛造殿の3階目の炉が「鍛冶師の炉」になる。武器の鍛え直しが5戦続く（通常は3戦）。",
+        description: "竜火の鍛造殿の3階目の炉に、鍛冶師の手が入る。武器の鍛え直しが5戦のあいだ続く（これまでは3戦）。",
         cost: { "鉄片": 8, "竜鱗": 4 },
         requiresFeat: "depth_25",
         grants: { room: "smith_forge" }
@@ -295,7 +295,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "smith_reforge",
         name: "打ち直し",
-        description: "鍛冶師の炉で、鍛え直しの代わりに打ち直しを頼める。素材4個で、装備中の武器の強化値が1上がる（+6まで）。",
+        description: "炉で、鍛え直しの代わりに打ち直しを頼めるようになる。素材4個で、装備中の武器が一段強くなる（+6まで）。",
         cost: { "竜鱗": 6, "黒角": 6 },
         requiresFeat: "guardian_25",
         requiresNode: "smith_forge",
@@ -306,7 +306,7 @@ export const FACILITIES = Object.freeze([
       order({
         id: "smith_guard_potion",
         name: "守りの薬の仕込み",
-        description: "守りの薬2個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の素材で済む。",
+        description: "頼んでおくと、次に生還したときに倉庫へ届く。出発前に作るより、素材は半分で済む。",
         cost: { "竜鱗": 1, "鉄片": 2 },
         yields: ["GUARD_POTION", "GUARD_POTION"]
       })
@@ -330,7 +330,7 @@ export const FACILITIES = Object.freeze([
       rescue: {
         kind: "blood",
         hpRate: 0.3,
-        prompt: "鏡の中に侍従が囚われている。鏡に生気を与えれば、出てこられる（HP{cost}）。",
+        prompt: "鏡に生気を与えれば、侍従は出てこられる。",
         action: "鏡に生気を与える（HP{cost}）",
         done: "鏡に生気を吸われた（HP-{cost}）。侍従が鏡の中から歩み出た。「恩に着ます。どうか街まで」",
         shortage: "いまのHPでは、鏡に与える生気が足りない。"
@@ -340,14 +340,14 @@ export const FACILITIES = Object.freeze([
       node({
         id: "hall_kit",
         name: "儀仗キット",
-        description: "開始キットに「儀仗キット」が加わる。メイスとラージシールドとローブで始まる。",
+        description: "「儀仗キット」で出発できるようになる。メイスとラージシールドとローブ。",
         cost: { "竜鱗": 6, "黒角": 6 },
         grants: { startingKit: "ceremonial" }
       }),
       node({
         id: "hall_oath",
         name: "誓約の祭壇",
-        description: "深淵の玉座の3階目の鏡の間が「誓約の祭壇」になる。鏡を覗く代わりに誓約を立てられる。HPとMPが全回復するが、その潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない。",
+        description: "深淵の玉座の3階目の鏡の間で、誓約を立てられるようになる。HPとMPがすべて戻る。ただし、その潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない。",
         cost: { "竜鱗": 8, "霊粉": 6 },
         requiresFeat: "depth_30",
         grants: { room: "oath_altar" }
@@ -355,7 +355,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "hall_gallery",
         name: "鏡の回廊",
-        description: "誓約の祭壇の鏡が、HPを払わずに覗けるようになり、次の階とその次の階の下り階段が地図に出る。",
+        description: "鏡の間の鏡を、HPを払わずに覗けるようになる。2つ先の階まで、下り階段の場所が分かる。",
         cost: { "竜鱗": 8, "魔石片": 6 },
         requiresFeat: "guardian_30",
         requiresNode: "hall_oath",
@@ -368,7 +368,7 @@ export const FACILITIES = Object.freeze([
       order({
         id: "hall_return_wing",
         name: "帰還の翼の仕込み",
-        description: "帰還の翼1個を頼んでおく。次に生還した時に仕上がり、倉庫に入る。出発の時に作る半分の数の素材で済む。",
+        description: "頼んでおくと、次に生還したときに倉庫へ届く。出発前に作るより、素材は半分で済む。",
         cost: { "竜鱗": 2, "黒角": 2 },
         yields: ["TOWN_PORTAL"]
       })

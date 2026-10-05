@@ -209,12 +209,12 @@ console.log("[PASS] two keepers can be led out together and the town shows the n
 const context = (feats, facilities, metaMaterials) => ({ feats, facilities, metaMaterials });
 const rich = { "骨片": 20, "霊粉": 20, "呪布": 20, "魔石片": 20, "黒角": 20 };
 const open = home.feats;
-assert.match(getFacilityNodeBlockReason("chapel_offering", context(open, null, rich)), /^条件：偉業「地下墓地の底へ」/);
+assert.match(getFacilityNodeBlockReason("chapel_offering", context(open, null, rich)), /^先に偉業「地下墓地の底へ」/);
 const depth10 = normalizeFeatsState({ ...open, completed: { ...open.completed, depth_10: { runNumber: 5 } } });
 assert.equal(getFacilityNodeBlockReason("chapel_offering", context(depth10, null, rich)), "");
-assert.match(getFacilityNodeBlockReason("chapel_grave", context(depth10, null, rich)), /^条件：偉業「地下墓地の主を倒す」/);
+assert.match(getFacilityNodeBlockReason("chapel_grave", context(depth10, null, rich)), /^先に偉業「地下墓地の主を倒す」/);
 const allFeats = normalizeFeatsState({ ...depth10, completed: { ...depth10.completed, guardian_10: { runNumber: 6 } } });
-assert.equal(getFacilityNodeBlockReason("chapel_grave", context(allFeats, null, rich)), "条件：「献灯台」の解放");
+assert.equal(getFacilityNodeBlockReason("chapel_grave", context(allFeats, null, rich)), "先に「献灯台」を解放する");
 const offering = purchaseFacilityNode("chapel_offering", context(allFeats, null, rich));
 const graveNode = purchaseFacilityNode("chapel_grave", context(allFeats, offering.facilities, offering.metaMaterials));
 assert.equal(graveNode.ok, true);

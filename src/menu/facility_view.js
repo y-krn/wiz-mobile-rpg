@@ -15,10 +15,27 @@ import {
 import { ITEMS } from "../data/items.js";
 import { createActionCard } from "./action_card.js";
 
-function formatCostWithBalance(cost) {
+function formatCost(cost) {
   return Object.entries(cost || {})
-    .map(([name, quantity]) => `${name} ${quantity}（所持${Math.max(0, Math.floor(Number(state.metaMaterials?.[name]) || 0))}）`)
+    .map(([name, quantity]) => `${name} ${quantity}`)
     .join("・") || "素材0個";
+}
+
+// What is held is said only where it falls short: "獣の牙 あと1".
+function formatShortage(cost) {
+  return Object.entries(cost || {})
+    .map(([name, quantity]) => [name, quantity - Math.max(0, Math.floor(Number(state.metaMaterials?.[name]) || 0))])
+    .filter(([, missing]) => missing > 0)
+    .map(([name, missing]) => `${name} あと${missing}`)
+    .join("・");
+}
+
+// The cost, then the one thing in the way: an earlier step, or the materials
+// still missing.
+function formatCostLine(cost, blockReason) {
+  if (!blockReason) return formatCost(cost);
+  const shortage = blockReason === "素材不足" ? formatShortage(cost) : "";
+  return `${formatCost(cost)}／${shortage ? `素材が足りない（${shortage}）` : blockReason}`;
 }
 
 function getContext() {
@@ -46,7 +63,7 @@ export function renderFacility(optGrid, facilityId, focusSelector = null) {
     const card = createActionCard({
       name: bought ? `${node.name}（解放済み）` : node.name,
       description: node.description,
-      cost: bought ? "次の潜行から使える" : `${formatCostWithBalance(node.cost)}${blockReason ? `／${blockReason}` : ""}`,
+      cost: bought ? "次の潜行から使える" : formatCostLine(node.cost, blockReason),
       costClassName: !bought && blockReason ? "is-insufficient" : "",
       className: "facility-node",
       selected: bought,
@@ -103,7 +120,7 @@ function renderOrders(optGrid, facility) {
     const card = createActionCard({
       name: `${order.name}（${formatYields(order.yields)}）`,
       description: order.description,
-      cost: `${formatCostWithBalance(order.cost)}${blockReason ? `／${blockReason}` : ""}`,
+      cost: formatCostLine(order.cost, blockReason),
       costClassName: blockReason ? "is-insufficient" : "",
       className: "facility-node facility-order",
       disabled: Boolean(blockReason),

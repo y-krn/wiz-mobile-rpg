@@ -107,7 +107,7 @@ test('The priest is freed with blood on B8F and led home together with the forem
   const chapel = page.locator('#town-facilities [data-facility-id="chapel"]');
   await expect(chapel).toHaveAttribute('data-facility-open', 'true');
   await expect(chapel).toContainText('礼拝堂');
-  await expect(chapel).toContainText('司祭の施設 — 解放 0 / 3');
+  await expect(chapel).toContainText('司祭がいる。まだ何も解放していない');
 });
 
 test('The town shows only the next person to look for, and the chapel lists its rebuilds', async ({ page }) => {
@@ -150,10 +150,10 @@ test('The town shows only the next person to look for, and the chapel lists its 
   await expect(page.locator('#submenu-title')).toContainText('礼拝堂');
   const offering = page.locator('[data-facility-node-id="chapel_offering"]');
   await expect(offering).toBeDisabled();
-  await expect(offering).toContainText('条件：偉業「地下墓地の底へ」');
+  await expect(offering).toContainText('先に偉業「地下墓地の底へ」');
   const grave = page.locator('[data-facility-node-id="chapel_grave"]');
   await expect(grave).toBeDisabled();
-  await expect(grave).toContainText('条件：偉業「地下墓地の主を倒す」');
+  await expect(grave).toContainText('先に偉業「地下墓地の主を倒す」');
   await expect(page.locator('[data-facility-order-id="chapel_greater_heal"]')).toContainText('上薬の仕込み（上薬×2）');
 
   // The kit is bought and joins the starting kits with its holy water.

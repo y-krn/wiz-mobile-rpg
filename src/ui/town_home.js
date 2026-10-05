@@ -147,7 +147,12 @@ function renderFacilities() {
         .filter(entry => entry.bought).length;
       name.textContent = facility.name;
       const ordering = getOpenFacilityOrder(state.facilities, facility.id) ? "・仕込み中" : "";
-      detail.textContent = `${facility.keeper}の施設 — 解放 ${bought} / ${facility.nodes.length}${ordering}`;
+      // Who is there and how much of what they offer is in place.
+      const total = facility.nodes.length;
+      const progress = bought >= total
+        ? "すべて解放した"
+        : bought > 0 ? `${total}つのうち${bought}つを解放` : "まだ何も解放していない";
+      detail.textContent = `${facility.keeper}がいる。${progress}${ordering}`;
     } else {
       name.textContent = "？？？";
       detail.textContent = facility.lockedHint;
