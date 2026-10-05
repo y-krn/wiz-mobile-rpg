@@ -55,6 +55,11 @@ function getSecretDoorCandidate() {
   return null;
 }
 
+/** Whether a wall of the current cell still hides a passage. */
+export function hasHiddenSecretDoorHere() {
+  return getSecretDoorCandidate() !== null;
+}
+
 function consumeSearchTurn() {
   recordExplorationSteps();
   tickExplorationSpellEffects();
@@ -126,11 +131,17 @@ export function handleExploreAction(action) {
       updateUI();
       return;
     }
-    if (cell.type === "stairs-up" || cell.type === "stairs-down") {
+    // Searching on stairs shows the stairs. A hidden passage beside the
+    // entrance stairs is searched instead: those stairs have nothing to offer.
+    // Beside the down stairs, the stairs menu carries the wall search (#1822).
+    if (cell.type === "stairs-down" || (cell.type === "stairs-up" && !hasHiddenSecretDoorHere())) {
       checkCellEvents(state.x, state.y);
     } else {
       searchSecretDoor();
     }
+  } else if (action === "search-walls") {
+    // From the stairs menu: search the walls of the stairs cell itself.
+    if (getCurrentExplorationCell()) searchSecretDoor();
   } else if (action === "abandon") {
     confirmAbandonRun();
   } else if (action === "manage") {
