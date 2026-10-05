@@ -195,15 +195,12 @@
         <!-- Trap controls (shown in trap encounter) -->
         <div id="trap-controls" class="controls-group">
           <div id="trap-info">
-            <div id="trap-header">⚠️ 罠に遭遇！</div>
-            <div id="trap-route-hint">発見済みの罠は地図に表示されています。避ける場合は、罠へ進まず通常移動で別の道を選んでください。</div>
+            <div id="trap-header">⚠️ <span id="trap-name">罠</span></div>
             <div id="trap-details">
-              <div id="trap-name">罠名: -</div>
-              <div id="trap-status">状態: -</div>
-              <div id="trap-difficulty">危険度: -</div>
-              <div id="trap-effect">予想効果: -</div>
-              <div id="trap-success-rate">解除成功率: -</div>
+              <div id="trap-effect">かかると: -</div>
+              <div id="trap-success-rate">解除の見込み: -</div>
             </div>
+            <div id="trap-route-hint">見つけた罠は地図に残る。次からは避けて通れる。</div>
           </div>
           <div class="trap-grid">
             <button id="btn-trap-disarm" class="btn btn-neon btn-trap" style="border-color: var(--neon-cyan); color: var(--neon-cyan);">解除する</button>

@@ -105,11 +105,28 @@ export function getExpectedEffectText(trap) {
     case "mpDrain":
       return "MP減少";
     case "alarm":
-      return "警報発報(次回敵強化/遭遇率上昇)";
+      return "警報";
     case "pitfall":
       return `地下${state.floor + 1}階へ落下`;
     default:
       return "不明な効果";
+  }
+}
+
+// What the trap panel says happens when the trap goes off. The short noun
+// form above is for log lines ("...の罠がある").
+export function getTrapConsequenceText(trap) {
+  switch (trap.type) {
+    case "damage":
+      return "HPを削られる";
+    case "mpDrain":
+      return "MPを奪われる";
+    case "alarm":
+      return "警報が鳴り、魔物が集まって手強くなる";
+    case "pitfall":
+      return `地下${state.floor + 1}階へ落ちる`;
+    default:
+      return "何が起こるか分からない";
   }
 }
 
@@ -128,6 +145,7 @@ export function startTrapEncounter(trap, pendingMove) {
     pendingMove,
     successRate: calculateSuccessRate(trap),
     expectedEffect: revealLevel >= 2 ? getExpectedEffectText(trap) : "不明",
+    consequence: revealLevel >= 2 ? getTrapConsequenceText(trap) : "何が起こるか分からない",
     revealLevel
   };
   if (typeof document !== "undefined") updateUI();

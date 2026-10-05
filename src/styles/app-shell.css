@@ -1293,8 +1293,11 @@
 
 /* The unfolded goal has no room for a second stats line (#1993): the stats
    stay on one line with the fold arrow, and the recovery allowance clips
-   before anything wraps. Narrow screens drop its name to keep the amounts. */
+   before anything wraps. Narrow screens drop its name to keep the amounts.
+   The stats always take the line under the goal text, so the goal keeps its
+   height whether or not the allowance is shown (#2034). */
 #game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-stats-container {
+  flex: 1 0 100%;
   flex-wrap: nowrap;
   min-width: 0;
   max-width: calc(100% - 16px);

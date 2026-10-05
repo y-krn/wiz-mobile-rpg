@@ -3,7 +3,6 @@ import { triggerRunResult } from "../result.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 import { state } from "../state.js";
-import { getCharMaxMp } from "../data.js";
 import { trackExplorationDecision, trackPortalDecision, trackUxDecisionOpened, trackUxDecisionResolved } from "../telemetry.js";
 import {
   getBandIndexForFloor,
@@ -31,54 +30,22 @@ function createNextBandClue() {
   const section = document.createElement("section");
   section.className = "milestone-portal-clue";
   section.dataset.infoRole = "next-band-clue";
-  section.setAttribute("aria-label", "次の階層帯の兆候");
+  section.setAttribute("aria-label", "この先の気配");
   const title = document.createElement("strong");
-  title.textContent = "次の階層帯の兆候";
+  title.textContent = "この先の気配";
   const text = document.createElement("p");
   text.textContent = clue;
   section.append(title, text);
   return section;
 }
 
-function createPortalVitals() {
-  const section = document.createElement("section");
-  section.className = "milestone-portal-vitals";
-  section.dataset.infoRole = "vitals";
-  section.setAttribute("aria-label", "現在のHPとMP");
-
-  const title = document.createElement("strong");
-  title.className = "milestone-portal-section-title";
-  title.textContent = "現在の状態";
-  section.appendChild(title);
-
-  const party = document.createElement("div");
-  party.className = "milestone-portal-party";
-  (state.party || []).forEach(character => {
-    const row = document.createElement("div");
-    row.className = "milestone-portal-vital-row";
-    const name = document.createElement("span");
-    name.className = "milestone-portal-vital-name";
-    name.textContent = character.name || "冒険者";
-    const hp = document.createElement("span");
-    hp.className = "milestone-portal-hp";
-    hp.textContent = `HP ${character.hp ?? 0}/${character.maxHp ?? 0}`;
-    const mp = document.createElement("span");
-    mp.className = "milestone-portal-mp";
-    mp.textContent = `MP ${character.mp ?? 0}/${getCharMaxMp(character)}`;
-    row.append(name, hp, mp);
-    party.appendChild(row);
-  });
-  if ((state.party || []).length === 0) {
-    party.textContent = "現在のHP / MPを確認できません";
-  }
-  section.appendChild(party);
-  return section;
-}
-
+// One line: how full the bag is. HP and MP stay on the adventurer panel below
+// the menu, so the portal does not repeat them.
 function createPortalBagSummary() {
   return createBagCapacitySummary(state.inventory, {
     className: "milestone-portal-bag",
-    note: "装備中の品は枠外。空き枠は迷宮で拾う品の余地です。"
+    showSlots: false,
+    showNote: false
   });
 }
 
@@ -86,10 +53,6 @@ function createPortalMaterialSummary() {
   const summary = createRunStakesSummary();
   summary.classList.add("milestone-portal-materials");
   summary.dataset.infoRole = "materials-side-info";
-  const label = document.createElement("div");
-  label.className = "milestone-portal-side-info-label";
-  label.textContent = "帰還で守られる賭け金";
-  summary.prepend(label);
   return summary;
 }
 
@@ -120,10 +83,6 @@ function createPortalChoiceSurface() {
   const section = document.createElement("section");
   section.className = "milestone-portal-choices";
   section.setAttribute("aria-label", "帰還の門での判断");
-  const title = document.createElement("strong");
-  title.className = "milestone-portal-section-title";
-  title.textContent = "この帰還の門で決める";
-  section.appendChild(title);
   section.appendChild(createPortalDecisionCard(
     "return",
     "ここで帰還",
@@ -209,9 +168,8 @@ function renderPortalSurface(optGrid) {
   if (!optGrid) return;
   optGrid.innerHTML = "";
   optGrid.append(
-    createPortalVitals(),
-    createPortalBagSummary(),
-    createPortalMaterialSummary()
+    createPortalMaterialSummary(),
+    createPortalBagSummary()
   );
   const clue = createNextBandClue();
   if (clue) optGrid.appendChild(clue);

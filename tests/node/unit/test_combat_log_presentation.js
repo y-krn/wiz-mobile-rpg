@@ -296,7 +296,7 @@ const sharedSlotLogs = ownerHp => groupCombatLogEntries(runCombatRoundCalculatio
 }, { rng: () => 0.1 }).logQueue).map(entry => entry.msg);
 const ownerActs = sharedSlotLogs(100);
 assert.equal(ownerActs[0], "ゴブリンの呪術師に一撃を加えた。1ダメージ。");
-assert.equal(ownerActs[1], "敵は連携して通常行動を1回にまとめた。");
+assert.equal(ownerActs[1], "敵は互いの出方をうかがい、1体だけが仕掛けてくる。");
 assert.match(ownerActs[2], /^ゴブリンの呪術師の一撃を受けた。/);
-assert.deepEqual(sharedSlotLogs(1).slice(1), ["連携の要のゴブリンの呪術師が倒れ、敵は動けなかった。"]);
+assert.deepEqual(sharedSlotLogs(1).slice(1), ["仕掛けようとしたゴブリンの呪術師が倒れ、残りの敵は手を出せなかった。"]);
 console.log("[PASS] combat log presentation pacing, wording, and grouping");

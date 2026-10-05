@@ -68,7 +68,7 @@ test('Chest actions resolve directly with the sole eligible character @e2e', asy
   await expect(page.locator('#btn-chest-disarm')).toHaveCount(0);
   await expect(page.locator('#btn-chest-smash')).toHaveCount(0);
   await expect(page.locator('.chest-trap-sign')).toContainText('罠の気配:');
-  await expect(page.locator('.chest-disarm-chance')).toHaveText('開けるときの自動解除: 約25%');
+  await expect(page.locator('.chest-disarm-chance')).toHaveText('開けるときに罠を外せる見込み: 約25%');
   await page.locator('#btn-chest-open').click();
   await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');

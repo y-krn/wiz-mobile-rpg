@@ -1,4 +1,4 @@
-import { getFloorLabel } from "../data/floor_themes.js";
+import { describeFloor } from "../ui/floor_label.js";
 import { descendToFloor } from "../movement.js";
 import { closeSubmenu } from "../navigation.js";
 import { state } from "../state.js";
@@ -56,7 +56,7 @@ function createMilestoneDisclosure(guardianDefeated) {
 
   const title = document.createElement("h2");
   title.className = "milestone-disclosure-title";
-  title.textContent = "この階の構造";
+  title.textContent = "この階にあるもの";
 
   const intro = document.createElement("p");
   intro.className = "milestone-disclosure-intro";
@@ -98,6 +98,10 @@ export function renderStairsDown(optGrid) {
   optGrid.replaceChildren();
   const nextFloor = state.floor + 1;
   const guardianDefeated = state.currentRun?.defeatedMilestones?.includes(state.floor) === true;
+  // The caller titles the menu with the stored floor label; a floor not
+  // reached yet is named by its number only.
+  const menuTitle = document.getElementById("submenu-title");
+  if (menuTitle) menuTitle.textContent = `${describeFloor(state, nextFloor)}への下り階段`;
 
   if (isMilestoneFloor(state.floor)) {
     optGrid.appendChild(createMilestoneDisclosure(guardianDefeated));
@@ -106,7 +110,7 @@ export function renderStairsDown(optGrid) {
   const descend = document.createElement("button");
   descend.type = "button";
   descend.className = "btn btn-neon btn-block";
-  descend.textContent = `${getFloorLabel(state, nextFloor)}へ降りる`;
+  descend.textContent = `${describeFloor(state, nextFloor)}へ降りる`;
   if (isMilestoneFloor(state.floor) && !guardianDefeated) {
     descend.disabled = true;
     descend.className = "btn btn-block disabled";

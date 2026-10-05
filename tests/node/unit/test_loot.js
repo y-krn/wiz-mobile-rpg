@@ -277,7 +277,7 @@ import assert from "assert";
     const recommended = buttons.filter(b => b.className.includes("chest-action-recommended"));
     assert.deepStrictEqual(recommended.map(b => b.textContent), ["開ける"], "Open should be the primary action");
     assert.ok(
-      createdElements.some(el => el.textContent === "開けるときの自動解除: 約25%"),
+      createdElements.some(el => el.textContent === "開けるときに罠を外せる見込み: 約25%"),
       "The automatic disarm chance should be shown"
     );
     assert.ok(
