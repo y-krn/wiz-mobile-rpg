@@ -26,7 +26,7 @@ import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision, trac
 import { applyExplorationItem } from "../systems/exploration_items.js";
 import { calculateSecretDoorSearchChance } from "../rules/exploration_rules.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry } from "../state/run_loot.js";
-import { appendOwnershipBadge, getItemOwnership, OWNERSHIP_STATES } from "../ui/common_shell.js";
+import { appendOwnershipBadge, createReturnBadgeBudget, getItemOwnership, OWNERSHIP_STATES } from "../ui/common_shell.js";
 import { createBagCapacitySummary } from "../ui/bag_summary.js";
 
 function getSecretSearchDirs() {
@@ -217,9 +217,10 @@ function getInventorySections() {
   };
 }
 
-// Only carried usable supplies receive a return-to-storage badge.
-function appendBagOwnershipBadge(row, ownership) {
-  if (ownership === OWNERSHIP_STATES.TOWN_CONFIRMED) {
+// Only supplies prepared at departure go back to storage, so only they
+// receive the return badge (#2001).
+function appendBagOwnershipBadge(row, ownership, item, takeReturnBadge) {
+  if (ownership === OWNERSHIP_STATES.TOWN_CONFIRMED && takeReturnBadge(item)) {
     appendOwnershipBadge(row, ownership, { label: "持ち込み品・生還時に倉庫へ" });
   }
 }
@@ -268,7 +269,6 @@ function renderEquipmentFilter(list, sections) {
     btn.dataset.ownership = ownership;
     btn.addEventListener("click", openEquipFromInventory);
     row.appendChild(btn);
-    appendBagOwnershipBadge(row, ownership);
     list.appendChild(row);
   });
   appendEquipLinkButton(list, unidentified > 0 && sections.identifyTickets > 0
@@ -350,6 +350,7 @@ export function renderItemInventory(optGrid) {
       ? `使える道具はありません。装備品${sections.equipment.length}個は「装備品」で確認できます。`
       : "使える道具はありません。");
   } else {
+    const takeReturnBadge = createReturnBadgeBudget({ state });
     usableItems.forEach(({ itemKey, idx, item }) => {
       const row = document.createElement("div");
       row.className = "ownership-aware-row";
@@ -359,7 +360,7 @@ export function renderItemInventory(optGrid) {
       const ownership = getItemOwnership(item, { state });
       btn.dataset.ownership = ownership;
       row.appendChild(btn);
-      appendBagOwnershipBadge(row, ownership);
+      appendBagOwnershipBadge(row, ownership, itemKey, takeReturnBadge);
       btn.addEventListener("click", () => {
         menuContext.itemKey = itemKey;
         menuContext.itemIdx = idx;
