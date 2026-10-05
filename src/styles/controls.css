@@ -1251,6 +1251,11 @@
   line-height: 1.35;
 }
 
+.stairs-recovery-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .run-stakes-summary {
   display: grid;
   grid-column: 1 / -1;

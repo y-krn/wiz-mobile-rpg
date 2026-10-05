@@ -44,10 +44,15 @@ function recoverResource({ char, floorState, resource, getMax, multiplier = 1 })
   return recovered;
 }
 
+// Recovery waits while the adventurer is down or poisoned.
+function isRecoverySuspended(char) {
+  return !char || char.hp <= 0 || ["dead", "ash", "poisoned"].includes(char.status);
+}
+
 export function applyExplorationRecovery(stateLike, floor = stateLike?.floor) {
   const char = stateLike?.party?.[0];
   const floorState = getFloorRecovery(stateLike?.currentRun, floor);
-  if (!char || !floorState || char.hp <= 0 || ["dead", "ash", "poisoned"].includes(char.status)) {
+  if (!floorState || isRecoverySuspended(char)) {
     return { hpRecovered: 0, mpRecovered: 0 };
   }
 
@@ -66,5 +71,31 @@ export function getExplorationRecoveryRemaining(stateLike, floor = stateLike?.fl
   return {
     hp: Math.max(0, hpCap - (floorState?.hpRecovered || 0)),
     mp: Math.max(0, mpCap - (floorState?.mpRecovered || 0))
+  };
+}
+
+/**
+ * What the explore screen shows for this floor. `allowance` is the per-floor
+ * budget still unspent. `hp` / `mp` are how much of it the adventurer can take
+ * right now by walking unvisited cells: the allowance held to what is missing,
+ * and 0 while recovery is `suspended`. `hasMpAllowance` is false for an
+ * adventurer whose maximum MP is too small to earn any MP back.
+ */
+export function getExplorationRecoveryOutlook(stateLike, floor = stateLike?.floor) {
+  const allowance = getExplorationRecoveryRemaining(stateLike, floor);
+  if (!allowance) return null;
+  const char = stateLike.party[0];
+  const suspended = isRecoverySuspended(char);
+  const reachable = (resource, max) => {
+    const missing = max - Number(char[resource]);
+    return suspended || !Number.isFinite(missing) ? 0 : Math.max(0, Math.min(allowance[resource], missing));
+  };
+  const maxMp = getCharMaxMp(char);
+  return {
+    hp: reachable("hp", getCharMaxHp(char)),
+    mp: reachable("mp", maxMp),
+    allowance,
+    hasMpAllowance: Math.floor(maxMp * FLOOR_CAP_RATE) > 0,
+    suspended
   };
 }

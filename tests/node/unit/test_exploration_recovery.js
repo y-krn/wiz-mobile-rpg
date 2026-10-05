@@ -30,7 +30,7 @@ global.setTimeout = callback => { callback(); return 0; };
 const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import("../../../src/state.js");
 const { getCharMaxHp, getCharMaxMp } = await import("../../../src/data.js");
 const { getHealMultiplier } = await import("../../../src/rules/item_rules.js");
-const { applyExplorationRecovery, getExplorationRecoveryRemaining } = await import("../../../src/systems/exploration_recovery.js");
+const { applyExplorationRecovery, getExplorationRecoveryOutlook, getExplorationRecoveryRemaining } = await import("../../../src/systems/exploration_recovery.js");
 const { descendToFloor, executeEnterDungeon, handleMove } = await import("../../../src/movement.js");
 
 function freshRun(kit = "vanguard") {
@@ -237,6 +237,49 @@ for (const isPitfall of [false, true]) {
   assert.equal(state.floor, 2);
   assert.equal(char.hp, 7);
   assert.equal(char.mp, 0);
+}
+
+// The explore screen's outlook: the unspent allowance, and what the adventurer
+// can take of it right now (held to what is missing, nothing while poisoned).
+{
+  assert.equal(getExplorationRecoveryOutlook({ party: [], currentRun: createDefaultCurrentRun(), floor: 1 }), null);
+
+  const char = freshRun("arcana");
+  char.maxHp = 100;
+  const maxMp = getCharMaxMp(char);
+  const mpCap = Math.floor(maxMp * 0.5);
+  char.hp = 97;
+  char.mp = 0;
+  assert.deepEqual(getExplorationRecoveryOutlook(state), {
+    hp: 3,
+    mp: mpCap,
+    allowance: { hp: 50, mp: mpCap },
+    hasMpAllowance: true,
+    suspended: false
+  });
+
+  char.hp = 10;
+  state.currentRun.explorationRecovery["1"] = { hpRecovered: 44, mpRecovered: mpCap, hpRemainder: 0, mpRemainder: 0 };
+  const spent = getExplorationRecoveryOutlook(state);
+  assert.deepEqual([spent.hp, spent.mp, spent.allowance], [6, 0, { hp: 6, mp: 0 }]);
+  assert.equal(getExplorationRecoveryOutlook(state, 2).hp, 50, "another floor has its own allowance");
+
+  char.status = "poisoned";
+  const poisoned = getExplorationRecoveryOutlook(state);
+  assert.deepEqual([poisoned.hp, poisoned.mp, poisoned.suspended], [0, 0, true]);
+  assert.deepEqual(poisoned.allowance, { hp: 6, mp: 0 }, "poison does not spend the allowance");
+  char.status = "ok";
+  char.hp = 100;
+  char.mp = maxMp;
+  const full = getExplorationRecoveryOutlook(state);
+  assert.deepEqual([full.hp, full.mp, full.suspended], [0, 0, false]);
+
+  // A kit whose single MP has no use has no MP allowance at all.
+  const vanguard = freshRun("vanguard");
+  vanguard.mp = 0;
+  const outlook = getExplorationRecoveryOutlook(state);
+  assert.deepEqual([outlook.mp, outlook.allowance.mp, outlook.hasMpAllowance], [0, 0, false]);
+  assert.equal(JSON.stringify(state.currentRun.explorationRecovery), "{}", "reading the outlook writes nothing");
 }
 
 console.log("exploration recovery checks passed");
