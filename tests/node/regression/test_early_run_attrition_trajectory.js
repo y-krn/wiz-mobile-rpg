@@ -454,11 +454,15 @@ assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributi
 // Removing the normal run profile makes simulated runs use the unified Build
 // vNext rules: one more of the eight seeded runs now enters B3 and then
 // returns voluntarily; reaching B4 and deaths are unchanged.
-assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 8);
+// #2028 production exploration recovery replaces the simulated 25% stairs heal.
+// A descent no longer heals, so one of the eight runs arrives on B3 below the
+// town-portal threshold and returns at the floor transition, before it counts
+// as a B3 entrant. Reaching B4 and B3 deaths are unchanged.
+assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 7);
 assert.deepEqual(
   Object.fromEntries(Object.entries(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts)
     .map(([id, cohort]) => [id, cohort.count])),
-  { reachedNextFloor: 4, died: 1, voluntaryReturn: 3, otherTerminal: 0 }
+  { reachedNextFloor: 4, died: 1, voluntaryReturn: 2, otherTerminal: 0 }
 );
 assert.equal(canonicalOnlySmoke.cases[0].policies.t0, undefined);
 const canonicalOnlyReport = trajectory.buildReport(

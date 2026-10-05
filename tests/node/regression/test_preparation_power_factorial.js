@@ -147,6 +147,10 @@ for (const condition of result.conditions) {
   // #2024 equipment families: a set effect changes one fight of the W0R12
   // vanguard run on this seed, its random stream diverges from there, and
   // that run now dies before the cutoff. The other fifteen runs are unchanged.
-  assert.equal(condition.outcome.b6Cutoff, { W0R0: 0, W1R0: 0, W0R12: 1, W1R12: 3 }[condition.id]);
+  // #2028 production exploration recovery replaces the simulated 25% stairs
+  // heal: the W1R12 devotion run no longer returns by town portal and reaches
+  // the cutoff, and the W1R0 vanguard run dies instead of returning. Cutoff
+  // counts for W0R0, W1R0, and W0R12 are unchanged.
+  assert.equal(condition.outcome.b6Cutoff, { W0R0: 0, W1R0: 0, W0R12: 1, W1R12: 4 }[condition.id]);
   assert.ok(condition.outcome.b6Cutoff + condition.outcome.voluntaryReturn <= condition.runs);
 }
