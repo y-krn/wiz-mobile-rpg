@@ -16,6 +16,7 @@ import { openEquipOverlay, getItemUseStatus } from "../equip.js";
 import { openWall } from "../map_generator.js";
 import {
   applyStatusEffect,
+  rollExplorationParalysisDuration,
   rollExplorationPoisonDuration,
   STATUS_EFFECT_IDS
 } from "../combat_logic/status_effects.js";
@@ -704,9 +705,13 @@ export function renderEventSpring(optGrid) {
       const aliveChars = state.party.filter(char => char.status !== "dead");
       if (aliveChars.length > 0) {
         const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
-        target.status = "paralyzed";
+        applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, {
+          remainingTurns: rollExplorationParalysisDuration(),
+          source: "spring"
+        });
         playSound("bump");
-        addLog(`[!] うわっ、水が急に冷たくなり体が動かない！${target.name}は麻痺状態になった！`);
+        addLog(`[!] うわっ、水が急に冷たくなり、手足がしびれた！${target.name}は麻痺状態になった！`);
+        addLog("しびれは、しばらく歩けば取れるだろう。");
       }
     }
     const currentCell = state.map[state.y][state.x];

@@ -54,6 +54,23 @@ function createButton({ id, className, text, onClick, title, role = null, compac
   return button;
 }
 
+// Why the chest cannot be opened right now (#1807). The buttons are disabled
+// with this line, so a press is never silently ignored.
+const OPENER_BLOCK_REASONS = Object.freeze({
+  paralyzed: "体がしびれていて、宝箱に手を出せない。しばらく歩けば、しびれは取れる。",
+  paralyze: "体がしびれていて、宝箱に手を出せない。しばらく歩けば、しびれは取れる。",
+  sleep: "眠っていて、宝箱に手を出せない。"
+});
+
+function getOpenerBlockRow(status) {
+  const row = document.createElement("div");
+  row.className = "chest-opener-blocked";
+  row.setAttribute?.("role", "status");
+  row.style.color = "var(--neon-red)";
+  row.textContent = OPENER_BLOCK_REASONS[status] || "いまは宝箱に手を出せない。";
+  return row;
+}
+
 function createDetails(full) {
   const details = document.createElement("details");
   details.className = "chest-details";
@@ -86,6 +103,7 @@ export function renderChestMenu({
   inventory = [],
   disarmChance = 0,
   canUseTrapKit = false,
+  openerBlockedStatus = null,
   onOpen,
   onOpenWithKit,
   onLeave
@@ -106,6 +124,7 @@ export function renderChestMenu({
     showNote: bagFull,
     note: "バッグが満杯。中身を持つには、先に装備画面で空きを作る。"
   }));
+  if (openerBlockedStatus) infoPanel.appendChild(getOpenerBlockRow(openerBlockedStatus));
   infoPanel.appendChild(getTrapSignRow(chest));
   infoPanel.appendChild(getDisarmRow(disarmChance));
   if (loot) {
@@ -145,16 +164,19 @@ export function renderChestMenu({
     onClick: onOpen
   });
   if (openButton.dataset) openButton.dataset.recommended = "true";
+  openButton.disabled = Boolean(openerBlockedStatus);
   optGrid.appendChild(openButton);
   if (canUseTrapKit) {
-    optGrid.appendChild(createButton({
+    const kitButton = createButton({
       id: "btn-chest-trap-kit",
       className: "btn btn-neon btn-block",
       text: "キットを使って開ける",
       title: "罠を確実に解除してから開けます。罠がなければキットは消費しません",
       role: "confirm",
       onClick: onOpenWithKit
-    }));
+    });
+    kitButton.disabled = Boolean(openerBlockedStatus);
+    optGrid.appendChild(kitButton);
   }
   optGrid.appendChild(createButton({
     id: "btn-chest-leave",

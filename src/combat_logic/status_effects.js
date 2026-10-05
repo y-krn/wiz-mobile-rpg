@@ -36,6 +36,18 @@ export function rollExplorationPoisonDuration(rng = Math.random) {
     + Math.floor(roll * (EXPLORATION_POISON_DURATION_MAX - EXPLORATION_POISON_DURATION_MIN + 1));
 }
 
+// Paralysis outside combat wears off by walking (#1807): a few exploration
+// turns, so a numb hand never locks a chest for good. A fight that starts
+// first still costs the paralyzed character one turn, as before.
+export const EXPLORATION_PARALYSIS_DURATION_MIN = 5;
+export const EXPLORATION_PARALYSIS_DURATION_MAX = 8;
+
+export function rollExplorationParalysisDuration(rng = Math.random) {
+  const roll = Math.max(0, Math.min(0.999999999, Number(rng()) || 0));
+  return EXPLORATION_PARALYSIS_DURATION_MIN
+    + Math.floor(roll * (EXPLORATION_PARALYSIS_DURATION_MAX - EXPLORATION_PARALYSIS_DURATION_MIN + 1));
+}
+
 const LEGACY_STATUS_IDS = new Set([
   STATUS_EFFECT_IDS.POISONED,
   STATUS_EFFECT_IDS.BLIND,
@@ -276,6 +288,28 @@ export function resolveExplorationPoisonStep(
   if (naturalCure) removeStatusEffect(target, STATUS_EFFECT_IDS.POISONED);
 
   return { active: true, damage, naturalCure, remainingSteps };
+}
+
+/**
+ * Resolve one exploration step of paralysis. Paralysis carried out of a
+ * fight or stored by an older save has no step count; it gets one lazily,
+ * like exploration poison.
+ */
+export function resolveExplorationParalysisStep(target, { rng = Math.random } = {}) {
+  if (!target || legacyStatusId(target.status) !== STATUS_EFFECT_IDS.PARALYZED || target.hp <= 0) {
+    return { active: false, naturalCure: false, remainingSteps: null };
+  }
+
+  normalizeStatusEffectTarget(target);
+  const stored = normalizeRemainingTurns(target.paralyzeTurns);
+  const remainingSteps = Math.max(0, (stored ?? rollExplorationParalysisDuration(rng)) - 1);
+  if (remainingSteps === 0) {
+    removeStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED);
+    return { active: true, naturalCure: true, remainingSteps };
+  }
+  target.paralyzeTurns = remainingSteps;
+  target.statusEffects[STATUS_EFFECT_IDS.PARALYZED].remainingTurns = remainingSteps;
+  return { active: true, naturalCure: false, remainingSteps };
 }
 
 export function clearBleedingStatus(target) {
