@@ -87,7 +87,7 @@ function createRecoveryNote() {
 
   const note = document.createElement("p");
   note.className = "submenu-info stairs-recovery-note";
-  note.dataset.testid = "stairs-recovery-note";
+  if (note.dataset) note.dataset.testid = "stairs-recovery-note";
   const amount = document.createElement("strong");
   amount.textContent = `踏破回復 あと${amounts.join("・")}`;
   note.append(amount, " 未踏の場所を歩くと回復する。階段を降りても回復しない。");

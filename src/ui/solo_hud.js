@@ -97,7 +97,7 @@ export function updateSoloHUD({ showExplorationRecovery = false } = {}) {
       reserveFill.className = `bar-reserve ${kind}`;
       reserveFill.style.width = `${Math.min(100 - percent, clampPercent((reservePoints / maximum) * 100))}%`;
       bar.appendChild(reserveFill);
-      row.dataset.recoveryReserve = String(reservePoints);
+      if (row.dataset) row.dataset.recoveryReserve = String(reservePoints);
       const note = document.createElement("span");
       note.className = "sr-only";
       note.textContent = `この階の踏破回復であと${reservePoints}回復できる`;
