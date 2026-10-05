@@ -515,6 +515,9 @@ export function updateUI() {
     locLabel.textContent = "CONGRATULATIONS!";
   } else if (gameState === "gameover") {
     locLabel.textContent = "GAME OVER";
+  } else if (gameState === "result") {
+    // Without this the label of the screen the run ended on stays up.
+    locLabel.textContent = "RESULT";
   }
   wasCombatContext = isCombatContext;
   

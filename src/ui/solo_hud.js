@@ -69,10 +69,21 @@ export function updateSoloHUD({ showExplorationRecovery = false } = {}) {
   identity.className = "character-identity";
   const name = document.createElement("strong");
   name.textContent = char.name;
+  // Level and status share the line under the name, so the status badge
+  // never sits on top of the HP and MP numbers.
+  const meta = document.createElement("div");
+  meta.className = "character-meta";
   const level = document.createElement("span");
   level.textContent = `Lv.${char.level}`;
+  meta.appendChild(level);
+  if (char.status !== "ok") {
+    const status = document.createElement("span");
+    status.className = `character-status ${char.status}`;
+    status.textContent = char.status.toUpperCase();
+    meta.appendChild(status);
+  }
   identity.appendChild(name);
-  identity.appendChild(level);
+  identity.appendChild(meta);
 
   const vitals = document.createElement("div");
   vitals.className = "character-vitals";
@@ -115,13 +126,6 @@ export function updateSoloHUD({ showExplorationRecovery = false } = {}) {
   vitals.appendChild(createVitalRow("mp", "MP", char.mp, maxMp, mpPct, maxMp <= 0));
   card.appendChild(identity);
   card.appendChild(vitals);
-
-  if (char.status !== "ok") {
-    const status = document.createElement("span");
-    status.className = `character-status ${char.status}`;
-    status.textContent = char.status.toUpperCase();
-    card.appendChild(status);
-  }
   hud.appendChild(card);
 }
 

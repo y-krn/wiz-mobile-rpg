@@ -61,9 +61,18 @@ function getLastRunSummary(run) {
   status.appendChild(detail);
   const fact = document.createElement("p");
   fact.className = "town-last-run-fact";
-  fact.textContent = lost
-    ? `素材 ${returnedMaterialCount(run)}個を持ち帰り、未使用の持ち込み品は失いました。`
-    : `素材 ${returnedMaterialCount(run)}個と未使用の持ち込み品を持ち帰りました。`;
+  // Carried-in supplies are mentioned only when the run had some to lose or
+  // bring back.
+  const materials = `素材 ${returnedMaterialCount(run)}個`;
+  if (lost) {
+    fact.textContent = run.lostSupplyCount > 0
+      ? `${materials}を持ち帰り、未使用の持ち込み品は失いました。`
+      : `${materials}を持ち帰りました。`;
+  } else {
+    fact.textContent = run.returnedSupplyCount > 0
+      ? `${materials}と未使用の持ち込み品を持ち帰りました。`
+      : `${materials}を持ち帰りました。`;
+  }
   const fragment = fragmentNode();
   fragment.appendChild(status);
   fragment.appendChild(fact);

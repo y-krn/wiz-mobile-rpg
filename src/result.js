@@ -248,6 +248,10 @@ export function triggerRunResult(reason) {
     // Includes what a chapel offering sent home during the run (#2018).
     bankedMaterials: run.bankedMaterials,
     lostUnidentifiedCount: isDeathLike ? run.equipmentFound.length : 0,
+    // Carried-in supplies the settlement lost or returned; the town summary
+    // mentions them only when there were some.
+    lostSupplyCount: run.lostTownItems?.length || 0,
+    returnedSupplyCount: run.returnedTownItems?.length || 0,
     itemCount: run.itemsFound.length + run.equipmentFound.length,
     returnReason: reason,
     outcome,

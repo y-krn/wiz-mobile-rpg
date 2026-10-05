@@ -34,7 +34,7 @@ function applyMilestoneVictoryRewards(stateLike, floor) {
       stateLike.keyItems.push(keyItem);
       messages.push(
         `【恒久解放】${KEY_ITEM_LABELS[keyItem]}を手に入れた。` +
-        `工房「${KEY_ITEM_WORKSHOP_BRANCHES[keyItem]}」枝を表示解放した。`
+        `工房に「${KEY_ITEM_WORKSHOP_BRANCHES[keyItem]}」の強化が並ぶようになった。`
       );
     }
   }

@@ -64,7 +64,9 @@ function createMaterialContent(materials) {
   return content;
 }
 
-function getOutcomeMeta(reason) {
+function getOutcomeMeta(reason, run = null) {
+  // Only mention carried-in supplies when the run actually lost some.
+  const lostSupplies = (run?.lostTownItems?.length || 0) > 0;
   if (reason === "milestone_portal") {
     return {
       key: "portal",
@@ -85,7 +87,9 @@ function getOutcomeMeta(reason) {
     return {
       key: "death",
       label: "迷宮で死亡",
-      detail: "素材の一部を持ち帰った。未使用の持ち込み品は失った。記録と知識は残る。",
+      detail: lostSupplies
+        ? "素材の一部を持ち帰った。未使用の持ち込み品は失った。記録と知識は残る。"
+        : "素材の一部を持ち帰った。記録と知識は残る。",
       success: false
     };
   }
@@ -93,7 +97,9 @@ function getOutcomeMeta(reason) {
     return {
       key: "abandon",
       label: "冒険を断念",
-      detail: "素材は死亡時と同じ割合で持ち帰り、未使用の持ち込み品は失った。",
+      detail: lostSupplies
+        ? "素材は死亡時と同じ割合で持ち帰り、未使用の持ち込み品は失った。"
+        : "素材は死亡時と同じ割合で持ち帰った。",
       success: false
     };
   }
@@ -153,7 +159,8 @@ function createLootSection(run) {
 }
 
 function getRepresentativeFacts(run, outcome) {
-  const facts = [outcome.detail, `${getFloorLabel(state, run.deepestFloor)}まで到達`];
+  // The outcome sentence is already the header's lead; do not repeat it here.
+  const facts = [`${getFloorLabel(state, run.deepestFloor)}まで到達`];
   const death = run.deathLogs?.at(-1);
   if (outcome.key === "death" && death) {
     facts.push(`死因: ${death.cause || death.source || "原因未記録"}`);
@@ -527,7 +534,7 @@ export function renderResultScreen() {
   if (!overlay || !state.currentRun) return;
 
   const run = state.currentRun;
-  const outcome = getOutcomeMeta(run.returnReason);
+  const outcome = getOutcomeMeta(run.returnReason, run);
   const isSuccess = outcome.success;
   const rawTotal = Object.values(run.materialsBeforeBanking || {}).reduce((sum, quantity) => sum + quantity, 0);
   const bankedTotal = Object.values(run.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0);

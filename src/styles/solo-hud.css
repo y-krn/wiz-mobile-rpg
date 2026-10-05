@@ -113,16 +113,23 @@
   text-align: right;
 }
 
-.character-status {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  padding: 1px 4px;
+.character-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.character-identity .character-status {
+  overflow: hidden;
+  padding: 0 4px;
   border: 1px solid currentColor;
   border-radius: var(--radius-xs);
   background: rgba(250, 245, 237, 0.82);
   color: var(--neon-red);
   font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sr-only {
