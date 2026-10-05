@@ -72,6 +72,8 @@ function getName(item: unknown): string {
 function describeChange(change: EquipmentChange): string {
   const from = change.from ? getName(change.from) : "なし";
   const to = change.to ? getName(change.to) : "なし";
+  // Two different pieces can share a name; say so instead of "X → X".
+  if (change.from && change.to && from === to) return `${from} → 別の${to}`;
   return `${from} → ${to}`;
 }
 
