@@ -186,6 +186,8 @@ export function openChestMenu() {
   renderChestMenu({
     chest: state.chestState,
     inventory: state.inventory,
+    // The menu says why the chest cannot be opened (#1807); who may open it is unchanged.
+    openerBlockedStatus: opener ? null : (getSoloCharacter()?.status || "unknown"),
     disarmChance: opener
       ? calculateChestDisarmChance({ trapBonus: getCharTrapBonus(opener), blind: opener.status === "blind" })
       : 0,

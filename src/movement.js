@@ -1,5 +1,5 @@
 import { state, saveAutosave, scheduleAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, getStartingKitItems, INVENTORY_CAPACITY } from "./state.js";
-import { applyExplorationRecovery } from "./systems/exploration_recovery.js";
+import { applyExplorationRecovery, getExplorationRecoveryOutlook } from "./systems/exploration_recovery.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum, getEffectiveHealAmount } from "./data.js";
 import { playSound } from "./audio.js";
@@ -17,6 +17,7 @@ import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { detectAdjacentTraps, startTrapEncounter, triggerTrap, triggerPitfall } from "./systems/traps.js";
 import {
   clearCharIncapacitationOnDamage,
+  resolveExplorationParalysisStep,
   resolveExplorationPoisonStep
 } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/elite_perception.js";
@@ -193,6 +194,23 @@ function blockOneWayMove() {
 // A blocked step spends no turn and changes no progress, so it skips autosave.
 function finishBlockedMove() {
   updateUI();
+}
+
+// The HP bar's striped stretch is the only standing sign of walking recovery,
+// so the first recovery of a run says what happened and how much this floor
+// still holds (#2044). Later steps stay silent. Runtime-only: a reload says it
+// once more.
+let recoveryExplainedRunSeed = null;
+
+function explainFirstExplorationRecovery(recovered) {
+  if (!recovered || recovered.hpRecovered + recovered.mpRecovered <= 0) return;
+  const runSeed = state.currentRun?.runSeed ?? "";
+  if (recoveryExplainedRunSeed === runSeed) return;
+  recoveryExplainedRunSeed = runSeed;
+  const outlook = getExplorationRecoveryOutlook(state);
+  const amounts = [`HP ${outlook?.allowance?.hp ?? 0}`];
+  if (outlook?.hasMpAllowance) amounts.push(`MP ${outlook.allowance.mp}`);
+  addLog(`初めて歩く場所を進むと、少しずつ回復する（この階であと${amounts.join("・")}）。`);
 }
 
 // Rubble asks for a second push in a row before digging, so a stray tap never
@@ -423,7 +441,7 @@ export function handleMove(action) {
       
       // Mark as visited
       if (markMapCellVisited(state.x, state.y)) {
-        applyExplorationRecovery(state);
+        explainFirstExplorationRecovery(applyExplorationRecovery(state));
         recordEliteGreedAction(state, "new_room");
       }
 
@@ -462,7 +480,7 @@ export function handleMove(action) {
       recordExplorationSteps();
       tickExplorationSpellEffects();
       if (markMapCellVisited(state.x, state.y)) {
-        applyExplorationRecovery(state);
+        explainFirstExplorationRecovery(applyExplorationRecovery(state));
         recordEliteGreedAction(state, "new_room");
       }
       
@@ -926,6 +944,10 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 export function applyExplorationPoison() {
   let tookDamage = false;
   state.party.forEach(c => {
+    // Paralysis fades with the same exploration time poison runs on (#1807).
+    if (resolveExplorationParalysisStep(c).naturalCure) {
+      addLog(`[!] ${c.name}のしびれが取れた。`);
+    }
     if (c.status === "poisoned" && c.hp > 0) {
       const result = resolveExplorationPoisonStep(c);
       if (result.damage > 0) {
