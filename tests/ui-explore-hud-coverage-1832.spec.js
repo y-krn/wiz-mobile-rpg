@@ -102,7 +102,8 @@ test('Explore HUD leaves most of the dungeon view uncovered at 375x667 @smoke', 
   await expect(container).toHaveAttribute('data-goal-expanded', 'false');
   await expect(page.locator('#goal-banner .goal-text')).toBeVisible();
   await expect(page.locator('#goal-banner .goal-stats-container')).toContainText('探索率');
-  await expect(page.locator('#goal-banner .goal-feat-summary')).toHaveText('📜 偉業 B1F / B5F');
+  // The folded line names the closest feat; its progress is in the unfolded list.
+  await expect(page.locator('#goal-banner .goal-feat-summary')).toHaveText('📜 偉業 坑道を抜ける');
   await expect(page.locator('#goal-banner .feat-hud-list')).toBeHidden();
 
   // Just after an event, only the newest line is shown.

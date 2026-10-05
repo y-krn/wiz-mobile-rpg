@@ -272,8 +272,11 @@ export function getCurrentGoal() {
   if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
     return "この階の守護者を倒す";
   }
-  return `下り階段を探して、${describeFloor(state, state.floor + 1)}へ`;
+  return `階段を探して${describeFloor(state, state.floor + 1)}へ`;
 }
+
+// The unfolded goal has room for two rows of two (#2044).
+const HUD_FEAT_LIMIT = 4;
 
 // A goal-row stat whose label hides while the explore goal is folded (#1832).
 function createGoalStat(icon, label, value) {
@@ -287,8 +290,9 @@ function createGoalStat(icon, label, value) {
   return stat;
 }
 
-// Feats shown during a run: the ones achieved in this run, then the closest
-// ones still ahead with live progress (#2007).
+// Feats shown during a run: what this run stands to lose, then the closest
+// feats still ahead with live progress, then the ones achieved in this run
+// (#2007). Capped so the unfolded goal never cuts an entry in half (#2044).
 function getHudFeats() {
   const run = state.currentRun;
   if (!run) return [];
@@ -298,7 +302,11 @@ function getHudFeats() {
     .filter(Boolean)
     .map(feat => ({ name: feat.name, progress: "達成", completed: true }));
   const nearest = getNearestFeats(state.feats, getLiveFeatCounters(state.feats, run), 2)
-    .map(({ feat, progress }) => ({ name: feat.name, progress: formatFeatProgress(feat, progress, run), completed: false }));
+    .map(({ feat, progress }) => ({
+      name: feat.name,
+      progress: formatFeatProgress(feat, progress, run).replace(" / ", "/"),
+      completed: false
+    }));
   // Someone being led out comes first: it is what this run now stands to lose.
   const escortNames = getEscortNames(run);
   const escort = escortNames
@@ -307,12 +315,12 @@ function getHudFeats() {
   // Fragments are lost unless the run walks out: show them with the escort.
   const fragments = Math.max(0, Math.floor(Number(run.guideFragments) || 0));
   const carried = fragments > 0
-    ? [{ name: "手引き書の断片", progress: `${fragments}枚・生還で持ち帰り`, completed: false, companion: true }]
+    ? [{ name: `断片 ${fragments}枚`, progress: "生還で持ち帰る", completed: false, companion: true }]
     : [];
   const oath = run.oath === true
     ? [{ name: "誓約", progress: "死ねば素材は残らない", completed: false, companion: true }]
     : [];
-  return [...escort, ...oath, ...carried, ...achieved, ...nearest];
+  return [...escort, ...oath, ...carried, ...nearest, ...achieved].slice(0, HUD_FEAT_LIMIT);
 }
 
 function getExploreGoalSignature() {
@@ -537,15 +545,20 @@ export function updateUI() {
     
     const goalText = document.createElement("span");
     goalText.className = "goal-text";
-    if (gameState === "gameover") {
-      goalText.textContent = "🎯 目標: 全滅した。街に戻って立て直せ";
-    } else if (gameState === "victory") {
-      goalText.textContent = "🎯 目標: おめでとう！ゲームクリア！";
-    } else if (isTownLikeGoal) {
-      goalText.textContent = `🎯 目標: ${getCurrentGoal()}`;
-    } else {
-      goalText.textContent = `🎯 目標: ${getCurrentGoal()}`;
-    }
+    const goalSentence = gameState === "gameover"
+      ? "倒れた。街に戻って立て直す"
+      : gameState === "victory"
+        ? "おめでとう！ゲームクリア！"
+        : getCurrentGoal();
+    // The word "目標" hides while the explore goal is folded: the target icon
+    // already says it, and the sentence needs the width (#2044).
+    [["🎯 ", ""], ["目標: ", "goal-label"], [goalSentence, ""]].forEach(([text, className]) => {
+      const part = document.createElement("span");
+      if (className) part.className = className;
+      part.textContent = text;
+      goalText.appendChild(part);
+    });
+    const goalLabelText = `🎯 目標: ${goalSentence}`;
     goalRow.appendChild(goalText);
 
     if (gameState !== "gameover" && gameState !== "victory" && !isTownLikeGoal) {
@@ -556,22 +569,23 @@ export function updateUI() {
       statsContainer.appendChild(createGoalStat("🗺️", "探索率: ", `${expRate}%`));
       const hudFeatsForSummary = getHudFeats();
       const escortNames = getEscortNames(state.currentRun);
+      const carriedFragments = Math.max(0, Math.floor(Number(state.currentRun?.guideFragments) || 0));
+      const nextFeat = hudFeatsForSummary.find(feat => !feat.completed && !feat.companion);
+      // The folded one-line goal carries one more thing, the one that matters
+      // most right now: who is being led out, then fragments that are lost
+      // unless the run walks out, then the closest feat by name (#1832, #2007,
+      // #2044). The rest is one tap away in the unfolded goal.
       if (isExploreHud && escortNames) {
         const escortSummary = createGoalStat("👤", "同行 ", escortNames);
         escortSummary.className = "goal-feat-summary goal-companion-summary";
         statsContainer.appendChild(escortSummary);
-      }
-      const carriedFragments = Math.max(0, Math.floor(Number(state.currentRun?.guideFragments) || 0));
-      if (isExploreHud && carriedFragments > 0) {
-        const fragmentSummary = createGoalStat("📖", "断片 ", `${carriedFragments}枚`);
+      } else if (isExploreHud && carriedFragments > 0) {
+        const fragmentSummary = createGoalStat("📖", "", `断片 ${carriedFragments}枚`);
         fragmentSummary.className = "goal-feat-summary goal-fragment-summary";
         statsContainer.appendChild(fragmentSummary);
-      }
-      const nextFeat = hudFeatsForSummary.find(feat => !feat.completed && !feat.companion);
-      if (isExploreHud && nextFeat) {
-        // The folded one-line goal still carries the closest feat (#1832, #2007).
-        const featSummary = createGoalStat("📜", "偉業 ", nextFeat.progress);
-        featSummary.className = "goal-feat-summary";
+      } else if (isExploreHud && nextFeat) {
+        const featSummary = createGoalStat("📜", "偉業 ", nextFeat.name);
+        featSummary.className = "goal-feat-summary goal-feat-name-summary";
         statsContainer.appendChild(featSummary);
       }
       const recoveryOutlook = isExploreHud ? getExplorationRecoveryOutlook(state) : null;
@@ -581,7 +595,7 @@ export function updateUI() {
         // can be taken right now (#1993).
         const amounts = [`HP ${recoveryOutlook.allowance.hp}`];
         if (recoveryOutlook.hasMpAllowance) amounts.push(`MP ${recoveryOutlook.allowance.mp}`);
-        const recovery = createGoalStat("♨️", "踏破回復 ", recoveryOutlook.suspended ? "毒で停止中" : `残り${amounts.join("・")}`);
+        const recovery = createGoalStat("♨️", "歩いて回復 ", recoveryOutlook.suspended ? "毒で止まっている" : `あと${amounts.join("・")}`);
         recovery.className = "goal-recovery-stat";
         statsContainer.appendChild(recovery);
       }
@@ -596,7 +610,7 @@ export function updateUI() {
       goalToggle.className = "goal-toggle";
       if (typeof goalToggle.setAttribute === "function") {
         goalToggle.setAttribute("aria-expanded", goalExpanded ? "true" : "false");
-        goalToggle.setAttribute("aria-label", `${goalExpanded ? "目標の詳細を畳む" : "目標の詳細を表示"}: ${goalText.textContent}`);
+        goalToggle.setAttribute("aria-label", `${goalExpanded ? "目標の詳細を畳む" : "目標の詳細を表示"}: ${goalLabelText}`);
       }
       goalToggle.addEventListener?.("click", () => {
         exploreHudFocus = toggleExploreHudGoal(exploreHudFocus);

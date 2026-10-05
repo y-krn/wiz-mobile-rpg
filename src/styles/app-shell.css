@@ -808,10 +808,21 @@
   left: 6px;
 }
 
+/* Two rows of two fit the unfolded goal exactly (#2044); a long entry gives
+   up the end of its note before its name. */
 #game-container.dungeon-first-mode #goal-banner .feat-hud-list {
   display: grid;
+  gap: 2px 14px;
   max-height: 38px;
   overflow-y: auto;
+}
+
+#game-container.dungeon-first-mode #goal-banner .feat-hud-list small {
+  flex-shrink: 1000;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #game-container.dungeon-first-mode #log-panel {
@@ -1285,6 +1296,32 @@
   white-space: nowrap;
 }
 
+/* Folded, the target icon stands for the word "目標", and the one extra chip
+   (who is being led out, carried fragments, or the closest feat's name) clips
+   before it takes width from the goal sentence. Under 360px the sentence gets
+   the whole line (#2044). */
+#game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-label {
+  display: none;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-feat-summary {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 104px;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-feat-summary > :last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 359px) {
+  #game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-feat-summary {
+    display: none;
+  }
+}
+
 #game-container.dungeon-first-mode[data-goal-expanded="false"] #goal-banner .feat-hud-list,
 #game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-recovery-stat,
 #game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-feat-summary {
@@ -1328,7 +1365,12 @@
 }
 
 #game-container.dungeon-first-mode[data-explore-hud][data-goal-expanded="true"] {
-  --event-strip-top: calc(var(--safe-area-top) + 140px);
+  --event-strip-top: calc(var(--safe-area-top) + 144px);
+}
+
+/* Unfolded: the goal line, the stats line, and two rows of the list (#2044). */
+#game-container.dungeon-first-mode[data-explore-hud][data-goal-expanded="true"] #goal-banner {
+  max-height: 80px;
 }
 
 #game-container.dungeon-first-mode[data-explore-hud] #log-content .event-strip-item {
