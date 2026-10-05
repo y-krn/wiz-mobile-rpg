@@ -125,7 +125,8 @@ export class ThreeViewPost {
     this.composer = new EffectComposer(renderer);
     this.composer.addPass(this.blur);
     this.composer.addPass(this.bloom);
-    this.composer.addPass(new ShaderPass(VIGNETTE_SHADER));
+    this.vignette = new ShaderPass(VIGNETTE_SHADER);
+    this.composer.addPass(this.vignette);
     this.composer.addPass(new OutputPass());
   }
 
@@ -145,6 +146,12 @@ export class ThreeViewPost {
     uniforms.focusRange.value = focus.range;
     uniforms.blurSpan.value = focus.span;
     uniforms.blurRadius.value.set(focus.radius / (this.aspect || 1), focus.radius);
+  }
+
+  /** How strongly bright things spill and how far the screen edges fall off. */
+  setMood({ bloom, vignette }) {
+    this.bloom.strength = bloom;
+    this.vignette.uniforms.strength.value = vignette;
   }
 
   render() {

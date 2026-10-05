@@ -382,6 +382,22 @@ export function paintRoamerCanvas(color) {
   ], { o: "#2e2640", b: color, e: "#fff4dc", E: "#2e2640", m: "#2e2640" });
 }
 
+/** Only the eyes of that piece, for showing it in the dark. */
+export function paintRoamerEyesCanvas() {
+  return paintPixels([
+    "............",
+    "............",
+    "............",
+    "...ee..ee...",
+    "...e...e....",
+    "............",
+    "............",
+    "............",
+    "............",
+    "............"
+  ], { e: "#ffffff" });
+}
+
 /** Two frames of a wall torch: an iron bracket and a flame. */
 export function paintTorchCanvases() {
   const colors = { i: "#3b3340", I: "#5a5060", r: "#ff8a2a", y: "#ffd25a", w: "#fff6d6" };

@@ -25,6 +25,7 @@ import {
   MeshLambertMaterial,
   NearestFilter,
   NeutralToneMapping,
+  PCFShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
   PointLight,
@@ -33,6 +34,7 @@ import {
   RepeatWrapping,
   SRGBColorSpace,
   Scene,
+  SpotLight,
   Sprite,
   SpriteMaterial,
   WebGLRenderer
@@ -62,6 +64,7 @@ import {
   paintPawnCanvas,
   paintPropCanvas,
   paintRoamerCanvas,
+  paintRoamerEyesCanvas,
   paintSurfaceCanvases,
   paintTorchCanvases
 } from "./three_view_art.js";
@@ -72,6 +75,8 @@ const POST_HALF_WIDTH = 0.07;
 // Remembered-but-unseen cells in the top-down view are drawn this much darker.
 const REMEMBERED_TINT = 0.5;
 const TORCH_LIGHT_COUNT = 4;
+// How many of those also cast shadows (each costs six extra scene passes).
+const SHADOW_TORCH_COUNT = 2;
 const DUST_COUNT = 110;
 const DUST_SPREAD = 3.5;
 // While nothing moves, flames and dust still animate; half rate is enough.
@@ -186,6 +191,12 @@ class ThreeDungeonView {
     this.renderer.toneMapping = NeutralToneMapping;
     // One frame is several passes; count them all in getState().
     this.renderer.info.autoReset = false;
+    // Torches cast shadows, which also stops their light passing through
+    // walls. Nothing that casts a shadow moves, so the maps are redrawn only
+    // when the world is rebuilt.
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = PCFShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
     this.scene = new Scene();
     this.scene.background = new Color();
     this.scene.fog = new Fog(0xffffff, 1, 6);
@@ -194,7 +205,20 @@ class ThreeDungeonView {
 
     this.ambient = new HemisphereLight(0xffffff, 0xffffff, 1);
     this.playerLight = new PointLight(0xffe2bd, 0, 4.6, 1);
-    this.torchLights = Array.from({ length: TORCH_LIGHT_COUNT }, () => new PointLight(0xffa85a, 0, 3.2, 1.2));
+    // First-person carries a lantern: a wide soft cone thrown ahead. A bare
+    // point light at the lens would burn out the floor and ceiling beside it.
+    this.lantern = new SpotLight(0xfff0da, 0, 4.6, 0.74, 1, 1.2);
+    this.scene.add(this.lantern, this.lantern.target);
+    this.torchLights = Array.from({ length: TORCH_LIGHT_COUNT }, (_, index) => {
+      const light = new PointLight(0xffa85a, 0, 3.4, 1.2);
+      light.castShadow = index < SHADOW_TORCH_COUNT;
+      light.shadow.mapSize.set(512, 512);
+      light.shadow.camera.near = 0.05;
+      light.shadow.camera.far = 3.6;
+      light.shadow.bias = -0.004;
+      light.shadow.normalBias = 0.03;
+      return light;
+    });
     this.scene.add(this.ambient, this.playerLight, ...this.torchLights);
 
     // Rebuilt whenever the visible map changes.
@@ -212,8 +236,13 @@ class ThreeDungeonView {
       torchMaterials: [0, 1].map((phase) => new SpriteMaterial({ map: phase ? torchB : torchA, alphaTest: 0.5, color: new Color(1.9, 1.6, 1.25) })),
       torchGlow: new SpriteMaterial({ map: glowTexture, color: 0xff8a3a, blending: AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 }),
       floorPlane: new PlaneGeometry(0.92, 0.92).rotateX(-Math.PI / 2),
+      // Upright cards that stand on the floor and turn to face the camera.
+      // They are lit like the walls, so a chest outside the light stays dark.
+      propPlane: new PlaneGeometry(1, 1).translate(0, 0.5 - PROP_FLOOR_ANCHOR, 0),
+      roamerPlane: new PlaneGeometry(0.54, 0.45).translate(0, 0.225, 0),
       roamerMaterials: new Map()
     };
+    this.billboards = [];
     this.shared.shadowMaterial = new MeshBasicMaterial({ map: this.shared.shadowTexture, transparent: true, depthWrite: false, opacity: 0.42 });
 
     this.dust = this.createDust(glowTexture);
@@ -274,7 +303,7 @@ class ThreeDungeonView {
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(positions, 3));
     const material = new PointsMaterial({
-      map: texture, size: 0.035, color: 0xffe6b8, transparent: true, opacity: 0.55,
+      map: texture, size: 0.022, color: 0xffe6b8, transparent: true, opacity: 0.4,
       blending: AdditiveBlending, depthWrite: false
     });
     const points = new Points(geometry, material);
@@ -313,6 +342,14 @@ class ThreeDungeonView {
     this.syncTheme(input);
     const moving = this.syncCamera(elapsed, input);
     const rebuilt = this.syncWorld(input);
+    // Cards turn about their upright axis to face the lens.
+    this.billboards.forEach((card) => {
+      const dx = this.camera.position.x - card.position.x;
+      const dz = this.camera.position.z - card.position.z;
+      card.rotation.y = Math.atan2(dx, dz);
+      const distance = Math.hypot(dx, dz) || 1;
+      card.userData.eyes?.position.set(card.position.x + (dx / distance) * 0.04, 0, card.position.z + (dz / distance) * 0.04);
+    });
     if (!moving && !rebuilt && !this.dirty) {
       if (this.reducedMotion) return;
       this.idle += elapsed;
@@ -353,8 +390,40 @@ class ThreeDungeonView {
     this.pawnShadow.visible = topDown;
     this.post?.setFocus(topDown
       ? { distance: this.rig.focus, range: 1.5, span: 4.5, radius: 0.008 }
-      : { distance: this.rig.focus, range: 1.6, span: 3.4, radius: 0.007 });
+      : { distance: this.rig.focus, range: 2.6, span: 5, radius: 0.004 });
     if (hadCeiling !== this.rig.ceiling) this.worldKey = null;
+    this.applyAtmosphere();
+  }
+
+  /**
+   * First-person is lit by what the player carries and by the torches on the
+   * walls, and by almost nothing else: past the light there is darkness with
+   * only a trace of the biome's colour. Top-down keeps a soft overall light
+   * so the remembered map stays readable.
+   */
+  applyAtmosphere() {
+    if (!this.theme || !this.rig) return;
+    const { palette } = this.theme;
+    const topDown = this.mode === "top-down";
+    const haze = topDown
+      ? mixHex(mixHex(palette.accent, palette.ink, 0.66), palette.fog, 0.22)
+      : mixHex(palette.accent, "#030408", 0.94);
+    this.scene.background.set(haze);
+    this.scene.fog.color.set(haze);
+    if (topDown) {
+      this.ambient.color.set(mixHex(palette.skyTop, palette.accent, 0.12));
+      this.ambient.groundColor.set(mixHex(palette.groundBottom, palette.ink, 0.22));
+      this.ambient.intensity = 1.5;
+    } else {
+      // Unlit stone is a deep, cool version of the biome colour, never grey.
+      this.ambient.color.set(mixHex(palette.accent, "#3a4a8c", 0.55));
+      this.ambient.groundColor.set(mixHex(palette.accent, "#0a0c18", 0.8));
+      this.ambient.intensity = 0.15;
+    }
+    this.playerLight.decay = topDown ? 1 : 1.15;
+    this.torchLights.forEach((light) => { light.decay = topDown ? 1.2 : 1.3; });
+    this.post?.setMood(topDown ? { bloom: 0.45, vignette: 0.28 } : { bloom: 0.62, vignette: 0.5 });
+    this.dirty = true;
   }
 
   syncTheme(input) {
@@ -384,12 +453,7 @@ class ThreeDungeonView {
     };
     this.pawn.material = this.theme.pawn;
 
-    // Distance sinks into the biome's own colour, not into black.
-    const haze = mixHex(mixHex(palette.accent, palette.ink, 0.66), palette.fog, 0.22);
-    this.scene.background.set(haze);
-    this.scene.fog.color.set(haze);
-    this.ambient.color.set(mixHex(palette.skyTop, palette.accent, 0.12));
-    this.ambient.groundColor.set(mixHex(palette.groundBottom, palette.ink, 0.22));
+    this.applyAtmosphere();
   }
 
   syncCamera(elapsed, input) {
@@ -426,16 +490,36 @@ class ThreeDungeonView {
 
     const topDown = this.mode === "top-down";
     const lightRadius = getLightRadius(input.lightTurns, input.lightPower);
-    // The carried light: a light spell reaches farther and pushes the haze back.
-    // First-person carries it at the lens, so a wall straight ahead is lit
-    // evenly rather than with a hot spot.
-    if (topDown) this.playerLight.position.set(anchor.x, 0.95, anchor.z);
-    else this.playerLight.position.set(pose.position[0], 0.62, pose.position[2]);
-    this.playerLight.distance = (topDown ? 5.4 : 4.6) + lightRadius * 0.8;
-    this.playerLight.intensity = (topDown ? 2.8 : 1.9) * (1 + lightRadius * 0.14);
-    this.scene.fog.near = topDown ? this.rig.focus + 2.5 : 0.9;
-    this.scene.fog.far = (topDown ? this.rig.focus + 8 : 5.4) + lightRadius * 0.8;
-    this.ambient.intensity = topDown ? 1.5 : 1.05;
+    // The carried light. A light spell reaches farther, which in the dark
+    // is the difference between seeing the next corner and not.
+    const forwardX = -Math.sin(anchor.yaw);
+    const forwardZ = -Math.cos(anchor.yaw);
+    if (topDown) {
+      this.playerLight.position.set(anchor.x, 0.95, anchor.z);
+      this.playerLight.distance = 5.4 + lightRadius * 0.8;
+      this.playerLight.intensity = 2.8 * (1 + lightRadius * 0.14);
+      this.lantern.intensity = 0;
+      this.scene.fog.near = this.rig.focus + 2.5;
+      this.scene.fog.far = this.rig.focus + 8 + lightRadius * 0.8;
+    } else {
+      // The lantern throws its cone down the corridor; a faint glow around
+      // the player keeps the walls at arm's length readable.
+      const eye = pose.position;
+      this.lantern.position.set(eye[0], eye[1] + 0.06, eye[2]);
+      this.lantern.target.position.set(eye[0] + forwardX * 2, eye[1] - 0.1, eye[2] + forwardZ * 2);
+      this.lantern.distance = 4.4 + lightRadius * 1.5;
+      this.lantern.intensity = 4.2 * (1 + lightRadius * 0.15);
+      this.lantern.angle = 0.74 + lightRadius * 0.06;
+      // A light spell also lifts the darkness itself a little.
+      this.ambient.intensity = 0.15 + lightRadius * 0.06;
+      this.playerLight.position.set(eye[0], eye[1] - 0.12, eye[2]);
+      this.playerLight.distance = 2.2;
+      this.playerLight.intensity = 0.13;
+      // Darkness comes from the light running out, not from haze, so a torch
+      // far down the corridor still shows as an island of light.
+      this.scene.fog.near = 3;
+      this.scene.fog.far = 13;
+    }
     if (topDown) {
       this.pawn.position.set(anchor.x, 0, anchor.z);
       this.pawnShadow.position.set(anchor.x, 0.012, anchor.z);
@@ -459,17 +543,18 @@ class ThreeDungeonView {
     // Motes wrap around the player so the air is never empty.
     const anchor = this.dustAnchor;
     const positions = this.dust.geometry.attributes.position;
-    const span = DUST_SPREAD * 2;
-    const ceiling = this.rig.wallHeight + (this.mode === "top-down" ? 0.5 : 0);
+    const topDown = this.mode === "top-down";
+    // First-person motes only show where the carried light can catch them.
+    const spread = topDown ? DUST_SPREAD : DUST_SPREAD * 0.55;
+    const span = spread * 2;
+    const ceiling = this.rig.wallHeight + (topDown ? 0.5 : 0);
+    const lens = this.camera.position;
     this.dustSeeds.forEach((seed, index) => {
-      const x = seed.x + seconds * seed.drift;
-      const z = seed.z + seconds * seed.drift * 0.6;
-      positions.setXYZ(
-        index,
-        anchor.x + ((((x - anchor.x) % span) + span) % span) - DUST_SPREAD,
-        (seed.y + 0.05 * Math.sin(seconds * 0.5 + seed.phase)) * ceiling,
-        anchor.z + ((((z - anchor.z) % span) + span) % span) - DUST_SPREAD
-      );
+      const x = anchor.x + ((((seed.x + seconds * seed.drift - anchor.x) % span) + span) % span) - spread;
+      const z = anchor.z + ((((seed.z + seconds * seed.drift * 0.6 - anchor.z) % span) + span) % span) - spread;
+      // A mote right at the lens would fill the screen; drop it below the floor.
+      const tooClose = !topDown && Math.hypot(x - lens.x, z - lens.z) < 0.9;
+      positions.setXYZ(index, x, tooClose ? -1 : (seed.y + 0.05 * Math.sin(seconds * 0.5 + seed.phase)) * ceiling, z);
     });
     positions.needsUpdate = true;
   }
@@ -499,6 +584,7 @@ class ThreeDungeonView {
     });
     this.world.clear();
     this.torches = [];
+    this.billboards = [];
   }
 
   buildWorld(input) {
@@ -583,6 +669,7 @@ class ThreeDungeonView {
     this.addRoamers(input, cells, batches.shadow);
     this.addBatch(batches.shadow, this.shared.shadowMaterial);
     this.assignTorchLights(input);
+    this.renderer.shadowMap.needsUpdate = true;
     this.worldStats = { cells: cells.length, torches: this.torches.length };
   }
 
@@ -591,6 +678,8 @@ class ThreeDungeonView {
     if (!geometry) return;
     const mesh = new Mesh(geometry, material);
     mesh.userData.ownsGeometry = true;
+    mesh.castShadow = material === this.theme.wall;
+    mesh.receiveShadow = material.isMeshLambertMaterial === true;
     this.world.add(mesh);
   }
 
@@ -600,19 +689,17 @@ class ThreeDungeonView {
     if (!material) {
       const texture = pixelTexture(paintPropCanvas(prop));
       const tint = new Color(dim ? REMEMBERED_TINT : 1, dim ? REMEMBERED_TINT : 1, dim ? REMEMBERED_TINT : 1);
-      material = kind === "sprite"
-        ? new SpriteMaterial({ map: texture, alphaTest: 0.5, color: tint })
-        : new MeshLambertMaterial({ map: texture, alphaTest: 0.5, color: tint });
+      material = new MeshLambertMaterial({ map: texture, alphaTest: 0.5, color: tint });
       this.theme.props.set(key, material);
     }
     return material;
   }
 
   addBillboard(prop, x, z, tint, inSight, shadows) {
-    const sprite = new Sprite(this.propMaterial(prop, "sprite", !inSight));
-    sprite.center.set(0.5, PROP_FLOOR_ANCHOR);
-    sprite.position.set(x, 0, z);
-    this.world.add(sprite);
+    const card = new Mesh(this.shared.propPlane, this.propMaterial(prop, "card", !inSight));
+    card.position.set(x, 0, z);
+    this.world.add(card);
+    this.billboards.push(card);
     shadows.flat(x, z, 0.34, 0.34, 0.011, 1);
     if (prop.glow && inSight) this.addGlow(x, 0.3, z, prop.glow, 0.95, 0.3);
   }
@@ -661,16 +748,25 @@ class ThreeDungeonView {
       if (monster.x === input.x && monster.y === input.y) continue;
       // Amber for elites, the minimap's own colour for them; red otherwise.
       const color = monster.kind === "elite" ? "#e08c14" : "#d9483b";
-      let material = this.shared.roamerMaterials.get(color);
-      if (!material) {
-        material = new SpriteMaterial({ map: pixelTexture(paintRoamerCanvas(color)), alphaTest: 0.5 });
-        this.shared.roamerMaterials.set(color, material);
+      let materials = this.shared.roamerMaterials.get(color);
+      if (!materials) {
+        materials = {
+          body: new MeshLambertMaterial({ map: pixelTexture(paintRoamerCanvas(color)), alphaTest: 0.5 }),
+          // The body needs light to be seen. The eyes do not.
+          eyes: new SpriteMaterial({ map: pixelTexture(paintRoamerEyesCanvas()), alphaTest: 0.5, color: new Color(color).multiplyScalar(5) })
+        };
+        this.shared.roamerMaterials.set(color, materials);
       }
-      const sprite = new Sprite(material);
-      sprite.center.set(0.5, 0);
-      sprite.position.set(monster.x, 0, monster.y);
-      sprite.scale.set(0.54, 0.45, 1);
-      this.world.add(sprite);
+      const body = new Mesh(this.shared.roamerPlane, materials.body);
+      body.position.set(monster.x, 0, monster.y);
+      const eyes = new Sprite(materials.eyes);
+      eyes.center.set(0.5, 0);
+      eyes.position.set(monster.x, 0, monster.y);
+      eyes.scale.set(0.54, 0.45, 1);
+      // The eyes ride just in front of the body, on the side facing the lens.
+      body.userData.eyes = eyes;
+      this.world.add(body, eyes);
+      this.billboards.push(body);
       shadows.flat(monster.x, monster.y, 0.32, 0.32, 0.011, 1);
     }
   }
@@ -686,7 +782,7 @@ class ThreeDungeonView {
       .sort((a, b) => a.distance - b.distance);
     this.torchLights.forEach((light, index) => {
       const entry = nearest[index];
-      light.userData.base = entry ? 1.1 : 0;
+      light.userData.base = entry ? (this.mode === "top-down" ? 1.1 : 1.5) : 0;
       light.intensity = light.userData.base;
       if (entry) light.position.set(entry.torch.lightX, entry.torch.y, entry.torch.lightZ);
     });
@@ -719,12 +815,13 @@ class ThreeDungeonView {
     this.resizeObserver?.disconnect();
     this.canvas.removeEventListener("webglcontextlost", this.onContextLost);
     this.disposeTheme();
-    const { glowTexture, shadowTexture, torchTextures, torchMaterials, torchGlow, floorPlane, roamerMaterials, shadowMaterial } = this.shared;
-    roamerMaterials.forEach((material) => {
+    const { glowTexture, shadowTexture, torchTextures, torchMaterials, torchGlow, floorPlane, propPlane, roamerPlane, roamerMaterials, shadowMaterial } = this.shared;
+    roamerMaterials.forEach(({ body, eyes }) => [body, eyes].forEach((material) => {
       material.map.dispose();
       material.dispose();
-    });
-    [glowTexture, shadowTexture, ...torchTextures, ...torchMaterials, torchGlow, floorPlane, shadowMaterial].forEach((resource) => resource.dispose());
+    }));
+    [glowTexture, shadowTexture, ...torchTextures, ...torchMaterials, torchGlow, floorPlane, propPlane, roamerPlane, shadowMaterial].forEach((resource) => resource.dispose());
+    this.torchLights.forEach((light) => light.shadow.dispose());
     this.dust.geometry.dispose();
     this.dust.material.dispose();
     this.pawnShadow.geometry.dispose();
