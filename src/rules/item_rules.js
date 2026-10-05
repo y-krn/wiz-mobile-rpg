@@ -26,8 +26,7 @@ export function isSpecialOrQuestItem(itemId) {
          itemId === "LEGENDARY_SHIELD";
 }
 
-export function getEffectiveHealAmount(target, amount, { applyDevotion = true } = {}) {
-  if (amount <= 0) return amount;
+export function getHealMultiplier(target, { applyDevotion = true } = {}) {
   let mult = 1;
   if (applyDevotion) {
     mult *= 1 + Math.min(0, getCharAffixSum(target, "devotion")) / 100;
@@ -35,8 +34,12 @@ export function getEffectiveHealAmount(target, amount, { applyDevotion = true } 
   if (target?.antiHealTurns > 0) {
     mult *= 0.5;
   }
-  mult = Math.max(0.25, mult);
-  return Math.max(1, Math.round(amount * mult));
+  return Math.max(0.25, mult);
+}
+
+export function getEffectiveHealAmount(target, amount, options = {}) {
+  if (amount <= 0) return amount;
+  return Math.max(1, Math.round(amount * getHealMultiplier(target, options)));
 }
 
 const EQUIPMENT_SLOT_IDS = ["weapon", "shield", "armor", "accessory", "accessory2"];

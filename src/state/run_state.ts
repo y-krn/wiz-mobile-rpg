@@ -97,6 +97,12 @@ export interface NormalizedCurrentRun {
   deepestFloor: number;
   steps: number;
   floorSteps: NormalizedFloorSteps;
+  explorationRecovery: Record<string, {
+    hpRecovered: number;
+    mpRecovered: number;
+    hpRemainder: number;
+    mpRemainder: number;
+  }>;
   battles: number;
   kills: number;
   elitesKilled: number;
@@ -181,7 +187,7 @@ const REQUIRED_FIELDS = [
   "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing", "nearMiss", "featResult", "featsAnnounced", "companions", "offeredMaterials", "graveResult", "oath", "guideFragments", "guideResult", "orderResult",
   "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
-  "floorSteps", "eventObservations",
+  "floorSteps", "explorationRecovery", "eventObservations",
   "eliteFloors", "eliteDefeatedFloors",
   "defeatedMilestones", "visitedMilestoneMerchants",
   "materials", "bankedMaterials", "defeatsByRole",
@@ -197,6 +203,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && typeof value === "number" && value >= 0;
 }
 
 function hasRequiredFields(value: Record<string, unknown>): boolean {
@@ -221,6 +231,12 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   }
   if (!isNormalizedCodexRewards(value.codexRewards)) return false;
   if (!isNormalizedFloorSteps(value.floorSteps)) return false;
+  if (!isRecord(value.explorationRecovery) || !Object.values(value.explorationRecovery).every(record =>
+    isRecord(record) && isNonNegativeSafeInteger(record.hpRecovered) &&
+    isNonNegativeSafeInteger(record.mpRecovered) &&
+    isFiniteNumber(record.hpRemainder) && record.hpRemainder >= 0 && record.hpRemainder < 1 &&
+    isFiniteNumber(record.mpRemainder) && record.mpRemainder >= 0 && record.mpRemainder < 1
+  )) return false;
   if (!isNormalizedCampRested(value.campRested)) return false;
   if (!isNormalizedPendingCampEntryFloor(value.pendingCampEntryFloor)) return false;
   if (!isNormalizedCompletedCampEntryFloors(value.completedCampEntryFloors)) return false;

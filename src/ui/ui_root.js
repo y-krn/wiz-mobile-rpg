@@ -1,5 +1,6 @@
 import { syncAimRings } from "./aim_rings.js";
 import { createElement } from "react";
+import { getExplorationRecoveryOutlook } from "../systems/exploration_recovery.js";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { syncPwaUpdateAvailability } from "./pwa_update_manager.js";
@@ -568,6 +569,17 @@ export function updateUI() {
         featSummary.className = "goal-feat-summary";
         statsContainer.appendChild(featSummary);
       }
+      const recoveryOutlook = isExploreHud ? getExplorationRecoveryOutlook(state) : null;
+      if (recoveryOutlook) {
+        // The floor's unspent allowance, in the unfolded goal only: the folded
+        // pill keeps its width for the goal text, and the HP/MP bars show what
+        // can be taken right now (#1993).
+        const amounts = [`HP ${recoveryOutlook.allowance.hp}`];
+        if (recoveryOutlook.hasMpAllowance) amounts.push(`MP ${recoveryOutlook.allowance.mp}`);
+        const recovery = createGoalStat("♨️", "踏破回復 ", recoveryOutlook.suspended ? "毒で停止中" : `残り${amounts.join("・")}`);
+        recovery.className = "goal-recovery-stat";
+        statsContainer.appendChild(recovery);
+      }
       goalRow.appendChild(statsContainer);
     }
     goalBanner.appendChild(goalRow);
@@ -931,7 +943,7 @@ export function updateUI() {
       .some(id => releaseFocusSurface(id, focusFallbacks[id]));
   }
 
-  updateSoloHUD();
+  updateSoloHUD({ showExplorationRecovery: isDungeonFirstMode && dungeonFirstState !== "combat" });
 
   // Update Viewport accessibility Text HUD
   updateViewportHUD();

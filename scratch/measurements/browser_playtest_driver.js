@@ -53,10 +53,12 @@ W.__click = async (re) => {
   if (!b) return 'NOBTN: ' + W.__btns().join('|');
   b.click(); await sl(150); return 'ok';
 };
+const interactiveRank = e => (e.closest('button,[role=button],[tabindex]') ? 0 : 1);
 W.__tap = async (t) => {
   const els = [...document.querySelectorAll('button,[role=button],[tabindex],div,li,span')]
     .filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && e.textContent.includes(t); })
-    .sort((a, b) => a.textContent.length - b.textContent.length);
+    // Shortest text first; among equals a control wins over the wrapper around it.
+    .sort((a, b) => a.textContent.length - b.textContent.length || interactiveRank(a) - interactiveRank(b));
   const el = els[0]; if (!el) return 'NO ' + t;
   const tgt = el.closest('button,[role=button],[tabindex]') || el; const r = tgt.getBoundingClientRect();
   const o = { bubbles: true, cancelable: true, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2, pointerId: 1, pointerType: 'mouse', isPrimary: true };

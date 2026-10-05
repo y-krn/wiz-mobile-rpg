@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
 import { captureException } from "../sentry.js";
+import { getExplorationRecoveryOutlook } from "../systems/exploration_recovery.js";
 
 const reportedStatFallbacks = new Set();
 
@@ -18,7 +19,19 @@ function reportStatFallback(error, stat) {
   });
 }
 
-export function updateSoloHUD() {
+// The share of a bar that walking unvisited cells can still refill on this
+// floor (#1993). A HUD refresh must never fail on it.
+function getRecoveryReserve(showExplorationRecovery) {
+  if (!showExplorationRecovery) return null;
+  try {
+    return getExplorationRecoveryOutlook(state);
+  } catch (error) {
+    reportStatFallback(error, "explorationRecovery");
+    return null;
+  }
+}
+
+export function updateSoloHUD({ showExplorationRecovery = false } = {}) {
   const hud = document.getElementById("character-hud");
   if (!hud) return;
   hud.replaceChildren();
@@ -63,6 +76,7 @@ export function updateSoloHUD() {
 
   const vitals = document.createElement("div");
   vitals.className = "character-vitals";
+  const reserve = getRecoveryReserve(showExplorationRecovery);
   const createVitalRow = (kind, labelText, current, maximum, percent, hidden = false) => {
     const row = document.createElement("div");
     row.className = `bar-container ${kind}-row`;
@@ -76,6 +90,19 @@ export function updateSoloHUD() {
     fill.className = `bar-fill ${kind}`;
     fill.style.width = `${percent}%`;
     bar.appendChild(fill);
+    // Striped stretch after the fill: what exploring this floor can still restore.
+    const reservePoints = reserve?.[kind] || 0;
+    if (reservePoints > 0 && maximum > 0) {
+      const reserveFill = document.createElement("div");
+      reserveFill.className = `bar-reserve ${kind}`;
+      reserveFill.style.width = `${Math.min(100 - percent, clampPercent((reservePoints / maximum) * 100))}%`;
+      bar.appendChild(reserveFill);
+      if (row.dataset) row.dataset.recoveryReserve = String(reservePoints);
+      const note = document.createElement("span");
+      note.className = "sr-only";
+      note.textContent = `この階の踏破回復であと${reservePoints}回復できる`;
+      row.appendChild(note);
+    }
     const value = document.createElement("span");
     value.className = "bar-value";
     value.textContent = `${current}/${maximum}`;

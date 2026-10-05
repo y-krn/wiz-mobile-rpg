@@ -80,6 +80,26 @@
   height: 100%;
 }
 
+/* What walking unvisited cells can still restore on this floor (#1993): a
+   striped stretch right after the fill, so it reads without color alone. */
+.bar:has(.bar-reserve) {
+  display: flex;
+}
+
+.bar-reserve {
+  flex: none;
+  height: 100%;
+  opacity: 0.7;
+}
+
+.bar-reserve.hp {
+  background: repeating-linear-gradient(135deg, var(--vital-hp) 0 2px, transparent 2px 4px);
+}
+
+.bar-reserve.mp {
+  background: repeating-linear-gradient(135deg, var(--vital-mp) 0 2px, transparent 2px 4px);
+}
+
 .bar-fill.hp {
   background: linear-gradient(90deg, #457e54, var(--vital-hp));
 }

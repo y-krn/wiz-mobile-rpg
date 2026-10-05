@@ -208,6 +208,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/map_queries.ts", domains: ["maps"] },
     { pattern: "src/rules/recovery_rules.js", domains: ["recovery"] },
     { pattern: "src/movement.js", domains: ["maps", "traps", "chests", "recovery", "status"] },
+    { pattern: "src/systems/exploration_recovery.js", domains: ["maps"] },
     { pattern: "src/run_map_generator.js", domains: ["maps", "traps", "chests", "combat"] },
     { pattern: "src/map_generator.js", domains: ["maps"] },
     { pattern: "src/map_layout_archetypes.js", domains: ["maps"] },

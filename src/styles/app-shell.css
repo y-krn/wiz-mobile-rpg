@@ -1285,8 +1285,35 @@
 }
 
 #game-container.dungeon-first-mode[data-goal-expanded="false"] #goal-banner .feat-hud-list,
+#game-container.dungeon-first-mode[data-goal-expanded="false"] .goal-recovery-stat,
 #game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-feat-summary {
   display: none;
+}
+
+/* The unfolded goal has no room for a second stats line (#1993): the stats
+   stay on one line with the fold arrow, and the recovery allowance clips
+   before anything wraps. Narrow screens drop its name to keep the amounts. */
+#game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-stats-container {
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: calc(100% - 16px);
+  white-space: nowrap;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-stats-container > :first-child {
+  flex-shrink: 0;
+}
+
+#game-container.dungeon-first-mode[data-goal-expanded="true"] .goal-recovery-stat {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 359px) {
+  #game-container.dungeon-first-mode .goal-recovery-stat .goal-stat-label {
+    display: none;
+  }
 }
 
 /* Folded event strip, directly under the goal pill: unresolved observations,

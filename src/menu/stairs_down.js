@@ -10,6 +10,7 @@ import {
 } from "../ui/milestone_disclosure.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { trackExplorationDecision } from "../telemetry.js";
+import { getExplorationRecoveryOutlook } from "../systems/exploration_recovery.js";
 
 function findMilestoneEvent(eventType) {
   for (let y = 0; y < state.map?.length; y++) {
@@ -74,6 +75,25 @@ function createMilestoneDisclosure(guardianDefeated) {
   return disclosure;
 }
 
+// Descending no longer heals (#1993): say what this floor can still give back
+// before the player leaves it. Nothing is shown when there is nothing to gain.
+function createRecoveryNote() {
+  const outlook = getExplorationRecoveryOutlook(state);
+  if (!outlook || outlook.suspended) return null;
+  const amounts = [];
+  if (outlook.hp > 0) amounts.push(`HP ${outlook.hp}`);
+  if (outlook.mp > 0) amounts.push(`MP ${outlook.mp}`);
+  if (amounts.length === 0) return null;
+
+  const note = document.createElement("p");
+  note.className = "submenu-info stairs-recovery-note";
+  if (note.dataset) note.dataset.testid = "stairs-recovery-note";
+  const amount = document.createElement("strong");
+  amount.textContent = `踏破回復 あと${amounts.join("・")}`;
+  note.append(amount, " 未踏の場所を歩くと回復する。階段を降りても回復しない。");
+  return note;
+}
+
 export function renderStairsDown(optGrid) {
   optGrid.replaceChildren();
   const nextFloor = state.floor + 1;
@@ -94,7 +114,7 @@ export function renderStairsDown(optGrid) {
   }
   descend.addEventListener("click", () => {
     // The submenu closes with an animation; a second tap during it must not
-    // start another descent (double floor-transition heal).
+    // start another descent.
     if (state.transitioning) return;
     trackExplorationDecision("descend", { state, source: "stairs-down" });
     closeSubmenu();
@@ -110,5 +130,6 @@ export function renderStairsDown(optGrid) {
     closeSubmenu();
   });
 
-  optGrid.append(createRunStakesSummary(), descend, stay);
+  const recoveryNote = createRecoveryNote();
+  optGrid.append(createRunStakesSummary(), ...(recoveryNote ? [recoveryNote] : []), descend, stay);
 }
