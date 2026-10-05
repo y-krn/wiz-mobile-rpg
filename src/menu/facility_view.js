@@ -56,14 +56,14 @@ export function renderFacility(optGrid, facilityId, focusSelector = null) {
 
   const intro = document.createElement("p");
   intro.className = "facility-intro";
-  intro.textContent = `${facility.openDescription}素材を渡すと、次の潜行から使えるものが増える。`;
+  intro.textContent = `${facility.openDescription}素材を渡すと、次の冒険から使えるものが増える。`;
   optGrid.appendChild(intro);
 
   listFacilityNodes(facilityId, getContext()).forEach(({ node, bought, blockReason, canBuy }) => {
     const card = createActionCard({
       name: bought ? `${node.name}（解放済み）` : node.name,
       description: node.description,
-      cost: bought ? "次の潜行から使える" : formatCostLine(node.cost, blockReason),
+      cost: bought ? "次の冒険から使える" : formatCostLine(node.cost, blockReason),
       costClassName: !bought && blockReason ? "is-insufficient" : "",
       className: "facility-node",
       selected: bought,

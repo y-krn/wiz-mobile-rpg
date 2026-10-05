@@ -6,7 +6,7 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "single_enemy",
-    desc: "火の玉 (12-22 DMG)"
+    desc: "火の玉（12〜22ダメージ）"
   },
   KATINO: {
     name: "KATINO",
@@ -22,7 +22,7 @@ export const SPELLS = {
     level: 2,
     cost: 3,
     target: "all_enemies",
-    desc: "炎の嵐 (敵全体に15-35 DMG)"
+    desc: "炎の嵐（敵全体に15〜35ダメージ）"
   },
   DUMAPIC: {
     name: "DUMAPIC",
@@ -38,7 +38,7 @@ export const SPELLS = {
     level: 3,
     cost: 3,
     target: "single_enemy",
-    desc: "中級炎魔法 (30-50 DMG)"
+    desc: "中級炎魔法（30〜50ダメージ）"
   },
   MASFEAL: {
     name: "MASFEAL",
@@ -54,7 +54,7 @@ export const SPELLS = {
     level: 6,
     cost: 4,
     target: "all_enemies",
-    desc: "氷結呪文 (30-60 DMG)"
+    desc: "氷結呪文（30〜60ダメージ）"
   },
   TILTOWAIT: {
     name: "TILTOWAIT",
@@ -62,7 +62,7 @@ export const SPELLS = {
     level: 8,
     cost: 6,
     target: "all_enemies",
-    desc: "極大爆裂呪文 (50-100 DMG)"
+    desc: "極大爆裂呪文（50〜100ダメージ）"
   },
 
   // Priest Spells

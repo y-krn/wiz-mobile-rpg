@@ -17,9 +17,11 @@ const logs = applyPendingOutcomeRewards(stateLike, {
   floor: 5
 });
 
+// The forge seal has nothing behind it in the workshop yet, so the line
+// promises nothing there.
 assert.deepEqual(logs, [
-  "B5F開始を恒久アンロックした。",
-  "【恒久解放】鍛造殿の印を手に入れた。工房に「深層ビルド」の強化が並ぶようになった。"
+  "B5Fから冒険を始められるようになった。",
+  "【恒久解放】鍛造殿の印を手に入れた。"
 ]);
 assert.equal(stateLike.map[0][0].event, null);
 assert.equal(stateLike.map[0][0].type, "stairs-down");
@@ -28,5 +30,21 @@ assert.deepEqual(stateLike.currentRun.defeatedMilestones, [5]);
 assert.deepEqual(stateLike.unlockedMilestones, [5]);
 assert.deepEqual(stateLike.keyItems, ["FORGE_SEAL"]);
 assert.equal(stateLike.mapRevision, 1);
+
+// The abyss seal opens a workshop shelf, named as the workshop names it.
+const deepState = {
+  floor: 10,
+  x: 0,
+  y: 0,
+  map: [[{ type: "empty", event: "boss", milestoneFloor: 10 }]],
+  currentRun: { defeatedMilestones: [5] },
+  unlockedMilestones: [5],
+  keyItems: ["FORGE_SEAL"],
+  mapRevision: 0
+};
+assert.deepEqual(applyPendingOutcomeRewards(deepState, { kind: "milestoneVictory", floor: 10 }), [
+  "B10Fから冒険を始められるようになった。",
+  "【恒久解放】深淵の印を手に入れた。工房に「深淵の型」が並ぶようになった。"
+]);
 
 console.log("[PASS] milestone boss victory opens a local stairs-down shortcut");

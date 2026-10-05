@@ -25,7 +25,7 @@ export function createRecordsStripViewModel(records: unknown): RecordsStripViewM
     records: [
       { key: "retreat", label: "帰還最深", value: floorText(normalized.deepestRetreat) },
       { key: "death", label: "死亡最深", value: floorText(normalized.deepestDeath) },
-      { key: "runs", label: "総潜行", value: String(normalized.totalRuns) },
+      { key: "runs", label: "冒険の数", value: String(normalized.totalRuns) },
     ],
   };
 }

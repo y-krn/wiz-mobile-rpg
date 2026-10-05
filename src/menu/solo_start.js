@@ -112,11 +112,11 @@ function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
       state.storage = purchase.storage;
       departureCraft = purchase.recipeIds;
       addLog(
-        `出発クラフト：${purchase.recipeIds.length}品を製作した（` +
+        `出発前に${purchase.recipeIds.length}品を作った（` +
         `${formatCraftPayment(purchase.payment)}）。`
       );
     } else {
-      addLog("出発クラフトの素材が不足したため、何も持たずに出発する。");
+      addLog("素材が足りず、何も作らずに出発する。");
     }
   }
   state.lastPreparation = normalizeLastPreparation({
@@ -128,7 +128,7 @@ function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
   departureCraftQuantities = new Map();
   droppedPreparationLines = [];
   state.party = [character];
-  addLog(`${kit.name}で単独潜行を開始する。`);
+  addLog(`${kit.name}で、ひとり迷宮へ向かう。`);
   executeEnterDungeon(startFloor, { departureCraft });
   return true;
 }
@@ -241,22 +241,23 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
   )).length;
   const summary = document.createElement("section");
   summary.className = "solo-start-craft-summary solo-preparation-summary";
-  summary.setAttribute("aria-label", "今回の出発条件");
+  summary.setAttribute("aria-label", "今回の支度");
   summary.setAttribute("aria-live", "polite");
 
   const heading = document.createElement("div");
   heading.className = "solo-preparation-heading";
   const title = document.createElement("strong");
-  title.textContent = "今回の出発条件";
+  title.textContent = "今回の支度";
   const count = document.createElement("span");
   count.className = "solo-start-craft-summary-title";
-  count.textContent = `持ち込み ${selectedItems.length}/${DEPARTURE_BAG_CAPACITY}（出発クラフト ${craftedItemCount}品）`;
+  // What is newly made is said only when something is.
+  count.textContent = `持ち込み ${selectedItems.length}/${DEPARTURE_BAG_CAPACITY}${craftedItemCount > 0 ? `（うち${craftedItemCount}品は出発前に作る）` : ""}`;
   heading.append(title, count);
   summary.appendChild(heading);
 
   const slotNote = document.createElement("div");
   slotNote.className = "solo-preparation-slot-note";
-  slotNote.textContent = `空き ${DEPARTURE_BAG_CAPACITY - selectedItems.length}枠：迷宮で拾う品の余地`;
+  slotNote.textContent = `空き ${DEPARTURE_BAG_CAPACITY - selectedItems.length}枠は、迷宮で拾う品のために残る。`;
   summary.appendChild(slotNote);
 
   const slots = document.createElement("div");
@@ -270,7 +271,7 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
     slot.textContent = itemId ? getShortItemName(itemId) : "空き";
     slot.setAttribute("aria-label", itemId
       ? `${index + 1}枠目：${ITEMS[itemId]?.name || itemId}`
-      : `${index + 1}枠目：迷宮で拾う品の余地`);
+      : `${index + 1}枠目：空き`);
     slots.appendChild(slot);
   }
   summary.appendChild(slots);
@@ -279,37 +280,42 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
   conditions.className = "solo-preparation-conditions";
   const startingCharacter = createDeparturePreviewCharacter(startingKitId, startingGear);
   const equipmentLoad = getEquipmentLoadPlayerCopy(startingCharacter);
-  appendPreparationRow(conditions, "開始キット", `${getStartingKit(startingKitId)?.name || "—"}（装備セット）`);
+  // Only what applies to this kit is listed: no row says "none".
+  appendPreparationRow(conditions, "開始キット", getStartingKit(startingKitId)?.name || "—");
   appendPreparationRow(
     conditions,
     "行動の速さ",
     formatLoadCopy(equipmentLoad),
     "solo-preparation-load"
   );
-  appendPreparationRow(
-    conditions,
-    "開始武器の差し替え",
-    startingGear ? `${getStartingGearName(startingGear)}（工房で解放）` : "なし",
-    "solo-preparation-equipment"
-  );
+  if (startingGear) {
+    appendPreparationRow(
+      conditions,
+      "替えた武器",
+      `${getStartingGearName(startingGear)}（工房で解放）`,
+      "solo-preparation-equipment"
+    );
+  }
   const startingEquipment = Object.values(startingCharacter.equipment || {})
     .filter(Boolean)
-    .map(itemId => `${ITEMS[itemId]?.name || itemId}（バッグ外）`)
-    .join("・") || "なし（バッグ外）";
-  appendPreparationRow(conditions, "装備中", startingEquipment, "solo-preparation-equipment");
+    .map(itemId => ITEMS[itemId]?.name || itemId)
+    .join("・");
+  if (startingEquipment) {
+    appendPreparationRow(conditions, "身につける品", startingEquipment, "solo-preparation-equipment");
+  }
   const medium = getEquippedMedium(startingCharacter);
-  appendPreparationRow(
-    conditions,
-    "媒体",
-    medium ? `${ITEMS[medium.item]?.name || medium.item} / ルーン枠 ${medium.runeSlots}` : "なし / ルーン枠 0"
-  );
-  appendPreparationRow(
-    conditions,
-    "使用中のルーン",
-    getActiveRuneSpellKeys(startingCharacter)
-      .map(spellKey => ITEMS[getRuneItemId(spellKey)]?.name || spellKey)
-      .join("・") || "なし"
-  );
+  if (medium) {
+    appendPreparationRow(
+      conditions,
+      "呪文の媒体",
+      `${ITEMS[medium.item]?.name || medium.item}（ルーン枠 ${medium.runeSlots}）`,
+      "solo-preparation-medium"
+    );
+  }
+  const activeRunes = getActiveRuneSpellKeys(startingCharacter)
+    .map(spellKey => ITEMS[getRuneItemId(spellKey)]?.name || spellKey)
+    .join("・");
+  if (activeRunes) appendPreparationRow(conditions, "使うルーン", activeRunes, "solo-preparation-runes");
   const nearestFeat = getNearestFeats(state.feats, null, 1)[0];
   if (nearestFeat) {
     appendPreparationRow(
@@ -320,9 +326,9 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
     );
   }
   const startFloorLabel = selectedStartFloor === null
-    ? "未選択"
+    ? "まだ選んでいない"
     : `B${selectedStartFloor}F・${getFloorBand(selectedStartFloor)}（${getFloorTheme(selectedStartFloor).name}）`;
-  appendPreparationRow(conditions, "開始階", startFloorLabel);
+  appendPreparationRow(conditions, "開始階", startFloorLabel, "solo-preparation-floor");
   summary.appendChild(conditions);
 
   optGrid.appendChild(summary);
@@ -372,7 +378,7 @@ function renderDepartureCraftOptions(optGrid, startingKitId, startingGear) {
     badge.textContent = `${material} ${remaining}${remaining < original ? ` (-${original - remaining})` : ""}`;
     balances.appendChild(badge);
   });
-  balances.setAttribute("aria-label", `クラフト後の残素材：${formatCraftPayment(selectedCost)}`);
+  balances.setAttribute("aria-label", `作ったあとの素材：${formatCraftPayment(selectedCost)}`);
   summary.appendChild(balances);
 
   const craftHeading = document.createElement("h3");
@@ -504,7 +510,9 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
     const floorName = document.createElement("strong");
     floorName.textContent = `B${floor}Fから開始 · ${getFloorBand(floor)}`;
     const floorDetail = document.createElement("span");
-    floorDetail.textContent = `${theme.name} / 素材収入 ${Math.round(multiplier * 100)}%`;
+    floorDetail.textContent = multiplier < 1
+      ? `${theme.name} / 手に入る素材は${Math.round(multiplier * 10)}割`
+      : theme.name;
     button.append(floorName, floorDetail);
     button.dataset.startFloor = String(floor);
     button.setAttribute("aria-pressed", String(selectedStartFloor === floor));
