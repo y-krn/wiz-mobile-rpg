@@ -64,6 +64,10 @@ enforces these directory and naming boundaries.
    | `--speed 1` | 演出を実時間で再生（既定 0.1 = 10倍速） |
    | `--seedTimeout 900` | 1シードの上限秒数（`0` で無制限）。超えたらその時点の状態（`snapshot`）を残して1回だけ再試行し、それでも失敗したら `error` として記録して次のシードへ進む |
    | `--allowHmr` | Vite の HMR リロードを遮断しない（既定では遮断する。下の注意を参照） |
+   | `--jobs 4` | 同時に回すラン数（既定 1）。ランごとに別のブラウザを使う |
+   | `--fps 1` | ゲームの描画を秒 n 回に間引く（既定はヘッドレスで 1、`--headed` では間引かない。`0` で間引かない） |
+
+   計測を速く回すには `--jobs` を付ける。ゲームは毎フレーム画面を描き直すので、GPU の無い環境では描画が CPU を使い切る。`--fps` の既定（秒1回）で描画の負荷がほぼ無くなり、並列に回せるようになる。間引きと並列の有無で、同じシードの展開（戦闘・戦利品・到達階・死因）は変わらない。`--jobs` は CPU のコア数の2倍までを目安にする。それを超えると各ランが遅くなり、`journal` のうち自動プレイがタップの前後に書き留める行（ログの写しや階段到着時の状態）が1〜2行抜けたり増えたりすることがある。最後に `N runs in Ns` と所要時間が出る。
 
 4. 修正前後を同じマップで比べる。比較したい ref を別の worktree で別ポートに起動し、`--compare` で並べる。
 
@@ -123,6 +127,16 @@ Options:
 - `--allowHmr` — let Vite HMR reload the page. By default the runner drops HMR
   messages in the browser so a source edit or branch switch does not destroy a
   running seed; affected seeds carry `hmrSuppressed`
+- `--jobs N` — play N runs at once, each in its own browser (default 1).
+  Results stay in seed order per side
+- `--fps N` — hand the page N animation frames per second (default 1
+  headless, no limit with `--headed`; `0` = no limit). The game redraws every
+  frame, so without a GPU the drawing, not the game logic, uses up the CPU.
+
+Neither option changes how a seed plays out (fights, loot, depth, cause of
+death). Keep `--jobs` at about twice the CPU cores: past that every run slows
+down, and the journal's bookkeeping lines (the log line or status the bot
+samples around a tap) can gain or lose a line.
 
 `--out` is rewritten after every seed and on Ctrl-C (`complete: false` until
 all seeds finish). Uncaught page exceptions are kept per seed in `pageErrors`.
