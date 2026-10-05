@@ -141,9 +141,13 @@ test('The bars hold the reserve to what is missing, and poison suspends it', asy
   await expect(page.locator('.goal-recovery-stat')).toHaveText('♨️ 歩いて回復 毒で止まっている');
   await expect(hpRow.locator('.bar-reserve')).toHaveCount(0);
   await expect(mpRow.locator('.bar-reserve')).toHaveCount(0);
+  // Poison bites on some steps at random; hold the roll so this step shows
+  // only that recovery is suspended.
+  await page.evaluate(() => { window.__realRandom = Math.random; Math.random = () => 0.99; });
   await stepForward(page);
   await expect.poll(() => page.evaluate(async () => (await import('/src/state.js')).state.y)).toBe(3);
   expect(await heroHp(page)).toBe(97);
+  await page.evaluate(() => { Math.random = window.__realRandom; });
 
   // Full HP and MP: nothing to show on the bars or the stairs menu.
   await page.evaluate(async () => {
