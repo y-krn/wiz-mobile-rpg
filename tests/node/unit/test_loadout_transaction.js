@@ -335,6 +335,19 @@ assert.ok(state.party[0].mp < 999 && Number.isFinite(state.party[0].mp), "finite
 assert.equal(state.logs.at(-1), "装備を変更した。ダガー → ショートソード");
 assert.equal(staged.draft.committed, true, "successful commit marks the draft only after applying it");
 
+// Two different pieces can share a name: the log says "another" one, not "X → X".
+const sameNameCharacter = createStartingKitCharacter("vanguard");
+const sameNameBaseId = typeof sameNameCharacter.equipment.weapon === "string"
+  ? sameNameCharacter.equipment.weapon
+  : sameNameCharacter.equipment.weapon.baseId;
+const sameNameItem = { kind: "equipment", instanceId: "same-name", baseId: sameNameBaseId, rarity: "common", identified: true, affixes: [] };
+resetState(sameNameCharacter, [sameNameItem]);
+state.gameState = "explore";
+const sameNameStage = stageEquip(createLoadoutDraft(state), { actorIdx: 0, inventoryIndex: 0, requestedSlot: "weapon" });
+assert.equal(sameNameStage.ok, true);
+assert.equal(commitLoadoutDraft(sameNameStage.draft, { stateLike: state }).ok, true);
+assert.match(state.logs.at(-1), /^装備を変更した。(.+) → 別の\1$/);
+
 // Trial turn-cost reason is exact when the location constraint is satisfied.
 const strictTrialCharacter = createStartingKitCharacter("vanguard");
 const strictTrialItem = { ...unknownTrial, instanceId: "strict-trial", knowledgeStage: "discovery", trialCount: 0, curseLocked: false };

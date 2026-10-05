@@ -299,8 +299,9 @@
   touch-action: auto;
 }
 
-/* No adventurer is selected in town before the first departure. */
-#game-container.town-home-mode #character-panel:has(#character-hud > .list-empty) {
+/* No adventurer is selected in town before the first departure. That holds
+   for the town menus too, not only the town home. */
+#game-container #character-panel:has(#character-hud > .list-empty) {
   display: none;
 }
 

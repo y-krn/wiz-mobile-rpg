@@ -481,12 +481,16 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   floorHeading.className = "solo-start-floor-heading";
   const floorTitle = document.createElement("strong");
   floorTitle.textContent = "開始階を選ぶ";
-  const floorHint = document.createElement("span");
-  floorHint.textContent = "深度帯を主情報に、素材倍率は補足表示";
-  floorHeading.append(floorTitle, floorHint);
+  floorHeading.append(floorTitle);
   floorSection.appendChild(floorHeading);
 
   const floors = [1, ...(state.unlockedMilestones || [])];
+  // The trade-off only matters once there is a deeper floor to pick.
+  if (floors.length > 1) {
+    const floorHint = document.createElement("span");
+    floorHint.textContent = "深い階から始めると、手に入る素材は少なくなる。";
+    floorHeading.append(floorHint);
+  }
   // With a single candidate there is nothing to choose: start with it
   // selected so the confirm button is ready. Several candidates keep the
   // explicit choice.
