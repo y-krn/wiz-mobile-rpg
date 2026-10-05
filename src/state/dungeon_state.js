@@ -164,7 +164,7 @@ export function calculateSeedProperties() {
     label = "極限の魔城";
   } else if (finalScore >= 50) {
     rank = "A";
-    label = "危険な遠征";
+    label = "危険な冒険";
   } else if (finalScore >= 35) {
     rank = "B";
     label = "深部探索";

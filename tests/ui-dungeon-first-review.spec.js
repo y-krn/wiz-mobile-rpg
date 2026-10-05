@@ -203,7 +203,7 @@ for (const renderer of ['pixi']) {
       updateUI();
     });
     await page.locator('#btn-combat-spell').click();
-    await page.locator('#combat-overlay .combat-item-card.spell', { has: page.locator('.spell-name', { hasText: /^HALITO$/ }) }).click();
+    await page.locator('#combat-overlay .combat-item-card.spell', { has: page.locator('.spell-name', { hasText: /^火矢$/ }) }).click();
     await selectCanvasEnemy(page);
     await expect.poll(() => page.evaluate(async () => (await import('/src/combat.js')).combatSelection.actions[0])).toMatchObject({ type: 'spell', targetIdx: 0, spellName: 'HALITO' });
   });

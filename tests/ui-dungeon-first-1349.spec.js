@@ -150,7 +150,7 @@ for (const viewport of [VIEWPORT, { width: 440, height: 780 }, { width: 375, hei
   });
 }
 
-const LONG_RECENT_LINE = '[戦果解決] 古びたレザーアーマー（未鑑定）を持ち帰り候補として確保した。重量に注意して帰還を検討しよう';
+const LONG_RECENT_LINE = '古びたレザーアーマー（未鑑定）を持ち帰り候補として確保した。重量に注意して帰還を検討しよう';
 
 function rectsOverlap(a, b) {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;

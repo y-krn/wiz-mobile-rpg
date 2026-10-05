@@ -9144,7 +9144,7 @@ function buildEnemyActionDetails(roundResult, roundNumber, characterName) {
       const actionNames = [...(observation.actionNames || [])];
       if (actionNames.length === 0) {
         if (logs.some(entry => String(entry.msg || "").includes("狙撃"))) actionNames.push("狙撃");
-        else if (logs.some(entry => String(entry.msg || "").includes("ティルトウェイト"))) actionNames.push("TILTOWAIT");
+        else if (logs.some(entry => String(entry.msg || "").includes("大爆裂"))) actionNames.push("TILTOWAIT");
         else if (damageEvents.length > 0) actionNames.push("通常攻撃");
       }
       const conditions = [...(observation.conditions || [])];

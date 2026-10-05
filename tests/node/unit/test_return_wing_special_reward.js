@@ -188,7 +188,7 @@ await liveCheck("live opening handles duplicate and full Return Wing inventory",
   resolvePending({ leaveAll: true });
   assert.equal(state.inventory.length, 20, "full inventory should not overflow");
   assert.equal(state.inventory.includes("TOWN_PORTAL"), false);
-  assert.ok(state.logs.some(log => log.includes("戦果解決")));
+  assert.ok(state.logs.some(log => log.includes("を置いていく。")));
 });
 
 await liveCheck("live failed automatic disarm still resolves the trap and rewards", async () => {

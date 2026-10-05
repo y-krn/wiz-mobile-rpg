@@ -85,7 +85,7 @@ try {
   state.logEntries = [];
   const loggedOmen = getOmenForFloor(state.seed, state.floor);
   assert.strictEqual(checkFloorOmenMessage(), undefined, "checkFloorOmenMessage return must remain undefined");
-  assert.deepEqual(state.logs, loggedOmen ? [`[予兆] ${loggedOmen.text}`] : [], "omen log must remain exact");
+  assert.deepEqual(state.logs, loggedOmen ? [`【予兆】${loggedOmen.text}`] : [], "omen log must remain exact");
 
   state.seed = "";
   state.logs = [];

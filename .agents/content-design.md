@@ -11,6 +11,8 @@ a review lens, not a catalogue of the current content implementation.
 - Items, enemies, spells, classes, feats, rewards, events, descriptions,
   labels, and display text.
 - Clarity, theme fit, player motivation, terminology, and progression fit.
+- Fixed terms, names, and log-line tags are listed in `.agents/glossary.md`;
+  check new text against it and add a row when a new concept needs a name.
 - The amount of new vocabulary, choice pressure, and implementation cost that
   a content change creates.
 

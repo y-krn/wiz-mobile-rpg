@@ -146,7 +146,7 @@ function digVein(cell) {
   grantRunMaterials(materials);
   const text = Object.entries(materials).map(([name, quantity]) => `${name} x${quantity}`).join(", ");
   playSound("item");
-  addLog(`鉱脈から素材を掘り出した！ [${text}]`);
+  addLog(`鉱脈から素材を掘り出した：${text}`);
   finishRoom(cell);
   if (Math.random() < VEIN_AMBUSH_CHANCE) {
     addLog("採掘の音を聞きつけて、魔物が這い出してきた！");
@@ -177,7 +177,7 @@ function addAltarOptions(optGrid, cell) {
     if (!paid) return;
     const cleared = cleanseAltarStatuses(hero, { hasStatusEffect, removeStatusEffect, ids: CLEANSABLE_STATUSES });
     playSound("heal");
-    addLog(`祭壇に [${paid}] を捧げた。${cleared.length > 0 ? "体を蝕んでいたものが消え去った。" : "清らかな光に包まれた。"}`);
+    addLog(`祭壇に${paid}を捧げた。${cleared.length > 0 ? "体を蝕んでいたものが消え去った。" : "清らかな光に包まれた。"}`);
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !hero || statuses.length === 0 || materials < ALTAR_CLEANSE_MATERIAL_COST });
@@ -203,7 +203,7 @@ function renderAltar(optGrid, cell) {
 function renderChapelAltar(optGrid, cell) {
   const run = state.currentRun;
   const hasGrave = isFacilityNodeBought(state.facilities, "chapel_grave");
-  addDescription(optGrid, `浄めは体を蝕むものを消し、血の祝福はMPを満たす。献灯で街へ送った素材は、この先で死んでも失わない。${hasGrave ? "墓標に祈れば、前の死で失った素材が戻る。" : ""}祭壇が応えるのは、この潜行で一度きり。`);
+  addDescription(optGrid, `浄めは体を蝕むものを消し、血の祝福はMPを満たす。献灯で街へ送った素材は、この先で死んでも失わない。${hasGrave ? "墓標に祈れば、前の死で失った素材が戻る。" : ""}祭壇が応えるのは、この冒険で一度きり。`);
   addAltarOptions(optGrid, cell);
   const choices = getOfferingChoices(run?.materials, CHAPEL_OFFERING_LIMIT);
   choices.forEach(choice => {
@@ -227,7 +227,7 @@ function renderChapelAltar(optGrid, cell) {
     grantRunMaterials(grave);
     state.facilities = { ...normalizeFacilitiesState(state.facilities), grave: {} };
     playSound("item");
-    addLog(`墓標に祈った。前の死で失った素材が手元に戻った。 [${graveText}]`);
+    addLog(`墓標に祈った。前の死で失った素材が手元に戻った：${graveText}`);
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !graveText });
@@ -276,7 +276,7 @@ function renderForge(optGrid, cell) {
     if (!paid) return;
     const temper = applyForgeTemper(hero, weaponAtk);
     playSound("item");
-    addLog(`炉に [${paid}] をくべた。武器が赤く輝く！（攻撃力+${temper.bonus}、${temper.battles}戦）`);
+    addLog(`炉に${paid}をくべた。武器が赤く輝く！（攻撃力+${temper.bonus}、${temper.battles}戦）`);
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !hero || hero.forgeTemper || materials < FORGE_MATERIAL_COST });
@@ -301,7 +301,7 @@ function renderSmithForge(optGrid, cell) {
     if (!paid) return;
     const temper = applyForgeTemper(hero, weaponAtk, SMITH_TEMPER_BATTLES);
     playSound("item");
-    addLog(`鍛冶師の炉に [${paid}] をくべた。武器が赤く輝く！（攻撃力+${temper.bonus}、${temper.battles}戦）`);
+    addLog(`鍛冶師の炉に${paid}をくべた。武器が赤く輝く！（攻撃力+${temper.bonus}、${temper.battles}戦）`);
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !hero || hero.forgeTemper || materials < FORGE_MATERIAL_COST });
@@ -319,7 +319,7 @@ function renderSmithForge(optGrid, cell) {
     // The weapon keeps its identity as a medium: its runes stay set.
     syncMediumState(hero, { preserveRunes: true });
     playSound("level_up");
-    addLog(`鍛冶師の炉に [${paid}] をくべ、武器を打ち直した。➔ [${getItemData(reforged)?.name || "武器"}]`);
+    addLog(`鍛冶師の炉に${paid}をくべ、武器を打ち直した。${getItemData(reforged)?.name || "武器"}になった。`);
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !hero || reforgedLevel === null || materials < REFORGE_MATERIAL_COST });
@@ -338,7 +338,7 @@ function renderOathAltar(optGrid, cell) {
   const maxMp = hero ? getCharMaxMp(hero) : 0;
   addDescription(optGrid, `鏡を覗くか、誓約を立てるか、どちらか一方。${hasGallery
     ? "回廊の鏡は生気を奪わず、2つ先の階まで下り階段の場所を映す。"
-    : "鏡は生気と引き換えに、次の階の下り階段の場所を映す。"}誓約を立てればHPとMPがすべて戻るが、この潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない。`);
+    : "鏡は生気と引き換えに、次の階の下り階段の場所を映す。"}誓約を立てればHPとMPがすべて戻るが、この冒険で死ぬか断念すると、手持ちの素材は1つも街に残らない。`);
   addButton(optGrid, hasGallery ? "鏡の回廊を覗く（2階先まで）" : `鏡を覗く（HP${cost}）`, () => {
     hero.hp -= cost;
     getSpecialRoom(cell).vision = hasGallery ? GALLERY_VISION_FLOORS : 1;
@@ -356,7 +356,7 @@ function renderOathAltar(optGrid, cell) {
     run.oath = true;
     playSound("heal");
     addLog("祭壇に誓った。生きて帰る、と。傷が塞がり、力が満ちた。");
-    addLog("【誓約】この潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない。");
+    addLog("誓約を立てた。この冒険で死ぬか断念すると、手持ちの素材は1つも街に残らない。");
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !hero || !run || run.oath === true });
@@ -449,7 +449,7 @@ function renderFuelRescue(optGrid, cell, facility) {
   addButton(optGrid, `素材をくべて火を入れる（素材${cost}個）`, () => {
     const paid = payRunMaterials(cost);
     if (!paid) return;
-    addLog(`炉に [${paid}] をくべた。火が入り、鉄の扉が開いた。${facility.companion.name}が出てきた。「助かった。街まで頼む」`);
+    addLog(`炉に${paid}をくべた。火が入り、鉄の扉が開いた。${facility.companion.name}が出てきた。「助かった。街まで頼む」`);
     addCompanion(facility);
     finishRoom(cell);
     closeSubmenu();
@@ -548,8 +548,8 @@ function renderWeaverHammock(optGrid, cell) {
   const equipmentDef = hero ? getCharEquipmentDef(hero) : 0;
   const mendBonus = getArmorMendAmount(equipmentDef);
   addDescription(optGrid, canMend
-    ? "ひと休みするか、防具を繕ってもらうか、どちらか一方。使えるのは、この潜行で一度きり。"
-    : "ここでひと休みできる。途中で魔物に襲われたら、休みは切り上げになる。使えるのは、この潜行で一度きり。");
+    ? "ひと休みするか、防具を繕ってもらうか、どちらか一方。使えるのは、この冒険で一度きり。"
+    : "ここでひと休みできる。途中で魔物に襲われたら、休みは切り上げになる。使えるのは、この冒険で一度きり。");
   addButton(optGrid, `吊り寝床で休む（${left}手番・HP+${healed}）`, () => {
     closeSubmenu();
     restInHammock(cell);
@@ -561,7 +561,7 @@ function renderWeaverHammock(optGrid, cell) {
     if (!paid) return;
     const mend = applyArmorMend(hero, equipmentDef);
     playSound("item");
-    addLog(`繕い台に [${paid}] を渡した。防具の綻びが繕われた！（防御力+${mend.bonus}、${mend.battles}戦）`);
+    addLog(`繕い台に${paid}を渡した。防具の綻びが繕われた！（防御力+${mend.bonus}、${mend.battles}戦）`);
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !hero || Boolean(hero.armorMend) || materials < MENDING_MATERIAL_COST || (room.progress || 0) > 0 });
@@ -614,8 +614,8 @@ function renderMinerOutpost(optGrid, cell) {
   const bagFull = !hasInventorySpace(state.inventory);
   const canBlast = isFacilityNodeBought(state.facilities, "miner_blast");
   addDescription(optGrid, canBlast
-    ? "補給を1つ受け取るか、発破を頼むか、どちらか一方。応じてくれるのは、この潜行で一度きり。"
-    : "補給を1つ分けてくれる。応じてくれるのは、この潜行で一度きり。");
+    ? "補給を1つ受け取るか、発破を頼むか、どちらか一方。応じてくれるのは、この冒険で一度きり。"
+    : "補給を1つ分けてくれる。応じてくれるのは、この冒険で一度きり。");
   OUTPOST_SUPPLY_ITEM_IDS.forEach(itemId => {
     const name = String(ITEMS[itemId]?.name || itemId).replace(/\s*[（(].*?[）)]/g, "");
     addButton(optGrid, `${name}を受け取る`, () => {
@@ -636,7 +636,7 @@ function renderMinerOutpost(optGrid, cell) {
     playSound("bump");
     const stairsText = stairs[0] ? `下り階段は${describeDirection(state, stairs[0])}にある。` : "";
     addLog(`轟音が坑道を揺らした。${cleared > 0 ? `瓦礫${cleared}か所が吹き飛んだ。` : "この階に瓦礫は残っていなかった。"}${stairsText}`);
-    addLog("[物音] 発破の音が階じゅうに響いた。魔物が集まってくるかもしれない。");
+    addLog("発破の音が階じゅうに響いた。魔物が集まってくるかもしれない。");
     finishRoom(cell);
     closeSubmenu();
   });

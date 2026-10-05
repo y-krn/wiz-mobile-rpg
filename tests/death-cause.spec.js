@@ -125,7 +125,7 @@ test('spring poison uses the finite exploration lifecycle', async ({ page }) => 
     remainingTurns: 9,
     source: 'spring'
   });
-  expect(lifecycle.afterSpring.logs[0]).toMatch(/^\[!\] .+は毒に侵された。$/);
+  expect(lifecycle.afterSpring.logs[0]).toMatch(/^.+は毒に侵された。$/);
   expect(lifecycle.afterSpring.logs[1]).toBe('毒はそれほど深くない。やがて体から抜けるだろう。');
   expect(lifecycle.afterSpring.logs.join(' ')).not.toMatch(/10歩|残り\d+歩/);
   expect(lifecycle.afterFirstStep).toEqual({ status: 'poisoned', remainingTurns: 8 });

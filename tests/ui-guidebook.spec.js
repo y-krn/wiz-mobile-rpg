@@ -95,5 +95,5 @@ test('Fragments are lost with a death and the third page settles its feat in the
   expect(after.spirit - before).toBe(4);
   expect(after.feat).toBe(true);
   expect(after.guidebook).toEqual({ fragments: 0, decoded: 3 });
-  expect(after.log).toContain('【偉業達成】手引き書を読み解く');
+  expect(after.log).toContain('偉業「手引き書を読み解く」を達成した');
 });

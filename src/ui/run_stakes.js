@@ -79,7 +79,7 @@ export function createRunStakesSummary(
 
   const summary = document.createElement("section");
   summary.className = "run-stakes-summary";
-  summary.setAttribute("aria-label", "潜行中の素材と持ち込み品の賭け金");
+  summary.setAttribute("aria-label", "冒険中の素材と持ち込み品の賭け金");
 
   // The two cells below carry the numbers once each; the title only names
   // the block. Unused supplies are listed only when there are some.

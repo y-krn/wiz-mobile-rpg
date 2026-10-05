@@ -39,8 +39,8 @@ test('HEAL_POTION use in the explore menu returns to the usable item list @e2e @
   await inspectBtn.click();
   await expect(page.locator('#submenu-controls')).toBeVisible();
 
-  // 3. 「傷薬 (ディオス薬)」を選択
-  const potionBtns = page.locator('button:has-text("傷薬 (ディオス薬)")');
+  // 3. 「傷薬」を選択
+  const potionBtns = page.locator('button:has-text("傷薬")');
   // executeEnterDungeon()の開始数に、テストで追加した1個を足した数
   const initialPotionCount = await potionBtns.count();
   expect(initialPotionCount).toBeGreaterThan(0);

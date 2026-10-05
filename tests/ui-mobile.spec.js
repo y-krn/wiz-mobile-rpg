@@ -699,7 +699,7 @@ for (const vp of VIEWPORTS) {
         const { openSubmenu } = await import('/src/navigation.js');
         openSubmenu('event_camp', '野営地');
       });
-      await expect(page.getByText('すでに今回の遠征中に休息した')).toBeVisible();
+      await expect(page.getByText('すでにこの冒険のあいだに休んだ')).toBeVisible();
       await expect(page.getByRole('button', { name: '休息する' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '休息せず進む' })).toBeVisible();
     });

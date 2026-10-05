@@ -4,7 +4,7 @@ import { test, expect } from './fixtures/browser-health.js';
 // explicit ellipsis or left out whole, never clipped mid-line, and the full
 // text stays one tap away behind #btn-log-expand (#1823).
 const WARNING = '[警告] 火薬コウモリの体が赤く膨らみ、爆ぜる寸前だ！';
-const REWARD = '  -> 初討伐の追加報酬 / 素材: [獣の牙 x1]';
+const REWARD = '初めて倒した報酬：獣の牙×1';
 const NEWEST = '[味方] 冒険者の攻撃！しかし群れネズミは霧のようにかわした！';
 const VIEWPORTS = [{ width: 390, height: 844 }, { width: 375, height: 667 }];
 
@@ -101,7 +101,7 @@ for (const viewport of VIEWPORTS) {
 
     await page.locator('#btn-log-expand').click();
     await expect(page.locator('#log-overlay-body')).toContainText('霧のようにかわした！');
-    await expect(page.locator('#log-overlay-body')).toContainText('[獣の牙 x1]');
+    await expect(page.locator('#log-overlay-body')).toContainText('獣の牙×1');
   });
 
   test(`explore event strip keeps its budget and never cuts a row at ${size}`, async ({ page }, testInfo) => {

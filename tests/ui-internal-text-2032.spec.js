@@ -26,7 +26,7 @@ async function showResult(page, { reason, outcome, lostTownItems = [] }) {
     state.party = [createStartingKitCharacter('vanguard')];
     state.currentRun = run;
     // The label of the screen the run ended on must not survive.
-    document.getElementById('location-label').textContent = 'COMBAT';
+    document.getElementById('location-label').textContent = '戦闘';
     state.gameState = 'result';
     updateUI();
   }, { reason, outcome, lostTownItems });
@@ -42,7 +42,7 @@ test('Death result with nothing carried in does not claim lost supplies or repea
   const memory = page.locator('[data-result-memory]');
   await expect(memory).toContainText('まで到達');
   await expect(memory).not.toContainText('素材の一部を持ち帰った');
-  await expect(page.locator('#location-label')).toHaveText('RESULT');
+  await expect(page.locator('#location-label')).toHaveText('冒険の結果');
 });
 
 test('Death and abandon results still state the loss when supplies were carried in', async ({ page }) => {
@@ -71,7 +71,7 @@ for (const width of [390, 360, 320]) {
     });
 
     const status = page.locator('#character-hud .character-status');
-    await expect(status).toHaveText('PARALYZED');
+    await expect(status).toHaveText('麻痺');
     const rects = await page.evaluate(() => {
       const rect = element => {
         const box = element.getBoundingClientRect();

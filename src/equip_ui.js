@@ -87,10 +87,10 @@ const SLOT_LABELS = Object.fromEntries(
 );
 
 const RARITY_LABELS = {
-  common: "COMMON",
-  magic: "MAGIC",
-  rare: "RARE",
-  epic: "EPIC"
+  common: "通常",
+  magic: "魔法",
+  rare: "希少",
+  epic: "逸品"
 };
 
 export function openEquipOverlay(actorIdx = 0) {
@@ -190,8 +190,8 @@ export function closeEquipOverlay() {
   const hero = state.party[equipState.actorIdx];
   if (changed && hero && equipState.equipmentAtOpen) {
     compareEquipmentSets({ equipment: equipState.equipmentAtOpen }, hero).forEach(change => {
-      if (change.gained) addLog(`【系統】${change.label}が3つそろった（${change.effect}）。`);
-      else if (change.lost) addLog(`【系統】${change.label}のそろいが崩れた（${change.effect}が消えた）。`);
+      if (change.gained) addLog(`系統「${change.label}」が3つそろった（${change.effect}）。`);
+      else if (change.lost) addLog(`系統「${change.label}」のそろいが崩れた（${change.effect}が消えた）。`);
     });
   }
   equipState.equipmentAtOpen = null;
@@ -253,7 +253,7 @@ function createRarityBadge(itemKey, className = "") {
   const badge = document.createElement("span");
   badge.className = `equip-rarity-badge ${rarity.key} ${className}`.trim();
   badge.textContent = rarity.label;
-  badge.setAttribute("aria-label", `レア度 ${rarity.label}`);
+  badge.setAttribute("aria-label", `希少度 ${rarity.label}`);
   return badge;
 }
 
@@ -300,7 +300,7 @@ function createRunePanel(char) {
   if (medium && activeRunes.length > 0) {
     const activeHeading = document.createElement("strong");
     activeHeading.className = "equip-rune-state-heading";
-    activeHeading.textContent = "使用中のルーン（バッグ外）";
+    activeHeading.textContent = "使用中のルーン";
     panel.appendChild(activeHeading);
     const activeList = document.createElement("div");
     activeList.className = "equip-rune-list";
@@ -642,7 +642,7 @@ function createFooter(overlay, { organizing = false } = {}) {
     const turnNote = document.createElement("p");
     turnNote.className = "equip-turn-note";
     turnNote.setAttribute("role", "status");
-    turnNote.textContent = `変更済み。閉じると探索時間が${equipState.pendingTurns}ターン進みます`;
+    turnNote.textContent = `変更済み。閉じると${equipState.pendingTurns}手番が過ぎる`;
     footer.appendChild(turnNote);
   }
   footer.appendChild(closeRow);

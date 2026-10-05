@@ -278,8 +278,8 @@ export function triggerPitfall(trap, isPartialSuccess = false, action = "trigger
     const characterDead = applyFloorTrapDamage(effect, {
       cause: "落とし穴トラップ",
       source: "落とし穴",
-      damageMessage: (c, dmg) => `[!] ${c.name}は落下で${dmg}のダメージを受けた。`,
-      deathMessage: c => `[!] ${c.name}は力尽きた！`
+      damageMessage: (c, dmg) => `${c.name}は落下で${dmg}のダメージを受けた。`,
+      deathMessage: c => `${c.name}は力尽きた！`
     });
 
     if (state.currentRun) {
@@ -327,8 +327,8 @@ export function triggerTrap(trap, isPartialSuccess = false, action = "trigger") 
     const characterDead = applyFloorTrapDamage(effect, {
       cause: "仕掛けられた罠",
       source: "床のダメージ罠",
-      damageMessage: (c, dmg) => `[!] ${c.name}は${dmg}のダメージを受けた。`,
-      deathMessage: c => `[!] ${c.name}は力尽きた！`
+      damageMessage: (c, dmg) => `${c.name}は${dmg}のダメージを受けた。`,
+      deathMessage: c => `${c.name}は力尽きた！`
     });
     if (characterDead) {
       triggerGameOver();
@@ -339,14 +339,14 @@ export function triggerTrap(trap, isPartialSuccess = false, action = "trigger") 
     const drain = effect.mpDrain;
     if (character && drain > 0) {
       character.mp = Math.max(0, character.mp - drain);
-      addLog(`[!] ${character.name}のMPが${drain}減少した。`);
+      addLog(`${character.name}のMPが${drain}減少した。`);
     }
   } else if (trap.type === "alarm") {
     state.alarmActive = true;
     state.alarmWeakened = effect.alarmWeakened;
     if (!state.noiseEvents) state.noiseEvents = [];
     state.noiseEvents.push({ floor: state.floor, x: state.x, y: state.y, ttl: 4 });
-    addLog("【⚠️警報】けたたましい警報音が響き渡った！");
+    addLog("けたたましい警報音が響き渡った！");
   }
 
   return false;
@@ -408,7 +408,7 @@ export function handleTrapAction(action) {
 
     if (trap.type === "pitfall") {
       if (resolution.outcome === "disarmed") {
-        addLog("[味方] 【回避成功】慎重に縁を伝い、落とし穴を渡りきった！");
+        addLog("慎重に縁を伝い、落とし穴を渡りきった！");
         playSound("item");
         trap.state = "disabled";
         resolveEventObservation(getTrapObservationKey(trap));
@@ -428,7 +428,7 @@ export function handleTrapAction(action) {
         completePendingMove();
         endTrapEncounter();
       } else {
-        addLog("【失敗】バランスを崩して落とし穴に落ちてしまった！");
+        addLog("バランスを崩して落とし穴に落ちてしまった！");
         trap.state = "disabled";
         markMapChanged();
         if (state.currentRun) state.currentRun.trapsTriggered++;
@@ -443,7 +443,7 @@ export function handleTrapAction(action) {
     const codexTrapType = trap.type;
 
     if (resolution.outcome === "disarmed") {
-      addLog("[味方] 【解除成功】罠の機能を完全に停止した！");
+      addLog("罠を解除した。仕掛けは完全に止まった。");
       playSound("item");
       if (state.currentRun) state.currentRun.trapsDisarmed++;
       recordTrapCodex(codexTrapType, "disarmed");
@@ -458,14 +458,14 @@ export function handleTrapAction(action) {
         y: trap?.position?.y
       });
     } else if (resolution.partialSuccess) {
-      addLog("[味方] 【部分成功】完全には解除できなかったが、被害を最小限に抑えた！");
+      addLog("完全には解除できなかったが、被害を最小限に抑えた！");
       if (state.currentRun) state.currentRun.trapsTriggered++;
       recordTrapCodex(codexTrapType, "triggered");
       trap.state = "disabled";
       markMapChanged();
       if (triggerTrap(trap, true, "disarm")) return;
     } else {
-      addLog("【解除失敗】仕掛けが暴発した！");
+      addLog("解除に失敗し、仕掛けが暴発した！");
       if (state.currentRun) state.currentRun.trapsTriggered++;
       recordTrapCodex(codexTrapType, "triggered");
       trap.state = "disabled";

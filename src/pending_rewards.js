@@ -302,7 +302,7 @@ export function resolvePendingRewardBundle(stateLike = state) {
 
   if (actionEntries.length > 0) {
     const draft = validation.loadoutDraft;
-    if (!draft) return { ok: false, reason: "装備変更のdraftを作成できません。" };
+    if (!draft) return { ok: false, reason: "装備の変更を準備できなかった。" };
     commitResult = commitLoadoutDraft(draft, { stateLike, turnCost: 1, worldAction: "explore" });
     if (!commitResult.ok) return commitResult;
   } else {
@@ -328,8 +328,8 @@ export function resolvePendingRewardBundle(stateLike = state) {
     discardedNames.length ? `${discardedNames.join("・")}を置いて` : "",
     takenNames.length ? `${takenNames.join("・")}を持つ` : "",
     leftNames.length ? `${leftNames.join("・")}を置いていく` : ""
-  ].filter(Boolean).join("。 ");
-  addLog(summary ? `[戦果解決] ${summary}。` : "[戦果解決] 戦果を置いていった。");
+  ].filter(Boolean).join("。");
+  addLog(summary ? `${summary}。` : "戦果を置いていった。");
 
   clearPendingMenu(stateLike);
   if (commitResult.turnCost === 1) consumeExplorationTurn();

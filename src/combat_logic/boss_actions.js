@@ -56,7 +56,7 @@ export function resolveQueuedAncientDragonAction(mon, state, combatSelection, lo
     }
     recordAction("TILTOWAIT");
     logQueue.push({
-      msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
+      msg: `[ 敵 ] いにしえの竜は大爆裂を唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
       sound: "cast_spell",
       shake: 25,
       flash: true
@@ -91,7 +91,7 @@ export function resolveQueuedAncientDragonAction(mon, state, combatSelection, lo
         });
         if (c.hp === 0) {
           c.status = "dead";
-          const deathLog = recordCharDeath(state, c, "いにしえの竜のティルトウェイト", { type: "combat", source: "いにしえの竜" });
+          const deathLog = recordCharDeath(state, c, "いにしえの竜の大爆裂", { type: "combat", source: "いにしえの竜" });
           queueCharDeathLog(logQueue, deathLog);
         }
       }
@@ -146,7 +146,7 @@ export function resolveQueuedAncientDragonAction(mon, state, combatSelection, lo
     mon.madaltoQueued = false;
     advanceAncientDragonCycleStep(mon);
     logQueue.push({
-      msg: `[ 敵 ] いにしえの竜はマダルトを唱えた！氷の嵐が吹き荒れる！`,
+      msg: `[ 敵 ] いにしえの竜は氷嵐を唱えた！氷の嵐が吹き荒れる！`,
       sound: "cast_spell",
       shake: 15,
       flash: true
@@ -173,7 +173,7 @@ export function resolveQueuedAncientDragonAction(mon, state, combatSelection, lo
         });
         if (c.hp === 0) {
           c.status = "dead";
-          const deathLog = recordCharDeath(state, c, "いにしえの竜のマダルト", { type: "combat", source: "いにしえの竜" });
+          const deathLog = recordCharDeath(state, c, "いにしえの竜の氷嵐", { type: "combat", source: "いにしえの竜" });
           queueCharDeathLog(logQueue, deathLog);
         }
       }
@@ -239,7 +239,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       recordAction(mon, "LAHALITO");
       mon.lahalitoQueued = false;
       logQueue.push({
-        msg: `[ 敵 ] フラックは激しい炎の息（ラハリト）を吹き出した！`,
+        msg: `[ 敵 ] フラックは激しい炎の息（炎嵐）を吹き出した！`,
         sound: "cast_spell",
         shake: 15,
         flash: true
@@ -265,7 +265,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           });
           if (c.hp === 0) {
             c.status = "dead";
-            const deathLog = recordCharDeath(state, c, "フラックのラハリト", { type: "combat", source: "フラック" });
+            const deathLog = recordCharDeath(state, c, "フラックの炎嵐", { type: "combat", source: "フラック" });
             queueCharDeathLog(logQueue, deathLog);
           }
         }
@@ -345,7 +345,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     } else if (action === "lahalito") {
       mon.lahalitoQueued = true;
       logQueue.push({
-        msg: `[警告] フラックの周囲に炎が渦巻く！次のターン、ラハリトの予兆！`,
+        msg: `[警告] フラックの周囲に炎が渦巻く！次のターン、炎嵐の予兆！`,
         sound: "cast_spell"
       });
       return true;
@@ -418,7 +418,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     if (action === "tiltowait_queue") {
       mon.tiltowaitQueued = true;
       logQueue.push({
-        msg: `[警告] いにしえの竜の角に極大の魔力集まっている…！次のターン、ティルトウェイトの予兆！身を守れ！`,
+        msg: `[警告] いにしえの竜の角に極大の魔力集まっている…！次のターン、大爆裂の予兆！身を守れ！`,
         sound: "cast_spell",
         flash: true
       });
@@ -433,7 +433,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     } else if (action === "madalto") {
       mon.madaltoQueued = true;
       logQueue.push({
-        msg: `[警告] いにしえの竜の周囲に冷気が渦巻く！次のターン、マダルトの予兆！身を守れ！`,
+        msg: `[警告] いにしえの竜の周囲に冷気が渦巻く！次のターン、氷嵐の予兆！身を守れ！`,
         sound: "cast_spell"
       });
       return true;

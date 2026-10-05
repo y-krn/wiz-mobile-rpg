@@ -89,8 +89,8 @@ function dragon(state) {
 
   assert.ok(logs.some(msg => msg.includes("炎の息の予兆")));
   assert.ok(logs.some(msg => msg.includes("激しい炎の息を吐き出した")));
-  assert.ok(logs.some(msg => msg.includes("ティルトウェイトの予兆")));
-  assert.ok(logs.some(msg => msg.includes("ティルトウェイトを唱えた")));
+  assert.ok(logs.some(msg => msg.includes("大爆裂の予兆")));
+  assert.ok(logs.some(msg => msg.includes("大爆裂を唱えた")));
 }
 
 {
@@ -162,9 +162,9 @@ function dragon(state) {
 
 {
   const queuedSpecials = [
-    { logFragment: "ティルトウェイトを唱えた", queued: "tiltowaitQueued", cycleStep: 2 },
+    { logFragment: "大爆裂を唱えた", queued: "tiltowaitQueued", cycleStep: 2 },
     { logFragment: "激しい炎の息を吐き出した", queued: "dragonBreathQueued", cycleStep: 0 },
-    { logFragment: "マダルトを唱えた", queued: "madaltoQueued", cycleStep: 0 }
+    { logFragment: "氷嵐を唱えた", queued: "madaltoQueued", cycleStep: 0 }
   ];
 
   for (const special of queuedSpecials) {
@@ -272,7 +272,7 @@ function dragon(state) {
   const silenced = runRound(silencedState, "defend");
   assert.equal(dragon(silenced.state).tiltowaitQueued, false);
   assert.equal(dragon(silenced.state).b30TiltowaitGuardRecoveryQueued, false);
-  assert.ok(!silenced.logQueue.some(entry => entry.msg.includes("ティルトウェイトを唱えた")));
+  assert.ok(!silenced.logQueue.some(entry => entry.msg.includes("大爆裂を唱えた")));
 }
 
 {

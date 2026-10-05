@@ -63,7 +63,7 @@ test('The equipment screen counts each family and three pieces switch the set ef
   await page.locator('#btn-equip-close').click();
   await expect(page.locator('#equip-overlay')).toBeHidden();
   expect(await spellGuard(page)).toBe(10);
-  await expect(page.locator('#log-content')).toContainText('【系統】守勢が3つそろった（魔除け+10%）。');
+  await expect(page.locator('#log-content')).toContainText('系統「守勢」が3つそろった（魔除け+10%）。');
 });
 
 test('Taking a piece off breaks the set and says so', async ({ page }) => {
@@ -87,5 +87,5 @@ test('Taking a piece off breaks the set and says so', async ({ page }) => {
   await page.locator('#btn-equip-close').click();
   await expect(page.locator('#equip-overlay')).toBeHidden();
   expect(await spellGuard(page)).toBe(0);
-  await expect(page.locator('#log-content')).toContainText('【系統】守勢のそろいが崩れた（魔除け+10%が消えた）。');
+  await expect(page.locator('#log-content')).toContainText('系統「守勢」のそろいが崩れた（魔除け+10%が消えた）。');
 });

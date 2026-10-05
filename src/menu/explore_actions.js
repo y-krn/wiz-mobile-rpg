@@ -68,7 +68,7 @@ function consumeSearchTurn() {
 
   if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance) {
     state.transitioning = true;
-    addLog("探索に時間をかけている間に、モンスターが近づいてきた！");
+    addLog("探索に時間をかけている間に、魔物が近づいてきた！");
     setTimeout(() => {
       state.transitioning = false;
       startCombat(false, false);
@@ -85,7 +85,7 @@ function revealSecretDoor(candidate) {
   next.secretFound[candidate.opposite] = true;
   openWall(state.map, candidate.x, candidate.y, candidate.dir);
   markMapChanged();
-  addLog(`【隠し扉発見！】${DIR_NAMES[candidate.dir]}の壁に秘密の通路を見つけた！`);
+  addLog(`${DIR_NAMES[candidate.dir]}の壁に隠し扉を見つけた！奥へ通路が続いている。`);
   playSound("item");
 }
 
@@ -168,7 +168,7 @@ async function confirmAbandonRun() {
 
   const confirmed = await requestConfirmation({
     title: "冒険を諦める",
-    message: "この冒険を諦めますか？持ち帰っていない戦利品や素材は、死亡時と同じ扱いになります。",
+    message: "この冒険を諦めますか？持ち帰っていない戦果や素材は、死亡時と同じ扱いになります。",
     confirmLabel: "諦める"
   });
   // The run may have ended while the dialog was open; never settle it twice.
@@ -292,7 +292,7 @@ function renderMaterialsFilter(list, sections) {
     list.appendChild(row);
   });
   if (sections.materials.length === 0 && sections.identifyTickets === 0) {
-    appendInventoryNote(list, "今回の潜行で拾った素材はまだありません。");
+    appendInventoryNote(list, "今回の冒険で拾った素材はまだありません。");
   }
 }
 
@@ -630,7 +630,7 @@ async function useReturnWing() {
 export function renderGameOverMain(optGrid) {
   const btnBack = document.createElement("button");
   btnBack.className = "btn btn-neon btn-block";
-  btnBack.textContent = "街へ戻り、新しい潜行を始める";
+  btnBack.textContent = "街へ戻り、新しい冒険を始める";
   btnBack.addEventListener("click", () => {
     state.gameState = "town";
     closeSubmenu();
@@ -690,7 +690,7 @@ export function renderEventSpring(optGrid) {
         }
       });
       playSound("heal");
-      addLog("[!] 泉の水は清らかだった！冒険者のHPが20回復した。");
+      addLog("泉の水は清らかだった！冒険者のHPが20回復した。");
     } else if (rand < 0.70) {
       state.party.forEach(char => {
         const maxMp = getCharMaxMp(char);
@@ -699,7 +699,7 @@ export function renderEventSpring(optGrid) {
         }
       });
       playSound("heal");
-      addLog("[!] 泉の水から神秘的な力を感じた！冒険者のMPが3回復した。");
+      addLog("泉の水から神秘的な力を感じた！冒険者のMPが3回復した。");
     } else if (rand < 0.85) {
       const aliveChars = state.party.filter(char => char.status !== "dead");
       if (aliveChars.length > 0) {
@@ -709,7 +709,7 @@ export function renderEventSpring(optGrid) {
           source: "spring"
         });
         playSound("bump");
-        addLog(`[!] ${target.name}は毒に侵された。`);
+        addLog(`${target.name}は毒に侵された。`);
         addLog("毒はそれほど深くない。やがて体から抜けるだろう。");
       }
     } else {
@@ -721,7 +721,7 @@ export function renderEventSpring(optGrid) {
           source: "spring"
         });
         playSound("bump");
-        addLog(`[!] うわっ、水が急に冷たくなり、手足がしびれた！${target.name}は麻痺状態になった！`);
+        addLog(`うわっ、水が急に冷たくなり、手足がしびれた！${target.name}は麻痺状態になった！`);
         addLog("しびれは、しばらく歩けば取れるだろう。");
       }
     }
@@ -753,7 +753,7 @@ export function renderEventCamp(optGrid) {
   const info = document.createElement("p");
   info.className = "submenu-description";
   info.textContent = status.reason === "used"
-    ? "この野営地では、すでに今回の遠征中に休息した。"
+    ? "この野営地では、すでにこの冒険のあいだに休んだ。"
     : "生存メンバーの失ったHP・MPを40%回復する。状態異常や死亡は回復しない。";
   optGrid.appendChild(info);
 
@@ -766,8 +766,8 @@ export function renderEventCamp(optGrid) {
       const result = restAtCamp(state);
       if (!result.available) return;
       playSound("heal");
-      if (result.coreUsers?.length) addLog(`[野営の達人] ${result.coreUsers.join("・")}の休息効果が倍増した！`);
-      addLog(`[!] 野営地で休息した。HP ${result.hpRecovered} / MP ${result.mpRecovered} 回復。`);
+      if (result.coreUsers?.length) addLog(`野営の達人：${result.coreUsers.join("・")}の休息効果が倍増した！`);
+      addLog(`野営地で休息した。HP ${result.hpRecovered} / MP ${result.mpRecovered} 回復。`);
       completeCampEntry(state, state.floor);
       saveAutosave();
       closeSubmenu();

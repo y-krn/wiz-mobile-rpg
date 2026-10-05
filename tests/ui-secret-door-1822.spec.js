@@ -50,7 +50,7 @@ async function revealAndWalk(page, door, facing) {
     } finally {
       Math.random = originalRandom;
     }
-    const line = state.logs.find(entry => String(entry).includes('隠し扉発見')) || '';
+    const line = state.logs.find(entry => String(entry).includes('隠し扉を見つけた')) || '';
     const named = names.findIndex(name => line.includes(`${name}の壁`));
     if (named < 0) return { line, named, moved: false };
     state.dir = named;
@@ -123,11 +123,11 @@ test('A passage hidden beside the down stairs is searched from the stairs menu',
     return {
       wall: state.map[door.y][door.x].walls[door.dir],
       found: state.map[door.y][door.x].secretFound[door.dir],
-      line: state.logs.find(entry => String(entry).includes('隠し扉発見')) || '',
+      line: state.logs.find(entry => String(entry).includes('隠し扉を見つけた')) || '',
       gameState: state.gameState,
     };
   }, { door });
-  expect(after.line).toContain(`${DIRECTION_NAMES[door.dir]}の壁に秘密の通路を見つけた`);
+  expect(after.line).toContain(`${DIRECTION_NAMES[door.dir]}の壁に隠し扉を見つけた`);
   expect(after).toMatchObject({ wall: false, found: true, gameState: 'explore' });
 
   // Nothing is left to find: the stairs menu is back to its usual choices.

@@ -161,11 +161,11 @@ for (const vp of VIEWPORTS) {
 
     const healPotion = page.locator('.milestone-merchant-option[data-stock-id="heal_potion"]');
     await healPotion.click();
-    await expect(page.locator('.merchant-selection-summary')).toContainText('傷薬 (ディオス薬)を買う');
+    await expect(page.locator('.merchant-selection-summary')).toContainText('傷薬を買う');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="獣の牙"]')).toHaveText('獣の牙 1 (-1)');
     await expect(healPotion).toContainText('あと2個');
     await page.locator('#btn-merchant-confirm').click();
-    await expect(page.locator('#log-content')).toContainText('傷薬 (ディオス薬)を買った');
+    await expect(page.locator('#log-content')).toContainText('傷薬を買った');
     await expect(healPotion).toContainText('あと1個');
 
     await uncurse.click();
@@ -311,7 +311,7 @@ for (const vp of VIEWPORTS) {
       };
       state.workshop = { ranks: {} };
       state.unlockedMilestones = [];
-      openSubmenu('solo_start', '単独潜行');
+      openSubmenu('solo_start', '単独冒険');
     });
 
     await page.locator('.solo-starting-kit-option').first().click();
@@ -409,7 +409,7 @@ test('Departure craft disables the plus button at the displayed boundary', async
     state.metaMaterials = { '獣の牙': 2, '硬い皮': 2 };
     state.workshop = { ranks: {} };
     state.unlockedMilestones = [];
-    openSubmenu('solo_start', '単独潜行');
+    openSubmenu('solo_start', '単独冒険');
   });
 
   await page.locator('.solo-starting-kit-option').first().click();
@@ -439,7 +439,7 @@ test('Departure craft allows empty-handed departure without materials', async ({
     state.metaMaterials = {};
     state.workshop = { ranks: {} };
     state.unlockedMilestones = [];
-    openSubmenu('solo_start', '単独潜行');
+    openSubmenu('solo_start', '単独冒険');
   });
 
   await page.locator('.solo-starting-kit-option').first().click();
@@ -465,7 +465,7 @@ test('Departure preparation spends stored supplies before materials', async ({ p
     state.storage = ['HEAL_POTION'];
     state.workshop = { ranks: {} };
     state.unlockedMilestones = [];
-    openSubmenu('solo_start', '単独潜行');
+    openSubmenu('solo_start', '単独冒険');
   });
 
   await page.locator('.solo-starting-kit-option').first().click();
@@ -550,7 +550,7 @@ test('A single start floor is selected up front and several floors keep the expl
       state.metaMaterials = {};
       state.workshop = { ranks: {} };
       state.unlockedMilestones = unlocked;
-      openSubmenu('solo_start', '単独潜行');
+      openSubmenu('solo_start', '単独冒険');
     }, milestones);
     await page.locator('#btn-kit-confirm').click();
   };
@@ -581,7 +581,7 @@ test('Workshop starting gear updates the scout departure load preview', async ({
     const { openSubmenu } = await import('/src/navigation.js');
     state.gameState = 'town';
     state.workshop = { ranks: { gear_fighter_saber: 1 } };
-    openSubmenu('solo_start', '単独潜行');
+    openSubmenu('solo_start', '単独冒険');
   });
 
   // The vanguard already starts with this weapon, so it is not offered a swap.
@@ -613,13 +613,13 @@ test('Preparation displays active Rune names instead of internal spell keys', as
     state.metaMaterials = {};
     state.workshop = { ranks: {} };
     state.unlockedMilestones = [];
-    openSubmenu('solo_start', '単独潜行');
+    openSubmenu('solo_start', '単独冒険');
   });
 
   await page.locator('.solo-starting-kit-option').nth(3).click();
   await page.locator('#btn-kit-confirm').click();
   const summary = page.locator('.solo-preparation-summary');
-  await expect(summary).toContainText('HALITOのルーン');
+  await expect(summary).toContainText('火矢のルーン');
   await expect(summary).not.toContainText('RUNE_HALITO');
 });
 

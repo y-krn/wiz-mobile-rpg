@@ -7,7 +7,8 @@ import * as presentationOwner from "../../../src/combat_ui/combat_log_presentati
 const exportNames = [
   "COMBAT_LOG_PRESENTATION_KINDS",
   "mergeCombatLogPresentationKinds",
-  "normalizeCombatLogPresentationKind"
+  "normalizeCombatLogPresentationKind",
+  "stripLogMarkers"
 ];
 assert.deepEqual(Object.keys(facade).sort(), exportNames);
 assert.deepEqual(Object.keys(owner).sort(), exportNames);

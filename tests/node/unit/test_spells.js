@@ -152,7 +152,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     assert.strictEqual(caster.mp, 7, "AoE spell cost should be spent.");
     assert.strictEqual(monsters[0].hp, 40, "Reflecting target should not take reflected AoE damage.");
     assert.ok(monsters[1].hp < 40, "Non-reflecting target should still take AoE damage.");
-    assert.ok(logQueue.some(log => log.msg.includes("ラハリト")), "AoE spell log should still be emitted.");
+    assert.ok(logQueue.some(log => log.msg.includes("炎嵐")), "AoE spell log should still be emitted.");
     assert.ok(logQueue.some(log => log.msg.includes("Mirrorは呪文を反射した")), "AoE reflect log should mention the reflector.");
   }
 
@@ -362,7 +362,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
     // Apply WEAKEN
     const result = SPELL_EFFECTS.WEAKEN({ caster, target: [monster1, monster2] });
-    assert.ok(result.log.includes("ウィークンを唱えた"), "Log should contain spell name");
+    assert.ok(result.log.includes("虚脱を唱えた"), "Log should contain spell name");
 
     // Check buffs
     assert.strictEqual(monster1.buffs.length, 1);
@@ -797,13 +797,13 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
       assert.strictEqual(priest.mabarrierTurns, 2, "1ターン経過後に mabarrierTurns が 2 に減少していること（適用時は3）");
       assert.strictEqual(mage.mabarrierTurns, 2, "同乗しているメンバー全員に mabarrierTurns が適用されていること");
-      assert.ok(result.logQueue.some(log => log.msg?.includes("マバリアを唱えた")), "マバリアのログが出力されていること");
+      assert.ok(result.logQueue.some(log => log.msg?.includes("障壁を唱えた")), "障壁のログが出力されていること");
 
       // 1-2. MABARRIER によるダメージ軽減の検証
       // MABARRIER (30% 軽減) 単体の時、ダメージが30%軽減されるか
-      // 敵からのラハリト発動を模倣してダメージ軽減を検証する
-      // ラハリトのダメージは 10-25 (一般敵)。防御無しで受ける。
-      // Math.random = 0.5 の場合、ラハリトダメージは Math.floor(0.5 * 15) + 10 = 17 ダメージ。
+      // 敵からの炎嵐発動を模倣してダメージ軽減を検証する
+      // 炎嵐のダメージは 10-25 (一般敵)。防御無しで受ける。
+      // Math.random = 0.5 の場合、炎嵐ダメージは Math.floor(0.5 * 15) + 10 = 17 ダメージ。
       // 30% 軽減の場合、17 * 0.7 = 11.9 -> 12 ダメージになるはず。
       const stateMabarrier = createTestState();
       stateMabarrier.party[0].mabarrierTurns = 3;
@@ -823,7 +823,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       // MABARRIER で 9 * (1 - 0.3) = 6.3 -> 6 ダメージ。
       // 最終ダメージが 6 になっているか確認。
       const logChar0 = resultDmg.logQueue.find(log => log.msg?.includes("PriestCharは") && log.msg?.includes("炎ダメージを受けた"));
-      assert.ok(logChar0.msg.includes("6の炎ダメージを受けた"), `防御とマバリア適用時のダメージ検証。ログ: ${logChar0.msg}`);
+      assert.ok(logChar0.msg.includes("6の炎ダメージを受けた"), `防御と障壁適用時のダメージ検証。ログ: ${logChar0.msg}`);
       assert.ok(logChar0.msg.includes("(軽減)"), "防御ログが含まれていること");
       
       // 1-3. 軽減上限 (60%) の検証
@@ -886,7 +886,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       assert.strictEqual(targetMonster.silenceTurns, 1, "沈黙デバフ silenceTurns が 1 に設定されていること（適用時は2、ターン終了で1減少）");
       assert.ok(result.logQueue.some(log => log.msg?.includes("敵1体を沈黙させた")), "沈黙ログが出力されていること");
 
-      // 2-2. 敵が沈黙中にラハリトを唱えようとすると通常攻撃にフォールバックされること
+      // 2-2. 敵が沈黙中に炎嵐を唱えようとすると通常攻撃にフォールバックされること
       const stateSilenced = createTestState();
       stateSilenced.combatState.monsters[0].silenceTurns = 2;
       stateSilenced.combatState.monsters[0].lahalitoQueued = true;
@@ -900,7 +900,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
 
       assert.ok(resultSilenceRun.state.combatState.monsters[0].lahalitoQueued === false, "沈黙により予兆フラグがクリアされていること");
       assert.ok(resultSilenceRun.logQueue.some(log => log.msg?.includes("攻撃！")), "呪文の代わりに物理攻撃を行っていること");
-      assert.ok(!resultSilenceRun.logQueue.some(log => log.msg?.includes("ラハリト")), "ラハリトを唱えていないこと");
+      assert.ok(!resultSilenceRun.logQueue.some(log => log.msg?.includes("炎嵐")), "炎嵐を唱えていないこと");
     }
   }
 
@@ -926,7 +926,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
     }
   }
 
-  // 4. ラハリト予兆・確定発動・解除のテスト
+  // 4. 炎嵐予兆・確定発動・解除のテスト
   {
     console.log("- Test 4: Lahalito warning mechanism");
     
@@ -941,9 +941,9 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       }, { rng: () => 0.0 });
 
       const monster1 = result1.state.combatState.monsters[0];
-      assert.strictEqual(monster1.lahalitoQueued, true, "ラハリトが選択され、予兆状態 (lahalitoQueued = true) がセットされること");
+      assert.strictEqual(monster1.lahalitoQueued, true, "炎嵐が選択され、予兆状態 (lahalitoQueued = true) がセットされること");
       assert.ok(result1.logQueue.some(log => log.msg?.includes("周囲に炎が渦巻く！")), "予兆警告ログが出力されていること");
-      assert.ok(!result1.logQueue.some(log => log.msg?.includes("ラハリト）を吹き出した")), "1ターン目にはラハリトを撃っていないこと");
+      assert.ok(!result1.logQueue.some(log => log.msg?.includes("炎嵐）を吹き出した")), "1ターン目には炎嵐を撃っていないこと");
 
       // 4-2. 2ターン目：確定発動
       const state2 = result1.state;
@@ -957,8 +957,8 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       }, { rng: () => 0.0 });
 
       const monster2 = result2.state.combatState.monsters[0];
-      assert.strictEqual(monster2.lahalitoQueued, false, "ラハリト発動後に予兆フラグがクリアされていること");
-      assert.ok(result2.logQueue.some(log => log.msg?.includes("ラハリト）を吹き出した")), "確定でラハリトが発動すること");
+      assert.strictEqual(monster2.lahalitoQueued, false, "炎嵐発動後に予兆フラグがクリアされていること");
+      assert.ok(result2.logQueue.some(log => log.msg?.includes("炎嵐）を吹き出した")), "確定で炎嵐が発動すること");
 
       // 4-3. 予兆中の状態異常による予兆リセット
       const stateWarning = createTestState();

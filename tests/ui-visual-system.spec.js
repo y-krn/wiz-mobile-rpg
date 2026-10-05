@@ -24,7 +24,7 @@ async function seedAllySpellTargetSelection(page) {
     updateUI();
   });
   await (await satchelAction(page, '#btn-cast')).click();
-  await page.getByRole('button', { name: /^DIOS MP/ }).click();
+  await page.getByRole('button', { name: /^癒し MP/ }).click();
   await page.locator('#btn-spell-cast-action').click();
   await expect(page.locator('#spell-overlay .spell-target-card:not(.disabled)')).toHaveCount(2);
 }

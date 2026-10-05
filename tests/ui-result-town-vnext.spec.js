@@ -369,7 +369,7 @@ test('Town shows the three closest feats and opens the full list', async ({ page
   await expect(cards.nth(0)).toHaveAttribute('data-feat-id', 'elite_5');
   await expect(cards.nth(0)).toContainText('強敵狩り');
   await expect(cards.nth(0)).toContainText('4 / 5');
-  await expect(cards.nth(0)).toContainText('強敵（精鋭・徘徊強敵）を累計5体倒す');
+  await expect(cards.nth(0)).toContainText('強敵を累計5体倒す');
   await expect(cards.nth(0)).toContainText('報酬 黒角×3');
   await expect(cards.nth(1)).toHaveAttribute('data-feat-id', 'depth_10');
   await expect(cards.nth(1)).toContainText('B7F / B10F');
@@ -458,7 +458,7 @@ test('Explore shows the closest feats with live progress and announces a feat on
       storedChests: state.feats.counters.chestsOpened
     };
   });
-  expect(live.first).toEqual(['【偉業達成】宝箱あさり（宝箱を累計30個開ける）。報酬は街で受け取る。']);
+  expect(live.first).toEqual(['偉業「宝箱あさり」を達成した（宝箱を累計30個開ける）。報酬は街で受け取る。']);
   expect(live.second).toEqual([]);
   // What is still ahead comes first; what this run already achieved follows.
   expect(live.hud).toEqual(['坑道を抜けるB4F/B5F', '傷なき踏破B1F/B5F', '宝箱あさり達成']);

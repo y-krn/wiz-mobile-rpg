@@ -1,5 +1,6 @@
 import {
   MONSTERS,
+  SPELLS,
   MONSTER_STATUS_ATTACK_PATTERNS,
 
   getPhysicalHitChance, getMonsterEvasionChance, PHYSICAL_HIT_CHANCE_MIN,
@@ -760,7 +761,7 @@ export function runCombatRoundCalculation(
         let shake = 8;
         if (isEvasionMiss) {
           msg = `[味方] ${char.name}の攻撃！しかし${finalTarget.name}は霧のようにかわした！`;
-          floatText = "AVOID";
+          floatText = "回避";
           sound = "miss";
           shake = 0;
           state.combatFormulaTelemetry?.physicalPlayerMisses?.push({
@@ -780,7 +781,7 @@ export function runCombatRoundCalculation(
           });
         } else if (isBlindMiss) {
           msg = `[味方] ${char.name}の攻撃！しかし目がくらんで空振りした！`;
-          floatText = "MISS";
+          floatText = "外れ";
           sound = "miss";
           shake = 0;
         } else {
@@ -950,7 +951,7 @@ export function runCombatRoundCalculation(
             });
             wakeSleepingCharOnDamage(char);
             logQueue.push({
-              msg: `[ 敵 ] ${finalTarget.name}はハリトで反撃した！${char.name}に${counterDmg}の炎ダメージ！`,
+              msg: `[ 敵 ] ${finalTarget.name}は火矢で反撃した！${char.name}に${counterDmg}の炎ダメージ！`,
               presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
               sound: "cast_spell",
               floatText: `${counterDmg}`,
@@ -958,7 +959,7 @@ export function runCombatRoundCalculation(
             });
             if (char.hp === 0) {
               char.status = "dead";
-              const deathLog = recordCharDeath(state, char, `${finalTarget.name}の反撃ハリト`, { type: "combat", source: finalTarget.name });
+              const deathLog = recordCharDeath(state, char, `${finalTarget.name}の反撃火矢`, { type: "combat", source: finalTarget.name });
               queueCharDeathLog(logQueue, deathLog);
             }
           }
@@ -1512,7 +1513,7 @@ export function runCombatRoundCalculation(
             recordAction(mon, "LAHALITO");
             mon.lahalitoQueued = false;
             logQueue.push({
-              msg: `[ 敵 ] ${mon.name}は激しい炎の息（ラハリト）を吹き出した！`,
+              msg: `[ 敵 ] ${mon.name}は激しい炎の息（炎嵐）を吹き出した！`,
               sound: "cast_spell",
               shake: 15,
               flash: true
@@ -1548,7 +1549,7 @@ export function runCombatRoundCalculation(
                 });
                 if (c.hp === 0) {
                   c.status = "dead";
-                  const deathLog = recordCharDeath(state, c, `${mon.name}のラハリト`, { type: "combat", source: mon.name });
+                  const deathLog = recordCharDeath(state, c, `${mon.name}の炎嵐`, { type: "combat", source: mon.name });
                   queueCharDeathLog(logQueue, deathLog);
                 }
               }
@@ -1556,7 +1557,7 @@ export function runCombatRoundCalculation(
           } else {
             mon.lahalitoQueued = true;
             logQueue.push({
-              msg: `[警告] ${mon.name}の周囲に炎が渦巻く！次のターン、ラハリトの予兆！`,
+              msg: `[警告] ${mon.name}の周囲に炎が渦巻く！次のターン、炎嵐の予兆！`,
               sound: "cast_spell"
             });
           }
@@ -1566,7 +1567,7 @@ export function runCombatRoundCalculation(
             recordAction(mon, "MADALTO");
             mon.madaltoQueued = false;
             logQueue.push({
-              msg: `[ 敵 ] ${mon.name}はマダルトを唱えた！氷の嵐が吹き荒れる！`,
+              msg: `[ 敵 ] ${mon.name}は氷嵐を唱えた！氷の嵐が吹き荒れる！`,
               sound: "cast_spell",
               shake: 15,
               flash: true
@@ -1602,7 +1603,7 @@ export function runCombatRoundCalculation(
                 });
                 if (c.hp === 0) {
                   c.status = "dead";
-                  const deathLog = recordCharDeath(state, c, `${mon.name}のマダルト`, { type: "combat", source: mon.name });
+                  const deathLog = recordCharDeath(state, c, `${mon.name}の氷嵐`, { type: "combat", source: mon.name });
                   queueCharDeathLog(logQueue, deathLog);
                 }
               }
@@ -1610,7 +1611,7 @@ export function runCombatRoundCalculation(
           } else {
             mon.madaltoQueued = true;
             logQueue.push({
-              msg: `[警告] ${mon.name}の周囲の温度が急激に下がっていく！次のターン、マダルトの予兆！`,
+              msg: `[警告] ${mon.name}の周囲の温度が急激に下がっていく！次のターン、氷嵐の予兆！`,
               sound: "cast_spell"
             });
           }
@@ -1643,7 +1644,7 @@ export function runCombatRoundCalculation(
           });
           wakeSleepingCharOnDamage(target);
           logQueue.push({
-            msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(軽減)" : ""}`,
+            msg: `[ 敵 ] ${mon.name}は火矢を唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(軽減)" : ""}`,
             presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_TAKEN,
             sound: "cast_spell",
             shake: 8,
@@ -1653,7 +1654,7 @@ export function runCombatRoundCalculation(
         } else if (mon.spell === "TILTOWAIT") {
           recordAction(mon, "TILTOWAIT");
           logQueue.push({
-            msg: `[ 敵 ] ${mon.name}はティルトウェイトを唱えた！極大爆裂が襲いかかる！`,
+            msg: `[ 敵 ] ${mon.name}は大爆裂を唱えた！極大爆裂が襲いかかる！`,
             sound: "cast_spell",
             shake: 25,
             flash: true
@@ -1689,7 +1690,7 @@ export function runCombatRoundCalculation(
               });
               if (c.hp === 0) {
                 c.status = "dead";
-                const deathLog = recordCharDeath(state, c, `${mon.name}のティルトウェイト`, { type: "combat", source: mon.name });
+                const deathLog = recordCharDeath(state, c, `${mon.name}の大爆裂`, { type: "combat", source: mon.name });
                 queueCharDeathLog(logQueue, deathLog);
               }
             }
@@ -1715,7 +1716,7 @@ export function runCombatRoundCalculation(
             msg: `[ 敵 ] ${mon.name}の攻撃！しかし、${target.name}は身軽に回避した！`,
             sound: "miss",
             shake: 0,
-            floatText: "AVOID",
+            floatText: "回避",
             floatColor: "#00ff66"
           });
         } else {
@@ -1890,7 +1891,7 @@ export function runCombatRoundCalculation(
         if (isSnipeAttack) {
           deathCause = `${mon.name}の狙撃`;
         } else if (mon.spell) {
-          deathCause = `${mon.name}の${mon.spell}`;
+          deathCause = `${mon.name}の${SPELLS[mon.spell]?.label || mon.spell}`;
         }
         const deathLog = recordCharDeath(state, target, deathCause, { type: "combat", source: mon.name });
         queueCharDeathLog(logQueue, deathLog);

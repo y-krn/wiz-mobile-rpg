@@ -24,7 +24,7 @@ function clearOutcomeCell(stateLike, event, { openBossExitFloor = null } = {}) {
   if (sensed) sensed.lifecycle = "resolved";
   if (cell.milestoneFloor === openBossExitFloor) {
     cell.type = "stairs-down";
-    cell.message = "【階層守護者撃破】階段への短絡路が開いた。";
+    cell.message = "階層守護者を倒した。階段への短絡路が開いた。";
   }
   markMapChanged(stateLike);
 }
@@ -41,7 +41,7 @@ function applyMilestoneVictoryRewards(stateLike, floor) {
       stateLike.keyItems.push(keyItem);
       const shelf = getSealWorkshopShelf(keyItem);
       messages.push(
-        `【恒久解放】${KEY_ITEM_LABELS[keyItem]}を手に入れた。` +
+        `${KEY_ITEM_LABELS[keyItem]}を手に入れた。` +
         (shelf ? `工房に「${shelf}」が並ぶようになった。` : "")
       );
     }
@@ -113,7 +113,7 @@ function applyGiveKeyRewards(stateLike, rng) {
   }
   if (defeatedMonster) recordMonsterLoot(defeatedMonster, "黒角", stateLike);
 
-  return ["迷宮の守護者を撃破した！お宝: [未鑑定のレア装備] と [黒角 x2] を手に入れた！"];
+  return ["迷宮の守護者を倒した！未鑑定の希少な装備と黒角×2を手に入れた！"];
 }
 
 export function applyPendingOutcomeRewards(

@@ -111,7 +111,7 @@ test('explore skips a single valid target and keeps caster HP visible before cas
   await setupExplore(page, { partySize: 1, fullHp: false });
 
   await (await satchelAction(page, '#btn-cast')).click();
-  await page.getByRole('button', { name: /^DIOS MP/ }).click();
+  await page.getByRole('button', { name: /^癒し MP/ }).click();
 
   await expect(page.locator('#spell-overlay .spell-detail-caster-row')).toContainText('HP:');
   await expect(page.locator('#spell-overlay .spell-target-grid')).toHaveCount(0);
@@ -144,7 +144,7 @@ test('explore disables recovery when every ally is at full HP', async ({ page })
   await setupExplore(page, { partySize: 1, fullHp: true });
 
   await (await satchelAction(page, '#btn-cast')).click();
-  await page.getByRole('button', { name: /^DIOS MP/ }).click();
+  await page.getByRole('button', { name: /^癒し MP/ }).click();
   await expect(page.locator('#btn-spell-cast-action')).toBeDisabled();
   await expect(page.locator('#spell-overlay')).toContainText('対象なし');
 });
@@ -154,13 +154,13 @@ test('explore disables MABARRIER while combat keeps it available and resets stal
   await setupExplore(page, { partySize: 1, spellKeys: ['MABARRIER'] });
 
   await (await satchelAction(page, '#btn-cast')).click();
-  const exploreBarrier = page.locator('#spell-overlay .spell-item-row-card').filter({ hasText: 'MABARRIER' });
+  const exploreBarrier = page.locator('#spell-overlay .spell-item-row-card').filter({ hasText: '障壁' });
   await expect(exploreBarrier).toHaveClass(/disabled/);
   await expect(page.locator('#spell-overlay .spell-detail-placeholder')).toBeVisible();
 
   await setupCombat(page, { woundedCount: 1, spellKeys: ['MABARRIER'] });
   await page.locator('#btn-combat-spell').click();
-  const combatBarrier = page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^MABARRIER$/ }) });
+  const combatBarrier = page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^障壁$/ }) });
   await expect(combatBarrier).not.toHaveClass(/disabled-unavailable/);
   await combatBarrier.click();
 
@@ -192,7 +192,7 @@ for (const viewport of OTHER_MOBILE_VIEWPORTS) {
     await setupExplore(page, { partySize: 1, fullHp: false });
 
     await (await satchelAction(page, '#btn-cast')).click();
-    await page.getByRole('button', { name: /^DIOS MP/ }).click();
+    await page.getByRole('button', { name: /^癒し MP/ }).click();
     const metrics = await page.evaluate(() => {
       const detail = document.querySelector('#spell-detail-panel').getBoundingClientRect();
       return {
@@ -211,7 +211,7 @@ test('explore keeps the target screen when two valid allies remain', async ({ pa
   await setupExplore(page, { partySize: 2, fullHp: false });
 
   await (await satchelAction(page, '#btn-cast')).click();
-  await page.getByRole('button', { name: /^DIOS MP/ }).click();
+  await page.getByRole('button', { name: /^癒し MP/ }).click();
   await page.locator('#btn-spell-cast-action').click();
 
   await expect(page.locator('#spell-overlay .spell-target-grid')).toBeVisible();
@@ -223,7 +223,7 @@ test('combat skips a single valid spell target and keeps enemy targeting availab
   await setupCombat(page, { woundedCount: 1, spellKeys: ['DIOS', 'BADIOS'] });
 
   await page.locator('#btn-combat-spell').click();
-  await page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^DIOS$/ }) }).click();
+  await page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^癒し$/ }) }).click();
   await expect(page.locator('#combat-overlay')).toBeHidden();
 
   const spellAction = await page.evaluate(async () => {
@@ -246,7 +246,7 @@ test('combat skips a single valid spell target and keeps enemy targeting availab
   });
 
   await page.locator('#btn-combat-spell').click();
-  await page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^BADIOS$/ }) }).click();
+  await page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^聖撃$/ }) }).click();
   await expect(page.locator('#combat-overlay')).toBeVisible();
   await expect(page.locator('#combat-overlay .combat-target-card.enemy')).toHaveCount(0);
   await expect(page.locator('#combat-overlay .combat-target-selection-message')).toHaveText('敵をタップして対象を選択');
@@ -257,7 +257,7 @@ test('combat keeps the target screen for two valid allies and disables full-HP t
   await setupCombat(page, { woundedCount: 2 });
 
   await page.locator('#btn-combat-spell').click();
-  await page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^DIOS$/ }) }).click();
+  await page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^癒し$/ }) }).click();
   await expect(page.locator('#combat-overlay .combat-target-card.ally')).toHaveCount(2);
   await expect(page.locator('#combat-overlay .combat-target-card.ally:not(.blocked)')).toHaveCount(2);
 
@@ -279,7 +279,7 @@ test('combat disables recovery spells when no ally is a valid target and skips a
   await setupCombat(page, { woundedCount: 0, deadSecond: true });
 
   await page.locator('#btn-combat-spell').click();
-  await expect(page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^DIOS$/ }) })).toHaveClass(/disabled-unavailable/);
+  await expect(page.locator('#combat-overlay .combat-item-card.spell').filter({ has: page.locator('.spell-name').filter({ hasText: /^癒し$/ }) })).toHaveClass(/disabled-unavailable/);
   await page.locator('#combat-overlay .btn-combat-back').click();
   await page.locator('#btn-combat-item').click();
   await page.locator('#combat-overlay .combat-item-card.item').filter({ hasText: '傷薬' }).click();

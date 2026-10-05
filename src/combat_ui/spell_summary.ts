@@ -24,10 +24,10 @@ const SPELL_COMBAT_SUMMARIES: Readonly<Record<string, SpellCombatSummary>> = Obj
   DIALMA: { tag: "単体", effect: "回復 70-120", category: "single" },
   MADI: { tag: "単体", effect: "回復 60-90", category: "single" },
   MABARRIER: { tag: "補助", effect: "自分 魔法軽減", category: "buff" },
-  MONTINO: { tag: "全体", effect: "沈黙 2T", category: "all" },
+  MONTINO: { tag: "全体", effect: "呪文を封じる", category: "all" },
   MORLIS: { tag: "弱体", effect: "全体魔防低下", category: "debuff" },
-  VULNERA: { tag: "弱体", effect: "単体 脆弱 3T", category: "debuff" },
-  WEAKEN: { tag: "弱体", effect: "全体攻撃力 -3 3T", category: "debuff" }
+  VULNERA: { tag: "弱体", effect: "次の直撃を強化", category: "debuff" },
+  WEAKEN: { tag: "弱体", effect: "攻撃力-3", category: "debuff" }
 });
 
 export function getSpellCombatSummary(spellName: unknown): SpellCombatSummary {

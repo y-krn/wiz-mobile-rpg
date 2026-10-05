@@ -117,7 +117,7 @@ test("queues lethal magic-reflect damage before the death log", () => {
   });
   const messages = result.logQueue.map(entry => entry.msg);
   const damageIndex = messages.findIndex(message => message.includes("反射ダメージ"));
-  const deathIndex = messages.findIndex(message => message.startsWith("☠️ [!] 魔術師は"));
+  const deathIndex = messages.findIndex(message => message.startsWith("☠️ 魔術師は"));
 
   assert.ok(damageIndex >= 0);
   assert.equal(deathIndex, damageIndex + 1);
@@ -167,7 +167,7 @@ test("queues lethal normal-attack damage before the death log", () => {
   });
   const messages = result.logQueue.map(entry => entry.msg);
   const damageIndex = messages.findIndex(message => message.includes("ゴブリン Aの攻撃！"));
-  const deathIndex = messages.findIndex(message => message.startsWith("☠️ [!] 戦士は"));
+  const deathIndex = messages.findIndex(message => message.startsWith("☠️ 戦士は"));
 
   assert.ok(damageIndex >= 0);
   assert.equal(deathIndex, damageIndex + 1);

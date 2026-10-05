@@ -71,7 +71,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
       m.hp = Math.round(m.hp * mult);
       m.maxHp = Math.round(m.maxHp * mult);
     });
-    addLog(`【⚠️警告】警報により魔物が活性化している！(HP/攻撃力+${Math.round((mult - 1) * 100)}%)`);
+    addLog(`警報で魔物が活気づいている！（HP・攻撃力+${Math.round((mult - 1) * 100)}%）`);
     state.alarmActive = false;
     state.alarmWeakened = false;
   }
@@ -79,16 +79,16 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
 
 
   if (isBoss || isMidboss || isRoamingFlack || isMimic || isBrood) {
-    addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
+    addLog("強敵だ。周囲の空気が張り詰める……！");
     if (isBoss && trial) {
-      addLog("【帯の決算】これまでに見た気配が、階層守護者に集約されている…！");
+      addLog("これまでに見た気配が、階層守護者に集まっている…！");
     }
     if (isRoamingFlack) {
       const traitLabels = monsters.map(monster => monster.combatTraitLabel).filter(Boolean);
-      if (traitLabels.length > 0) addLog(`【個体特性】${traitLabels.join(" / ")}`);
+      if (traitLabels.length > 0) addLog(`この魔物の特性：${traitLabels.join("・")}`);
     }
   } else if (isRare) {
-    addLog("【✨希少遭遇！】珍しい魔物が現れた！");
+    addLog("珍しい魔物が現れた！");
   }
 
   state.combatState = {

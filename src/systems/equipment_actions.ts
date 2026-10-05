@@ -219,10 +219,10 @@ export function equipEquipment({ inventoryIndex, actorIdx, requestedSlot = null 
   }
   if (reveal.revealed) {
     addLog(reveal.cursed
-      ? `[呪い発動] ${item.name}は外せなくなった！`
-      : `[賭け成功] ${item.name}に呪いはなかった。`);
+      ? `呪いが発動した。${item.name}は外せなくなった！`
+      : `${item.name}に呪いはなかった。`);
   } else if (reveal.cursed) {
-    addLog(`[呪い装備] ${item.name}は外せない。`);
+    addLog(`${item.name}は呪われていて外せない。`);
   }
   playSound("move");
   saveAutosave();
@@ -278,7 +278,7 @@ export function identifyEquipmentAt({ inventoryIndex, actorIdx, requestedSlot = 
   trackLootLifecycle("identified", { state: actionState, character, itemKey: item, lootId, source: "dungeon" });
 
   const revealedData = getItemDataAtBoundary(item);
-  addLog(`[鑑定] ${revealedData.name}。${result.cursed ? "呪いを確認した。" : "呪いはない。"}`);
+  addLog(`鑑定した。${revealedData.name}。${result.cursed ? "呪いがかかっている。" : "呪いはない。"}`);
   playSound("level_up");
   saveAutosave();
   return { ...result, itemKey: item };

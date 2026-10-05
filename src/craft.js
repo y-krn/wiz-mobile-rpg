@@ -142,7 +142,7 @@ export function executeEnhance(itemIdx) {
   for (const [mat, reqQty] of Object.entries(cost.mats)) {
     const curQty = state.metaMaterials[mat] || 0;
     if (curQty < reqQty) {
-      addLog(`素材 [${mat}] が不足しています。`);
+      addLog(`${mat}が足りない。`);
       return false;
     }
   }
@@ -167,7 +167,7 @@ export function executeEnhance(itemIdx) {
 
   playSound("level_up");
   const itemData = getItemData(upgradedItem);
-  addLog(`[工房] 装備を強化しました！➔ [${itemData.name}]`);
+  addLog(`装備を強化した。${itemData.name}になった。`);
   saveAutosave();
   return true;
 }
@@ -219,7 +219,7 @@ export function executePolish(itemIdx, affixIdx) {
   }
   for (const [mat, reqQty] of Object.entries(cost.mats)) {
     if ((state.metaMaterials[mat] || 0) < reqQty) {
-      addLog(`素材 [${mat}] が不足しています。`);
+      addLog(`${mat}が足りない。`);
       return false;
     }
   }
@@ -246,7 +246,7 @@ export function executePolish(itemIdx, affixIdx) {
 
   const item = getItemData(polishedItem);
   const affix = polishedItem.affixes[affixIdx];
-  addLog(`[工房] [${item.name}] の [${getAffixDefinition(affix)?.jpName || affix.type}] を研磨しました！`);
+  addLog(`${item.name}の「${getAffixDefinition(affix)?.jpName || affix.type}」を磨いた。`);
   playSound("level_up");
   saveAutosave();
   return true;

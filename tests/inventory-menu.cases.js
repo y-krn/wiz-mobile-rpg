@@ -95,8 +95,8 @@ for (const viewport of VIEWPORTS) {
     });
 
     expect(result.labels).toEqual([
-      '傷薬 (ディオス薬)',
-      '傷薬 (ディオス薬)',
+      '傷薬',
+      '傷薬',
       '上薬',
       '魔力草',
       '解毒薬',

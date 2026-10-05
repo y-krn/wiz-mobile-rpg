@@ -57,14 +57,14 @@ function decisionText(run) {
     const cause = run.deathCause?.label || run.deathCause?.source || "原因未記録";
     return `${floorText(run.deathCause?.floor || run.deepestFloor)}で${escapeHtml(cause)}に倒れた。素材${returnedMaterialCount(run)}個を持ち帰った`;
   }
-  if (outcome === "断念") return `${floorText(run.deepestFloor)}で潜行を断念した。素材${returnedMaterialCount(run)}個を持ち帰った`;
+  if (outcome === "断念") return `${floorText(run.deepestFloor)}で冒険を断念した。素材${returnedMaterialCount(run)}個を持ち帰った`;
   if (run.returnReason === "milestone_portal") return `${floorText(run.deepestFloor)}で帰還の門から帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
   if (run.returnReason === "escape_scroll") return `${floorText(run.deepestFloor)}で帰還の翼から帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
   return `${floorText(run.deepestFloor)}で帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
 }
 
 function getHistoryCards(history, totalRuns) {
-  if (history.length === 0) return `<p class="adventure-empty">まだ冒険の記録はありません。最初の潜行が年代記の1ページになります。</p>`;
+  if (history.length === 0) return `<p class="adventure-empty">まだ冒険の記録はありません。最初の冒険が年代記の1ページになります。</p>`;
   return history.map((run, index) => {
     const number = runNumber(run, index, totalRuns);
     const badges = [
@@ -95,7 +95,7 @@ function getHistoryCards(history, totalRuns) {
 
 function getChronicleHtml(records) {
   const achievements = Array.isArray(records.firstAchievements) ? records.firstAchievements : [];
-  if (achievements.length === 0) return `<p class="adventure-empty">初めての達成は、次の潜行で記録されます。</p>`;
+  if (achievements.length === 0) return `<p class="adventure-empty">初めての達成は、次の冒険で記録されます。</p>`;
   return achievements.map(entry => `
     <div class="adventure-achievement">
       <strong>第${Number(entry.runNumber) || "?"}回</strong>
@@ -114,7 +114,7 @@ function getPersonalBestHtml(records) {
       <div><span>最深到達</span><strong>${floorText(best.deepestFloor)}</strong></div>
       <div><span>最多撃破</span><strong>${Number(best.kills) || 0}体</strong></div>
       <div><span>最多宝箱</span><strong>${Number(best.chestsOpened) || 0}個</strong></div>
-      <div><span>${gold > 0 ? "最大獲得Gold" : "最大戦利品"}</span><strong>${gold > 0 ? `${gold}G` : `${loot}個`}</strong></div>
+      <div><span>${gold > 0 ? "最大獲得Gold" : "最大の戦果"}</span><strong>${gold > 0 ? `${gold}G` : `${loot}個`}</strong></div>
     </div>
   `;
 }

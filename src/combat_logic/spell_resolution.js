@@ -78,7 +78,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
   
   const payment = getSpellPayment(char, spell.cost);
   if (!payment.canCast) {
-    logQueue.push({ msg: `[味方] ${char.name}は${spell.name}を唱えようとしたが、MPもHPも足りない！` });
+    logQueue.push({ msg: `[味方] ${char.name}は${spell.label}を唱えようとしたが、MPもHPも足りない！` });
     return;
   }
   paySpellCost(char, spell.cost);
@@ -259,7 +259,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
     if (result.heal) {
       floatText = `+${result.heal}`;
     } else if (spell.name === "LATUMOFIS" || spell.name === "DIALKO" || spell.name === "DIURCO") {
-      floatText = "CURED";
+      floatText = "治った";
     }
     logQueue.push({
       msg: `[味方] ${result.log}`,
@@ -277,7 +277,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       party: state.party,
       rng
     });
-    const floatText = spell.name === "MADI" ? (result.heal ? `+${result.heal}` : "HEAL") : "BARRIER";
+    const floatText = spell.name === "MADI" ? (result.heal ? `+${result.heal}` : "回復") : "障壁";
     logQueue.push({
       msg: `[味方] ${result.log}`,
       presentationKind: spell.name === "MADI"

@@ -198,7 +198,7 @@ export function settleRunFeats(featsState, run, outcome, runNumber = 0, rewardBo
 /** Log lines for feats the running run has just achieved. */
 export function getFeatAnnouncementLines(featsState, run) {
   return collectFeatAnnouncements(featsState, run)
-    .map(feat => `【偉業達成】${feat.name}（${feat.condition}）。報酬は街で受け取る。`);
+    .map(feat => `偉業「${feat.name}」を達成した（${feat.condition}）。報酬は街で受け取る。`);
 }
 
 /**

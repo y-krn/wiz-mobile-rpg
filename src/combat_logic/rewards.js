@@ -180,7 +180,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
       state.currentRun.materials ||= {};
       state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + 1;
     }
-    logQueue.push({ msg: `[拾得] 勝利の跡から${mat}を見つけた！`, sound: "item" });
+    logQueue.push({ msg: `勝利の跡から${mat}を見つけた！`, sound: "item" });
   }
 
   // Presentation-only digest of this victory (#1840). It rides on the victory
@@ -206,9 +206,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     });
 
     if (Object.keys(runMats).length > 0) {
-      const matStr = Object.entries(runMats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
+      const matStr = Object.entries(runMats).map(([mat, qty]) => `${mat}×${qty}`).join("・");
       logQueue.push({
-        msg: `  -> 素材を獲得した: [${matStr}]`,
+        msg: `素材を手に入れた：${matStr}`,
         sound: "item"
       });
     }
@@ -218,16 +218,16 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
 
     if (firstKilledNames.length > 0) {
       logQueue.push({
-        msg: `🎉【初回討伐ボーナス！】初めて [${firstKilledNames.join(", ")}] を討伐した！`,
+        msg: `初めて${firstKilledNames.join("・")}を倒した！`,
         sound: "item"
       });
-      let rewardMsg = "  -> 初討伐の追加報酬";
-      const matListStr = Object.entries(firstKilledMats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
+      let rewardMsg = "初めて倒した報酬";
+      const matListStr = Object.entries(firstKilledMats).map(([mat, qty]) => `${mat}×${qty}`).join("・");
       if (matListStr) {
-        rewardMsg += ` / 素材: [${matListStr}]`;
+        rewardMsg += `：${matListStr}`;
       }
       if (bonusTickets > 0) {
-        rewardMsg += ` / 鑑定粉 +${bonusTickets}個`;
+        rewardMsg += `${matListStr ? "・" : "："}鑑定粉×${bonusTickets}`;
       }
       logQueue.push({
         msg: rewardMsg
@@ -267,7 +267,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
         msg: `[★] レベルアップ！${c.name}はレベル${c.level}になった！HPが${levelUpRecoveryHp}回復した。`,
         sound: "level_up",
         flash: true,
-        floatText: "LEVEL UP!",
+        floatText: "レベルアップ！",
         floatColor: "#ffb300",
         levelUpRecoveryHp
       });
@@ -321,12 +321,12 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
         recordMonsterLoot(nonFledMonsters[0], eqData.name, state);
       }
       logQueue.push({
-        msg: `モンスターの骸から [${eqData.name}] を手に入れた！`,
+        msg: `魔物の骸から${eqData.name}を手に入れた！`,
         sound: "item"
       });
     } else {
       logQueue.push({
-        msg: `モンスターは何かを落としたが、バッグが満杯で拾えなかった！`,
+        msg: `魔物は何かを落としたが、バッグが満杯で拾えなかった！`,
         sound: "miss"
       });
     }
@@ -346,12 +346,12 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
         recordMonsterLoot(nonFledMonsters[0], itemData.name, state);
       }
       logQueue.push({
-        msg: `モンスターの骸から [${itemData.name}] を手に入れた！`,
+        msg: `魔物の骸から${itemData.name}を手に入れた！`,
         sound: "item"
       });
     } else {
       logQueue.push({
-        msg: `モンスターは装身具を落としたが、バッグが満杯で拾えなかった！`,
+        msg: `魔物は装身具を落としたが、バッグが満杯で拾えなかった！`,
         sound: "miss"
       });
     }
@@ -365,7 +365,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     });
   } else if (state.combatState.isMidboss) {
     logQueue.push({
-      msg: "デーモンガードの骸から [竜の鍵] を手に入れた！これであの扉を開けられるはずだ！",
+      msg: "デーモンガードの骸から竜の鍵を手に入れた！これであの扉を開けられるはずだ！",
       sound: "item",
       giveKey: true
     });
@@ -431,7 +431,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
   } else {
     if (rng() < 0.20) {
       logQueue.push({
-        msg: "モンスターが宝箱を残していった！",
+        msg: "魔物が宝箱を残していった！",
         triggerChest: true
       });
     } else {

@@ -54,7 +54,7 @@ function getKnownBuildAffixes(char) {
 }
 
 function getRuneNames(char) {
-  return getActiveRuneSpellKeys(char).map(spellKey => SPELLS[spellKey]?.name || spellKey);
+  return getActiveRuneSpellKeys(char).map(spellKey => SPELLS[spellKey]?.label || spellKey);
 }
 
 function getReturnedItemSummary(items) {

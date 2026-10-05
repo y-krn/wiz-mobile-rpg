@@ -6,7 +6,7 @@ import * as facade from "../../../src/combat_ui/spell_summary.js";
 import * as owner from "../../../src/combat_ui/spell_summary.ts";
 import { exerciseSpellSummaryInputs } from "../fixtures/typescript/spell_summary_inputs.ts";
 
-const RANGE_PATTERN = /(\d+)\s*-\s*(\d+)/;
+const RANGE_PATTERN = /(\d+)\s*[-〜]\s*(\d+)/;
 const failures = [];
 const checkedSummaries = [];
 const checkedSpells = [];
@@ -57,7 +57,7 @@ for (const [spellName, spell] of Object.entries(SPELLS)) {
 recordAssertion(() => {
   assert.deepStrictEqual(
     getSpellCombatSummary("WEAKEN"),
-    { tag: "弱体", effect: "全体攻撃力 -3 3T", category: "debuff" },
+    { tag: "弱体", effect: "攻撃力-3", category: "debuff" },
     "WEAKEN: combat summary must match the exact debuff definition"
   );
 });

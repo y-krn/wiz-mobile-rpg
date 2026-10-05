@@ -423,7 +423,7 @@ await test("通常開封の成功テレポートは別座標へ移動して探�
   assert.deepEqual({ x: state.x, y: state.y }, destination);
   assert.equal(state.chestState, null);
   assert.equal(state.gameState, "explore");
-  assert.ok(state.logs.includes("解除失敗！宝箱を開けた瞬間、罠 [テレポーター] が作動した！"));
+  assert.ok(state.logs.includes("解除に失敗した。宝箱を開けた瞬間、罠「テレポーター」が作動した！"));
   assert.ok(state.logs.includes("テレポーターが作動！冒険者は別の場所にテレポートした！"));
 });
 

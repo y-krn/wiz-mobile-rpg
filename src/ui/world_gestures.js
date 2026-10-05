@@ -183,7 +183,7 @@ function showCoachOnce(host) {
       <li><span class="world-coach-glyph" data-glyph="edge"></span>左右の端をタップ / 向きたい方へ横にスワイプ<em>振り向く（大きく払うと後ろを向く）</em></li>
       <li><span class="world-coach-glyph" data-glyph="down"></span>下にスワイプ<em>一歩下がる</em></li>
       <li><span class="world-coach-glyph" data-glyph="hold"></span>長押し<em>その場を調べる</em></li>
-      <li><span class="world-coach-glyph" data-glyph="satchel"></span>自分の札をタップ<em>持ち物・魔法・装備</em></li>
+      <li><span class="world-coach-glyph" data-glyph="satchel"></span>自分の札をタップ<em>持ち物・呪文・装備</em></li>
     </ul>`;
   host.appendChild(coach);
   coachTimer = setTimeout(dismissWorldCoach, COACH_MS);

@@ -7,7 +7,8 @@ import { normalizeDeathSource, normalizeRunDeathLog } from "./death_logs.js";
 import {
   COMBAT_LOG_PRESENTATION_KINDS,
   normalizeCombatLogPresentationKind,
-  mergeCombatLogPresentationKinds
+  mergeCombatLogPresentationKinds,
+  stripLogMarkers
 } from "../combat_log_semantics.js";
 import { CODEX_TRAP_IDS } from "./codex_trap_ids.js";
 
@@ -155,10 +156,12 @@ export function getLogEntries() {
   return state.logEntries;
 }
 
-export function addLog(msg, {
+export function addLog(rawMsg, {
   side = "neutral",
   presentationKind = COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
 } = {}) {
+  // The stored log is what the player reads: internal line markers stop here.
+  const msg = stripLogMarkers(rawMsg);
   const logs = state.logs;
   const logEntries = getLogEntries();
   const normalizedPresentationKind = normalizeCombatLogPresentationKind(presentationKind);
@@ -212,7 +215,7 @@ export function addEventLog(msg, {
   state.currentRun.eventObservations[key] = {
     key,
     scope,
-    text: String(msg ?? ""),
+    text: stripLogMarkers(msg),
     side,
     presentationKind: normalizeCombatLogPresentationKind(presentationKind),
     kind: kind === "result" ? "result" : "unresolved",
@@ -269,7 +272,7 @@ export function recordCharDeath(stateObj, char, cause, details = null) {
 export function formatCharDeathLog(deathLog) {
   if (!deathLog) return "";
   const turnText = deathLog.turn != null ? ` (ターン ${deathLog.turn})` : "";
-  return `☠️ [!] ${deathLog.charName}は B${deathLog.floor}F で${deathLog.cause}により倒れた。${turnText}`;
+  return `☠️ ${deathLog.charName}は B${deathLog.floor}F で${deathLog.cause}により倒れた。${turnText}`;
 }
 
 export function queueCharDeathLog(logQueue, deathLog) {

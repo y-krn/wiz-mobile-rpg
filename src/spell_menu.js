@@ -16,6 +16,7 @@ import {
 } from "./rules/spell_targeting.js";
 import { trackExplorationDecision } from "./telemetry.js";
 import { getActiveSpellKeys } from "./rules/magic_rules.js";
+import { getStatusLabel } from "./ui/status_label.js";
 
 export let spellMenuState = {
   filter: "all", // "all", "usable", "heal", "utility", "combat"
@@ -308,7 +309,7 @@ export function renderSpellOverlay() {
         top.className = "spell-card-row-top";
         const name = document.createElement("span");
         name.className = "spell-card-name";
-        name.textContent = spell.name;
+        name.textContent = spell.label;
         const cost = document.createElement("span");
         cost.className = "spell-card-mp";
         cost.textContent = payment.resource === "hp" ? `HP ${payment.cost}` : `MP ${spell.cost}`;
@@ -394,7 +395,7 @@ export function renderSpellOverlay() {
     summaryTitle.style.fontWeight = "bold";
     summaryTitle.style.color = "var(--neon-purple)";
     summaryTitle.style.marginBottom = "4px";
-    summaryTitle.textContent = `🔮 ${caster.name} が ${spell.name} を唱える `;
+    summaryTitle.textContent = `🔮 ${caster.name} が ${spell.label} を唱える `;
     const preview = document.createElement("span");
     preview.style.fontSize = "10px";
     preview.style.color = "var(--text-muted)";
@@ -440,7 +441,7 @@ export function renderSpellOverlay() {
       const statusColor = isDisabled ? "var(--text-disabled)" : "var(--neon-cyan)";
 
       const hpColor = char.hp <= char.maxHp * 0.3 ? "var(--neon-red)" : (char.hp <= char.maxHp * 0.5 ? "var(--neon-amber)" : "#fff");
-      const statusSuffix = char.status !== "ok" && char.status !== "dead" ? ` [${char.status.toUpperCase()}]` : "";
+      const statusSuffix = char.status !== "ok" && char.status !== "dead" ? `（${getStatusLabel(char.status)}）` : "";
 
       const name = document.createElement("div");
       name.className = "target-card-name";
@@ -541,7 +542,7 @@ export function renderSpellOverlay() {
     detailHeader.className = "spell-detail-header-row";
     const spellName = document.createElement("span");
     spellName.className = "spell-detail-name";
-    spellName.textContent = spell.name;
+    spellName.textContent = spell.label;
     const target = document.createElement("span");
     target.className = "spell-detail-target";
     target.textContent = `対象: ${targetJp}`;
@@ -556,7 +557,7 @@ export function renderSpellOverlay() {
     casterRow.appendChild(hp);
     if (caster.status !== "ok") {
       const statusText = document.createElement("span");
-      statusText.textContent = ` / 状態: ${caster.status.toUpperCase()}`;
+      statusText.textContent = ` / 状態: ${getStatusLabel(caster.status)}`;
       casterRow.appendChild(statusText);
     }
     const mpRow = document.createElement("div");
@@ -602,7 +603,7 @@ export function renderSpellOverlay() {
           if (targetIndices.length === 1) {
             executeAllySpell(targetIndices[0]);
           } else {
-            openSubmenu("spell_target_ally", `${spell.name}の対象を選択:`);
+            openSubmenu("spell_target_ally", `${spell.label}をかける相手を選ぶ`);
           }
         } else if (spell.target === "all_allies") {
           executeAllySpell();
