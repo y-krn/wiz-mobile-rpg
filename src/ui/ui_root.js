@@ -17,7 +17,8 @@ import { getRoundEnemyActions } from "../combat_ui/round_enemy_actions.js";
 import { updateCombatPrompt } from "./combat_prompt.js";
 import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
-import { getDepthCorruption, getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
+import { getDepthCorruption, getFloorDisplayName, getFloorTheme } from "../data/floor_themes.js";
+import { describeFloor } from "./floor_label.js";
 import { formatFeatProgress, getFeat, getLiveFeatCounters, getNearestFeats } from "../systems/feats.js";
 import { getEscortNames } from "../systems/facilities.js";
 import { updateRecordsStrip } from "./records_view.js";
@@ -264,13 +265,14 @@ export function resetViewportZoom() {
 export function getCurrentGoal() {
   const view = getScreenViewState(state, menuContext);
   if (view.gameState === "town" || view.isDeparturePrepSubmenu) {
-    return "開始地点と開始キットを選び、自己最深記録を更新せよ";
+    return "支度を整えて、これまでより深く潜る";
   }
 
+  // The header already names the floor the player is on.
   if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
-    return `${getFloorDisplayName(state, state.floor)}: B${state.floor}Fの階層守護者を倒せ`;
+    return "この階の守護者を倒す";
   }
-  return `${getFloorDisplayName(state, state.floor)}: ${getFloorLabel(state, state.floor + 1)}への下り階段を探せ`;
+  return `下り階段を探して、${describeFloor(state, state.floor + 1)}へ`;
 }
 
 // A goal-row stat whose label hides while the explore goal is folded (#1832).
@@ -515,6 +517,9 @@ export function updateUI() {
     locLabel.textContent = "CONGRATULATIONS!";
   } else if (gameState === "gameover") {
     locLabel.textContent = "GAME OVER";
+  } else if (gameState === "result") {
+    // Without this the label of the screen the run ended on stays up.
+    locLabel.textContent = "RESULT";
   }
   wasCombatContext = isCombatContext;
   
@@ -737,34 +742,14 @@ export function updateUI() {
     const el = document.getElementById("trap-controls");
     if (el) el.classList.add("active");
     
-    const { trap, successRate, expectedEffect, revealLevel = 3 } = state.activeTrapState;
+    // The panel says what the trap is, what it does, and the odds: what the
+    // choice needs. The internal difficulty is already inside the odds.
+    // `consequence` is missing on encounters saved before it existed.
+    const { trap, successRate, consequence, expectedEffect, revealLevel = 3 } = state.activeTrapState;
     const trapNames = getFloorTheme(state.floor)?.trapSkins || {};
-    const trapName = revealLevel >= 2 ? (trapNames[trap.type] || "未知の罠") : "罠の気配";
-    const trapNameElement = document.getElementById("trap-name");
-    trapNameElement.replaceChildren();
-    trapNameElement.textContent = "罠名: ";
-    const trapNameValue = document.createElement("strong");
-    trapNameValue.style.color = "var(--neon-red)";
-    trapNameValue.textContent = trapName;
-    trapNameElement.appendChild(trapNameValue);
-    
-    const trapStates = {
-      hidden: "未解除",
-      discovered: "発見済み"
-    };
-    const statusColor = "var(--neon-amber)";
-    const trapStatusElement = document.getElementById("trap-status");
-    trapStatusElement.replaceChildren();
-    trapStatusElement.textContent = "状態: ";
-    const trapStatusValue = document.createElement("span");
-    trapStatusValue.style.color = statusColor;
-    trapStatusValue.textContent = trapStates[trap.state] || trap.state;
-    trapStatusElement.appendChild(trapStatusValue);
-    const difficultyText = revealLevel >= 3
-      ? `危険度: B${trap.floorId.replace("B", "")}F (難易度: ${trap.difficulty})`
-      : `危険度: B${trap.floorId.replace("B", "")}F`;
-    document.getElementById("trap-difficulty").textContent = difficultyText;
-    document.getElementById("trap-effect").textContent = `予想効果: ${expectedEffect}`;
+    const trapName = revealLevel >= 2 ? (trapNames[trap.type] || "見たことのない罠") : "罠の気配";
+    document.getElementById("trap-name").textContent = trapName;
+    document.getElementById("trap-effect").textContent = `かかると: ${consequence || expectedEffect || "何が起こるか分からない"}`;
     
     const isPitfall = trap.type === "pitfall";
     const btnDisarm = document.getElementById("btn-trap-disarm");
@@ -773,7 +758,7 @@ export function updateUI() {
     if (btnForce) btnForce.textContent = isPitfall ? "飛び込む" : "強行突破";
 
     const rateColor = successRate >= 75 ? "var(--neon-green)" : (successRate >= 45 ? "var(--neon-amber)" : "var(--neon-red)");
-    const rateText = isPitfall ? "回避成功率" : "解除成功率";
+    const rateText = isPitfall ? "渡りきる見込み" : "解除の見込み";
     const rateElement = document.getElementById("trap-success-rate");
     rateElement.replaceChildren();
     rateElement.textContent = `${rateText}: `;

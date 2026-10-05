@@ -50,14 +50,14 @@ assert.deepEqual(
   baseline.measurement.measurementEnemyTurnEvents.map(event => event.monster),
   ["双頭の番犬", "錆びた盾兵", "双頭の番犬"]
 );
-assert.equal(baseline.result.logQueue.some(entry => entry.msg.includes("連携して通常行動")), false);
+assert.equal(baseline.result.logQueue.some(entry => entry.msg.includes("1体だけが仕掛けてくる")), false);
 
 const candidate = resolve({ measurementSharedNormalEnemyActionSlot: true });
 assert.equal(candidate.measurement.measurementEnemyTurnEvents.length, 2, "shared slot keeps the selected ordinary turn and its trait extra");
 assert.deepEqual(candidate.measurement.measurementEnemyTurnEvents.map(event => event.monster), ["双頭の番犬", "双頭の番犬"]);
 assert.equal(candidate.measurement.measurementEnemyTurnEvents.filter(event => event.extraMultiAction).length, 1);
 assert.ok(candidate.measurement.measurementEnemyTurnEvents.every(event => event.sharedNormalSlot === true));
-assert.equal(candidate.result.logQueue.filter(entry => entry.msg.includes("連携して通常行動")).length, 1);
+assert.equal(candidate.result.logQueue.filter(entry => entry.msg.includes("1体だけが仕掛けてくる")).length, 1);
 
 const production = resolve({}, "shared-normal-slot");
 assert.deepEqual(

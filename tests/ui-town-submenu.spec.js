@@ -58,8 +58,9 @@ test('Town submenus hide the goal banner and expand the workshop list', async ({
       });
 
       const heightGain = hiddenHeight - visibleLayout.gridHeight;
-      expect(visibleLayout.bannerHeight, 'Goal banner should occupy a compact HUD row').toBeGreaterThanOrEqual(45);
-      expect(visibleLayout.bannerHeight, 'Goal banner height should stay near the observed 51px').toBeLessThanOrEqual(64);
+      // The town goal is one line since #2034 (27px here); it was two (51px).
+      expect(visibleLayout.bannerHeight, 'Goal banner should occupy a compact HUD row').toBeGreaterThanOrEqual(24);
+      expect(visibleLayout.bannerHeight, 'Goal banner should stay within two lines').toBeLessThanOrEqual(64);
       expect(heightGain, 'Workshop list should receive the banner height').toBeCloseTo(visibleLayout.bannerHeight, 0);
     }
   }

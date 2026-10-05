@@ -46,13 +46,11 @@ for (const viewport of VIEWPORTS) {
     // Revisit buckets compare Date.now() gaps; freeze it so slow CI stays in the immediate bucket.
     await page.clock.setFixedTime(new Date('2026-01-01T00:00:00Z'));
 
-    await expect(page.locator('.milestone-portal-vitals')).toContainText('HP 12/45');
-    const expectedMp = await page.evaluate(async () => {
-      const { state } = await import('/src/state.js');
-      const { getCharMaxMp } = await import('/src/data.js');
-      return `MP ${state.party[0].mp}/${getCharMaxMp(state.party[0])}`;
-    });
-    await expect(page.locator('.milestone-portal-vitals')).toContainText(expectedMp);
+    // HP and MP stay on the adventurer panel under the menu; the portal does
+    // not repeat them.
+    await expect(page.locator('.milestone-portal-vitals')).toHaveCount(0);
+    await expect(page.locator('#character-hud .hp-row .bar-value')).toHaveText('12/45');
+    await expect(page.locator('#character-hud')).toBeVisible();
     await expect(page.locator('.milestone-portal-bag')).toHaveAttribute('aria-label', 'バッグ 2/20枠');
     const portalText = await page.locator('#submenu-options').textContent();
     expect(portalText).toContain('未使用品 1個');

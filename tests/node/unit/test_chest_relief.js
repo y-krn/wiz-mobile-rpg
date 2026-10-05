@@ -677,7 +677,7 @@ await test("罠外しキットの定義と商人在庫", () => {
     id: "TRAP_KIT",
     name: "罠外しキット",
     type: "usable",
-    desc: "宝箱の罠を1つ確実に外す。[全員用]"
+    desc: "宝箱の罠を1つ確実に外す。"
   });
   assert.ok(MILESTONE_MERCHANT_STOCK.some(entry =>
     entry.id === "trap_kit" && entry.itemId === "TRAP_KIT" && entry.cost["骨片"] === 2

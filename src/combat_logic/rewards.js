@@ -194,7 +194,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     items: []
   };
 
-  logQueue.push({ msg: "======================================" });
   if (nonFledMonsters.length > 0) {
     let msg = "戦闘に勝利した！";
     if (expShare > 0) {
@@ -242,7 +241,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
   }
 
   if (nonFledMonsters.length === 0) {
-    logQueue.push({ msg: "======================================" });
     logQueue.push({
       msg: "周囲に静寂が戻った。",
       endCombat: true
@@ -275,8 +273,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
       });
     }
   });
-
-  logQueue.push({ msg: "======================================" });
 
   // 敵撃破時の未鑑定装備ドロップ判定
   let dropEquipment = null;

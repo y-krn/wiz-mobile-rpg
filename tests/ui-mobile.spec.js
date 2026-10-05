@@ -265,8 +265,8 @@ for (const vp of VIEWPORTS) {
 
       await expect(page.locator('#submenu-controls')).toBeVisible();
       await expect(page.locator('.chest-info-panel')).toContainText('罠の気配: 危険な気配');
-      await expect(page.locator('.chest-info-panel')).toContainText('見立て: 怪しい');
-      await expect(page.locator('.chest-info-panel')).toContainText('開けるときの自動解除: 約25%');
+      await expect(page.locator('.chest-info-panel')).toContainText('危険な気配（当てにならない）');
+      await expect(page.locator('.chest-info-panel')).toContainText('開けるときに罠を外せる見込み: 約25%');
       await expect(page.getByRole('button', { name: '開ける', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'キットを使って開ける' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '立ち去る' })).toBeVisible();
@@ -371,7 +371,7 @@ for (const vp of VIEWPORTS) {
       // Object rewards continue through the shared pending-reward resolution surface.
       await page.evaluate(() => { Math.random = () => 0.99; });
       await page.getByRole('button', { name: '開ける', exact: true }).click();
-      await expect(page.locator('#submenu-title')).toContainText('発見した戦果を解決');
+      await expect(page.locator('#submenu-title')).toContainText('見つけた戦果');
       await expect(page.locator('.pending-reward-card')).toHaveCount(1);
       await expect(page.locator('#log-panel')).toBeVisible();
       await expect(page.locator('#log-content')).toContainText('宝箱を開けた瞬間、罠 [毒針] が作動した！');
@@ -612,9 +612,11 @@ for (const vp of VIEWPORTS) {
 
       expect(observed.exploreSummaryCount).toBe(0);
       for (const surface of [observed.stairs, observed.portal, observed.wing]) {
-        expect(surface.text).toContain('素材 10個・未使用品 0個');
-        expect(surface.text).toMatch(/生還すれば持ち帰る\s*素材 10個・未使用品 0個/);
-        expect(surface.text).toMatch(/死ねば・断念すれば失う\s*素材 9個・未使用品 0個/);
+        // Each number once; unused supplies are listed only when there are some.
+        expect(surface.text).toMatch(/生還すれば持ち帰る\s*素材 10個/);
+        expect(surface.text).toMatch(/死ねば・断念すれば失う\s*素材 9個/);
+        expect(surface.text.match(/素材 10個/g)).toHaveLength(1);
+        expect(surface.text).not.toContain('未使用品');
         expect(surface.text).not.toMatch(/危険|確率|推奨|%/);
         expect(surface.box.left).toBeGreaterThanOrEqual(0);
         expect(surface.box.right).toBeLessThanOrEqual(vp.width);

@@ -113,16 +113,23 @@
   text-align: right;
 }
 
-.character-status {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  padding: 1px 4px;
+.character-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.character-identity .character-status {
+  overflow: hidden;
+  padding: 0 4px;
   border: 1px solid currentColor;
   border-radius: var(--radius-xs);
   background: rgba(250, 245, 237, 0.82);
   color: var(--neon-red);
   font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sr-only {
@@ -350,7 +357,6 @@
   min-height: var(--tap-min);
 }
 
-.milestone-portal-vitals,
 .milestone-portal-choices,
 .milestone-portal-confirmation,
 .milestone-portal-confirmation-actions {
@@ -359,7 +365,6 @@
   grid-column: 1 / -1;
 }
 
-.milestone-portal-vitals,
 .milestone-portal-confirmation {
   padding: var(--sp-sm) var(--sp-md);
   border: 1px solid var(--border-color);
@@ -367,40 +372,10 @@
   background: var(--surface-inset);
 }
 
-.milestone-portal-section-title,
-.milestone-portal-confirmation-title,
-.milestone-portal-side-info-label {
+.milestone-portal-confirmation-title {
   color: var(--neon-cyan);
   font-family: var(--font-mono);
   font-size: var(--fs-md);
-}
-
-.milestone-portal-party {
-  display: grid;
-  gap: var(--sp-xs);
-}
-
-.milestone-portal-vital-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: var(--sp-sm);
-  min-width: 0;
-}
-
-.milestone-portal-vital-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.milestone-portal-hp {
-  color: var(--semantic-life);
-  white-space: nowrap;
-}
-
-.milestone-portal-mp {
-  color: var(--semantic-magic);
-  white-space: nowrap;
 }
 
 .milestone-portal-choice-description,

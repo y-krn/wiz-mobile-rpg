@@ -19,7 +19,7 @@ const logs = applyPendingOutcomeRewards(stateLike, {
 
 assert.deepEqual(logs, [
   "B5F開始を恒久アンロックした。",
-  "【恒久解放】鍛造殿の印を手に入れた。工房「深層ビルド」枝を表示解放した。"
+  "【恒久解放】鍛造殿の印を手に入れた。工房に「深層ビルド」の強化が並ぶようになった。"
 ]);
 assert.equal(stateLike.map[0][0].event, null);
 assert.equal(stateLike.map[0][0].type, "stairs-down");

@@ -363,11 +363,11 @@ function renderPendingRewardMenu() {
   if (!optGrid) return false;
   optGrid.className = "submenu-grid pending-reward-grid";
   optGrid.innerHTML = "";
-  document.getElementById("submenu-title").textContent = "発見した戦果を解決";
+  document.getElementById("submenu-title").textContent = "見つけた戦果";
 
   const info = document.createElement("div");
   info.className = "pending-reward-intro";
-  info.textContent = "次の探索へ進む前に、同じ取得イベントの戦果をまとめて決めてください。置いていく戦果はバッグに入りません。";
+  info.textContent = "持っていくものを決めてから先へ進む。置いていく品は持ち帰れない。";
   optGrid.appendChild(info);
 
   const discardIndexes = normalizeDiscardIndexes(bundle, state.inventory);
@@ -376,8 +376,8 @@ function renderPendingRewardMenu() {
   optGrid.appendChild(createBagCapacitySummary(projectedInventory, {
     className: "pending-reward-bag-status",
     note: projectedCount > 20
-      ? `確定後 ${projectedCount}/20枠。既存品を選んで置いてください。`
-      : `確定後 ${projectedCount}/20枠。持つ戦果は確定するまでバッグに入りません。`
+      ? `このまま持つと ${projectedCount}/20枠であふれる。バッグの品を選んで置いていく。`
+      : `このまま持つと ${projectedCount}/20枠。`
   }));
 
   bundle.entries.forEach(entry => {
@@ -406,11 +406,19 @@ function renderPendingRewardMenu() {
       });
     };
     if (isChoiceEntry(bundle, entry) || isBuildVNextRun(state)) {
-      const desc = document.createElement("small");
-      desc.className = "pending-reward-desc";
+      // One line each: the one-of-these note, the weapon's technique, the item.
       const technique = item?.type === "weapon" ? TECHNIQUE_BY_PROFILE[item.behaviorProfile] : null;
-      desc.textContent = `${isChoiceEntry(bundle, entry) ? "【戦い方の芽・1つだけ選べる】" : ""}${technique ? `技「${technique.name}」: ${technique.desc} ` : ""}${item?.desc || ""}`;
-      card.appendChild(desc);
+      [
+        [isChoiceEntry(bundle, entry) ? "この中から1つだけ持てる" : "", "pending-reward-desc pending-reward-choice-note"],
+        [technique ? `技「${technique.name}」: ${technique.desc}` : "", "pending-reward-desc pending-reward-technique"],
+        [item?.desc || "", "pending-reward-desc"]
+      ].forEach(([text, className]) => {
+        if (!text) return;
+        const line = document.createElement("small");
+        line.className = className;
+        line.textContent = text;
+        card.appendChild(line);
+      });
     }
     actions.appendChild(createActionButton("持つ", "btn btn-neon", () => {
       leaveOtherChoices();
@@ -461,9 +469,12 @@ function renderPendingRewardMenu() {
     optGrid.appendChild(card);
   });
 
-  const discardHeading = document.createElement("h4");
-  discardHeading.textContent = "既存バッグから置いていく品（必要な場合のみ）";
-  optGrid.appendChild(discardHeading);
+  // Nothing to give up when the bag is empty.
+  if (state.inventory.length > 0) {
+    const discardHeading = document.createElement("h4");
+    discardHeading.textContent = "バッグから置いていく品（空きが足りないとき）";
+    optGrid.appendChild(discardHeading);
+  }
   state.inventory.forEach((item, index) => {
     const label = document.createElement("label");
     label.className = "pending-reward-discard-row";
