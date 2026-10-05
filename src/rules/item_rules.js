@@ -300,11 +300,14 @@ export function getItemData(itemOrKey) {
     if (enhanceLevel > 0) {
       name = `${name}+${enhanceLevel}`;
     }
-    let affixDesc = (itemOrKey.affixes || []).map(aff => {
-      return formatAffixText(aff, "");
-    }).join(" / ");
-    
-    let desc = `${base.desc} [${affixDesc}]`;
+    // Description, then effects, then one closing aside for rarity, tags and
+    // curse: "…。防御力+1 ／ 最大MP+1（魔法／系統: 霊・守勢）".
+    const affixTexts = (itemOrKey.affixes || []).map(aff => formatAffixText(aff, ""));
+    let desc = [base.desc, ...affixTexts].filter(Boolean).join(" ／ ");
+    const asides = [];
+    if (itemOrKey.rarity) {
+      asides.push({ magic: "魔法", rare: "希少", epic: "逸品" }[itemOrKey.rarity] || "魔法");
+    }
     if (itemOrKey.tags && itemOrKey.tags.length > 0) {
       const hintLabels = {
         fire_rite: "火葬", holy: "聖", spirit: "霊", poison: "毒",
@@ -315,21 +318,14 @@ export function getItemData(itemOrKey) {
         decay: "衰"
       };
       const tagList = itemOrKey.tags.map(t => hintLabels[t] || t).join("・");
-      desc = `<系統: ${tagList}> ${desc}`;
+      asides.push(`系統: ${tagList}`);
     }
     if (itemOrKey.curseEffectId) {
       const curse = CURSE_EFFECTS[itemOrKey.curseEffectId];
       const power = Math.max(1, itemOrKey.cursePower || 1);
-      desc += ` <呪い: ${curse?.name || "不明"} / 負荷×${power.toFixed(2)}>`;
+      asides.push(`呪い: ${curse?.name || "不明"} 負荷×${power.toFixed(2)}`);
     }
-    if (itemOrKey.rarity) {
-      const rarityLabel = {
-        magic: "Magic",
-        rare: "Rare",
-        epic: "Epic"
-      }[itemOrKey.rarity] || "Magic";
-      desc = `[${rarityLabel}] ${desc}`;
-    }
+    if (asides.length > 0) desc += `（${asides.join("／")}）`;
     
     return {
       ...base,

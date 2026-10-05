@@ -1547,13 +1547,12 @@
   color: var(--text-secondary);
   font-size: var(--fs-sm);
   line-height: 1.35;
-  margin-bottom: var(--sp-sm);
+  margin-top: var(--sp-sm);
 }
 
 #trap-details {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 12px;
+  gap: 4px;
 }
 
 .trap-grid {

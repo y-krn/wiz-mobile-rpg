@@ -81,12 +81,14 @@ export function createRunStakesSummary(
   summary.className = "run-stakes-summary";
   summary.setAttribute("aria-label", "潜行中の素材と持ち込み品の賭け金");
 
+  // The two cells below carry the numbers once each; the title only names
+  // the block. Unused supplies are listed only when there are some.
+  const amounts = materialCount => unusedItems > 0
+    ? `素材 ${materialCount}個・未使用品 ${unusedItems}個`
+    : `素材 ${materialCount}個`;
   const title = document.createElement("div");
   title.className = "run-stakes-title";
-  title.append("今回の賭け金 ");
-  const current = document.createElement("strong");
-  current.textContent = `素材 ${currentTotal}個・未使用品 ${unusedItems}個`;
-  title.appendChild(current);
+  title.textContent = "今回の賭け金";
 
   const flow = document.createElement("div");
   flow.className = "run-stakes-flow";
@@ -95,14 +97,14 @@ export function createRunStakesSummary(
   const retreatLabel = document.createElement("span");
   retreatLabel.textContent = "生還すれば持ち帰る";
   const retreatValue = document.createElement("strong");
-  retreatValue.textContent = `素材 ${currentTotal}個・未使用品 ${unusedItems}個`;
+  retreatValue.textContent = amounts(currentTotal);
   retreat.append(retreatLabel, retreatValue);
 
   const death = document.createElement("div");
   const deathLabel = document.createElement("span");
   deathLabel.textContent = "死ねば・断念すれば失う";
   const deathValue = document.createElement("strong");
-  deathValue.textContent = `素材 ${deathLoss}個・未使用品 ${unusedItems}個`;
+  deathValue.textContent = amounts(deathLoss);
   death.append(deathLabel, deathValue);
 
   flow.append(retreat, death);

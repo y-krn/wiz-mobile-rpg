@@ -322,7 +322,7 @@ for (const vp of VIEWPORTS) {
     await expect(page.locator('#log-panel')).toBeHidden();
     await expect(page.locator('#viewport-panel')).toBeHidden();
     const goalBanner = page.locator('#goal-banner');
-    await expect(goalBanner).toContainText('🎯 目標: 開始地点と開始キットを選び、自己最深記録を更新せよ');
+    await expect(goalBanner).toContainText('🎯 目標: 支度を整えて、これまでより深く潜る');
     await expect(goalBanner).not.toContainText('探索率:');
     await expect(goalBanner.locator('.goal-stats-container')).toHaveCount(0);
     const summary = page.locator('.solo-start-craft-summary');

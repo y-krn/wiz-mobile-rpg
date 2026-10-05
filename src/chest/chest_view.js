@@ -9,10 +9,11 @@ const TRAP_SIGN_DISPLAY = Object.freeze({
   danger: Object.freeze({ text: "危険な気配", color: "var(--neon-red)" })
 });
 
+// How far the sign can be trusted, said as an aside to the sign itself.
 function getSignReliabilityText(accuracy = 0) {
-  if (accuracy >= 0.9) return "見立て: 確か";
-  if (accuracy >= 0.75) return "見立て: まずまず";
-  return "見立て: 怪しい";
+  if (accuracy >= 0.9) return "（まず確か）";
+  if (accuracy >= 0.75) return "（たぶん）";
+  return "（当てにならない）";
 }
 
 function getTrapSignRow(chest) {
@@ -28,7 +29,7 @@ function getTrapSignRow(chest) {
   row.appendChild(sign);
   const reliability = document.createElement("span");
   reliability.style.color = "var(--text-muted)";
-  reliability.textContent = ` / ${getSignReliabilityText(chest.trapSignAccuracy)}`;
+  reliability.textContent = getSignReliabilityText(chest.trapSignAccuracy);
   row.appendChild(reliability);
   return row;
 }
@@ -37,7 +38,7 @@ function getDisarmRow(disarmChance) {
   const row = document.createElement("div");
   row.className = "chest-disarm-chance";
   row.style.color = "var(--text-muted)";
-  row.textContent = `開けるときの自動解除: 約${Math.round(Math.max(0, Math.min(1, disarmChance)) * 100)}%`;
+  row.textContent = `開けるときに罠を外せる見込み: 約${Math.round(Math.max(0, Math.min(1, disarmChance)) * 100)}%`;
   return row;
 }
 
@@ -61,19 +62,19 @@ function createDetails(full) {
   details.appendChild(summary);
   const help = document.createElement("div");
   help.className = "chest-help-text";
-  help.textContent = "開けると罠の解除を自動で試み、失敗すると罠が作動する。";
+  help.textContent = "開けるときに罠を外そうとする。外せなければ罠が作動する。";
   help.appendChild(document.createElement("br"));
   const signHelp = document.createElement("span");
-  signHelp.textContent = "危険な気配の箱ほど、中身も期待できる。気配の見立ては外れることがある。";
+  signHelp.textContent = "危険な気配の箱ほど、中身も期待できる。気配の読みは外れることがある。";
   help.appendChild(signHelp);
   help.appendChild(document.createElement("br"));
   const kitHelp = document.createElement("span");
-  kitHelp.textContent = "罠外しキットは罠を確実に解除する。罠がなければ消費しない。";
+  kitHelp.textContent = "罠外しキットは罠を確実に外す。罠がなければ減らない。";
   help.appendChild(kitHelp);
   if (!full) {
     help.appendChild(document.createElement("br"));
     const bagNote = document.createElement("span");
-    bagNote.textContent = "装備中の品は枠外。開封後の報酬だけが空き枠を使います。";
+    bagNote.textContent = "身につけている品はバッグの枠を使わない。";
     help.appendChild(bagNote);
   }
   details.appendChild(help);
@@ -103,7 +104,7 @@ export function renderChestMenu({
     // The heading already states used/free slots; the 20-cell grid stays on bag-management screens.
     showSlots: false,
     showNote: bagFull,
-    note: "満杯。報酬は自動取得されません。開封前に装備画面で整理できます。"
+    note: "バッグが満杯。中身を持つには、先に装備画面で空きを作る。"
   }));
   infoPanel.appendChild(getTrapSignRow(chest));
   infoPanel.appendChild(getDisarmRow(disarmChance));
@@ -111,7 +112,7 @@ export function renderChestMenu({
     const lootHint = document.createElement("div");
     lootHint.className = "chest-loot-hint";
     const lootPrefix = document.createElement("span");
-    lootPrefix.textContent = "宝気: ";
+    lootPrefix.textContent = "中身: ";
     lootHint.appendChild(lootPrefix);
     const lootLabel = document.createElement("span");
     lootLabel.style.color = "var(--text-primary)";
@@ -119,15 +120,18 @@ export function renderChestMenu({
     lootLabel.textContent = loot.label;
     lootHint.appendChild(lootLabel);
     const auraPrefix = document.createElement("span");
-    auraPrefix.textContent = " / 魔力反応: ";
+    auraPrefix.textContent = "（魔力は";
     lootHint.appendChild(auraPrefix);
     const aura = document.createElement("span");
     aura.style.fontWeight = "bold";
     aura.style.color = loot.aura === "strong"
       ? "var(--neon-red)"
       : loot.aura === "medium" ? "var(--neon-yellow)" : "var(--text-muted)";
-    aura.textContent = loot.aura === "strong" ? "強" : loot.aura === "medium" ? "中" : "弱";
+    aura.textContent = loot.aura === "strong" ? "強い" : loot.aura === "medium" ? "そこそこ" : "弱い";
     lootHint.appendChild(aura);
+    const auraSuffix = document.createElement("span");
+    auraSuffix.textContent = "）";
+    lootHint.appendChild(auraSuffix);
     infoPanel.appendChild(lootHint);
   }
   infoPanel.appendChild(createDetails(bagFull));

@@ -1090,8 +1090,8 @@ export function runCombatRoundCalculation(
         // Own group so the announcement stays a separate line from the owner's action.
         logQueue.push({
           msg: mon.hp <= 0
-            ? `[ 敵 ] 連携の要の${mon.name}が倒れ、敵は動けなかった。`
-            : "[ 敵 ] 敵は連携して通常行動を1回にまとめた。",
+            ? `[ 敵 ] 仕掛けようとした${mon.name}が倒れ、残りの敵は手を出せなかった。`
+            : "[ 敵 ] 敵は互いの出方をうかがい、1体だけが仕掛けてくる。",
           groupId: `${groupId}:shared-slot`,
           presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
         });
