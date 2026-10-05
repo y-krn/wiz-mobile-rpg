@@ -825,7 +825,8 @@ function createEquipmentSetStrip(char) {
   strip.setAttribute("aria-label", `系統のそろい効果：同じ系統を${EQUIPMENT_SET_SIZE}つ装備すると効果が付く`);
   const label = document.createElement("span");
   label.className = "equip-set-strip-label";
-  label.textContent = "系統";
+  // The word alone explains nothing: say what a family is for (#2044).
+  label.textContent = `系統（${EQUIPMENT_SET_SIZE}つそろえると効果）`;
   strip.appendChild(label);
   listEquipmentSets(char).forEach(entry => {
     const chip = document.createElement("span");

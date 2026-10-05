@@ -25,7 +25,7 @@ test('Fragments are shown as a stake, kept by a safe return, and decode a page i
     };
   });
   expect(stake.line).toBe('手引き書の断片 2枚。生還すれば持ち帰る。死ねば・断念すれば失う。');
-  expect(stake.hud[0]).toBe('手引き書の断片2枚・生還で持ち帰り');
+  expect(stake.hud[0]).toBe('断片 2枚生還で持ち帰る');
 
   await page.evaluate(async () => {
     (await import('/src/result.js')).triggerRunResult('milestone_portal');

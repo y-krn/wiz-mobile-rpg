@@ -118,7 +118,7 @@ test('Goal and stairs name an unreached floor by its number and state the stakes
   await seedRun(page, { materials: { '獣の牙': 5, '鉄片': 3, '霊粉': 2 }, visitedFloors: [1] });
 
   const goal = page.locator('#goal-banner');
-  await expect(goal).toContainText('目標: 下り階段を探して、地下2階へ');
+  await expect(goal).toContainText('目標: 階段を探して地下2階へ');
   await expect(goal).not.toContainText('???');
   await expect(goal).not.toContainText('探せ');
 
