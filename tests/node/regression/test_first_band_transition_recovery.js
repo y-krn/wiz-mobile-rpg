@@ -33,6 +33,8 @@ assert.deepEqual(result.configuration.preparation, {
   healPotions: 4
 });
 assert.equal(result.baselineParity.pass, true);
+// The simulator default follows production: no heal on a floor transition (#1993).
+assert.equal(result.baselineParity.semantics, "floorTransitionRecoveryRate omitted vs explicit 0");
 assert.equal(result.determinism.pass, true);
 assert.equal(result.observationInvariance.pass, true);
 
@@ -135,7 +137,8 @@ for (const token of [
   "potion HP",
   "transition HP",
   "B5 guardian decomposition",
-  "R25 parity"
+  "default parity",
+  "every arm is a counterfactual"
 ]) {
   assert.match(summary, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 }

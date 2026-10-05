@@ -2855,10 +2855,13 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
     const byKit = {};
     for (const kitId of modeDefinition.kitIds) {
       if (mode === "transition-recovery") {
+        // The simulator default is the production rule: no transition heal
+        // (#1993). Omitting the rate must equal an explicit 0.
+        const zeroArm = { ...arm, recoveryRate: 0 };
         resetSimulationRandom(seed);
-        const explicit = runOne({ arm, kitId, runIndex: 0, includeTransitionRecoveryRate: true });
+        const explicit = runOne({ arm: zeroArm, kitId, runIndex: 0, includeTransitionRecoveryRate: true });
         resetSimulationRandom(seed);
-        const omitted = runOne({ arm, kitId, runIndex: 0, includeTransitionRecoveryRate: false });
+        const omitted = runOne({ arm: zeroArm, kitId, runIndex: 0, includeTransitionRecoveryRate: false });
         byKit[kitId] = compareObservationInvariance(omitted, explicit);
       } else {
         const f0a = modeDefinition.armDefinitions.F0A;
@@ -2911,7 +2914,7 @@ export async function runMeasurement({ runs = DEFAULT_RUNS, seed = DEFAULT_SEED,
         ? Object.values(byKit)[0]?.comparedFields || []
         : Object.values(byKit)[0]?.f0aVsL0a.comparedFields || [],
       semantics: mode === "transition-recovery"
-        ? "floorTransitionRecoveryRate omitted vs explicit 0.25"
+        ? "floorTransitionRecoveryRate omitted vs explicit 0"
         : "F0A == legacy L0A; P20A == legacy L20A; R25A == F0A; flat omitted == explicit 0"
     };
     if (!baselineParity.pass) throw new Error("baseline parity failed");
@@ -3568,10 +3571,11 @@ export function buildSummary(report) {
       "## Comparisons",
       "",
       ...report.primaryComparisons.map(item => `- ${item.label}: ${comparisonLine(item)}`),
-      `- R25 parity: ${report.baselineParity?.pass ? "PASS" : "FAIL"} (${report.baselineParity?.semantics || "unobserved"})`,
+      `- default parity: ${report.baselineParity?.pass ? "PASS" : "FAIL"} (${report.baselineParity?.semantics || "unobserved"})`,
       "",
       `- determinism: ${report.determinism.pass ? "PASS" : "FAIL"}; observation invariance: ${report.observationInvariance.pass ? "PASS" : "FAIL"}`,
-      "- transition recovery and Potion recovery are separate fields; no production src/ balance change; configured runs and successful completion are reported above."
+      "- transition recovery and Potion recovery are separate fields; no production src/ balance change; configured runs and successful completion are reported above.",
+      "- every arm is a counterfactual: production restores nothing on a floor transition (#1993), and each arm adds its transition heal on top of production exploration recovery."
     ];
     return `${lines.join("\n")}\n`;
   }

@@ -1,4 +1,4 @@
-// balance-impact: maps — per-cell recovery is exercised by the Issue #1993 production browser run.
+// balance-impact: maps, recovery — the depth simulation calls applyExplorationRecovery on each newly entered cell (#2028).
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
 import { getHealMultiplier } from "../rules/item_rules.js";
 

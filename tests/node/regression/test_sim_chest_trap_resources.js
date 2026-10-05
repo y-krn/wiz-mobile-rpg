@@ -38,14 +38,18 @@ assert.deepEqual(mimicOutcome(run(14)), mimicOutcome(victory), "mimic fights are
 // Run indexes are fixtures; floor layouts (#1962) and gimmicks (#1963) decide
 // which chests a run meets. Removing the normal run profile moved the
 // fixtures (57 -> 14, 28 -> 2) because runs now use the unified Build vNext rules.
-const cautious = run(2);
+// #2028: with production exploration recovery the run-2 player reaches its
+// mimic healthy enough to fight it, so the low-HP fixture moves to run 31.
+// Run 2 still loses the same consumable to corrosion.
+const cautious = run(31);
 const cautiousMimic = mimicOutcome(cautious);
 assert.ok(cautiousMimic.encounters > 0, "the cautious fixture meets a mimic");
 assert.equal(cautiousMimic.left, cautiousMimic.encounters, "a low-HP player leaves every mimic");
 assert.equal(cautiousMimic.fights, 0);
-assert.deepEqual(cautious.chestTrapOutcomes.corrosionItemsLost, { ETHER: 1 });
+const corroded = run(2);
+assert.deepEqual(corroded.chestTrapOutcomes.corrosionItemsLost, { ETHER: 1 });
 
-for (const result of [victory, cautious]) {
+for (const result of [victory, cautious, corroded]) {
   const mimic = mimicOutcome(result);
   assert.equal(mimic.encounters, mimic.left + mimic.fights);
   assert.equal(mimic.fights, mimic.victories + mimic.flees + mimic.deaths);

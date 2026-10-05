@@ -351,6 +351,7 @@ const { scaleEnemyForDepth } = await import("../../src/rules/depth_scaling.js");
 const { ITEM_EFFECTS } = await import("../../src/systems/item_effects.js");
 const { getUsableInventoryItems } = await import("../../src/rules/item_inventory.js");
 const { getEffectiveHealAmount } = await import("../../src/rules/item_rules.js");
+const { applyExplorationRecovery } = await import("../../src/systems/exploration_recovery.js");
 const { canUseManaItems } = await import("../../src/rules/magic_rules.js");
 const {
   clearCharIncapacitationOnDamage,
@@ -2414,6 +2415,7 @@ function createStage15FloorTelemetry(floor) {
     healing: 0,
     healPotionRecoveryHp: 0,
     floorTransitionRecoveryHp: 0,
+    explorationRecoveryHp: 0,
     healPotionUses: 0,
     encounters: 0,
     combatActions: 0,
@@ -4764,9 +4766,12 @@ function createSimulationState(
   if (!Number.isInteger(extraCampTimeCost) || extraCampTimeCost < 0) {
     throw new Error(`extraCampTimeCost must be a non-negative integer: ${scenario.extraCampTimeCost}`);
   }
+  // Production restores nothing on a floor transition (#1993); recovery comes
+  // from newly entered cells. A positive rate is a measurement-only
+  // counterfactual that adds a stairs/pitfall heal on top of it.
   const floorTransitionRecoveryRate = Object.hasOwn(scenario, "floorTransitionRecoveryRate")
     ? parseOptionalChance(scenario.floorTransitionRecoveryRate, "floorTransitionRecoveryRate")
-    : 0.25;
+    : 0;
   const levelUpRecoveryRate = Object.hasOwn(scenario, "levelUpRecoveryRate")
     ? parseOptionalChance(scenario.levelUpRecoveryRate, "levelUpRecoveryRate")
     : 0;
@@ -13071,8 +13076,10 @@ export function runEquipmentUpgradeFixture({
   return { state, metrics, upgrades };
 }
 
-export function applyFloorTransitionHeal(character, recoveryRate = 0.25) {
-  if (!isAlive(character)) return 0;
+// Measurement-only counterfactual (see floorTransitionRecoveryRate). A rate of
+// 0, the production rule, heals nothing.
+export function applyFloorTransitionHeal(character, recoveryRate = 0) {
+  if (!isAlive(character) || !(recoveryRate > 0)) return 0;
   const maxHp = getCharMaxHp(character);
   const healed = Math.min(
     maxHp - character.hp,
@@ -14134,6 +14141,7 @@ function createSimulationFloorRoute(generated, routePlan, state, floor, metrics)
       targetIndex: 0,
       targets: [],
       knownCellKeys: new Set(start ? [routeKey(start)] : []),
+      enteredCellKeys: new Set(start ? [routeKey(start)] : []),
       searchedSecretDoorKeys: new Set(),
       secretSearchDirectionByCell: new Map(),
       revealedSecretDoorKeys: new Set(),
@@ -14167,6 +14175,7 @@ function createSimulationFloorRoute(generated, routePlan, state, floor, metrics)
       : (start ? [{ ...start }] : []),
     targetIndex: 0,
     targets,
+    enteredCellKeys: new Set(start ? [routeKey(start)] : []),
     knownTrapKeys: new Set(),
     processedEventKeys: new Set(),
     replanStates: new Set(),
@@ -14295,6 +14304,37 @@ function finalizeTrapRouteDetour(metrics) {
   metrics.trapRoute.detourActive = false;
 }
 
+// Exploration recovery (#1993): the production rule runs when the route enters
+// a cell for the first time on this floor, as production does when a move
+// marks a cell visited. The arrival cell gives nothing, and steps that only
+// spend exploration time (EXPLORATION_FACTOR) enter no cell.
+function recoverOnNewlyEnteredCell(route, state, floor, metrics) {
+  const key = routeKey(route.current);
+  route.enteredCellKeys ||= new Set();
+  if (route.enteredCellKeys.has(key)) return;
+  route.enteredCellKeys.add(key);
+  const character = state.party[0];
+  const mpBefore = character.mp;
+  const { hpRecovered, mpRecovered } = applyExplorationRecovery(state, floor);
+  if (!metrics) return;
+  metrics.runtimeDiagnostics?.onCall("recovery.exploration");
+  if (!metrics.explorationRecovery) return;
+  const totals = metrics.explorationRecovery;
+  const byFloor = totals.byFloor[String(floor)] ||= { newCells: 0, hp: 0, mp: 0 };
+  totals.newCells++;
+  byFloor.newCells++;
+  totals.hp += hpRecovered;
+  byFloor.hp += hpRecovered;
+  totals.mp += mpRecovered;
+  byFloor.mp += mpRecovered;
+  if (hpRecovered > 0) {
+    recordStage15Healing(metrics, hpRecovered, "exploration");
+    const floorTelemetry = stage15Floor(metrics, floor);
+    if (floorTelemetry) floorTelemetry.explorationRecoveryHp += hpRecovered;
+  }
+  if (mpRecovered > 0) recordStage15MpDelta(metrics, mpBefore, character.mp, "exploration");
+}
+
 export function advanceSimulationFloorRoute(route, generated, state, floor, metrics, step) {
   if (!route.current || step < route.nextMoveAt) return { moved: false };
   route.nextMoveAt += EXPLORATION_FACTOR;
@@ -14394,6 +14434,7 @@ export function advanceSimulationFloorRoute(route, generated, state, floor, metr
   state.y = next.y;
   route.current = { ...next };
   route.path = route.path.slice(1);
+  recoverOnNewlyEnteredCell(route, state, floor, metrics);
   pullLeverAt(generated.grid, next.x, next.y);
   collapseCrumbleAt(generated.grid, previous.x, previous.y);
   // Wading through a flooded cell costs one more exploration step of time.
@@ -16539,6 +16580,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     recoveryPotionShortageFloor: metrics.recoveryPotionShortageFloor,
     stairsHealingHp: metrics.stairsHealingHp,
     floorTransitionRecovery: structuredClone(metrics.floorTransitionRecovery),
+    explorationRecovery: structuredClone(metrics.explorationRecovery),
     campHealingHp: metrics.campHealingHp,
     extraCampRestCount: metrics.extraCampRestCount,
     extraCampHealingHp: metrics.extraCampHealingHp,
@@ -16876,11 +16918,9 @@ function descendToNextFloor(state, nextFloor, metrics = null, { stairsHeal = fal
   if (stairsHeal) applySimulatedStairsHeal(character, metrics);
   const maxHp = getCharMaxHp(character);
   const hpBefore = character.hp;
-  const requestedHp = Math.max(1, Math.floor(maxHp * state.simPolicy.floorTransitionRecoveryRate));
-  const actualHealedHp = applyFloorTransitionHeal(
-    character,
-    state.simPolicy.floorTransitionRecoveryRate
-  );
+  const transitionRate = state.simPolicy.floorTransitionRecoveryRate;
+  const requestedHp = transitionRate > 0 ? Math.max(1, Math.floor(maxHp * transitionRate)) : 0;
+  const actualHealedHp = applyFloorTransitionHeal(character, transitionRate);
   if (metrics) {
     metrics.floorTransitionRecovery.push({
       fromFloor,
@@ -17140,6 +17180,7 @@ export function simulateRun({
     },
     stairsHealingHp: 0,
     floorTransitionRecovery: [],
+    explorationRecovery: { newCells: 0, hp: 0, mp: 0, byFloor: {} },
     campHealingHp: 0,
     extraCampRestCount: 0,
     extraCampHealingHp: 0,

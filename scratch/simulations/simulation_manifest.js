@@ -68,6 +68,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
       { id: "progression.experience", domain: "progression", evidence: { anyPositive: ["expGained"] } },
       { id: "status.exploration-poison", domain: "status", evidence: { anyPositive: ["statusObservations.byStatus.poisoned.applications"] } },
       { id: "recovery.combat-policy", domain: "recovery", evidence: { callLevel: ["runtimeCalls.recovery.combat-policy"] } },
+      { id: "recovery.exploration", domain: "recovery", evidence: { callLevel: ["runtimeCalls.recovery.exploration"], anyPositive: ["explorationRecovery.newCells"] } },
       { id: "traps.chest-roll", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.chest-roll"] } },
       { id: "traps.floor-resolution", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.floor-resolution"], anyPositive: ["trapEncounterCount"] } },
       { id: "economy.material-bank", domain: "economy", evidence: { anyPositive: ["bankedMaterials"] } },
@@ -85,7 +86,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
       drops: Object.freeze(["drops.reward-materials"]),
       progression: Object.freeze(["progression.experience"]),
       status: Object.freeze(["status.exploration-poison"]),
-      recovery: Object.freeze(["recovery.combat-policy"]),
+      recovery: Object.freeze(["recovery.combat-policy", "recovery.exploration"]),
       traps: Object.freeze(["traps.chest-roll", "traps.floor-resolution"]),
       economy: Object.freeze(["economy.material-bank"]),
       workshop: Object.freeze(["workshop.departure-craft", "workshop.equipment-craft"])
@@ -96,7 +97,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
         "equipment generation and upgrade path", "chest opening and material rewards",
         "hidden-door search, revealed secret-room reward reachability, and search-step cost",
         "fromDrop chest pool and trap-sign/open/trap-kit/leave policy outcomes",
-        "production recovery effect", "production chest-trap roll",
+        "production recovery effect", "production exploration recovery on newly entered cells",
+        "production chest-trap roll",
         "production enhance/polish actions with explicit standard and omitted policies"
       ]),
       omitted: Object.freeze([
@@ -208,7 +210,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/map_queries.ts", domains: ["maps"] },
     { pattern: "src/rules/recovery_rules.js", domains: ["recovery"] },
     { pattern: "src/movement.js", domains: ["maps", "traps", "chests", "recovery", "status"] },
-    { pattern: "src/systems/exploration_recovery.js", domains: ["maps"] },
+    { pattern: "src/systems/exploration_recovery.js", domains: ["maps", "recovery"] },
     { pattern: "src/run_map_generator.js", domains: ["maps", "traps", "chests", "combat"] },
     { pattern: "src/map_generator.js", domains: ["maps"] },
     { pattern: "src/map_layout_archetypes.js", domains: ["maps"] },

@@ -225,11 +225,14 @@ for (const [label, probe] of [["F", flameDisabled], ["FG", flameDisabledBoth]]) 
   assert.equal(probe.flameTrapActivations, 0, `${label} B5 flame intervention failed`);
 }
 
+// #2028: with production exploration recovery the probe reaches the Guardian
+// above 80% HP and never drops below it, so a 0.8 threshold no longer makes it
+// flee. 0.9 (the threshold of the flee fixture above) does.
 const guardianProbeScenario = {
   ...fleeScenario,
   startingHealPotions: 0,
   startingGreaterHeals: 3,
-  fleeHpThreshold: 0.8
+  fleeHpThreshold: 0.9
 };
 const guardianCurrent = runB5InterventionProbe(guardianProbeScenario, 0, "probe-b5-guardian-current");
 const guardianDisabled = runB5InterventionProbe(
@@ -274,7 +277,11 @@ assert.match(result.primaryComparisons[2].label, /P1B1 - P0B1/);
 assert.match(result.primaryComparisons[3].label, /P1B0 - P0B0/);
 assert.ok(!JSON.stringify(result).includes("encounterIdentityLog"));
 
-const arcana = await runMeasurement({ runs: 1, seed: 1277, mode: ARCANA_WEAPON_MODE });
+// The seed is a fixture: the C arm must swap its wand away once, and the W and
+// R arms must change non-weapon gear by B2. #2028 production exploration
+// recovery shifts the seeded B1 fights, so seed 1277 no longer swaps the wand;
+// seed 6 does.
+const arcana = await runMeasurement({ runs: 1, seed: 6, mode: ARCANA_WEAPON_MODE });
 assert.deepEqual(arcana.configuration.arms, ["C", "W", "R"]);
 assert.deepEqual(arcana.configuration.startingKits, ["arcana"]);
 assert.match(arcana.configuration.comparisonSemantics, /^Cross-arm C\/W\/R treatment comparisons/);
@@ -382,7 +389,10 @@ const qualifyingGuardianScenario = {
   // #1801: guardian adds share one slot, so at +1000 HP the guardian dies
   // before the 80% flee threshold is reached; +600 keeps the qualifying flee.
   // Seed 6 is the first seed that earns the checkpoint under the unified rules.
-  hpBaseBonus: 600,
+  // #2028: production exploration recovery scales with max HP, so at +600 the
+  // probe reaches the guardian nearly full and wins without fleeing; +150
+  // keeps the qualifying flee on seed 6.
+  hpBaseBonus: 150,
   merchantPolicy: "supply-missing",
   b5GuardianRetryCheckpoint: true,
   b5GuardianRetryObservation: true
