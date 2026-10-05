@@ -70,17 +70,10 @@
    under it half-read (#2049). */
 #game-container.dungeon-first-mode[data-explore-hud] .floor-entry-stinger {
   top: calc(var(--safe-area-top) + 48px);
-  right: 18px;
-  left: 18px;
-  width: auto;
+  width: calc(100% - 36px);
   min-height: 92px;
   justify-content: center;
   background: rgb(250, 245, 236);
-  transform: translateY(-8px);
-}
-
-#game-container.dungeon-first-mode[data-explore-hud] .floor-entry-stinger.visible {
-  transform: translateY(0);
 }
 
 .floor-entry-depth {

@@ -39,6 +39,7 @@ async function arrive(page, viewport, floor) {
   // Wait for the slide-in to settle before measuring.
   await expect.poll(() => card.evaluate(element => getComputedStyle(element).opacity)).toBe('1');
   await expect.poll(() => card.evaluate(element => new DOMMatrix(getComputedStyle(element).transform).m42)).toBe(0);
+  await page.evaluate(() => Promise.all(document.getElementById('floor-entry-stinger').getAnimations().map(animation => animation.finished)));
 }
 
 const measure = page => page.evaluate(() => {
