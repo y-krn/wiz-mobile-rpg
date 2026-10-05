@@ -10,7 +10,7 @@ import {
 } from "../data/facilities.js";
 import { normalizeCompanions, normalizeFacilitiesState } from "../state/facilities_state.js";
 import { normalizeFeatsState } from "../state/feats_state.js";
-import { getFeat, getFeatProgress, formatFeatProgress } from "./feats.js";
+import { getFeat } from "./feats.js";
 import { spendMaterials } from "../rules/material_rules.js";
 
 function isFeatAchieved(featsState, featId) {
@@ -65,13 +65,12 @@ export function getFacilityNodeBlockReason(nodeId, { feats, facilities, metaMate
   if (isFacilityNodeBought(facilities, nodeId)) return "解放済み";
   if (definition.requiresFeat && !isFeatAchieved(feats, definition.requiresFeat)) {
     const feat = getFeat(definition.requiresFeat);
-    const progress = feat ? getFeatProgress(feat, normalizeFeatsState(feats).counters) : null;
     return feat
-      ? `条件：偉業「${feat.name}」（${feat.condition}／${formatFeatProgress(feat, progress)}）`
+      ? `先に偉業「${feat.name}」を達成する（${feat.condition}）`
       : "条件を満たしていない";
   }
   if (definition.requiresNode && !isFacilityNodeBought(facilities, definition.requiresNode)) {
-    return `条件：「${FACILITY_NODE_BY_ID.get(definition.requiresNode)?.name || definition.requiresNode}」の解放`;
+    return `先に「${FACILITY_NODE_BY_ID.get(definition.requiresNode)?.name || definition.requiresNode}」を解放する`;
   }
   if (!spendMaterials(metaMaterials || {}, definition.cost)) return "素材不足";
   return "";

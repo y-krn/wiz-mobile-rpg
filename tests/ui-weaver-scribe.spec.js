@@ -101,7 +101,7 @@ test('The weaver is cut out of her cocoon by winning the brood fight; fleeing le
   const room = await seedRoom(page, 13);
   expect(room.kind).toBe('cocooned_weaver');
   await expect(page.locator('#submenu-title')).toContainText('繭の卵室');
-  await expect(page.locator('#submenu-options')).toContainText('逃げた場合は、繭は残り、もう一度挑める');
+  await expect(page.locator('#submenu-options')).toContainText('逃げても繭は残り、また挑める');
   await page.getByRole('button', { name: '繭を切る（強敵と戦う）' }).click();
 
   const fight = await page.evaluate(async () => {
@@ -177,14 +177,14 @@ test('The scribe is freed by draining his room and both keepers open their facil
   const weaving = page.locator('#town-facilities [data-facility-id="weaving_house"]');
   const scriptorium = page.locator('#town-facilities [data-facility-id="scriptorium"]');
   await expect(weaving).toHaveAttribute('data-facility-open', 'true');
-  await expect(weaving).toContainText('織り手の施設 — 解放 0 / 3');
+  await expect(weaving).toContainText('織り手がいる。まだ何も解放していない');
   await expect(scriptorium).toHaveAttribute('data-facility-open', 'true');
 
   await scriptorium.click();
   await waitForControls(page);
   await expect(page.locator('#submenu-title')).toContainText('写本室');
   await expect(page.locator('[data-facility-node-id="scribe_kit"]')).toContainText('写本師キット');
-  await expect(page.locator('[data-facility-node-id="scribe_copy_desk"]')).toContainText('条件：偉業「書庫の主を倒す」');
+  await expect(page.locator('[data-facility-node-id="scribe_copy_desk"]')).toContainText('先に偉業「書庫の主を倒す」');
   await expect(page.locator('[data-facility-order-id="scribe_mana_potion"]')).toContainText('魔力草の仕込み（魔力草×2）');
 });
 

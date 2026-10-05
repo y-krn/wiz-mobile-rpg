@@ -83,7 +83,7 @@ test('Town shows a silhouette until the foreman is home, then opens the miner gu
   await expect(slot).toHaveAttribute('data-facility-open', 'true');
   await expect(slot).toBeEnabled();
   await expect(slot).toContainText('坑夫組合');
-  await expect(slot).toContainText('解放 0 / 3');
+  await expect(slot).toContainText('鉱夫頭がいる。まだ何も解放していない');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 
@@ -91,7 +91,7 @@ test('Town shows a silhouette until the foreman is home, then opens the miner gu
   await expect(page.locator('#submenu-title')).toContainText('坑夫組合');
   const node = page.locator('[data-facility-node-id="miner_kit"]');
   await expect(node).toBeDisabled();
-  await expect(node).toContainText('獣の牙 6（所持5）・鉄片 4（所持4）／素材不足');
+  await expect(node).toContainText('獣の牙 6・鉄片 4／素材が足りない（獣の牙 あと1）');
 
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -110,7 +110,7 @@ test('Town shows a silhouette until the foreman is home, then opens the miner gu
   expect(afterPurchase).toEqual({ fang: 1, iron: 1, nodes: ['miner_kit'] });
 
   await page.locator('#btn-submenu-back').click();
-  await expect(slot).toContainText('解放 1 / 3');
+  await expect(slot).toContainText('3つのうち1つを解放');
 
   // The bought kit joins the starting kits and carries its supplies into the run.
   await page.locator('#btn-town-dungeon').click();
@@ -146,7 +146,7 @@ test('The foreman is dug out on B3F, shown as an escort, and rescued by a safe r
   expect(room.kind).toBe('trapped_foreman');
 
   await expect(page.locator('#submenu-title')).toContainText('崩落した詰所');
-  await expect(page.locator('#submenu-options')).toContainText('生還して初めて救出になり、死ねば連れ帰れない');
+  await expect(page.locator('#submenu-options')).toContainText('生きて街まで連れ帰れば、きっと力になってくれる。');
   await page.getByRole('button', { name: /岩を掘って助け出す/ }).click();
 
   // Digging may be interrupted by an encounter; finish it deterministically.
@@ -342,11 +342,11 @@ test('The guild shows each rebuild with its feat condition before it can be boug
 
   const outpost = page.locator('[data-facility-node-id="miner_outpost"]');
   await expect(outpost).toBeDisabled();
-  await expect(outpost).toContainText('条件：偉業「坑道を抜ける」（B5Fに到達する／B4F / B5F）');
-  await expect(outpost).toContainText('潜行ごとに1回');
+  await expect(outpost).toContainText('先に偉業「坑道を抜ける」を達成する（B5Fに到達する）');
+  await expect(outpost).toContainText('傷薬・解毒薬・罠外しキットのどれか1つ');
   const blast = page.locator('[data-facility-node-id="miner_blast"]');
   await expect(blast).toBeDisabled();
-  await expect(blast).toContainText('条件：偉業「坑道の主を倒す」');
+  await expect(blast).toContainText('先に偉業「坑道の主を倒す」');
 
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -359,7 +359,7 @@ test('The guild shows each rebuild with its feat condition before it can be boug
   await outpost.click();
   await expect(outpost).toHaveAttribute('data-facility-node-bought', 'true');
   await expect(blast).toBeDisabled();
-  await expect(blast).toContainText('条件：偉業「坑道の主を倒す」');
+  await expect(blast).toContainText('先に偉業「坑道の主を倒す」');
 });
 
 test('An order is paid in the guild, survives a death, and reaches storage on a safe return', async ({ page }) => {
@@ -382,7 +382,7 @@ test('An order is paid in the guild, survives a death, and reaches storage on a 
   const order = page.locator('[data-facility-order-id="miner_trap_kits"]');
   await expect(order).toBeEnabled();
   await expect(order).toContainText('罠外しキットの仕込み（罠外しキット×2）');
-  await expect(order).toContainText('鉄片 2（所持3）・硬い皮 1（所持1）');
+  await expect(order).toContainText('鉄片 2・硬い皮 1');
   await order.click();
   const open = page.locator('[data-facility-order-open="miner_trap_kits"]');
   await expect(open).toHaveText('仕込み中：罠外しキット×2。次に生還した時に仕上がり、倉庫に入る。');

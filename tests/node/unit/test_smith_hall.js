@@ -84,7 +84,9 @@ assert.deepEqual([53, 58].map(floor => getFacilityForFloor(floor)?.id), ["smithy
 assert.deepEqual([smithy.site.rescue.kind, smithy.site.rescue.materials], ["fuel", 4]);
 assert.deepEqual([hall.site.rescue.kind, hall.site.rescue.hpRate], ["blood", 0.3]);
 FACILITIES.filter(facility => facility.site.rescue.kind === "blood").forEach(facility => {
-  ["prompt", "action", "done"].forEach(key => assert.ok(facility.site.rescue[key].includes("{cost}"), `${facility.id} ${key} shows the cost`));
+  // The price sits on the button and in the result; the scene text carries no number.
+  ["action", "done"].forEach(key => assert.ok(facility.site.rescue[key].includes("{cost}"), `${facility.id} ${key} shows the cost`));
+  assert.ok(!facility.site.rescue.prompt.includes("{cost}"), `${facility.id} prompt carries no number`);
   assert.ok(facility.site.rescue.shortage);
 });
 assert.equal(getRescueBloodCost({ hp: 45 }, 45, 0.3), 14);
@@ -152,11 +154,11 @@ const withFeats = (feats, ids) => normalizeFeatsState({
 const open = withFeats(createDefaultFeatsState(), ["smith_rescue", "chamberlain_rescue"]);
 const rich = { "鉄片": 40, "黒角": 40, "竜鱗": 40, "霊粉": 40, "魔石片": 40 };
 const context = (feats, facilities) => ({ feats, facilities, metaMaterials: rich });
-assert.match(getFacilityNodeBlockReason("smith_forge", context(open, null)), /^条件：偉業「竜火をくぐる」/);
+assert.match(getFacilityNodeBlockReason("smith_forge", context(open, null)), /^先に偉業「竜火をくぐる」/);
 const depth25 = withFeats(open, ["depth_25"]);
 const forgeNode = purchaseFacilityNode("smith_forge", context(depth25, null));
 assert.equal(forgeNode.ok, true);
-assert.match(getFacilityNodeBlockReason("smith_reforge", context(depth25, forgeNode.facilities)), /^条件：偉業「鍛造殿の主を倒す」/);
+assert.match(getFacilityNodeBlockReason("smith_reforge", context(depth25, forgeNode.facilities)), /^先に偉業「鍛造殿の主を倒す」/);
 assert.equal(purchaseFacilityNode("smith_reforge", context(withFeats(depth25, ["guardian_25"]), forgeNode.facilities)).ok, true);
 assert.equal(getFacilityRoomKind(23, { feats: depth25, run: {}, facilities: forgeNode.facilities }), SPECIAL_ROOMS.SMITH_FORGE);
 assert.equal(roomKindOnFloor(23, depth25, forgeNode.facilities), SPECIAL_ROOMS.SMITH_FORGE);
@@ -177,11 +179,11 @@ console.log("[PASS] the smith's forge tempers for five battles and reforges up t
 
 // --- The oath altar ---------------------------------------------------------------------------
 
-assert.match(getFacilityNodeBlockReason("hall_oath", context(open, null)), /^条件：偉業「深淵の玉座」/);
+assert.match(getFacilityNodeBlockReason("hall_oath", context(open, null)), /^先に偉業「深淵の玉座」/);
 const depth30 = withFeats(open, ["depth_30"]);
 const oathNode = purchaseFacilityNode("hall_oath", context(depth30, null));
 assert.equal(oathNode.ok, true);
-assert.match(getFacilityNodeBlockReason("hall_gallery", context(depth30, oathNode.facilities)), /^条件：偉業「玉座の主を倒す」/);
+assert.match(getFacilityNodeBlockReason("hall_gallery", context(depth30, oathNode.facilities)), /^先に偉業「玉座の主を倒す」/);
 assert.equal(purchaseFacilityNode("hall_gallery", context(withFeats(depth30, ["guardian_30"]), oathNode.facilities)).ok, true);
 assert.equal(getFacilityRoomKind(28, { feats: depth30, run: {}, facilities: oathNode.facilities }), SPECIAL_ROOMS.OATH_ALTAR);
 assert.equal(roomKindOnFloor(28, depth30, oathNode.facilities), SPECIAL_ROOMS.OATH_ALTAR);

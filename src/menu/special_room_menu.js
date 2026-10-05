@@ -117,6 +117,14 @@ function runMaterialCount() {
   return getTotalMaterialCount(state.currentRun?.materials);
 }
 
+// The line logged on entering a room sets the scene. The menu text names the
+// choice and what it leads to; costs and gains sit on the buttons. What is
+// carried is mentioned only when it falls short.
+function addMaterialShortage(optGrid, text, cost) {
+  const materials = runMaterialCount();
+  if (materials < cost) addDescription(optGrid, `${text}（手持ち${materials}個）。`);
+}
+
 // Mine vein: dig for materials. Each turn is noisy and can be interrupted;
 // progress is kept on the room, and a finished dig may draw an ambush.
 function digVein(cell) {
@@ -185,9 +193,7 @@ function addAltarOptions(optGrid, cell) {
 }
 
 function renderAltar(optGrid, cell) {
-  const hero = getHero();
-  const bloodCost = hero ? getAltarBloodCost(hero, getCharMaxHp(hero)) : 0;
-  addDescription(optGrid, `浄め：素材${ALTAR_CLEANSE_MATERIAL_COST}個を捧げて状態異常を消す。血の祝福：HP${bloodCost}を捧げてMPを満たす。祭壇は一度しか応えない。`);
+  addDescription(optGrid, "浄めは体を蝕むものを消し、血の祝福はMPを満たす。祭壇が応えるのは一度きり。");
   addAltarOptions(optGrid, cell);
 }
 
@@ -197,7 +203,7 @@ function renderAltar(optGrid, cell) {
 function renderChapelAltar(optGrid, cell) {
   const run = state.currentRun;
   const hasGrave = isFacilityNodeBought(state.facilities, "chapel_grave");
-  addDescription(optGrid, `浄め・血の祝福に加えて、献灯を選べる。献灯：手持ちの素材から1種類を最大${CHAPEL_OFFERING_LIMIT}個、街へ送る。送った素材は、その後に死んでも街に届く。${hasGrave ? "墓標に祈ると、前の死で失った素材の一部が戻る。" : ""}祭壇が応じるのは潜行ごとに1回だけ。`);
+  addDescription(optGrid, `浄めは体を蝕むものを消し、血の祝福はMPを満たす。献灯で街へ送った素材は、この先で死んでも失わない。${hasGrave ? "墓標に祈れば、前の死で失った素材が戻る。" : ""}祭壇が応えるのは、この潜行で一度きり。`);
   addAltarOptions(optGrid, cell);
   const choices = getOfferingChoices(run?.materials, CHAPEL_OFFERING_LIMIT);
   choices.forEach(choice => {
@@ -230,7 +236,7 @@ function renderChapelAltar(optGrid, cell) {
 
 // Brood chamber: smash the eggs to wake the keeper; its hoard is a chest.
 function renderBroodChamber(optGrid, cell) {
-  addDescription(optGrid, "卵を壊せば巣の主（この階のエリート級）が目を覚ます。倒せば卵室に積まれた荷（宝箱）が手に入る。逃げても卵室は二度と使えない。");
+  addDescription(optGrid, "卵を壊せば、巣の主が目を覚ます。手強い相手だ。倒せば、卵室に積まれた荷が手に入る。逃げたら、卵室はもう使えない。");
   addButton(optGrid, "卵を壊す（強敵と戦う）", () => {
     finishRoom(cell);
     closeSubmenu();
@@ -263,8 +269,9 @@ function renderForge(optGrid, cell) {
   const weaponAtk = hero ? getCharWeaponAtk(hero) : 0;
   const bonus = getForgeTemperAmount(weaponAtk);
   const materials = runMaterialCount();
-  addDescription(optGrid, `素材${FORGE_MATERIAL_COST}個をくべると、武器の攻撃力が+${bonus}される（次の${FORGE_TEMPER_BATTLES}戦）。所持素材：${materials}個`);
-  addButton(optGrid, `武器を鍛え直す（素材${FORGE_MATERIAL_COST}個）`, () => {
+  addDescription(optGrid, "鍛え直した武器は、しばらくのあいだ威力が増す。");
+  addMaterialShortage(optGrid, "くべる素材が足りない", FORGE_MATERIAL_COST);
+  addButton(optGrid, `武器を鍛え直す（素材${FORGE_MATERIAL_COST}個・${FORGE_TEMPER_BATTLES}戦のあいだ攻撃力+${bonus}）`, () => {
     const paid = payRunMaterials(FORGE_MATERIAL_COST);
     if (!paid) return;
     const temper = applyForgeTemper(hero, weaponAtk);
@@ -286,9 +293,10 @@ function renderSmithForge(optGrid, cell) {
   const weapon = hero?.equipment?.weapon || null;
   const reforgedLevel = weapon ? getReforgedLevel(weapon) : null;
   addDescription(optGrid, canReforge
-    ? `鍛え直す（素材${FORGE_MATERIAL_COST}個、次の${SMITH_TEMPER_BATTLES}戦のあいだ攻撃力+${bonus}）か、打ち直す（素材${REFORGE_MATERIAL_COST}個、装備中の武器の強化値+1、+${REFORGE_MAX_LEVEL}まで）か、どちらか一方を選べる。所持素材：${materials}個`
-    : `素材${FORGE_MATERIAL_COST}個をくべると、武器の攻撃力が+${bonus}される（次の${SMITH_TEMPER_BATTLES}戦）。所持素材：${materials}個`);
-  addButton(optGrid, `武器を鍛え直す（素材${FORGE_MATERIAL_COST}個・${SMITH_TEMPER_BATTLES}戦）`, () => {
+    ? `武器を鍛え直すか、打ち直すか、どちらか一方。鍛え直しはしばらくのあいだ攻撃力を上げ、打ち直しは武器そのものを一段強くする（+${REFORGE_MAX_LEVEL}まで）。`
+    : "この炉で鍛え直した武器は、いつもより長く威力が続く。");
+  addMaterialShortage(optGrid, "くべる素材が足りない", FORGE_MATERIAL_COST);
+  addButton(optGrid, `武器を鍛え直す（素材${FORGE_MATERIAL_COST}個・${SMITH_TEMPER_BATTLES}戦のあいだ攻撃力+${bonus}）`, () => {
     const paid = payRunMaterials(FORGE_MATERIAL_COST);
     if (!paid) return;
     const temper = applyForgeTemper(hero, weaponAtk, SMITH_TEMPER_BATTLES);
@@ -328,9 +336,9 @@ function renderOathAltar(optGrid, cell) {
   const cost = hero && !hasGallery ? getMirrorHpCost(hero, getCharMaxHp(hero)) : 0;
   const maxHp = hero ? getCharMaxHp(hero) : 0;
   const maxMp = hero ? getCharMaxMp(hero) : 0;
-  addDescription(optGrid, `${hasGallery
-    ? `鏡を覗くと、次の階とその次の階の下り階段が地図に刻まれる。回廊の鏡は生気を奪わない。`
-    : `鏡を覗くとHP${cost}を奪われ、次の階の下り階段とその手前が地図に刻まれる。`}誓約を立てると、HPとMPが全回復する。代わりに、この潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない（生還すれば全部持ち帰る）。どちらか一方だけを選べる。`);
+  addDescription(optGrid, `鏡を覗くか、誓約を立てるか、どちらか一方。${hasGallery
+    ? "回廊の鏡は生気を奪わず、2つ先の階まで下り階段の場所を映す。"
+    : "鏡は生気と引き換えに、次の階の下り階段の場所を映す。"}誓約を立てればHPとMPがすべて戻るが、この潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない。`);
   addButton(optGrid, hasGallery ? "鏡の回廊を覗く（2階先まで）" : `鏡を覗く（HP${cost}）`, () => {
     hero.hp -= cost;
     getSpecialRoom(cell).vision = hasGallery ? GALLERY_VISION_FLOORS : 1;
@@ -371,7 +379,7 @@ function renderMirrorHall(optGrid, cell) {
 }
 
 /** What every rescue has in common, said in every keeper's room. */
-const RESCUE_TERMS = "助けた後は同行するが、戦いには加わらない。生還して初めて救出になり、死ねば連れ帰れない。";
+const RESCUE_TERMS = "生きて街まで連れ帰れば、きっと力になってくれる。";
 
 // A waiting keeper (#2009, #2018): free them and they follow. They only count
 // as rescued once the run walks out by the Portal or the Wing.
@@ -379,7 +387,7 @@ function addCompanion(facility) {
   const run = state.currentRun;
   if (run) run.companions = normalizeCompanions([...(run.companions || []), facility.companion.id]);
   playSound("item");
-  addLog(`${facility.companion.name}が同行する。帰還の門か帰還の翼で生還すれば、街に${facility.name}が開く。`);
+  addLog(`${facility.companion.name}が同行する。帰還の門か帰還の翼で生還すれば、街に${facility.name}が開く。戦いには加わらない。`);
 }
 
 // Digging costs turns and noise like a vein and can be interrupted; progress
@@ -408,8 +416,8 @@ function digOutKeeper(cell, facility) {
 function renderDigRescue(optGrid, cell, facility) {
   const room = getSpecialRoom(cell);
   const left = facility.site.rescue.turns - (room.progress || 0);
-  addDescription(optGrid, `崩れた岩の向こうに${facility.companion.name}が閉じ込められている。掘り出すと${left}手番かかり、物音が立つ。${RESCUE_TERMS}`);
-  addButton(optGrid, `岩を掘って助け出す（${left}手番）`, () => {
+  addDescription(optGrid, `${facility.companion.name}を掘り出すには時間がかかり、つるはしの音も響く。${RESCUE_TERMS}`);
+  addButton(optGrid, `岩を掘って助け出す（${left}手番・物音）`, () => {
     closeSubmenu();
     digOutKeeper(cell, facility);
   });
@@ -437,7 +445,7 @@ function renderBloodRescue(optGrid, cell, facility) {
 function renderFuelRescue(optGrid, cell, facility) {
   const cost = facility.site.rescue.materials;
   const materials = runMaterialCount();
-  addDescription(optGrid, `火の消えた炉の奥に${facility.companion.name}が閉じ込められている。素材${cost}個をくべて火を入れれば、扉が開く。所持素材：${materials}個。${RESCUE_TERMS}`);
+  addDescription(optGrid, `炉に火を入れれば、鉄の扉が開いて${facility.companion.name}が出てこられる。${RESCUE_TERMS}`);
   addButton(optGrid, `素材をくべて火を入れる（素材${cost}個）`, () => {
     const paid = payRunMaterials(cost);
     if (!paid) return;
@@ -446,7 +454,7 @@ function renderFuelRescue(optGrid, cell, facility) {
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: materials < cost });
-  if (materials < cost) addDescription(optGrid, "くべる素材が足りない。");
+  addMaterialShortage(optGrid, "くべる素材が足りない", cost);
 }
 
 // Draining a flooded room is quiet work: turns only, and it can be
@@ -474,7 +482,7 @@ function drainForKeeper(cell, facility) {
 function renderDrainRescue(optGrid, cell, facility) {
   const room = getSpecialRoom(cell);
   const left = facility.site.rescue.turns - (room.progress || 0);
-  addDescription(optGrid, `水の引かない閲覧室に${facility.companion.name}が取り残されている。水門を回して水を抜くと${left}手番かかる。物音は立たない。${RESCUE_TERMS}`);
+  addDescription(optGrid, `水門を回せば水は抜け、${facility.companion.name}が降りてこられる。時間はかかるが、音は立たない。${RESCUE_TERMS}`);
   addButton(optGrid, `水門を回して水を抜く（${left}手番）`, () => {
     closeSubmenu();
     drainForKeeper(cell, facility);
@@ -485,7 +493,7 @@ function renderDrainRescue(optGrid, cell, facility) {
 // nest. The room is spent only by winning; `freeKeeperAfterFight` finishes
 // the rescue from the victory.
 function renderFightRescue(optGrid, cell, facility) {
-  addDescription(optGrid, `繭の中に${facility.companion.name}が囚われている。繭を切れば巣の主（この階のエリート級）が目を覚ます。倒せば${facility.companion.name}は自由になり、卵室の荷（宝箱）も手に入る。逃げた場合は、繭は残り、もう一度挑める。${RESCUE_TERMS}`);
+  addDescription(optGrid, `繭の中にいるのは${facility.companion.name}だ。繭を切れば、巣の主が目を覚ます。手強い相手だ。倒せば${facility.companion.name}は自由になり、卵室に積まれた荷も手に入る。逃げても繭は残り、また挑める。${RESCUE_TERMS}`);
   addButton(optGrid, "繭を切る（強敵と戦う）", () => {
     closeSubmenu();
     addLog("繭に刃を入れた。奥で巨大な影が身を起こす！");
@@ -540,14 +548,15 @@ function renderWeaverHammock(optGrid, cell) {
   const equipmentDef = hero ? getCharEquipmentDef(hero) : 0;
   const mendBonus = getArmorMendAmount(equipmentDef);
   addDescription(optGrid, canMend
-    ? `休む（${left}手番、HP+${healed}）か、防具を繕う（素材${MENDING_MATERIAL_COST}個、次の${MENDING_BATTLES}戦のあいだ防御力+${mendBonus}）か、どちらか一方を選べる。寝床が使えるのは潜行ごとに1回だけ。所持素材：${materials}個`
-    : `休むと${left}手番かかり、HPが${healed}回復する。途中で魔物に襲われると中断する。寝床が使えるのは潜行ごとに1回だけ。`);
+    ? "ひと休みするか、防具を繕ってもらうか、どちらか一方。使えるのは、この潜行で一度きり。"
+    : "ここでひと休みできる。途中で魔物に襲われたら、休みは切り上げになる。使えるのは、この潜行で一度きり。");
   addButton(optGrid, `吊り寝床で休む（${left}手番・HP+${healed}）`, () => {
     closeSubmenu();
     restInHammock(cell);
   }, { disabled: !hero || healed <= 0 });
   if (!canMend) return;
-  const mendButton = addButton(optGrid, `防具を繕う（素材${MENDING_MATERIAL_COST}個・防御力+${mendBonus}）`, () => {
+  addMaterialShortage(optGrid, "繕ってもらうには素材が足りない", MENDING_MATERIAL_COST);
+  const mendButton = addButton(optGrid, `防具を繕う（素材${MENDING_MATERIAL_COST}個・${MENDING_BATTLES}戦のあいだ防御力+${mendBonus}）`, () => {
     const paid = payRunMaterials(MENDING_MATERIAL_COST);
     if (!paid) return;
     const mend = applyArmorMend(hero, equipmentDef);
@@ -564,8 +573,8 @@ function renderWeaverHammock(optGrid, cell) {
 function renderScribeReadingRoom(optGrid, cell) {
   const canCopy = isFacilityNodeBought(state.facilities, "scribe_copy_desk");
   addDescription(optGrid, canCopy
-    ? `見取り図を読む（${READING_TURNS}手番）か、写本を写す（${COPY_TURNS}手番、手引き書の断片${COPY_FRAGMENTS}枚）か、どちらか一方を選べる。見取り図には、この階の下り階段と宝箱に加えて、次の階の下り階段も記されている。`
-    : `見取り図を読むと${READING_TURNS}手番かかる。この階の下り階段と、まだ開けていない宝箱の位置に加えて、次の階の下り階段も地図に記される。`);
+    ? "見取り図を読むか、写本を写すか、どちらか一方。見取り図には、この階の下り階段と宝箱、それに次の階の下り階段が載っている。"
+    : "見取り図には、この階の下り階段とまだ開けていない宝箱、それに次の階の下り階段が載っている。");
   addButton(optGrid, `見取り図を読む（${READING_TURNS}手番）`, () => {
     closeSubmenu();
     for (let turn = 0; turn < READING_TURNS; turn++) {
@@ -584,7 +593,7 @@ function renderScribeReadingRoom(optGrid, cell) {
     addLog(`見取り図を写し取った。${stairsText}宝箱${chests.length}個の位置が地図に記された。次の階の下り階段も書き留めた。`);
   });
   if (!canCopy) return;
-  const copyButton = addButton(optGrid, `写本を写す（${COPY_TURNS}手番・断片${COPY_FRAGMENTS}枚）`, () => {
+  const copyButton = addButton(optGrid, `写本を写す（${COPY_TURNS}手番・手引き書の断片${COPY_FRAGMENTS}枚）`, () => {
     closeSubmenu();
     for (let turn = 0; turn < COPY_TURNS; turn++) {
       const result = consumeExplorationTurn();
@@ -605,8 +614,8 @@ function renderMinerOutpost(optGrid, cell) {
   const bagFull = !hasInventorySpace(state.inventory);
   const canBlast = isFacilityNodeBought(state.facilities, "miner_blast");
   addDescription(optGrid, canBlast
-    ? "補給を1つ受け取るか、発破を頼むか、どちらか一方を選べる。詰所が応じるのは潜行ごとに1回だけ。"
-    : "補給を1つ受け取れる。詰所が応じるのは潜行ごとに1回だけ。");
+    ? "補給を1つ受け取るか、発破を頼むか、どちらか一方。応じてくれるのは、この潜行で一度きり。"
+    : "補給を1つ分けてくれる。応じてくれるのは、この潜行で一度きり。");
   OUTPOST_SUPPLY_ITEM_IDS.forEach(itemId => {
     const name = String(ITEMS[itemId]?.name || itemId).replace(/\s*[（(].*?[）)]/g, "");
     addButton(optGrid, `${name}を受け取る`, () => {

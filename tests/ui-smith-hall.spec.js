@@ -71,7 +71,7 @@ test('The smith is freed by feeding the cold furnace; without materials he canno
   expect(room.kind).toBe('cold_forge');
   await expect(page.locator('#submenu-title')).toContainText('火の消えた炉');
   await expect(page.getByRole('button', { name: /素材をくべて火を入れる/ })).toBeDisabled();
-  await expect(page.locator('#submenu-options')).toContainText('くべる素材が足りない。');
+  await expect(page.locator('#submenu-options')).toContainText('くべる素材が足りない（手持ち3個）。');
 
   room = await seedRoom(page, 23, { materials: { '鉄片': 5 } });
   expect(room.kind).toBe('cold_forge');

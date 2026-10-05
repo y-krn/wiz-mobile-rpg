@@ -185,13 +185,13 @@ const withFeats = (feats, ids) => normalizeFeatsState({
 const open = withFeats(createDefaultFeatsState(), ["weaver_rescue", "scribe_rescue"]);
 const rich = { "毒腺": 30, "呪布": 30, "硬い皮": 30, "鉄片": 30, "魔石片": 30, "霊粉": 30, "骨片": 30, "黒角": 30 };
 const context = (feats, facilities) => ({ feats, facilities, metaMaterials: rich });
-assert.match(getFacilityNodeBlockReason("weaver_hammock", context(open, null)), /^条件：偉業「大裂溝を渡る」/);
+assert.match(getFacilityNodeBlockReason("weaver_hammock", context(open, null)), /^先に偉業「大裂溝を渡る」/);
 const depth15 = withFeats(open, ["depth_15"]);
 const hammock = purchaseFacilityNode("weaver_hammock", context(depth15, null));
 assert.equal(hammock.ok, true);
-assert.match(getFacilityNodeBlockReason("weaver_mending", context(depth15, hammock.facilities)), /^条件：偉業「大裂溝の主を倒す」/);
+assert.match(getFacilityNodeBlockReason("weaver_mending", context(depth15, hammock.facilities)), /^先に偉業「大裂溝の主を倒す」/);
 const guardian15 = withFeats(depth15, ["guardian_15"]);
-assert.equal(getFacilityNodeBlockReason("weaver_mending", context(guardian15, null)), "条件：「吊り寝床」の解放");
+assert.equal(getFacilityNodeBlockReason("weaver_mending", context(guardian15, null)), "先に「吊り寝床」を解放する");
 assert.equal(purchaseFacilityNode("weaver_mending", context(guardian15, hammock.facilities)).ok, true);
 assert.equal(getFacilityRoomKind(13, { feats: depth15, run: {}, facilities: null }), null);
 assert.equal(getFacilityRoomKind(13, { feats: depth15, run: {}, facilities: hammock.facilities }), SPECIAL_ROOMS.WEAVER_HAMMOCK);
@@ -223,11 +223,11 @@ console.log("[PASS] the hammock restores 30% of max HP and a mend adds DEF for t
 
 // --- The scribe's reading room -----------------------------------------------------------
 
-assert.match(getFacilityNodeBlockReason("scribe_waymark", context(open, null)), /^条件：偉業「沈んだ書庫を読む」/);
+assert.match(getFacilityNodeBlockReason("scribe_waymark", context(open, null)), /^先に偉業「沈んだ書庫を読む」/);
 const depth20 = withFeats(open, ["depth_20"]);
 const waymark = purchaseFacilityNode("scribe_waymark", context(depth20, null));
 assert.equal(waymark.ok, true);
-assert.match(getFacilityNodeBlockReason("scribe_copy_desk", context(depth20, waymark.facilities)), /^条件：偉業「書庫の主を倒す」/);
+assert.match(getFacilityNodeBlockReason("scribe_copy_desk", context(depth20, waymark.facilities)), /^先に偉業「書庫の主を倒す」/);
 assert.equal(purchaseFacilityNode("scribe_copy_desk", context(withFeats(depth20, ["guardian_20"]), waymark.facilities)).ok, true);
 assert.equal(getFacilityRoomKind(18, { feats: depth20, run: {}, facilities: waymark.facilities }), SPECIAL_ROOMS.SCRIBE_READING_ROOM);
 assert.equal(roomKindOnFloor(18, depth20, waymark.facilities), SPECIAL_ROOMS.SCRIBE_READING_ROOM);
