@@ -64,6 +64,25 @@
   transform: translate(-50%, 0);
 }
 
+/* On the explore screen the title card takes the place of the goal and the
+   event strip for the moment it is up: it starts above the goal, spans the
+   same width, and is tall enough to cover both, so neither peeks out from
+   under it half-read (#2049). */
+#game-container.dungeon-first-mode[data-explore-hud] .floor-entry-stinger {
+  top: calc(var(--safe-area-top) + 48px);
+  right: 18px;
+  left: 18px;
+  width: auto;
+  min-height: 92px;
+  justify-content: center;
+  background: rgb(250, 245, 236);
+  transform: translateY(-8px);
+}
+
+#game-container.dungeon-first-mode[data-explore-hud] .floor-entry-stinger.visible {
+  transform: translateY(0);
+}
+
 .floor-entry-depth {
   color: var(--text-muted);
   font: 10px var(--font-mono);
