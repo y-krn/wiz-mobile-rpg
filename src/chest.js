@@ -1,5 +1,5 @@
 import { BUILD_SEED_CHOICE_ROLE, generateBuildSeedOffer, shouldOfferBuildSeed } from "./systems/build_vnext_seed.js";
-import { state, saveAutosave, addLog, clearEventObservations, recordEquipmentDiscovery, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
+import { state, saveAutosave, addLog, clearEventObservations, resolveEventObservation, recordEquipmentDiscovery, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
 import { getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText, ITEMS } from "./data.js";
 import { canChestHaveTrap, getChestRewardCategory, upgradeMimicChestReward } from "./rules/chest_rules.js";
 import { getChestTrapCodexId } from "./state/codex_trap_ids.js";
@@ -54,6 +54,8 @@ function chestActionAllowed(phases, { allowTransition = false } = {}) {
 function finishChest(chest) {
   transitionChestPhase(chest, CHEST_PHASES.TERMINAL);
   clearEventObservations({ scope: `chest:${state.floor}:${chest?.x}:${chest?.y}` });
+  // The chest that was sensed from a distance has now been dealt with (#1821).
+  resolveEventObservation(`aura:${state.floor}:chest:${chest?.x}:${chest?.y}`);
   state.chestState = null;
 }
 
