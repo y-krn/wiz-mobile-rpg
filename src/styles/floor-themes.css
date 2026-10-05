@@ -196,10 +196,12 @@
   75% { transform: translateX(-2px); }
 }
 
-#viewport-panel.is-move-blocked #dungeon-canvas {
+#viewport-panel.is-move-blocked #dungeon-canvas,
+#viewport-panel.is-move-blocked #dungeon-three-canvas {
   animation: move-blocked-nudge 180ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #viewport-panel.is-move-blocked #dungeon-canvas { animation: none; }
+  #viewport-panel.is-move-blocked #dungeon-canvas,
+  #viewport-panel.is-move-blocked #dungeon-three-canvas { animation: none; }
 }

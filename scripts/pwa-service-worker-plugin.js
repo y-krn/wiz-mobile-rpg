@@ -9,13 +9,21 @@ const CACHE_PREFIX = "depthward-static-";
 const MAX_PRECACHE_FILES = 100;
 const MAX_PRECACHE_BYTES = 40 * 1024 * 1024;
 const MAX_SINGLE_FILE_BYTES = 8 * 1024 * 1024;
+// Chunks that load only when a URL parameter asks for them stay out of the
+// app shell, so an installed app does not download them. The Service Worker
+// passes anything outside the list through to the network.
+const OPT_IN_CHUNKS = [/^assets\/three_dungeon_view-/];
+
+export function isPrecacheCandidate(relativePath) {
+  return !relativePath.endsWith(".map") && !OPT_IN_CHUNKS.some(pattern => pattern.test(relativePath));
+}
 
 function listFiles(directory, root = directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) return listFiles(absolutePath, root);
     const relativePath = path.relative(root, absolutePath).split(path.sep).join("/");
-    return relativePath.endsWith(".map") ? [] : [relativePath];
+    return isPrecacheCandidate(relativePath) ? [relativePath] : [];
   });
 }
 

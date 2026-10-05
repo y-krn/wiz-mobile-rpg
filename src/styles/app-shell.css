@@ -391,6 +391,38 @@
   pointer-events: none;
 }
 
+/* Three.js explore-view prototype (#2042). Both elements exist only when the
+   page is opened with ?view3d=. The canvas sits over the Pixi canvas and
+   under the minimap and HUD, and never takes input: touches fall through to
+   the Pixi canvas, which owns the world gestures. */
+#dungeon-three-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+.three-view-toggle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background-color: rgba(255, 253, 248, 0.92);
+  box-shadow: 0 3px 0 rgba(46, 38, 64, 0.1);
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
 /* Log Panel — kept minimal (priority: buttons > party HUD > map > log).
    Small fixed floor + grow only as the spare-space receiver once the map hits
    its max. DOM shows recent entries only; the expand button opens full history. */
@@ -892,6 +924,11 @@
   right: 12px;
   bottom: auto;
   z-index: 6;
+}
+
+#game-container.dungeon-first-mode .three-view-toggle {
+  top: calc(var(--event-strip-bottom) + 8px);
+  left: 12px;
 }
 
 #game-container.dungeon-first-mode #controls-panel {

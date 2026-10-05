@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { test } from "node:test";
 import { isSafePwaUpdateBoundary } from "../../../src/ui/pwa_update_manager.js";
+import { isPrecacheCandidate } from "../../../scripts/pwa-service-worker-plugin.js";
 
 const template = readFileSync(new URL("../../../scripts/service-worker.template.txt", import.meta.url), "utf8");
 const workerSource = template
@@ -41,6 +42,14 @@ test("PWA update is available only at an idle town boundary", () => {
   assert.equal(isSafePwaUpdateBoundary({ gameState: "town", isSubmenu: true, hasChest: false }), false);
   assert.equal(isSafePwaUpdateBoundary({ gameState: "explore", isSubmenu: false, hasChest: false }), false);
   assert.equal(isSafePwaUpdateBoundary({ gameState: "town", isSubmenu: false, hasChest: true }), false);
+});
+
+test("App shell list leaves out source maps and opt-in chunks", () => {
+  assert.equal(isPrecacheCandidate("index.html"), true);
+  assert.equal(isPrecacheCandidate("assets/pixi_renderer-CE6ExBvR.js"), true);
+  assert.equal(isPrecacheCandidate("assets/index-B8qM_3f_.js.map"), false);
+  // The Three.js explore-view prototype loads only behind ?view3d= (#2042).
+  assert.equal(isPrecacheCandidate("assets/three_dungeon_view-BY7k4Qpc.js"), false);
 });
 
 test("Service Worker installs only the generated same-origin app shell list", async () => {

@@ -16,6 +16,7 @@ import {
   selectRenderer,
   selectRendererFailure
 } from "./renderer_selection.js";
+import { resolveThreeViewRequest } from "./rules/three_view.ts";
 
 // Import modules for re-export and button bindings
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
@@ -37,6 +38,8 @@ export { goBackSubmenu } from "./navigation.js";
 export { selectCombatAction, cancelCombatAction, resolveCombatRound, triggerGameOver, toggleCombatAuto } from "./combat.js";
 
 let renderer = null;
+// Opt-in Three.js explore-view prototype (#2042); null unless ?view3d= asks for it.
+let threeView = null;
 let rendererSelection = createRendererSelectionState("");
 let buttonsBound = false;
 let animationFrameId = null;
@@ -74,6 +77,33 @@ export function getRendererSelectionState() {
   return Object.freeze({ ...rendererSelection });
 }
 
+export function getThreeViewState() {
+  return threeView ? threeView.getState() : null;
+}
+
+// The prototype is a second canvas over the Pixi view. It never becomes the
+// renderer: a failure here removes it and leaves the Pixi view in place.
+function stopThreeView(error = null) {
+  const view = threeView;
+  threeView = null;
+  try {
+    view?.dispose();
+  } catch {
+    // Nothing else depends on the prototype's cleanup.
+  }
+  if (error) captureException(error, { level: "warning", tags: { subsystem: "three-view-prototype" } });
+}
+
+function startThreeViewPrototype() {
+  const request = resolveThreeViewRequest(window.location.search);
+  if (!request.mode) return;
+  import("./three_dungeon_view.js")
+    .then(({ mountThreeDungeonView }) => {
+      threeView = mountThreeDungeonView(request);
+    })
+    .catch((error) => stopThreeView(error));
+}
+
 function setRendererControlsEnabled(enabled) {
   rendererReady = enabled;
   const controls = document.getElementById("controls-panel");
@@ -84,6 +114,7 @@ function setRendererControlsEnabled(enabled) {
 
 function showRendererFailure(error, reason, phase) {
   stopGameLoop();
+  stopThreeView();
   rendererReady = false;
   rendererFailureActive = true;
   setRendererControlsEnabled(false);
@@ -161,6 +192,7 @@ export function initGame() {
 
   rendererSelection = createRendererSelectionState(window.location.search);
   startPixiRenderer();
+  startThreeViewPrototype();
 }
 
 function startPixiRenderer() {
@@ -314,6 +346,13 @@ function gameLoop(time) {
     } catch (error) {
       showRendererFailure(error, "pixi-runtime-failed", "runtime");
       return;
+    }
+    if (threeView) {
+      try {
+        threeView.frame(dt, getRendererInput(state, menuContext));
+      } catch (error) {
+        stopThreeView(error);
+      }
     }
   }
 
