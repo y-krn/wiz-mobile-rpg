@@ -101,7 +101,7 @@ export function recordExplorationSteps(count = 1) {
   // Carrying gives the first observation early; later signs require a
   // meaningful low-frequency exploration pulse instead of every step.
   if (isCarriedObservationDue(previousSteps, state.currentRun.steps) && observeCarriedEquipment(state) > 0) {
-    addLog("【観察】持ち歩く装備から新たな兆候を読み取った。");
+    addLog("持ち歩く装備から新たな兆候を読み取った。");
   }
 }
 
@@ -142,7 +142,7 @@ export function tickExplorationSpellEffects() {
   if (state.repelTurns > 0) {
     state.repelTurns--;
     if (state.repelTurns === 0) {
-      addLog("マスペアルの効果が切れた。モンスターの殺気が戻った。");
+      addLog("魔物よけの効果が切れた。魔物の気配が戻ってきた。");
     }
   }
 
@@ -165,7 +165,7 @@ export function consumeExplorationTurn() {
   tickExplorationSpellEffects();
   if (applyExplorationPoison()) return { ok: true, encounter: false, wiped: true };
   const eliteProgress = progressEliteThreat(state);
-  eliteProgress.omens.forEach(omen => addLog(`[予兆] ${omen}`));
+  eliteProgress.omens.forEach(omen => addLog(`【予兆】${omen}`));
   if (eliteProgress.spawned) {
     const spawned = eliteProgress.spawned;
     addEventLog(`【気配】${spawned.name}の殺気が、この階に満ちた……`, {
@@ -314,7 +314,7 @@ function applyTraversalHazards() {
       if (c.status === "dead" || c.hp <= 0) return;
       const damage = getHeatDamage(getCharMaxHp(c));
       c.hp = Math.max(0, c.hp - damage);
-      addLog(`[!] 灼熱の格子を踏んだ！${c.name}は${damage}のダメージを受けた。`);
+      addLog(`灼熱の格子を踏んだ！${c.name}は${damage}のダメージを受けた。`);
       if (c.hp === 0) {
         c.status = "dead";
         const deathLog = recordCharDeath(state, c, "灼熱の格子", { type: "trap", source: "灼熱の格子" });
@@ -532,7 +532,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
   }
   
   if (isPitfall) {
-    addLog("【⚠️落とし穴】足元が抜けた！暗闇へ落下していく…");
+    addLog("落とし穴だ！足元が抜け、暗闇へ落ちていく…");
     playSound("chest_trap");
     if (renderer) {
       if (typeof renderer.triggerFlash === "function") {
@@ -565,10 +565,10 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     if (isPitfall) {
       addLog(`ドスン！地下${nextFloor}階の冷たい床に叩きつけられた！`);
     } else {
-      addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
+      addLog(`${theme.name}：${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
     }
     const waitingKeeper = getWaitingKeeperFacility(state.maps[nextFloor - 1]);
-    if (waitingKeeper) addLog(`[気配] ${waitingKeeper.site.omen}`);
+    if (waitingKeeper) addLog(`【気配】${waitingKeeper.site.omen}`);
 
     checkFloorOmenMessage();
     
@@ -702,7 +702,7 @@ function checkSensoryAura({ announce = true } = {}) {
     const roamingRange = nearest?.kind === "elite" ? 5 + hearRangeBonus : 3 + hearRangeBonus;
     if (nearest && minFlackDist <= roamingRange) {
       const threatKey = `aura:${state.floor}:roaming:${nearest.id || nearest.name || `${nearest.x}:${nearest.y}`}`;
-      observe(threatKey, `【⚠️警告】近くから桁違いの殺気が漂ってくる…強敵「${nearest.name}」が近くにいる！`);
+      observe(threatKey, `【気配】近くから桁違いの殺気が漂ってくる…強敵「${nearest.name}」が近くにいる！`);
       if (announce) playSound("miss");
     }
   }
@@ -772,7 +772,7 @@ export function applyStairsHeal(cell) {
     char.hp = Math.min(getCharMaxHp(char), char.hp + getEffectiveHealAmount(char, amount));
     total += char.hp - before;
   });
-  if (total > 0) addLog(`[踏破の息吹] 階段の発見でHPを${total}回復した！`);
+  if (total > 0) addLog(`踏破の息吹：階段の発見でHPを${total}回復した！`);
   return total;
 }
 
@@ -929,7 +929,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   ) {
     state.transitioning = true;
     createNoiseEvent(state.x, state.y);
-    addLog(forcedEncounter ? "鳴らし玉に誘われ、通常の魔物が現れた！" : "モンスターが暗闇から襲いかかってきた！");
+    addLog(forcedEncounter ? "鳴らし玉に誘われ、通常の魔物が現れた！" : "魔物が暗闇から襲いかかってきた！");
     setTimeout(() => {
       state.transitioning = false;
       startCombat(false, false);
@@ -946,21 +946,21 @@ export function applyExplorationPoison() {
   state.party.forEach(c => {
     // Paralysis fades with the same exploration time poison runs on (#1807).
     if (resolveExplorationParalysisStep(c).naturalCure) {
-      addLog(`[!] ${c.name}のしびれが取れた。`);
+      addLog(`${c.name}のしびれが取れた。`);
     }
     if (c.status === "poisoned" && c.hp > 0) {
       const result = resolveExplorationPoisonStep(c);
       if (result.damage > 0) {
-        addLog(`[!] 毒のダメージ！${c.name}は${result.damage}のダメージを受けた。`);
+        addLog(`毒のダメージ！${c.name}は${result.damage}のダメージを受けた。`);
         tookDamage = true;
       }
       if (c.hp === 0) {
         c.status = "dead";
         const deathLog = recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
         if (deathLog) addLog(formatCharDeathLog(deathLog));
-        addLog(`[!] ${c.name}は毒で力尽きた！`);
+        addLog(`${c.name}は毒で力尽きた！`);
       } else if (result.naturalCure) {
-        addLog(`[!] ${c.name}の毒が自然に消えた。`);
+        addLog(`${c.name}の毒が自然に消えた。`);
       }
     }
   });
@@ -978,7 +978,7 @@ export function applyExplorationPoison() {
 }
 
 export function triggerFlameTrap() {
-  addLog("【⚠️熱気の気配】周囲に熱気が走った！");
+  addLog("周囲に熱気が走った！");
   playSound("chest_trap");
   if (renderer && typeof renderer.triggerFlash === "function") {
     renderer.triggerFlash(400);
@@ -1019,7 +1019,7 @@ export function triggerFlameTrap() {
   }
 
   if (resolution.partialSuccess) {
-    addLog("【部分回避】火炎の直撃をわずかにかわした！");
+    addLog("火炎の直撃をわずかにかわした！");
   } else {
     addLog("天井から猛烈な火炎ブレスが吹き出した！");
   }
@@ -1054,7 +1054,7 @@ export function triggerFlameTrap() {
       character.status = "dead";
       const deathLog = recordCharDeath(state, character, "火炎の罠", { type: "trap", source: "火炎の罠" });
       if (deathLog) addLog(formatCharDeathLog(deathLog));
-      addLog(`[!] ${character.name}は炎に焼かれて力尽きた！`);
+      addLog(`${character.name}は炎に焼かれて力尽きた！`);
     }
   }
 
@@ -1110,7 +1110,7 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   const kitItems = getStartingKitItems(state.currentRun.startingKit);
   [...workshopGrants.returnItems, ...kitItems, ...craftGrants.items].forEach(item => {
     if (!addInventoryItem(item)) {
-      addLog(`[!] バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）で${item}を持ち込めなかった。`);
+      addLog(`バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）で${item}を持ち込めなかった。`);
     }
   });
   state.currentRun.townInventory = state.inventory.slice();
@@ -1131,8 +1131,8 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   trackRunStart(state.currentRun, state.party[0], state);
   const theme = getFloorTheme(floor);
   const firstVisit = revealFloor(state, floor);
-  addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
-  addLog(`鑑定粉を${state.identifyTickets}個持って潜行を開始した。`);
+  addLog(`${theme.name}：${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
+  addLog(`鑑定粉を${state.identifyTickets}個持って冒険を始めた。`);
   const nearestFeat = getNearestFeats(state.feats, null, 1)[0];
   if (nearestFeat) addLog(`近い偉業：${nearestFeat.feat.name}（${nearestFeat.feat.condition}）`);
   checkFloorOmenMessage();
@@ -1144,7 +1144,7 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
 
 function beginRoamingMonsterCombat(monster) {
   state.transitioning = true;
-  addLog(`【⚠️遭遇！】徘徊する強敵「${monster.name}」が目の前に現れた！`);
+  addLog(`強敵「${monster.name}」が目の前に現れた！`);
   playSound("chest_trap");
   setTimeout(() => {
     state.transitioning = false;
@@ -1304,7 +1304,7 @@ export function processExplorationResolution(prevX, prevY) {
   if (wiped) return;
 
   const eliteProgress = progressEliteThreat(state);
-  eliteProgress.omens.forEach(omen => addLog(`[予兆] ${omen}`));
+  eliteProgress.omens.forEach(omen => addLog(`【予兆】${omen}`));
   if (eliteProgress.spawned) {
     const spawned = eliteProgress.spawned;
     const key = `aura:${state.floor}:roaming:${spawned.id || spawned.name || `${spawned.x}:${spawned.y}`}`;
@@ -1329,7 +1329,7 @@ export function processExplorationResolution(prevX, prevY) {
   // A trap that was never spotted fires without offering a choice.
   const steppedTrap = cell.trap;
   if (steppedTrap && steppedTrap.state === "hidden") {
-    addLog("【⚠️罠発動！】不意に罠を踏み抜いてしまった！");
+    addLog("不意に罠を踏み抜いてしまった！");
     steppedTrap.state = "disabled";
     markMapChanged();
     if (state.currentRun) state.currentRun.trapsTriggered++;

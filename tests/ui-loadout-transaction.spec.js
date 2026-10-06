@@ -328,12 +328,12 @@ test('loadout edits apply immediately and share one exploration turn on close @s
       steps: state.currentRun.steps,
     };
   })).toEqual({ weapon: 'transaction-sword', returned: ['DAGGER'], steps: 0 });
-  await expect(page.locator('.equip-turn-note')).toContainText('1ターン');
+  await expect(page.locator('.equip-turn-note')).toContainText('1手番');
 
   // A second edit in the same session does not add another exploration turn.
   await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ダガー' }).click();
   await page.getByRole('button', { name: '装備する' }).click();
-  await expect(page.locator('.equip-turn-note')).toContainText('1ターン');
+  await expect(page.locator('.equip-turn-note')).toContainText('1手番');
   await page.locator('#btn-equip-close').click();
   await expect(page.locator('#equip-overlay')).toBeHidden();
   expect(await page.evaluate(async () => {
@@ -476,7 +476,7 @@ test('unknown equipment uses an explicit irreversible trial action @smoke', asyn
     const item = state.party[0].equipment.weapon;
     return { weapon: item?.instanceId || item, steps: state.currentRun.steps };
   })).toEqual({ weapon: 'ui-unknown-trial', steps: 0 });
-  await expect(page.locator('.equip-turn-note')).toContainText('1ターン');
+  await expect(page.locator('.equip-turn-note')).toContainText('1手番');
   await page.locator('#btn-equip-close').click();
   await expect(page.locator('#equip-overlay')).toBeHidden();
   await expect.poll(() => page.evaluate(async () => {
@@ -625,10 +625,10 @@ test('active and spare Runes are labeled by their ownership surface @smoke', asy
   });
 
   const runePanel = page.locator('.equip-rune-panel');
-  await expect(runePanel).toContainText('使用中のルーン（バッグ外）');
+  await expect(runePanel).toContainText('使用中のルーン');
   await expect(runePanel).toContainText('バッグ内の予備ルーン');
-  await expect(runePanel.locator('.equip-rune-row.active')).toContainText('HALITOのルーン');
-  await expect(runePanel.locator('.equip-rune-row:not(.active)')).toContainText('DIOSのルーン');
+  await expect(runePanel.locator('.equip-rune-row.active')).toContainText('火矢のルーン');
+  await expect(runePanel.locator('.equip-rune-row:not(.active)')).toContainText('癒しのルーン');
 });
 
 test('medium replacement shows current MP separately from maximum MP @smoke', async ({ page }) => {

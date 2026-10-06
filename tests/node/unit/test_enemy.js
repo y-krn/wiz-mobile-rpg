@@ -448,7 +448,7 @@ import {
     console.log("- Scenario B Logs:", logsB);
 
     // Verify that HALITO landed on the selected target.
-    assert(logsB.some(msg => msg.includes("ハリト") && msg.includes("ゴブリンの呪術師 A")),
+    assert(logsB.some(msg => msg.includes("火矢") && msg.includes("ゴブリンの呪術師 A")),
            "Error: HALITO should target and hit the backrow monster.");
     assert(resultB.state.combatState.monsters[1].hp < 10, "Error: Selected monster HP should have decreased.");
     console.log("✔ Scenario B Passed: Single target spell successfully targeted the monster.");

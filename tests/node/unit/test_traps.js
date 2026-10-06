@@ -550,7 +550,7 @@ try {
 } finally {
   Math.random = realFlameRandom;
 }
-if (state.party[0].hp !== 16 || !state.logs.some(log => log.includes("部分回避"))) {
+if (state.party[0].hp !== 16 || !state.logs.some(log => log.includes("火炎の直撃をわずかにかわした"))) {
   console.error(`FAIL: partial flame success should use weakened B5 damage (expected 4, got ${20 - state.party[0].hp}).`);
   process.exit(1);
 }
@@ -602,7 +602,7 @@ if (state.party[0].hp !== 15) {
   console.error(`FAIL: equipment trapGuard should reduce 8 flame damage to 5, got ${20 - state.party[0].hp}.`);
   process.exit(1);
 }
-if (!state.logs.some(log => log.includes("熱気の気配")) ||
+if (!state.logs.some(log => log.includes("熱気が走った")) ||
     !state.logs.some(log => log.includes("炎ダメージを受けた"))) {
   console.error("FAIL: flame trap should log warning and damage.");
   process.exit(1);
@@ -618,7 +618,7 @@ try {
 } finally {
   Math.random = realFlameRandom;
 }
-if (state.party[0].hp !== 16 || !state.logs.some(log => log.includes("部分回避"))) {
+if (state.party[0].hp !== 16 || !state.logs.some(log => log.includes("火炎の直撃をわずかにかわした"))) {
   console.error("FAIL: the partial success band should weaken the flame hit.");
   process.exit(1);
 }

@@ -62,7 +62,7 @@ test('pending rewards that fit the bag go straight into the bag with a toast @sm
   await expect(page.locator('.pending-reward-card')).toHaveCount(0);
   await expect(page.locator('#loot-toast')).toBeVisible();
   await expect(page.locator('#loot-toast')).toContainText('をバッグへ（1/20）');
-  await expect(page.locator('#log-content')).toContainText('[戦果解決]');
+  await expect(page.locator('#log-content')).toContainText('を持つ。');
   await expect.poll(() => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return {

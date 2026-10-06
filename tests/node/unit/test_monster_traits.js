@@ -14,8 +14,8 @@ function run() {
   const demonGuard = MONSTERS.find(monster => monster.name === "デーモンガード");
   assert.ok(demonGuard, "デーモンガード must exist.");
   assert.deepEqual(
-    describeMonsterTraits(demonGuard).filter(label => label === "ボス" || label === "中ボス"),
-    ["ボス"]
+    describeMonsterTraits(demonGuard).filter(label => label === "守護者"),
+    ["守護者"]
   );
 
   for (const monster of MONSTERS) {
@@ -27,7 +27,7 @@ function run() {
     }
   }
 
-  assert.deepEqual(describeMonsterTraits({ name: "標準モンスター" }), ["標準的なモンスター"]);
+  assert.deepEqual(describeMonsterTraits({ name: "標準モンスター" }), ["標準的な魔物"]);
   assert.deepEqual(
     describeMonsterTraits({
       name: "複合モンスター",
@@ -54,8 +54,8 @@ function run() {
       "1ターンに複数回行動",
       "味方の魔法防御を上げる",
       "支援役",
-      "ボス",
-      "非常に強力な強敵"
+      "守護者",
+      "強敵"
     ]
   );
 }

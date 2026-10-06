@@ -100,7 +100,7 @@ function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
   if (!kit || !isStartingKitAvailable(startingKitId, state.facilities)) return false;
   const { character, handConflict } = createDepartureCharacter(startingKitId, startingGear);
   if (handConflict) {
-    addLog(`[開始不可] ${handConflict.message}`);
+    addLog(handConflict.message);
     return false;
   }
   clearDepartureStartFooter();

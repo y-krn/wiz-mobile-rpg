@@ -19,6 +19,8 @@ meaning.
 - `qa-regression.md`: regression strategy and verification sufficiency
 - `balance-simulation.md`: balance principles and claim/evidence boundaries
 - `content-design.md`: player-facing content review
+- `glossary.md`: the fixed Japanese terms, spell and town names, and log-line
+  tags the player reads
 - `mobile-ui-ux.md`: mobile layout, input, and accessibility review
 
 The conditional skills below own only repository-specific decisions that need a

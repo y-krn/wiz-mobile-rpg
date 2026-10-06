@@ -220,7 +220,7 @@ function persistSave({ rotateBackup = true }: { rotateBackup?: boolean } = {}): 
     // save succeeds again.
     if (!saveFailureReported) {
       saveFailureReported = true;
-      addLog("[警告] セーブデータを保存できませんでした。ブラウザの保存容量が不足している可能性があります。");
+      addLog("セーブデータを保存できませんでした。ブラウザの保存容量が不足している可能性があります。");
     }
   }
 }

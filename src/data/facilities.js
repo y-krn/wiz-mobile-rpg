@@ -347,7 +347,7 @@ export const FACILITIES = Object.freeze([
       node({
         id: "hall_oath",
         name: "誓約の祭壇",
-        description: "深淵の玉座の3階目の鏡の間で、誓約を立てられるようになる。HPとMPがすべて戻る。ただし、その潜行で死ぬか断念すると、手持ちの素材は1つも街に残らない。",
+        description: "深淵の玉座の3階目の鏡の間で、誓約を立てられるようになる。HPとMPがすべて戻る。ただし、その冒険で死ぬか断念すると、手持ちの素材は1つも街に残らない。",
         cost: { "竜鱗": 8, "霊粉": 6 },
         requiresFeat: "depth_30",
         grants: { room: "oath_altar" }

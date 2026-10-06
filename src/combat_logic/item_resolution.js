@@ -98,9 +98,9 @@ export function resolvePlayerItem(char, act, state, logQueue, options = {}) {
     const restored = Math.max(0, target.mp - oldMp);
     floatText = restored > 0 ? `+${restored} MP` : "無効";
   } else if (["ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "PANACEA"].includes(act.itemKey)) {
-    floatText = oldStatus !== target.status ? "CURED" : "無効";
+    floatText = oldStatus !== target.status ? "治った" : "無効";
   } else if (act.itemKey === "GUARD_POTION") {
-    floatText = "GUARD";
+    floatText = "守り";
   }
   logQueue.push({
     msg: `[味方] ${log}`,

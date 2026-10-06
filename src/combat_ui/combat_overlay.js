@@ -51,7 +51,7 @@ function getOverlayHint(type) {
   if (type === "combat_spell") return "カードに触れる";
   if (type === "combat_item") return "小瓶に触れる";
   if (type === "combat_target" && menuContext.targetType === "enemy") {
-    return menuContext.spellName ? `敵に触れて${SPELLS[menuContext.spellName]?.name || menuContext.spellName}を放つ` : "敵に触れて攻撃";
+    return menuContext.spellName ? `敵に触れて${SPELLS[menuContext.spellName]?.label || menuContext.spellName}を放つ` : "敵に触れて攻撃";
   }
   return "仲間に触れる";
 }
@@ -262,8 +262,8 @@ export function renderCombatOverlay() {
       top.className = "spell-card-top";
       const spellName = document.createElement("span");
       spellName.className = "spell-name";
-      spellName.title = spell.name;
-      spellName.textContent = spell.name;
+      spellName.title = spell.label;
+      spellName.textContent = spell.label;
       const cost = document.createElement("span");
       cost.className = "cost-tag";
       cost.textContent = payment.resource === "hp" ? `${payment.cost}HP` : `${spell.cost}MP`;
@@ -289,7 +289,7 @@ export function renderCombatOverlay() {
       card.appendChild(top);
       card.appendChild(reachTag);
       card.appendChild(bottom);
-      card.setAttribute("aria-label", `${spell.name}、${payment.resource === "hp" ? `${payment.cost}HP` : `${spell.cost}MP`}、${summary.effect}${disabled ? "、使用不可" : ""}`);
+      card.setAttribute("aria-label", `${spell.label}、${payment.resource === "hp" ? `${payment.cost}HP` : `${spell.cost}MP`}、${summary.effect}${disabled ? "、使用不可" : ""}`);
 
       if (!disabled) {
         card.addEventListener("click", () => {

@@ -96,7 +96,7 @@ test('Rebuilt rooms name the choice in words and price it on the buttons', async
     materials: { '呪布': 3 },
   });
   expect(hammock.kind).toBe('weaver_hammock');
-  expect(hammock.description).toBe('ひと休みするか、防具を繕ってもらうか、どちらか一方。使えるのは、この潜行で一度きり。');
+  expect(hammock.description).toBe('ひと休みするか、防具を繕ってもらうか、どちらか一方。使えるのは、この冒険で一度きり。');
   expect(hammock.buttons[0]).toMatch(/^吊り寝床で休む（4手番・HP\+\d+）$/);
   expect(hammock.buttons[1]).toMatch(/^防具を繕う（素材2個・3戦のあいだ防御力\+\d+）$/);
 
@@ -114,7 +114,7 @@ test('Rebuilt rooms name the choice in words and price it on the buttons', async
 
   const outpost = await openRoom(page, 3, { completed: ALL_KEEPERS, nodes: ['miner_outpost'] });
   expect(outpost.kind).toBe('miner_outpost');
-  expect(outpost.description).toBe('補給を1つ分けてくれる。応じてくれるのは、この潜行で一度きり。');
+  expect(outpost.description).toBe('補給を1つ分けてくれる。応じてくれるのは、この冒険で一度きり。');
 });
 
 test('A facility cost line states the cost and the one thing in the way', async ({ page }) => {

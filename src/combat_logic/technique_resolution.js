@@ -41,7 +41,7 @@ function strike(char, target, technique, { state, rng, multiplier, logQueue, mon
       msg: `[味方] ${char.name}の${technique.name}！しかし${target.name}に当たらなかった！`,
       presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL,
       sound: "miss",
-      floatText: "MISS",
+      floatText: "外れ",
       floatColor: "#8e8e93",
       floatTarget: monsters.indexOf(target)
     });

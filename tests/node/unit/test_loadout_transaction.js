@@ -294,7 +294,7 @@ assert.deepEqual(
   ["equipment_decision", "loot_lifecycle", "loadout_transaction"]
 );
 assert.equal(state.logs.at(-1), "試しに装備した。ダガー → 未鑑定の装備品（試用済）（探索時間が進む）");
-assert.ok(state.logs.includes("[呪い装備] 未鑑定の装備品（試用済）は外せない。"));
+assert.ok(state.logs.includes("未鑑定の装備品（試用済）は呪われていて外せない。"));
 
 // Trial policy keeps location, explicit world-action escape hatch, and strict turn-cost semantics.
 const locationTrialCharacter = createStartingKitCharacter("vanguard");
@@ -355,7 +355,7 @@ resetState(strictTrialCharacter, [strictTrialItem]);
 state.gameState = "explore";
 staged = stageTrialEquip(createLoadoutDraft(state), { actorIdx: 0, inventoryIndex: 0 });
 const strictTrialFailure = commitLoadoutDraft(staged.draft, { stateLike: state, turnCost: "1" });
-assert.deepEqual(strictTrialFailure, { ok: false, reason: "試用には探索時間1ターンが必要です。" });
+assert.deepEqual(strictTrialFailure, { ok: false, reason: "試すには1手番かかる。" });
 assert.equal(staged.draft.committed, undefined);
 recordDungeonObjectLoot(state, strictTrialItem);
 const fallbackTrialLootId = state.currentRun.unbankedObjectLoot[0].id;

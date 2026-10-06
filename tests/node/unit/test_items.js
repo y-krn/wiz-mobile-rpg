@@ -205,13 +205,13 @@ assert.equal(ITEMS.PANACEA.desc, "毒・盲目・麻痺・睡眠を治療する�
     state.combatState = { isBoss: true, isMidboss: false };
     const statusBossCombat = getItemUseStatus(testChar, "ESCAPE_SCROLL");
     assert.strictEqual(statusBossCombat.usable, false, "Should be unusable in Boss combat.");
-    assert.strictEqual(statusBossCombat.reason, "ボス戦では使用できません", "Incorrect reason for boss combat.");
+    assert.strictEqual(statusBossCombat.reason, "守護者との戦いでは使えない", "Incorrect reason for boss combat.");
 
     // Case D: In Midboss combat
     state.combatState = { isBoss: false, isMidboss: true };
     const statusMidbossCombat = getItemUseStatus(testChar, "ESCAPE_SCROLL");
     assert.strictEqual(statusMidbossCombat.usable, false, "Should be unusable in Midboss combat.");
-    assert.strictEqual(statusMidbossCombat.reason, "ボス戦では使用できません", "Incorrect reason for midboss combat.");
+    assert.strictEqual(statusMidbossCombat.reason, "守護者との戦いでは使えない", "Incorrect reason for midboss combat.");
 
     console.log("[PASS] ESCAPE_SCROLL getItemUseStatus restrictions verified.");
 
@@ -356,7 +356,7 @@ assert.equal(ITEMS.PANACEA.desc, "毒・盲目・麻痺・睡眠を治療する�
       equipment: {}
     });
     assert.strictEqual(cureResult.target.status, "ok", "PARALYZE_CURE should cure paralysis in combat.");
-    assert.strictEqual(cureResult.logQueue[0].floatText, "CURED", "PARALYZE_CURE floatText should show cure.");
+    assert.strictEqual(cureResult.logQueue[0].floatText, "治った", "PARALYZE_CURE floatText should show cure.");
     console.log("[PASS] New combat consumables resolve effects, consumption, and floatText.");
 
     const partialBagResult = runForcedMidbossDrop(11);

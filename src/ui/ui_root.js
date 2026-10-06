@@ -182,7 +182,7 @@ function createLogEntry(lineData) {
     entry.classList.add("heal");
   } else if (line.includes("手に入れた") || line.includes("獲得した") || line.includes("解放した")) {
     entry.classList.add("loot");
-  } else if (line.includes("唱えた") || line.includes("明かり") || line.includes("座標") || line.includes("DUMAPIC")) {
+  } else if (line.includes("唱えた") || line.includes("明かり") || line.includes("座標") || line.includes("測量")) {
     entry.classList.add("info");
   } else if (line.includes("【気配】")) {
     entry.classList.add("aura");
@@ -498,12 +498,12 @@ export function updateUI() {
   }
 
   if (gameState === "town") {
-    locLabel.textContent = "TOWN OF LLYLGAMYN";
+    locLabel.textContent = "坑口の街";
   } else if (gameState === "explore") {
     const themeLabel = ` / ${getFloorDisplayName(state, state.floor)}`;
-    const lightLabel = state.lightPower === "lomilwa" ? "LOMILWA" : "LIGHT";
+    const lightLabel = state.lightPower === "lomilwa" ? "大灯り" : "灯り";
     const lightText = state.lightTurns > 0 ? ` (${lightLabel}:${state.lightTurns})` : "";
-    const repelText = state.repelTurns > 0 ? ` (REPEL:${state.repelTurns})` : "";
+    const repelText = state.repelTurns > 0 ? ` (魔物よけ:${state.repelTurns})` : "";
     locLabel.textContent = `B${state.floor}F${themeLabel}${lightText}${repelText}`;
   } else if (isCombatContext) {
     if (!wasCombatContext) {
@@ -511,23 +511,23 @@ export function updateUI() {
       const reducedMotion = typeof window !== "undefined" && typeof window.matchMedia === "function" &&
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (container?.dataset) container.dataset.combatEntry = reducedMotion ? "compact" : "cue";
-      locLabel.textContent = reducedMotion ? "COMBAT" : "BATTLE ENCOUNTER";
+      locLabel.textContent = reducedMotion ? "戦闘" : "魔物と遭遇";
       combatEntryCueTimer = setTimeout(() => {
         if (container?.dataset?.combatContext === "active") container.dataset.combatEntry = "compact";
-        if (document.getElementById("location-label")) document.getElementById("location-label").textContent = "COMBAT";
+        if (document.getElementById("location-label")) document.getElementById("location-label").textContent = "戦闘";
       }, reducedMotion ? 0 : 1200);
     } else if (container?.dataset?.combatEntry !== "cue") {
-      locLabel.textContent = "COMBAT";
+      locLabel.textContent = "戦闘";
     }
   } else if (gameState === "chest") {
-    locLabel.textContent = "TREASURE CHEST";
+    locLabel.textContent = "宝箱";
   } else if (gameState === "victory") {
-    locLabel.textContent = "CONGRATULATIONS!";
+    locLabel.textContent = "迷宮踏破";
   } else if (gameState === "gameover") {
-    locLabel.textContent = "GAME OVER";
+    locLabel.textContent = "力尽きた";
   } else if (gameState === "result") {
     // Without this the label of the screen the run ended on stays up.
-    locLabel.textContent = "RESULT";
+    locLabel.textContent = "冒険の結果";
   }
   wasCombatContext = isCombatContext;
   

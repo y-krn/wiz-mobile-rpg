@@ -2,6 +2,7 @@ import { state } from "../state.js";
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
 import { captureException } from "../sentry.js";
 import { getExplorationRecoveryOutlook } from "../systems/exploration_recovery.js";
+import { getStatusLabel } from "./status_label.js";
 
 const reportedStatFallbacks = new Set();
 
@@ -79,7 +80,7 @@ export function updateSoloHUD({ showExplorationRecovery = false } = {}) {
   if (char.status !== "ok") {
     const status = document.createElement("span");
     status.className = `character-status ${char.status}`;
-    status.textContent = char.status.toUpperCase();
+    status.textContent = getStatusLabel(char.status);
     meta.appendChild(status);
   }
   identity.appendChild(name);

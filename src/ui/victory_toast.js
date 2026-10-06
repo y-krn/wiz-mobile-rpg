@@ -32,7 +32,7 @@ export function formatVictorySummary(summary) {
   if (firstKill) firstKillParts.push(firstKill);
   if (summary?.bonusTickets > 0) firstKillParts.push(`鑑定粉 +${summary.bonusTickets}`);
   if (firstKillParts.length > 0) rewards.push(`初討伐 ${firstKillParts.join("、")}`);
-  (summary?.items || []).forEach(name => rewards.push(`入手 [${name}]`));
+  (summary?.items || []).forEach(name => rewards.push(`入手 ${name}`));
 
   const levelUps = (summary?.levelUps || []).map(entry => ({
     heading: `${entry.name} Lv${entry.levelBefore} → Lv${entry.level}`,

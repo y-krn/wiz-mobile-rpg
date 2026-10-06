@@ -138,9 +138,9 @@ export const SPELL_EFFECTS = {
     if (target && target.magicResist) {
       dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
       if (target.magicResist > 0) {
-        suffix = "【レジスト！】呪文がレジストされた…";
+        suffix = "耐性に阻まれ、呪文が弱まった…";
       } else if (target.magicResist < 0) {
-        suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
+        suffix = "弱点を突いた！";
       }
     }
     return {
@@ -158,7 +158,7 @@ export const SPELL_EFFECTS = {
         magicResist: target?.magicResist ?? 0,
         damage: dmg
       } : undefined,
-      log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${suffix}`
+      log: `${caster.name}は火矢を唱えた！${target.name}に${dmg}の炎ダメージ！${suffix}`
     };
   },
   KATINO: ({ caster, target: targets, rng = Math.random }) => {
@@ -171,7 +171,7 @@ export const SPELL_EFFECTS = {
         sleptCount++;
       }
     });
-    return { log: `${caster.name}はカティノを唱えた！敵${sleptCount}体を眠らせた。` };
+    return { log: `${caster.name}は眠り霧を唱えた！敵${sleptCount}体を眠らせた。` };
   },
   LAHALITO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const spellPowerBonus = getSpellPowerBonus(caster);
@@ -219,20 +219,20 @@ export const SPELL_EFFECTS = {
     
     const logDetails = results.map(r => {
       let suffix = "";
-      if (r.isResisted) suffix = "【レジスト】";
-      if (r.isWeakness) suffix = "【弱点直撃！】";
+      if (r.isResisted) suffix = "（耐性）";
+      if (r.isWeakness) suffix = "（弱点）";
       return `${r.name}に${r.dmg}のダメージ${suffix}`;
     }).join(", ");
     return {
       damageByTarget: results,
       coreIds: [...new Set(results.flatMap(result => result.coreIds))],
-      log: `${caster.name}はラハリトを唱えた！激しい炎が敵全体を焼き尽くす！(${logDetails})`
+      log: `${caster.name}は炎嵐を唱えた！激しい炎が敵全体を焼き尽くす！(${logDetails})`
     };
   },
   DUMAPIC: ({ caster, target: state }) => {
     const stairs = findNearestCell(state, cell => cell.type === "stairs-down");
     const surveyLines = [
-      `DUMAPIC — B${state.floor} / ${DIR_NAMES[state.dir]}向き`,
+      `測量 — B${state.floor} / ${DIR_NAMES[state.dir]}向き`,
       `測量座標 X:${state.x} Y:${state.y}`
     ];
     const unexploredDirection = getUnexploredDirection(state);
@@ -243,7 +243,7 @@ export const SPELL_EFFECTS = {
     }
     if (hasNearbyOneWayPassage(state)) surveyLines.push("近辺の空間にわずかな歪みがある。");
     if (surveyLines.length === 2) surveyLines.push("特異な構造は感じない。");
-    return { log: `${caster.name}はデュマピックを唱えた！\n${surveyLines.join("\n")}` };
+    return { log: `${caster.name}は測量を唱えた！\n${surveyLines.join("\n")}` };
   },
   MAHALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const baseRoll = Math.floor(rng() * 21) + 30;
@@ -261,9 +261,9 @@ export const SPELL_EFFECTS = {
     if (target && target.magicResist) {
       dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
       if (target.magicResist > 0) {
-        suffix = "【レジスト！】呪文がレジストされた…";
+        suffix = "耐性に阻まれ、呪文が弱まった…";
       } else if (target.magicResist < 0) {
-        suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
+        suffix = "弱点を突いた！";
       }
     }
     return {
@@ -281,13 +281,13 @@ export const SPELL_EFFECTS = {
         magicResist: target?.magicResist ?? 0,
         damage: dmg
       } : undefined,
-      log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${suffix}`
+      log: `${caster.name}は炎槍を唱えた！${target.name}に${dmg}の熱線ダメージ！${suffix}`
     };
   },
   MASFEAL: ({ caster, target: state }) => {
     const steps = 30;
     state.repelTurns = steps;
-    return { log: `${caster.name}はマスペアルを唱えた！気配が消え、魔物を寄せ付けなくなった。(${steps}歩の間有効)` };
+    return { log: `${caster.name}は魔物よけを唱えた！気配が消え、魔物を寄せ付けなくなった。（${steps}手番のあいだ）` };
   },
   MADALTO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const spellPowerBonus = getSpellPowerBonus(caster);
@@ -334,14 +334,14 @@ export const SPELL_EFFECTS = {
     
     const logDetails = results.map(r => {
       let suffix = "";
-      if (r.isResisted) suffix = "【レジスト】";
-      if (r.isWeakness) suffix = "【弱点直撃！】";
+      if (r.isResisted) suffix = "（耐性）";
+      if (r.isWeakness) suffix = "（弱点）";
       return `${r.name}に${r.dmg}のダメージ${suffix}`;
     }).join(", ");
     return {
       damageByTarget: results,
       coreIds: [...new Set(results.flatMap(result => result.coreIds))],
-      log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})`
+      log: `${caster.name}は氷嵐を唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})`
     };
   },
   TILTOWAIT: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
@@ -389,14 +389,14 @@ export const SPELL_EFFECTS = {
     
     const logDetails = results.map(r => {
       let suffix = "";
-      if (r.isResisted) suffix = "【レジスト】";
-      if (r.isWeakness) suffix = "【弱点直撃！】";
+      if (r.isResisted) suffix = "（耐性）";
+      if (r.isWeakness) suffix = "（弱点）";
       return `${r.name}に${r.dmg}のダメージ${suffix}`;
     }).join(", ");
     return {
       damageByTarget: results,
       coreIds: [...new Set(results.flatMap(result => result.coreIds))],
-      log: `${caster.name}はティルトウェイトを唱えた！極大爆裂の光が敵全体を消滅させる！(${logDetails})`
+      log: `${caster.name}は大爆裂を唱えた！極大爆裂の光が敵全体を消滅させる！(${logDetails})`
     };
   },
 
@@ -412,9 +412,9 @@ export const SPELL_EFFECTS = {
     target.hp = Math.min(maxHp, target.hp + heal);
     const actualHeal = target.hp - oldHp;
     if (actualHeal === 0) {
-      return { heal: 0, log: `${caster.name}はディオスを唱えたが、${target.name}のHPは最大だった。` };
+      return { heal: 0, log: `${caster.name}は癒しを唱えたが、${target.name}のHPは最大だった。` };
     }
-    return { heal: actualHeal, log: `${caster.name}はディオスを唱えた！${target.name}のHPを${actualHeal}回復した。` };
+    return { heal: actualHeal, log: `${caster.name}は癒しを唱えた！${target.name}のHPを${actualHeal}回復した。` };
   },
   DIURCO: ({ caster, target }) => {
     let cured = false;
@@ -422,7 +422,7 @@ export const SPELL_EFFECTS = {
       removeStatusEffect(target, STATUS_EFFECT_IDS.BLIND);
       cured = true;
     }
-    return { log: `${caster.name}は${target.name}にディウルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
+    return { log: `${caster.name}は${target.name}に開眼を唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
   },
   BADIOS: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null, measurement = null }) => {
     const baseRoll = Math.floor(rng() * 11) + 8;
@@ -448,9 +448,9 @@ export const SPELL_EFFECTS = {
     if (target && target.magicResist) {
       dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
       if (target.magicResist > 0) {
-        suffix = "【レジスト！】呪文がレジストされた…";
+        suffix = "耐性に阻まれ、呪文が弱まった…";
       } else if (target.magicResist < 0) {
-        suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
+        suffix = "弱点を突いた！";
       }
     }
     return {
@@ -472,14 +472,14 @@ export const SPELL_EFFECTS = {
         magicResist: target?.magicResist ?? 0,
         damage: dmg
       } : undefined,
-      log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${suffix}`
+      log: `${caster.name}は聖撃を唱えた！${target.name}に${dmg}の神聖ダメージ！${suffix}`
     };
   },
   MILWA: ({ caster, target: state }) => {
     const steps = 30;
     state.lightTurns = (state.lightTurns || 0) + steps;
     if (state.lightPower !== "lomilwa") state.lightPower = "milwa";
-    return { log: `${caster.name}はミルワを唱えた！${steps}歩の間、明かりが罠と不意打ちへの警戒を助ける。` };
+    return { log: `${caster.name}は灯りを唱えた！${steps}手番のあいだ、明かりが罠と不意打ちへの警戒を助ける。` };
   },
   DIALKO: ({ caster, target }) => {
     let cured = false;
@@ -492,7 +492,7 @@ export const SPELL_EFFECTS = {
       removeStatusEffect(target, id);
       cured = true;
     }
-    return { log: `${caster.name}は${target.name}にディアルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
+    return { log: `${caster.name}は${target.name}に解縛を唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
   },
   MADIOS: ({ caster, target, rng = Math.random }) => {
     let heal = rollHealing("MADIOS", rng);
@@ -505,9 +505,9 @@ export const SPELL_EFFECTS = {
     target.hp = Math.min(maxHp, target.hp + heal);
     const actualHeal = target.hp - oldHp;
     if (actualHeal === 0) {
-      return { heal: 0, log: `${caster.name}はマディオスを唱えたが、${target.name}のHPは最大だった。` };
+      return { heal: 0, log: `${caster.name}は大癒しを唱えたが、${target.name}のHPは最大だった。` };
     }
-    return { heal: actualHeal, log: `${caster.name}はマディオスを唱えた！${target.name}のHPを${actualHeal}大幅に回復した。` };
+    return { heal: actualHeal, log: `${caster.name}は大癒しを唱えた！${target.name}のHPを${actualHeal}大幅に回復した。` };
   },
   LATUMOFIS: ({ caster, target }) => {
     let cured = false;
@@ -515,13 +515,13 @@ export const SPELL_EFFECTS = {
       removeStatusEffect(target, STATUS_EFFECT_IDS.POISONED);
       cured = true;
     }
-    return { log: `${caster.name}は${target.name}にラツモフィスを唱えた。${cured ? "毒が消え去った！" : "しかし効果がなかった。"}` };
+    return { log: `${caster.name}は${target.name}に解毒を唱えた。${cured ? "毒が消え去った！" : "しかし効果がなかった。"}` };
   },
   LOMILWA: ({ caster, target: state }) => {
     const steps = 100;
     state.lightTurns = (state.lightTurns || 0) + steps;
     state.lightPower = "lomilwa";
-    return { log: `${caster.name}はロミルワを唱えた！${steps}歩の間、強い光が罠・不意打ち・隠れた気配を照らす。` };
+    return { log: `${caster.name}は大灯りを唱えた！${steps}手番のあいだ、強い光が罠・不意打ち・隠れた気配を照らす。` };
   },
   DIALMA: ({ caster, target, rng = Math.random }) => {
     let heal = rollHealing("DIALMA", rng);
@@ -534,9 +534,9 @@ export const SPELL_EFFECTS = {
     target.hp = Math.min(maxHp, target.hp + heal);
     const actualHeal = target.hp - oldHp;
     if (actualHeal === 0) {
-      return { heal: 0, log: `${caster.name}はディアルマを唱えたが、${target.name}のHPは最大だった。` };
+      return { heal: 0, log: `${caster.name}は極癒しを唱えたが、${target.name}のHPは最大だった。` };
     }
-    return { heal: actualHeal, log: `${caster.name}はディアルマを唱えた！${target.name}のHPを${actualHeal}大回復した。` };
+    return { heal: actualHeal, log: `${caster.name}は極癒しを唱えた！${target.name}のHPを${actualHeal}大回復した。` };
   },
   MADI: ({ caster, target, rng = Math.random, healMin = null, healMax = null }) => {
     let heal = rollHealing("MADI", rng, healMin, healMax);
@@ -549,11 +549,11 @@ export const SPELL_EFFECTS = {
     target.hp = Math.min(maxHp, target.hp + heal);
     const actualHeal = target.hp - oldHp;
     if (actualHeal === 0) {
-      return { heal: 0, log: `${caster.name}はマディを唱えたが、${target.name}のHPは最大だった。` };
+      return { heal: 0, log: `${caster.name}は自癒を唱えたが、${target.name}のHPは最大だった。` };
     }
     return {
       heal: actualHeal,
-      log: `${caster.name}はマディを唱えた！${target.name}のHPを${actualHeal}回復した。`
+      log: `${caster.name}は自癒を唱えた！${target.name}のHPを${actualHeal}回復した。`
     };
   },
   MABARRIER: ({ caster, target: allies }) => {
@@ -562,7 +562,7 @@ export const SPELL_EFFECTS = {
         char.mabarrierTurns = 3;
       }
     });
-    return { log: `${caster.name}はマバリアを唱えた！自身に魔力障壁が張られた。` };
+    return { log: `${caster.name}は障壁を唱えた！自身に魔力障壁が張られた。` };
   },
   MONTINO: ({ caster, target: targets, rng = Math.random }) => {
     let silencedCount = 0;
@@ -577,7 +577,7 @@ export const SPELL_EFFECTS = {
         }
       }
     });
-    return { log: `${caster.name}はモンティノを唱えた！敵${silencedCount}体を沈黙させた。` };
+    return { log: `${caster.name}は沈黙を唱えた！敵${silencedCount}体を沈黙させた。` };
   },
   MORLIS: ({ caster, target: targets }) => {
     targets.forEach(t => {
@@ -586,11 +586,11 @@ export const SPELL_EFFECTS = {
         t.buffs.push({ type: "magicResist", value: -0.2, turns: 3 });
       }
     });
-    return { log: `${caster.name}はモーリスを唱えた！敵全体の魔法耐性を下げた。` };
+    return { log: `${caster.name}は魔破りを唱えた！敵全体の魔法耐性を下げた。` };
   },
   VULNERA: ({ caster, target, state = null, logQueue = null, measurement = null }) => {
     tryApplyVulnerable(caster, target, state, logQueue, measurement);
-    return { damage: 0, statusApplied: true, log: `${caster.name}はヴルネラを唱えた！${target.name}の脆弱を引き出した。` };
+    return { damage: 0, statusApplied: true, log: `${caster.name}は脆化を唱えた！${target.name}の脆弱を引き出した。` };
   },
   WEAKEN: ({ caster, target: targets }) => {
     targets.forEach(t => {
@@ -599,6 +599,6 @@ export const SPELL_EFFECTS = {
         t.buffs.push({ type: "atk", value: -3, turns: 3 });
       }
     });
-    return { log: `${caster.name}はウィークンを唱えた！敵全体の攻撃力を下げた。` };
+    return { log: `${caster.name}は虚脱を唱えた！敵全体の攻撃力を下げた。` };
   }
 };

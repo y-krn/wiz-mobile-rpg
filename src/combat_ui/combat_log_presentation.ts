@@ -2,7 +2,8 @@
 import {
   COMBAT_LOG_PRESENTATION_KINDS,
   normalizeCombatLogPresentationKind,
-  mergeCombatLogPresentationKinds
+  mergeCombatLogPresentationKinds,
+  stripLogMarkers
 } from "../combat_log_semantics.js";
 
 type CombatLogSide = "ally" | "enemy" | "neutral";
@@ -96,10 +97,7 @@ export function getCombatLogDelay(entry: unknown, { isAuto = false }: { isAuto?:
 }
 
 function stripPresentationMarkers(message: string): string {
-  return String(message ?? "")
-    .replace(/^\[(?:味方|\s*敵\s*)\]\s*/, "")
-    .replace(/^\[(?:!|★)\]\s*/, "")
-    .replace(/\s+$/, "");
+  return stripLogMarkers(message).replace(/\s+$/, "");
 }
 
 export function formatCombatLogMessage(message: unknown, semantic: unknown = COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL): unknown {

@@ -77,7 +77,7 @@ export function tryApplyVulnerable(caster, target, state, logQueue, measurement 
   }, measurement);
   logQueue?.push({
     msg: alreadyVulnerable
-      ? `[味方] ${caster.name}のヴルネラが${target.name}の脆弱を更新した！（あと${VULNERABLE_DURATION_TURNS}回）`
+      ? `[味方] ${caster.name}の脆化が${target.name}の脆弱を更新した！（あと${VULNERABLE_DURATION_TURNS}回）`
       : `[味方] [!] ${target.name}は脆弱になった！（あと${VULNERABLE_DURATION_TURNS}回、次の直接攻撃で増幅）`,
     sound: "cast_spell",
     vulnerable: event

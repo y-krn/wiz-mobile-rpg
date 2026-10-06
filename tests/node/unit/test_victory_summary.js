@@ -68,7 +68,7 @@ assert.deepEqual(formatVictorySummary({
   levelUps: []
 }), {
   title: "勝利！",
-  rewards: ["経験値 +12", "素材 骨片 x2", "初討伐 鑑定粉 +1", "入手 [ショートソード]"],
+  rewards: ["経験値 +12", "素材 骨片 x2", "初討伐 鑑定粉 +1", "入手 ショートソード"],
   levelUps: []
 });
 

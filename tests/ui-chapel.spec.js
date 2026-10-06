@@ -264,5 +264,5 @@ test('The grave keeps part of a death and returns it at the chapel altar on the 
     };
   });
   expect(after).toEqual({ materials: { '骨片': 3 }, grave: {}, used: true });
-  await expect(page.locator('#log-content')).toContainText('墓標に祈った。前の死で失った素材が手元に戻った。');
+  await expect(page.locator('#log-content')).toContainText('墓標に祈った。前の死で失った素材が手元に戻った：');
 });

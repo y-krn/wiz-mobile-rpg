@@ -30,7 +30,7 @@ function decodeNextPage(optGrid) {
     state.metaMaterials[name] = (state.metaMaterials[name] || 0) + quantity;
   });
   settled.completed.forEach(feat => {
-    addLog(`【偉業達成】${feat.name}（${feat.condition}）。報酬 ${formatFeatReward(feat)}`);
+    addLog(`偉業「${feat.name}」を達成した（${feat.condition}）。報酬 ${formatFeatReward(feat)}`);
   });
   saveGame();
   renderGuidebook(optGrid, `[data-guidebook-page="${decoded.page.id}"]`);

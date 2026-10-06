@@ -133,9 +133,9 @@ export function getDiscardRisk(itemKey: unknown): string[] {
   const risks: string[] = [];
   if (isRiskItemKey(itemKey)) {
     if (itemKey.identified !== true) risks.push("未鑑定");
-    if (["rare", "epic", "legendary"].includes(itemKey.rarity ?? "")) risks.push("Rare以上");
+    if (["rare", "epic", "legendary"].includes(itemKey.rarity ?? "")) risks.push("希少以上");
     if ((itemKey.enhanceLevel || 0) > 0) risks.push("強化済み");
-    if (Array.isArray(itemKey.affixes) && itemKey.affixes.length > 0) risks.push("Affix付き");
+    if (Array.isArray(itemKey.affixes) && itemKey.affixes.length > 0) risks.push("効果付き");
   }
   return risks;
 }
@@ -217,9 +217,9 @@ export function discardEquipmentItems(
     .forEach(({ index }) => stateLike.inventory.splice(index, 1));
 
   if (displayNames.length === 1) {
-    addLog(`[破棄] ${displayNames[0]}を破棄した。`);
+    addLog(`${displayNames[0]}を破棄した。`);
   } else {
-    addLog(`[破棄] ${displayNames.length}件の装備を破棄した。`);
+    addLog(`${displayNames.length}件の装備を破棄した。`);
   }
   playSound("move");
   saveAutosave();

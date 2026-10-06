@@ -36,7 +36,7 @@ baselineState.maps[6][0][4].secretDoor = [true, false, false, false];
 const before = JSON.stringify(baselineState);
 const baselineLog = cast(baselineState);
 
-assert.match(baselineLog, /DUMAPIC — B7 \/ 北向き/);
+assert.match(baselineLog, /測量 — B7 \/ 北向き/);
 assert.match(baselineLog, /測量座標 X:1 Y:2/);
 assert.match(baselineLog, /北東のやや遠いに下層へ続く構造を感知した。/);
 assert.match(baselineLog, /近辺の空間にわずかな歪みがある。/);

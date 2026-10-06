@@ -36,7 +36,7 @@ test('combat spell cards expose tags and enter enemy targeting through the cast 
 
   await page.locator('#btn-combat-spell').click();
   const halito = page.locator('#combat-overlay .combat-item-card.spell', {
-    has: page.locator('.spell-name', { hasText: /^HALITO$/ })
+    has: page.locator('.spell-name', { hasText: /^火矢$/ })
   });
   await expect(halito).toBeVisible();
   await expect(halito.locator('.spell-tag')).toHaveText('単体');

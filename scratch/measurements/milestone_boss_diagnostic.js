@@ -478,8 +478,8 @@ function observeRun(result, fixture) {
         .filter(message => String(message).includes("[警告]"))
         .map(message => ({ message, roundsBeforeDeath: deathRoundIndex - roundIndex }))
     );
-    const warningKeyword = lethalActionName === "TILTOWAIT" ? "ティルトウェイト"
-      : lethalActionName === "MADALTO" ? "マダルト"
+    const warningKeyword = lethalActionName === "TILTOWAIT" ? "大爆裂"
+      : lethalActionName === "MADALTO" ? "氷嵐"
         : lethalActionName === "炎の息" ? "炎の息"
           : lethalActionName === "仲間を呼ぶ" ? "召喚" : null;
     const matchingWarningsBeforeDeath = warningKeyword

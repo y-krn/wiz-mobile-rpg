@@ -310,11 +310,10 @@ export function describeMonsterTraits(monster, record = null) {
   const role = monster.role || MONSTER_ROLE_BY_NAME[monster.name];
   if (MONSTER_ROLE_LABELS[role]) descriptions.push(MONSTER_ROLE_LABELS[role]);
 
-  if (monster.isBoss) descriptions.push("ボス");
-  else if (monster.isMidboss) descriptions.push("中ボス");
+  if (monster.isBoss || monster.isMidboss) descriptions.push("守護者");
   if (monster.isRare) {
-    descriptions.push(monster.name === "メタルパピー" ? "希少な魔物" : "非常に強力な強敵");
+    descriptions.push(monster.name === "メタルパピー" ? "希少な魔物" : "強敵");
   }
 
-  return descriptions.length > 0 ? descriptions : ["標準的なモンスター"];
+  return descriptions.length > 0 ? descriptions : ["標準的な魔物"];
 }

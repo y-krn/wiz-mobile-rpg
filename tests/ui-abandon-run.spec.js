@@ -26,7 +26,7 @@ for (const vp of VIEWPORTS) {
     await page.keyboard.press('Enter');
     await expect(page.locator('#character-panel')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#explore-satchel button')).toHaveText([
-      '調べる', 'バッグ', '魔法', '装備', '冒険管理'
+      '調べる', 'バッグ', '呪文', '装備', '冒険管理'
     ]);
     const actionLayout = await page.locator('#explore-satchel button').evaluateAll((buttons) => buttons.map((button) => {
       const rect = button.getBoundingClientRect();

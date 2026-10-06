@@ -172,7 +172,7 @@ export const FEATS = Object.freeze([
     id: "elite_5",
     chain: "elite",
     name: "強敵狩り",
-    condition: "強敵（精鋭・徘徊強敵）を累計5体倒す",
+    condition: "強敵を累計5体倒す",
     metric: { kind: "counter", key: "elitesKilled", target: 5, unit: "count" },
     reward: { materials: { "黒角": 3 } }
   }),

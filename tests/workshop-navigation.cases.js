@@ -76,8 +76,8 @@ test('Castle to workshop transition keeps the workshop grid readable', async ({ 
   // #566: 抽選プールノードは affix/spell の実効果を表示する。フォールバック
   // （node.description の定型文）に落ちた場合、これらの語は含まれず失敗する。
   expect(workshopLayout.bloodWandDesc).toContain('MP不足時');
-  expect(workshopLayout.deepSpellsDesc).toContain('MADALTO');
-  expect(workshopLayout.deepSpellsDesc).toContain('DIALMA');
+  expect(workshopLayout.deepSpellsDesc).toContain('氷嵐');
+  expect(workshopLayout.deepSpellsDesc).toContain('極癒し');
 
   await page.locator('#btn-submenu-back').click();
   await expect(page.locator('#town-controls')).toBeVisible();

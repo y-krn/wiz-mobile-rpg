@@ -375,11 +375,11 @@ export function openChest(rng = Math.random, { useKit = false } = {}) {
         blind: opener.status === "blind"
       });
       if (rng() < chance) {
-        addLog(`${opener.name}は罠 [${translateTrap(trap)}] に気づき、解除した。`);
+        addLog(`${opener.name}は罠「${translateTrap(trap)}」に気づき、解除した。`);
         recordChestTrapDisarmed(opener, trap, "open", { successRate: chance * 100 });
         playSound("heal");
       } else {
-        addLog(`解除失敗！宝箱を開けた瞬間、罠 [${translateTrap(trap)}] が作動した！`);
+        addLog(`解除に失敗した。宝箱を開けた瞬間、罠「${translateTrap(trap)}」が作動した！`);
         if (state.currentRun) state.currentRun.trapsTriggered++;
         triggerChestTrap(opener, rng, "open", { successRate: chance * 100 });
       }
@@ -583,8 +583,8 @@ function resolveChestRewards(opener, rng = Math.random) {
           state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + qty;
         }
       });
-      const matStr = Object.entries(mats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
-      addLog(`宝箱から素材束: [${matStr}] を獲得した！`);
+      const matStr = Object.entries(mats).map(([mat, qty]) => `${mat}×${qty}`).join("・");
+      addLog(`宝箱から素材束を手に入れた：${matStr}`);
       if (tombRaider) addLog(getCoreLogText("CORE_TOMB_RAIDER"));
     }
 

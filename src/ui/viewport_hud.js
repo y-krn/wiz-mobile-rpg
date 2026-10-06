@@ -44,7 +44,7 @@ export function updateViewportHUD() {
   const direction = document.createElement("div");
   direction.className = "hud-dir";
   direction.textContent = state.lightTurns > 0
-    ? `${state.lightPower === "lomilwa" ? "LOMILWA強光" : "MILWA明かり"}: 残り${state.lightTurns}歩 / 方角: ${dirLabel}`
+    ? `${state.lightPower === "lomilwa" ? "大灯り" : "灯り"}: 残り${state.lightTurns}手番 / 方角: ${dirLabel}`
     : `方角: ${dirLabel}`;
   hud.appendChild(direction);
 }

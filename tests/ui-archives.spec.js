@@ -166,7 +166,7 @@ test('Archives keeps unknown monster knowledge and removes kill-count spoilers',
   await expect(detail).toContainText('生態');
   await expect(detail).toContainText('行動');
   await expect(detail).toContainText('耐性・弱点');
-  await expect(detail).toContainText('確認した戦利品');
+  await expect(detail).toContainText('確認した戦果');
   await expect(detail).toContainText('あなたの記録');
   await expect(detail).toContainText('B7F');
   await expect(detail).toContainText('B9F');

@@ -315,7 +315,7 @@ export function calculateDangerScore() {
   let rank = "E";
   let label = "安全な偵察";
   if (score >= 80) { rank = "S"; label = "無謀なる踏破"; }
-  else if (score >= 55) { rank = "A"; label = "危険な遠征"; }
+  else if (score >= 55) { rank = "A"; label = "危険な冒険"; }
   else if (score >= 35) { rank = "B"; label = "深部探索"; }
   else if (score >= 20) { rank = "C"; label = "通常探索"; }
   else if (score >= 10) { rank = "D"; label = "小規模探索"; }

@@ -23,7 +23,7 @@ test('Explore and Combat share the common Dock grammar at 320x568 @e2e @smoke', 
   expect(explore).toMatchObject({
     forward: '進む',
     bag: 'バッグ',
-    magic: '魔法',
+    magic: '呪文',
     dockState: 'compact',
   });
 

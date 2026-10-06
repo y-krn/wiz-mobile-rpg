@@ -144,7 +144,7 @@ for (const viewport of VIEWPORTS) {
 
     await page.locator('#btn-combat-spell').click();
     await page.locator('#combat-overlay .combat-item-card.spell', {
-      has: page.locator('.spell-name', { hasText: /^HALITO$/ }),
+      has: page.locator('.spell-name', { hasText: /^火矢$/ }),
     }).click();
     await expect(page.locator('#combat-overlay')).toBeHidden();
     expect(await page.evaluate(async () => {
@@ -228,7 +228,7 @@ for (const viewport of VIEWPORTS) {
 
     await page.locator('#btn-combat-spell').click();
     const halito = page.locator('#combat-overlay .combat-item-card.spell', {
-      has: page.locator('.spell-name', { hasText: /^HALITO$/ }),
+      has: page.locator('.spell-name', { hasText: /^火矢$/ }),
     });
     await expect(halito).toBeVisible();
     await halito.click();

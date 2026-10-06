@@ -12,7 +12,7 @@ export function getItemUseStatus(char, itemKey) {
   }
 
   if (itemKey === "ESCAPE_SCROLL" && state.combatState && (state.combatState.isBoss || state.combatState.isMidboss)) {
-    return { usable: false, reason: "ボス戦では使用できません" };
+    return { usable: false, reason: "守護者との戦いでは使えない" };
   }
 
   if (char.status === "dead") {

@@ -1,5 +1,6 @@
 export {
   COMBAT_LOG_PRESENTATION_KINDS,
   normalizeCombatLogPresentationKind,
-  mergeCombatLogPresentationKinds
+  mergeCombatLogPresentationKinds,
+  stripLogMarkers
 } from "./combat_log_semantics.ts";

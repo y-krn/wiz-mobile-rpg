@@ -58,7 +58,7 @@ export const ITEMS = {
   VNEXT_AMULET: { id: "VNEXT_AMULET", name: "護符", type: "accessory", trialOnly: true, desc: "素朴な護符。宿った力がそのまま効果になる。", tags: [] },
 
   // Potions / Quest items
-  HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", desc: "使用するとHPを15回復する。" },
+  HEAL_POTION: { id: "HEAL_POTION", name: "傷薬", type: "usable", desc: "使用するとHPを15回復する。" },
   NOISE_BALL: { id: "NOISE_BALL", name: "鳴らし玉", type: "usable", desc: "指定方向へ投げると、次の数歩以内に通常の魔物を呼び寄せる。", exploreDirectional: true },
   SILENCE_INCENSE: { id: "SILENCE_INCENSE", name: "静寂の香", type: "usable", desc: "焚くと、しばらく通常の魔物に気づかれにくくなる。", exploreNoTarget: true },
   TRAP_SENSE_STONE: { id: "TRAP_SENSE_STONE", name: "探知石", type: "usable", desc: "周囲3マス以内の床罠を可視化する。罠は解除しない。", exploreNoTarget: true },
@@ -71,7 +71,7 @@ export const ITEMS = {
   ETHER: { id: "ETHER", name: "魔力の雫", type: "usable", desc: "使用するとMPを8回復する。[MPを持つ冒険者用]" },
   HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", desc: "使用するとHPを15回復し、毒状態も治療する。" },
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還の翼", type: "usable", desc: "任意のフロアから帰還する。素材をすべて持ち帰り、未使用の持ち込み品は倉庫に戻る。" },
-  ESCAPE_SCROLL: { id: "ESCAPE_SCROLL", name: "離脱のスクロール", type: "usable", desc: "使用すると戦闘から逃れ、その場に留まる。[戦闘専用]", combatOnly: true },
+  ESCAPE_SCROLL: { id: "ESCAPE_SCROLL", name: "離脱のスクロール", type: "usable", desc: "使用すると戦闘から逃れ、その場に留まる。戦闘中だけ使える。", combatOnly: true },
   PANACEA: { id: "PANACEA", name: "万能薬", type: "usable", desc: "毒・盲目・麻痺・睡眠を治療する。" },
   ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。" },
   LEGENDARY_SWORD: { id: "LEGENDARY_SWORD", name: "神剣エクスカリバー", type: "weapon", loadClass: "heavy", hands: 2, behaviorProfile: "heavy", atk: 60, randRange: [0, 4], desc: "聖なる光を放つ伝説の神剣。攻撃力+60", tags: ["holy", "blade"] },
@@ -82,9 +82,9 @@ export const ITEMS = {
   EXCALIBUR_FRAGMENT: { id: "EXCALIBUR_FRAGMENT", name: "神剣の破片", type: "quest", desc: "神剣の刀身が砕けた一部。不思議な光を放っている。" },
   ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" },
   DRAGON_KEY: { id: "DRAGON_KEY", name: "竜の鍵", type: "quest", desc: "いにしえの竜の巣へと通じる刻印が刻まれた鍵。" },
-  STR_POTION: { id: "STR_POTION", name: "剛力の薬", type: "usable", desc: "使用すると数ターンの間、攻撃力が上昇する。[戦闘専用]", combatOnly: true },
-  GUARD_POTION: { id: "GUARD_POTION", name: "守りの薬", type: "usable", desc: "その戦闘の間、物理ダメージを40%軽減する。逃走時の追撃にも効く。[戦闘専用]", combatOnly: true },
-  HASTE_POTION: { id: "HASTE_POTION", name: "疾風の薬", type: "usable", desc: "使用すると数ターンの間、敏捷性が上昇する。[戦闘専用]", combatOnly: true },
+  STR_POTION: { id: "STR_POTION", name: "剛力の薬", type: "usable", desc: "使用すると数ターンの間、攻撃力が上昇する。戦闘中だけ使える。", combatOnly: true },
+  GUARD_POTION: { id: "GUARD_POTION", name: "守りの薬", type: "usable", desc: "その戦闘の間、物理ダメージを40%軽減する。逃走時の追撃にも効く。戦闘中だけ使える。", combatOnly: true },
+  HASTE_POTION: { id: "HASTE_POTION", name: "疾風の薬", type: "usable", desc: "使用すると数ターンの間、敏捷性が上昇する。戦闘中だけ使える。", combatOnly: true },
   TRAP_KIT: { id: "TRAP_KIT", name: "罠外しキット", type: "usable", desc: "宝箱の罠を1つ確実に外す。" },
   ...RUNES
 };

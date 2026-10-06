@@ -34,7 +34,7 @@ function describeWorkshopNode(node) {
   if (spellIds) {
     return spellIds.map(id => {
       const spell = SPELLS[id];
-      return spell ? `${spell.name}: ${spell.desc}` : node.description;
+      return spell ? `${spell.label}: ${spell.desc}` : node.description;
     }).join(" / ");
   }
   return node.description;

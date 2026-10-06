@@ -54,7 +54,7 @@ async function openDeparturePreparation(page, vp, unlockedMilestones = []) {
     };
     state.workshop = { ranks: {} };
     state.unlockedMilestones = milestones;
-    openSubmenu('solo_start', '単独潜行');
+    openSubmenu('solo_start', '単独冒険');
   }, unlockedMilestones);
   await page.locator('.solo-starting-kit-option').first().click();
   await page.locator('#btn-kit-confirm').click();

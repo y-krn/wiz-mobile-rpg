@@ -92,7 +92,7 @@ export function commitLoadoutDraft(
     return { ok: false, reason: "未鑑定装備の試用は探索中のみ実行できます。" };
   }
   if (isTrial && resolvedTurnCost !== 1) {
-    return { ok: false, reason: "試用には探索時間1ターンが必要です。" };
+    return { ok: false, reason: "試すには1手番かかる。" };
   }
   const validation = validateDraft(draft);
   if (!validation.ok) return { ok: false, reason: "invalid_draft", errors: validation.errors };
@@ -167,7 +167,7 @@ export function commitLoadoutDraft(
           : findRunObjectLootEntry(stateLike, change.to)?.id,
         source: "dungeon"
       });
-      if (reveal.cursed) addLog(`[呪い装備] ${getName(change.to)}は外せない。`);
+      if (reveal.cursed) addLog(`${getName(change.to)}は呪われていて外せない。`);
     });
 
   const equipmentText = changes.equipment

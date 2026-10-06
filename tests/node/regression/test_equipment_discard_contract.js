@@ -17,12 +17,12 @@ assert.strictEqual(discardFacade.getDiscardRisk, discardOwner.getDiscardRisk);
 assert.deepEqual(discardFacade.getDiscardRisk(null), []);
 assert.deepEqual(discardFacade.getDiscardRisk("DAGGER"), []);
 assert.deepEqual(discardFacade.getDiscardRisk({ identified: false }), ["未鑑定"]);
-assert.deepEqual(discardFacade.getDiscardRisk({ identified: true, rarity: "rare" }), ["Rare以上"]);
+assert.deepEqual(discardFacade.getDiscardRisk({ identified: true, rarity: "rare" }), ["希少以上"]);
 assert.deepEqual(discardFacade.getDiscardRisk({ identified: true, enhanceLevel: 1 }), ["強化済み"]);
-assert.deepEqual(discardFacade.getDiscardRisk({ identified: true, affixes: [{}] }), ["Affix付き"]);
+assert.deepEqual(discardFacade.getDiscardRisk({ identified: true, affixes: [{}] }), ["効果付き"]);
 assert.deepEqual(
   discardFacade.getDiscardRisk({ identified: false, rarity: "legendary", enhanceLevel: 2, affixes: [{}] }),
-  ["未鑑定", "Rare以上", "強化済み", "Affix付き"]
+  ["未鑑定", "希少以上", "強化済み", "効果付き"]
 );
 assert.equal(discardEntriesFixture[0].index, 0);
 assert.equal(discardOptionsFixture.stateLike.inventory[0], "DAGGER");
@@ -155,7 +155,7 @@ try {
   );
   assert.equal(
     confirmMessage,
-    "選択した2件の装備を破棄しますか？この操作は取り消せません。\n注意: 未鑑定 1件、Rare以上 1件、強化済み 1件、Affix付き 1件が含まれます。"
+    "選択した2件の装備を破棄しますか？この操作は取り消せません。\n注意: 未鑑定 1件、希少以上 1件、強化済み 1件、効果付き 1件が含まれます。"
   );
   assert.equal(multiState.inventory.length, 3);
   assert.equal(multiState.currentRun.unbankedObjectLoot.length, 3);
@@ -179,7 +179,7 @@ try {
   assert.deepEqual(successState.currentRun.unbankedObjectLoot.map(entry => entry.item), [second]);
   assert.equal(capturedEvents.filter(event => event.name === "equipment_decision").length, 2);
   assert.equal(capturedEvents.filter(event => event.name === "loot_lifecycle").length, 2);
-  assert.equal(state.logs.at(-1), "[破棄] 2件の装備を破棄した。");
+  assert.equal(state.logs.at(-1), "2件の装備を破棄した。");
 
   __setTelemetryClientForTests({
     capture() {

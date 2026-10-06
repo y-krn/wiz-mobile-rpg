@@ -5,6 +5,8 @@ import { lockShellScroll, unlockShellScroll } from "./shell_scroll_lock.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 import { CODEX_INSIGHT_DEFINITIONS } from "../state/codex_state.js";
 
+const RARITY_NAMES = Object.freeze({ common: "通常", magic: "魔法", rare: "希少", epic: "逸品", legendary: "伝説" });
+
 export const archivesState = {
   tab: "monsters",
   selectedId: null,
@@ -112,8 +114,8 @@ export function getMonsterCodexDetailHtml(m, record) {
         <div class="codex-observation-grid">${resistanceRows}</div>
       </section>
       <section class="codex-info-section">
-        <div class="codex-subtitle">確認した戦利品</div>
-        ${observedList(observedLoot, "実際に得た戦利品はまだありません。")}
+        <div class="codex-subtitle">確認した戦果</div>
+        ${observedList(observedLoot, "実際に得た戦果はまだありません。")}
       </section>
       <section class="codex-info-section codex-personal-record">
         <div class="codex-subtitle">あなたの記録</div>
@@ -269,7 +271,7 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
       </div>
       <div class="codex-info-section codex-personal-record">
         <div class="codex-subtitle">個人記録</div>
-        <p>入手 ${record.foundCount || 0}回 / 最高 <span class="${highestRarity}">${highestRarity.toUpperCase()}</span> +${record.bestBonus || 0}</p>
+        <p>入手 ${record.foundCount || 0}回 / 最高 <span class="${highestRarity}">${RARITY_NAMES[highestRarity] || "通常"}</span> +${record.bestBonus || 0}</p>
         <p>初発見階層: ${escapeHtml(record.firstFoundAt || "不明")}</p>
       </div>
     </div>
@@ -356,10 +358,10 @@ export function getEventsCodexHtml() {
   // スタッツセクション
   const stats = state.codex?.stats || { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
   const records = state.records || { deepestRetreat: 0, deepestDeath: 0, totalRuns: 0 };
-  html += `<div><div class="archives-section-title">📊 累計スタッツ</div>`;
+  html += `<div><div class="archives-section-title">📊 これまでの累計</div>`;
   html += `
     <div style="background-color: #14141a; border: 1px solid var(--neon-cyan); border-radius: 4px; padding: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
-      <div>潜行回数: <strong style="color: var(--neon-cyan);">${records.totalRuns}</strong> 回</div>
+      <div>冒険の数: <strong style="color: var(--neon-cyan);">${records.totalRuns}</strong> 回</div>
       <div>全滅死亡: <strong style="color: var(--neon-red);">${stats.totalDeaths}</strong> 回</div>
       <div>帰還最深: <strong style="color: var(--neon-green);">${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
       <div>死亡最深: <strong style="color: var(--neon-red);">${records.deepestDeath ? `B${records.deepestDeath}F` : "未記録"}</strong></div>
@@ -440,7 +442,7 @@ export function getDeathLogsHtml() {
           <div><strong>日時:</strong> ${escapeHtml(dateStr)}</div>
           <div><strong>死因:</strong> ${escapeHtml(d.cause)}</div>
           <div><strong>Lv:</strong> ${level ?? "?"} | 撃破数: ${kills}</div>
-          <div style="color: var(--neon-yellow); white-space: normal; word-break: break-all;"><strong>紛失戦利品:</strong> ${escapeHtml(lostItemsText)}</div>
+          <div style="color: var(--neon-yellow); white-space: normal; word-break: break-all;"><strong>失った戦果:</strong> ${escapeHtml(lostItemsText)}</div>
         </div>
       </div>
     `;

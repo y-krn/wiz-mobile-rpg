@@ -57,10 +57,10 @@ export const RUNES = Object.freeze(Object.fromEntries(
       `RUNE_${spellKey}`,
       Object.freeze({
         id: `RUNE_${spellKey}`,
-        name: `${spellKey}のルーン`,
+        name: `${SPELLS[spellKey].label}のルーン`,
         type: "rune",
         spellKey,
-        desc: `${spellKey}を媒体に刻む一枚のルーン。`,
+        desc: `${SPELLS[spellKey].label}の呪文を媒体に刻む一枚のルーン。`,
         minFloor: supplyBand.minFloor,
         supplyBand: supplyBand.id,
         supplyTier: supplyBand.id

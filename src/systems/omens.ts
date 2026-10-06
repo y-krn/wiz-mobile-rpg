@@ -49,6 +49,6 @@ export function checkFloorOmenMessage(): void {
   const floor = state.floor;
   const omen = getOmenForFloor(state.seed, floor);
   if (omen) {
-    addLog(`[予兆] ${omen.text}`);
+    addLog(`【予兆】${omen.text}`);
   }
 }
