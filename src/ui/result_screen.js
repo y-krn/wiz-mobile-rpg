@@ -83,6 +83,17 @@ function getOutcomeMeta(reason, run = null) {
       success: true
     };
   }
+  if (reason === "surface") {
+    // Round-trip prototype (#2066): the run walked back up and out.
+    return {
+      key: "surface",
+      label: "歩いて地上へ帰還",
+      detail: run?.roundTrip?.treasure
+        ? "迷宮の至宝を持って、来た道を歩いて街へ戻った。"
+        : "来た道を歩いて街へ戻った。素材と未使用の持ち込み品を守った。",
+      success: true
+    };
+  }
   if (reason === "escape_scroll") {
     return {
       key: "wing",
@@ -649,7 +660,7 @@ export function renderResultScreen() {
       againButton.appendChild(textElement(
         "span",
         "result-again-detail",
-        `${kitName}・B${plan.startFloor}Fから・${departureActions.formatCost(plan)}`
+        `${kitName}・B${plan.startFloor}Fから${plan.roundTrip ? "・往復の試作" : ""}・${departureActions.formatCost(plan)}`
       ));
       againButton.addEventListener("click", () => {
         if (settleResult({ announce: false })) departureActions.repeat();

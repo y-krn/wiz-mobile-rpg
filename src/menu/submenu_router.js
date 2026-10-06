@@ -10,6 +10,7 @@ import { renderGuidebook } from "./guidebook_view.js";
 import { renderMilestoneMerchant } from "./milestone_merchant.js";
 import { renderMilestonePortal } from "./milestone_portal.js";
 import { renderStairsDown } from "./stairs_down.js";
+import { renderStairsUp } from "./stairs_up.js";
 import { renderSpecialRoom } from "./special_room_menu.js";
 import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderExploreManagement } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
@@ -29,6 +30,7 @@ const SUBMENU_RENDERERS = {
   milestone_merchant: (optGrid) => renderMilestoneMerchant(optGrid),
   milestone_portal: (optGrid) => renderMilestonePortal(optGrid),
   stairs_down: (optGrid) => renderStairsDown(optGrid),
+  stairs_up: (optGrid) => renderStairsUp(optGrid),
   item_inventory: (optGrid) => renderItemInventory(optGrid),
   item_target_select: (optGrid) => renderItemTargetSelect(optGrid),
   item_direction_select: (optGrid) => renderItemDirectionSelect(optGrid),

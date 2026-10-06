@@ -345,7 +345,7 @@ test('Town preparation opens with the previous choices and still allows changing
 
   await page.locator('#btn-departure-start').click();
   const remembered = await page.evaluate(async () => (await import('/src/state.js')).state.lastPreparation);
-  expect(remembered).toEqual({ kitId: 'scout', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 5 });
+  expect(remembered).toEqual({ kitId: 'scout', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 5, roundTrip: false });
 });
 
 test('Town shows the three closest feats and opens the full list', async ({ page }) => {

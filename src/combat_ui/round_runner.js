@@ -6,6 +6,7 @@ import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";
 import { trackCombatDecisionCommit, trackCombatEnd } from "../telemetry.js";
 import { normalizeCombatActions } from "../combat_logic/combat_action.js";
+import { noteCombatRound } from "../systems/round_trip.js";
 
 // balance-impact: none — combat round-entry and party state boundary only; resolution rules unchanged
 function resolvePendingOutcome(logQueue) {
@@ -58,6 +59,8 @@ export function resolveCombatRound() {
   state.mapRevision = nextState.mapRevision;
   state.x = nextState.x;
   state.y = nextState.y;
+  // Round-trip prototype (#2066): the hunter gains ground while the run fights.
+  noteCombatRound(state);
 
   state.combatState.phase = "choose_actions";
   state.combatState.pendingOutcome = resolvePendingOutcome(logQueue);

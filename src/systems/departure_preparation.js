@@ -198,6 +198,8 @@ export function resolveLastPreparation(lastPreparation, {
     startingGear,
     recipeIds,
     startFloor,
+    // The round-trip prototype (#2066) only exists for a run from the top.
+    roundTrip: last.roundTrip === true && startFloor === 1,
     dropped,
     payment: getDepartureCraftCost(recipeIds, storage),
     storedCount: countStoredToolsUsed(recipeIds, storage),

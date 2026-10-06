@@ -73,6 +73,7 @@ import { createDefaultWorkshopState, normalizeWorkshopState } from "../systems/w
 
 import { decodeSaveMaps, decodeVisitedMaps } from "./map_codec.js";
 import { normalizeLastPreparation } from "./last_preparation.js";
+import { normalizeRunRoundTrip } from "./run_round_trip.js";
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
 
 // Exact-version save contract. Incompatible saves reset; no migration path.
@@ -683,6 +684,7 @@ function normalizeCurrentRun(run, saveFloor) {
   normalized.offeredMaterials = normalizeRunOfferedMaterials(normalized.offeredMaterials);
   normalized.graveResult = normalizeRunGraveResult(normalized.graveResult);
   normalized.oath = normalized.oath === true;
+  normalized.roundTrip = normalizeRunRoundTrip(normalized.roundTrip);
   normalized.guideFragments = normalizeRunGuideFragments(normalized.guideFragments);
   normalized.guideResult = normalizeRunGuideResult(normalized.guideResult);
   normalized.orderResult = normalizeRunOrderResult(normalized.orderResult);

@@ -89,6 +89,7 @@ import {
   getStatusEffectChance,
   tryApplyExecutionerSetup
 } from "../rules/affix_rules.js";
+import { dropHunterBack } from "../systems/round_trip.js";
 
 function resolveMeasurementWeaponCandidate(candidate) {
   if (!candidate) return null;
@@ -499,6 +500,8 @@ function applyFleeRetreat(state) {
     if (elite) {
       elite.fleeGraceTicks = ELITE_FLEE_GRACE_TICKS;
       elite.detected = false;
+      // Round-trip prototype (#2066): the hunter is shaken off behind the run.
+      if (elite.hunter) dropHunterBack(state, elite, state.combatState.retreatPosition);
     }
   }
   const retreat = state.combatState.retreatPosition;

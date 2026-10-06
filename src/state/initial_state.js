@@ -66,6 +66,8 @@ export const createDefaultCurrentRun = () => ({
   graveResult: null,
   // Sworn at the oath altar (#2021): full recovery now, nothing banked if the run dies.
   oath: false,
+  // Round-trip prototype rule (#2066): null for an ordinary run.
+  roundTrip: null,
   // Guidebook fragments carried by this run, and what became of them (#2013).
   guideFragments: 0,
   guideResult: null,

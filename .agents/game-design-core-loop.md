@@ -379,6 +379,30 @@ before or after the boss, and B6 transition.
 - Starting deeper may be a useful record-oriented option, but it must carry a
   meaningful material or preparation trade-off so it cannot replace B1 runs for
   every purpose.
+- **Round-trip prototype (#2066, opt-in at departure).** This is a trial of the
+  structure proposed in #2058, not yet canon: it exists to find out whether
+  the way back is fun. A run that chooses it from B1F plays by these rules
+  instead of the ones above; every other run is unchanged.
+  - The dungeon is five floors. With the guardian down, the stairs below and
+    the Portal do nothing. There is no safe exit at the bottom: Portal protects
+    everything that persists, so with a Portal walking back would never be
+    chosen.
+  - Up stairs lead back to the floor above, which is exactly as it was left
+    (map, opened secret doors, dug rubble, found traps, opened chests). The up
+    stairs of B1F lead out and end the run as a safe return: materials and
+    unused departure supplies are kept and a companion is rescued. The
+    question becomes where to turn back.
+  - The guardian holds the treasure. The prototype only records that it was
+    carried out on foot; a Wing leaves it behind.
+  - Turning back, or taking the treasure, wakes the dungeon. A hunter (the
+    biome's elite) steps out of the stairs the run just used after a short
+    delay and follows along open corridors at about the run's walking pace.
+    It cannot use secret doors, cross standing rubble, or step onto stairs, so
+    what the run opened on the way down is its lead on the way back. The floor's own roaming
+    elite stands down while the hunter is out, and lingering calls no second
+    one. Reaching the run starts an elite fight; a flee buys the usual grace;
+    a slain hunter does not return.
+  - Its distance is announced twice as it closes in, and it shows on the map.
 - Autosave and resume support multi-session mobile play. A terminal outcome
   replaces the active run so reloading cannot erase a decision. Decisions,
   events, fights, and floor changes save at once; plain steps and turns save

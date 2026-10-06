@@ -328,6 +328,9 @@ export function progressEliteThreat(stateLike: EliteStateLike): { omens: string[
   const currentRun = stateLike?.currentRun;
   const runSeed = currentRun?.runSeed;
   if (!Number.isInteger(floor) || floor < ELITE_MIN_FLOOR || !runSeed) return { omens: [], spawned: null };
+  // Round-trip prototype (#2066): once the dungeon is awake the hunter is the
+  // floor's threat, so lingering does not call a second one.
+  if ((currentRun as { roundTrip?: { awake?: boolean } | null }).roundTrip?.awake) return { omens: [], spawned: null };
   const floorState = getEliteFloorState(currentRun as EliteCurrentRunLike, floor);
   if (getFloorElite(stateLike, floor) || floorState.spawned || floorState.defeated || currentRun.eliteDefeatedFloors?.includes(floor)) {
     return { omens: [], spawned: null };

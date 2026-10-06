@@ -53,7 +53,7 @@ assert.deepEqual(
     startFloor: 7,
     extra: true
   }),
-  { kitId: "scout", startingGear: null, recipeIds: ["HEAL_POTION", "TRAP_KIT"], startFloor: 1 },
+  { kitId: "scout", startingGear: null, recipeIds: ["HEAL_POTION", "TRAP_KIT"], startFloor: 1, roundTrip: false },
   "invalid tools are removed and an impossible floor falls back to B1F"
 );
 assert.equal(isNormalizedLastPreparation(null), true);

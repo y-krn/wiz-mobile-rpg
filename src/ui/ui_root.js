@@ -268,6 +268,15 @@ export function getCurrentGoal() {
     return "支度を整えて、これまでより深く潜る";
   }
 
+  // Round-trip prototype (#2066): once the run has turned back, the goal is the way up.
+  const roundTrip = state.currentRun?.roundTrip;
+  if (roundTrip?.awake) {
+    const lead = roundTrip.treasure ? "至宝を持って" : "上り階段から";
+    return state.floor > 1
+      ? `${lead}${describeFloor(state, state.floor - 1)}へ戻る`
+      : `${lead}地上へ出る`;
+  }
+
   // The header already names the floor the player is on.
   if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
     return "この階の守護者を倒す";

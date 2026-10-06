@@ -23,6 +23,7 @@ function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
   if (run?.outcome === "abandon" || run?.returnReason === "abandon") return "断念";
   if (run?.returnReason === "escape_scroll") return "帰還の翼で帰還";
+  if (run?.returnReason === "surface") return "歩いて帰還";
   return "帰還";
 }
 
@@ -60,6 +61,7 @@ function decisionText(run) {
   if (outcome === "断念") return `${floorText(run.deepestFloor)}で冒険を断念した。素材${returnedMaterialCount(run)}個を持ち帰った`;
   if (run.returnReason === "milestone_portal") return `${floorText(run.deepestFloor)}で帰還の門から帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
   if (run.returnReason === "escape_scroll") return `${floorText(run.deepestFloor)}で帰還の翼から帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
+  if (run.returnReason === "surface") return `${floorText(run.deepestFloor)}まで潜り、歩いて地上へ帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
   return `${floorText(run.deepestFloor)}で帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
 }
 

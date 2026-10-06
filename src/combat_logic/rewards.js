@@ -10,6 +10,7 @@ import { getFeatAnnouncementLines, recordRoleDefeats } from "../systems/feats.js
 import { addRunFragments, getVictoryFragments } from "../systems/guidebook.js";
 import { freeKeeperAfterFight } from "../systems/facility_rooms.js";
 import { settlePhase4jBExpOwnership } from "../rules/phase4j_b_trial.js";
+import { markHunterSlain } from "../systems/round_trip.js";
 
 function rollCombatAccessoryDrop(state, rng) {
   const roll = rng();
@@ -415,6 +416,8 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
         defeated: true
       };
     }
+    // Round-trip prototype (#2066): a slain hunter does not come back.
+    if (state.roamingMonsters.some(rm => rm.hunter && rm.id === defeatedId)) markHunterSlain(state);
     state.roamingMonsters = state.roamingMonsters.filter(rm => {
       if (defeatedId) return rm.id !== defeatedId;
       return !(rm.floor === state.floor && rm.x === state.x && rm.y === state.y);
