@@ -52,7 +52,7 @@ import {
   trackUxDecisionOpened,
   trackUxDecisionResolved
 } from "./telemetry.js";
-import { appendOwnershipBadge, getItemOwnership, setDockActionRole } from "./ui/common_shell.js";
+import { getItemOwnership, setDockActionRole } from "./ui/common_shell.js";
 import { createBagCapacitySummary } from "./ui/bag_summary.js";
 import { requestConfirmation } from "./ui/confirm_dialog.js";
 import {
@@ -795,7 +795,6 @@ function createEquippedSection(char) {
     const head = document.createElement("span");
     head.className = "equip-slot-head";
     head.appendChild(slotLabel);
-    appendOwnershipBadge(head, ownership);
     const name = document.createElement("span");
     name.className = "equip-item-row-name";
     name.textContent = `${isIdentified(itemKey) ? "" : "? "}${item.name}`;
@@ -954,7 +953,6 @@ function createEquipmentList(char, savedScrollTop) {
       meta.className = "equip-item-row-meta";
       const ownership = getItemOwnership(itemKey, { state });
       row.dataset.ownership = ownership;
-      appendOwnershipBadge(meta, ownership);
       const summary = document.createElement("span");
       summary.className = "equip-item-row-tag";
       summary.textContent = isIdentified(itemKey) ? getItemSummary(item) : getKnowledgeSummary(itemKey);
@@ -1343,7 +1341,6 @@ function createDetailPanel(char) {
   }
   const rarityBadge = createRarityBadge(itemKey, "equip-detail-rarity");
   if (rarityBadge) titleLine.appendChild(rarityBadge);
-  appendOwnershipBadge(titleLine, getItemOwnership(itemKey, { state }));
   titleBlock.appendChild(titleLine);
   const desc = document.createElement("div");
   desc.className = "equip-detail-desc";

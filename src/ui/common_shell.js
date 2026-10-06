@@ -1,4 +1,4 @@
-import { getItemBaseId } from "../rules/item_rules.js";
+import { getItemBaseId, getItemData } from "../rules/item_rules.js";
 
 export const DOCK_STATES = Object.freeze({
   COMPACT: "compact",
@@ -270,6 +270,38 @@ export function getItemOwnership(item, { state = null, lootEntryId = null } = {}
     return OWNERSHIP_STATES.DUNGEON_UNCONFIRMED;
   }
   return OWNERSHIP_STATES.TOWN_CONFIRMED;
+}
+
+// Whether a safe return puts this item back in the town storage: only the
+// usable supplies prepared at departure do (settleRunObjectLoot). Kit
+// equipment, workshop grants, and anything found in the dungeon do not, so
+// they carry no return badge (#2001). `getItemOwnership` still reports them
+// as town-confirmed; that state is read by tests and telemetry and is left
+// as it is.
+export function returnsToStorageOnSafeReturn(item, { state = null } = {}) {
+  const itemId = getItemBaseId(item);
+  if (!itemId || getItemData(item)?.type !== "usable") return false;
+  const prepared = state?.currentRun?.departureCraftItems;
+  return Array.isArray(prepared) && prepared.some(candidate => getItemBaseId(candidate) === itemId);
+}
+
+// A list that shows several of the same supply marks only as many as were
+// prepared: two potions prepared and a third found means two badges.
+export function createReturnBadgeBudget({ state = null } = {}) {
+  const remaining = new Map();
+  const prepared = state?.currentRun?.departureCraftItems;
+  (Array.isArray(prepared) ? prepared : []).forEach(item => {
+    const itemId = getItemBaseId(item);
+    if (itemId) remaining.set(itemId, (remaining.get(itemId) || 0) + 1);
+  });
+  return item => {
+    if (!returnsToStorageOnSafeReturn(item, { state })) return false;
+    const itemId = getItemBaseId(item);
+    const left = remaining.get(itemId) || 0;
+    if (left <= 0) return false;
+    remaining.set(itemId, left - 1);
+    return true;
+  };
 }
 
 export function appendOwnershipBadge(parent, ownership, { label = null } = {}) {

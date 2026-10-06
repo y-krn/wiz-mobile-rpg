@@ -138,7 +138,7 @@ test.describe('Common UI vNext shell @smoke', () => {
     await expect(page.locator('#log-content [data-event-kind="result"]')).toContainText('敵の弱点');
   });
 
-  test('shows a return badge for carried items and no ownership badge for Dungeon loot', async ({ page }) => {
+  test('shows a return badge for supplies prepared at departure and none for Dungeon loot', async ({ page }) => {
     await page.goto('/');
     const ownership = await page.evaluate(async () => {
       const { state, createDefaultCurrentRun } = await import('/src/state.js');
@@ -153,6 +153,7 @@ test.describe('Common UI vNext shell @smoke', () => {
       };
       state.currentRun = createDefaultCurrentRun();
       state.currentRun.townInventory = [townItem];
+      state.currentRun.departureCraftItems = ['HEAL_POTION'];
       state.currentRun.unbankedObjectLoot = [{ id: 'loot-1', item: dungeonItem }];
       state.inventory = [townItem, dungeonItem];
       const grid = document.createElement('div');
