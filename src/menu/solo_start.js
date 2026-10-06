@@ -539,10 +539,10 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   // Round-trip prototype (#2066): an opt-in rule for a run from the top.
   if (canChooseRoundTrip(selectedStartFloor)) {
     const ruleSection = document.createElement("section");
-    ruleSection.className = "solo-start-floor-section solo-start-rule-section";
+    ruleSection.className = "solo-start-rule-section";
     ruleSection.setAttribute("aria-label", "試作ルール");
     const ruleHeading = document.createElement("div");
-    ruleHeading.className = "solo-start-floor-heading";
+    ruleHeading.className = "solo-start-rule-heading";
     const ruleTitle = document.createElement("strong");
     ruleTitle.textContent = "試作ルール";
     ruleHeading.append(ruleTitle);

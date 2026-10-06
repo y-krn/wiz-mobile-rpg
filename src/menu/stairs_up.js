@@ -6,7 +6,6 @@ import { closeSubmenu } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
 import { state } from "../state.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
-import { trackExplorationDecision } from "../telemetry.js";
 import { getEscortNames } from "../systems/facilities.js";
 
 function createNote(text, testId) {
@@ -49,12 +48,10 @@ export function renderStairsUp(optGrid) {
     // The submenu closes with an animation; a second tap must not climb twice.
     if (state.transitioning) return;
     if (floor > 1) {
-      trackExplorationDecision("continue", { state, source: "stairs-up" });
       closeSubmenu();
       ascendToFloor(floor - 1);
       return;
     }
-    trackExplorationDecision("return", { state, source: "stairs-up" });
     triggerRunResult("surface");
   });
 
