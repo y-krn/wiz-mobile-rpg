@@ -58,6 +58,9 @@ enforces these directory and naming boundaries.
    | `--kit vanguard\|scout\|devotion\|arcana` | 開始キット（剣・軽装・祈り・術式） |
    | `--equip greedy\|none` | 装備方針。`greedy` は鑑定・装備・試着・ルーン装着を行う |
    | `--explore 0.6` | HP がこの割合を切るまで探索し、切ったら階段へ（`0` で階段直行） |
+   | `--recovery on\|off\|always` | HP が `--explore` を切ったあとの動き。`on`（既定）は、その階の踏破回復が残っていて HP が3割以上なら未踏マスを歩き続ける。`always` は3割未満でも歩き続ける。`off` はすぐ階段へ向かう |
+   | `--rooms use\|leave\|rescue` | 特殊な部屋の扱い。`use`（既定）は今回の冒険に効くものだけ使う。`leave` は素通り。`rescue` は番人も助け出し、守護者を倒したら帰還の門から連れ帰る |
+   | `--cores on\|off` | Core 別の立ち回り（返しの構え・血の型）を使うか（既定 `on`） |
    | `--maxFloor 3` | この階の階段で止める |
    | `--boss` | B5 守護者に直接ワープして戦う（`--bossLevel 3 --bossMaxHp 55 --bossHp 40`） |
    | `--headed` | ブラウザを表示して見る |
@@ -90,7 +93,21 @@ enforces these directory and naming boundaries.
 
 `--out` はシードが終わるたびに書き直され、Ctrl-C で中断したときもそこまでの結果を `complete: false` で残す。ゲーム側の例外（クリック処理内のエラーなど）は各ランの `pageErrors` に記録され、最後に件数付きで表示される。
 
-注意: 経路探索はマップ全体を見ている、通常戦でガードしない、HP30%以下で回復薬→なければ逃走、など人間とは違う近道がある（下の Known shortcuts）。結果は傾向として扱う。
+最後の2行目に「止まったシード・生還数・買った傷薬の数・部屋で取った行動の数・`cannot equip` の数」が出る。各ランの JSON には `returned`（生還）・`companions`（連れ帰った相手）・`roomActions`・`purchases`・`eliteFlees`（階ごとの強敵からの逃走回数）・`eliteFightsForced`・`bloodUses`・`riposteGuards` が入る。
+
+自動プレイの方針（#1881）:
+
+- **探索をやめる条件**: HP が `--explore` 以上なら探索を続ける。切ったら、その階の踏破回復（未踏マス1つにつき最大HPの2%、階ごとに最大HPの半分まで）が残っていて HP が3割以上のあいだは未踏マスを歩き、そうでなければ階段へ向かう。同じ階で強敵から2回逃げたら、HP に関係なく階段へ向かう。
+- **見つけた罠**: 探索の目的地にしない。ほかに道が無いときだけ通る（通るときは解除を試みる）。
+- **守護者の前**: 踏破回復が残っていれば先に歩いて回復し、それから傷薬、泉や野営の順に使う。
+- **守護者を倒した後**: 獣の牙があれば深層商人で傷薬を6個まで買い足す。その階の探索は切り上げて次の階へ降りる（HP が減っていて踏破回復が残るときだけ歩く）。`--rooms rescue` で同行者がいれば、帰還の門から帰る。
+- **特殊な部屋**: `use` は支給品を受け取る、HP 8割未満なら休む、墓標に祈る、状態異常なら浄める、素材が費用の2倍以上あれば鍛え直し・繕い、HP 6割以上なら鉱脈を掘る。強敵と戦う選択肢・誓約・献灯・写本・発破・鏡・見取り図（ボットは地図を最初から読める）は選ばない。`rescue` はこれに加えて、番人のいる部屋へ向かい、掘り出す・水を抜く・火を入れる・（HP 7割以上なら）血を捧げる、を選ぶ。繭を切る（強敵と戦う）は選ばない。
+- **装備の評価**: 戦い方に合わせて重みを変える。杖を持っているあいだは魔力と最大MPを重く、攻撃力を軽く見る。剣の冒険者は杖に持ち替えず、杖の冒険者は剣に持ち替えない（以前は剣キットが杖を拾って持ち替え、術式キットが杖をメイスに替えて呪文を失っていた）。
+- **Core 別の立ち回り**: 返しの構えは、攻撃の技が待ち時間のあいだ防御して技を戻し、次の技を1.5倍で打つ（魔力集中のような自分に使う技では行わない）。血の型は、守護者戦に限り、払ったあと HP が半分以上残るなら HP を払って技を打つ。罠喰いは宝箱を必ず開ける方針がそのまま当てはまる。
+- **瓦礫**: 階段・守護者・商人などへの道が瓦礫でしか通じないときは掘って進む。道が無いときは理由（瓦礫の先／強敵が道をふさいでいる／通れる道が無い）を `journal` に残す。
+- **強敵が唯一の道をふさぐとき**: ふだんは強敵から逃げる。強敵が階段や守護者への唯一の道にいるときは、その場で40手ほど待つ。それでも道が開かなければ、その階では逃げずに戦って通る（`eliteFightsForced` に階が入る。#2056）。
+
+注意: 経路探索はマップ全体を見ている、通常戦では（返しの構えを除き）ガードしない、HP30%以下で回復薬→なければ逃走、など人間とは違う近道がある（下の Known shortcuts）。結果は傾向として扱う。
 
 ---
 
@@ -115,6 +132,14 @@ Options:
 - `--kit vanguard|scout|devotion|arcana`
 - `--explore 0.6` — explore the floor until HP falls below this share, then
   head for the stairs (`0` = stairs first)
+- `--recovery on|off|always` — what to do once HP is under `--explore`. `on`
+  (default): keep walking unvisited cells while the floor still gives HP back
+  for it and HP is at least 30%. `always`: the same without the 30% limit.
+  `off`: head for the stairs at once
+- `--rooms use|leave|rescue` — special rooms. `use` (default) takes what helps
+  this run; `leave` walks past; `rescue` also frees keepers and returns through
+  the gate with them once the guardian is down
+- `--cores on|off` — Core-specific combat habits (Riposte, Blood; default `on`)
 - `--equip greedy|none` — gear policy (below)
 - `--maxFloor N` — stop at the stairs of floor N
 - `--speed 0.1` — timer scale for animations (`1` = real time)
@@ -165,11 +190,15 @@ After every step in explore mode:
 
 1. spend identify powder on unidentified equipment;
 2. equip the best identified item by the game's own equipment preview
-   (`attack`/`defense` ×2, `maxHp` ×0.3, `maxMp` ×0.5, …, Core +3, known
-   curse −5, relative to the item already in the slot, change only when the
-   gain is ≥ 0.5) — a crude stand-in for a player, not a balance claim;
+   (`attack`/`defense` ×2, `maxHp` ×0.3, …, Core +3, relative to the item
+   already in the slot, change only when the gain is ≥ 0.5; a known curse is
+   never put on) — a crude stand-in for a player, not a balance claim. The
+   weights follow how the adventurer fights: holding a spell medium (wand,
+   staff) `magic` ×2, `maxMp` ×1 and `attack` ×0.5 instead, and neither side
+   swaps a weapon for one of the other kind (#1881: before this the sword kit
+   picked up wands and the spell kit dropped its wand for a mace);
 3. try on one unidentified weapon/armor/shield (one exploration turn) and
-   revert if visible ATK+DEF dropped;
+   revert if visible ATK+DEF dropped (never a weapon of the other kind);
 4. socket spare Runes into a medium with a free slot.
 
 Build vNext trial (#1801) behavior, in every policy:
@@ -182,7 +211,43 @@ Build vNext trial (#1801) behavior, in every policy:
 Output per run: deepest floor, guardian result, cause of death, every object
 that entered the bag (`loot`), gear decisions (`equipLog`), technique uses
 (`techniqueUses`), the build seed offer and pick (`seedChoice`), the last live
-equipment, and the full event journal.
+equipment, and the full event journal. The run policy adds `returned`,
+`companions`, `roomActions`, `purchases`, `eliteFlees` (per floor),
+`eliteFightsForced`, `bloodUses` and `riposteGuards`; the summary's second line counts stuck seeds, returns,
+potions bought, room actions and refused equips.
+
+#### Run policy (#1881)
+
+Measurement policy, not game rules.
+
+- Stop exploring: at or above `--explore` HP the bot explores. Below it, it
+  keeps walking unvisited cells only while the floor's walking recovery (2% of
+  max HP per new cell, half of max HP per floor) is not spent and HP is at
+  least 30%; otherwise it heads for the stairs. Two escapes from a roaming
+  elite on one floor also send it to the stairs.
+- A discovered trap is never an exploration target; it is crossed (with a
+  disarm attempt) only when nothing else leads on.
+- Before a guardian: walk off the remaining recovery first, then potions, then
+  a spring or camp.
+- After a guardian: buy heal potions at the deep merchant up to six (one fang
+  each), stop exploring that floor, descend. With `--rooms rescue` and a
+  companion, leave through the return gate instead.
+- Special rooms, `use`: take a supply, rest under 80% HP, pray at a grave,
+  cleanse a status, temper or mend with twice the material cost in hand, dig a
+  vein at 60% HP or more. Never an optional fight, the oath, an offering, a
+  copy, blasting, a mirror or a floor plan (the bot reads the map anyway).
+  `rescue` adds: walk to the keeper's room, dig out / drain / fuel, and pay
+  blood at 70% HP or more. It does not cut the cocoon (an elite fight).
+- Cores: Riposte guards while an attack technique cools down, then strikes at
+  1.5x (not with a self technique such as focus mana).
+  Blood pays HP for the technique only against a guardian and only with half
+  the HP left afterwards. Trap Eater needs no habit: every chest is opened.
+- Rubble is dug only when the stairs, guardian, merchant or gate cannot be
+  reached otherwise. A missing path is journaled with its reason.
+- Roaming elites are fled from. When one stands on the only way to the stairs
+  or the guardian, the bot waits about forty steps; if the way stays shut it
+  walks into the elite and fights it out on that floor (`eliteFightsForced`
+  lists the floor, #2056).
 
 Run measurements against a dev server whose source is not being edited (for
 example a separate worktree of a commit): an HMR reload destroys the running
@@ -191,14 +256,17 @@ page. The runner retries a seed once after such a reload.
 ### Known shortcuts
 
 - Pathfinding reads the whole internal map (a human has to explore). It avoids
-  discovered traps and cells within two steps of a roaming elite.
+  discovered traps and cells within two steps of a roaming elite. The rescue
+  policy walks straight to a keeper's room for the same reason.
 - The gear policy calls domain APIs (identify, loadout commit) instead of
   tapping through the equipment overlay.
-- No Guard in ordinary fights; in guardian fights it guards once per telegraph.
-- HP ≤ 30%: potion, else flee. Always disarms, always drinks from springs.
-- Routes around unresolved traversal obstacles (rubble, closed seals, collapsed
-  ledges) instead of digging or pulling levers, and always leaves biome special
-  rooms without using them.
+- No Guard in ordinary fights (except the Riposte habit); in guardian fights
+  it guards once per telegraph.
+- HP ≤ 30%: potion, else flee (it does not cast or fight on). Always disarms,
+  always drinks from springs, always opens chests (mimics included).
+- Routes around closed seals and collapsed ledges instead of pulling levers,
+  and digs rubble only as a last resort.
+- A chest met while paralysed is left behind and not revisited.
 - `--boss` is not a full-run result: level/HP are set by hand and the walk to
   the guardian uses a repel effect.
 
