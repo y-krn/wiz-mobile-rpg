@@ -70,7 +70,7 @@ for (const vp of VIEWPORTS) {
     await page.getByRole('button', { name: /鋼の前線キット/ }).first().click();
     await page.locator('#btn-kit-confirm').click();
     const shortcut = page.getByRole('button', { name: /B5Fから開始/ });
-    await expect(shortcut).toContainText('素材収入 60%');
+    await expect(shortcut).toContainText('手に入る素材は6割');
     expect((await shortcut.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await shortcut.click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
@@ -142,35 +142,34 @@ for (const vp of VIEWPORTS) {
     expect((await powder.boundingBox()).height).toBeGreaterThanOrEqual(44);
     expect((await uncurse.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.milestone-merchant-option[data-stock-kind="equipment"]')).toHaveCount(0);
-    await expect(powder).toContainText('価格');
-    await expect(powder).toContainText('霊粉 2（所持 9）');
+    await expect(powder).toContainText('霊粉 2・あと4個買える');
     await expect(powder).toContainText('あと4個');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 9');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="獣の牙"]')).toHaveText('獣の牙 2');
     await expect(powder).toHaveAttribute('aria-pressed', 'false');
     await powder.click();
     await expect(powder).toHaveClass(/is-selected/);
-    await expect(page.locator('.milestone-merchant-balance')).toContainText('購入確定前：購入後の残素材');
+    await expect(page.locator('.milestone-merchant-balance')).toContainText('買ったあとの素材');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 7 (-2)');
     await expect(page.locator('#btn-merchant-confirm')).toBeEnabled();
-    await expect(page.locator('#btn-merchant-confirm')).toContainText('購入');
+    await expect(page.locator('#btn-merchant-confirm')).toHaveText('買う');
     expect((await page.locator('#btn-merchant-confirm').boundingBox()).height).toBeGreaterThanOrEqual(44);
     await page.locator('#btn-merchant-confirm').click();
-    await expect(page.locator('#log-content')).toContainText('鑑定粉を購入した');
+    await expect(page.locator('#log-content')).toContainText('鑑定粉を買った');
     await expect(powder).toContainText('あと3個');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 7');
 
     const healPotion = page.locator('.milestone-merchant-option[data-stock-id="heal_potion"]');
     await healPotion.click();
-    await expect(page.locator('.merchant-selection-summary')).toContainText('傷薬 (ディオス薬)を購入');
+    await expect(page.locator('.merchant-selection-summary')).toContainText('傷薬 (ディオス薬)を買う');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="獣の牙"]')).toHaveText('獣の牙 1 (-1)');
     await expect(healPotion).toContainText('あと2個');
     await page.locator('#btn-merchant-confirm').click();
-    await expect(page.locator('#log-content')).toContainText('傷薬 (ディオス薬)を購入した');
+    await expect(page.locator('#log-content')).toContainText('傷薬 (ディオス薬)を買った');
     await expect(healPotion).toContainText('あと1個');
 
     await uncurse.click();
-    await expect(page.locator('.milestone-merchant-balance')).toContainText('購入確定前：解呪後の残素材');
+    await expect(page.locator('.milestone-merchant-balance')).toContainText('呪いを解いたあとの素材');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 2 (-5)');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="呪布"]')).toHaveText('呪布 2 (-3)');
     await expect(page.locator('.milestone-merchant-balance-item[data-material="黒角"]')).toHaveText('黒角 2 (-1)');
@@ -208,9 +207,9 @@ test('Milestone merchant shows the blocking reason for material and bag limits',
   });
 
   await expect(page.locator('[data-stock-id="heal_potion"]')).toBeDisabled();
-  await expect(page.locator('[data-stock-id="heal_potion"]')).toContainText('あと0個・バッグ満杯');
+  await expect(page.locator('[data-stock-id="heal_potion"]')).toContainText('バッグがいっぱい');
   await expect(page.locator('[data-stock-id="identify_powder"]')).toBeDisabled();
-  await expect(page.locator('[data-stock-id="identify_powder"]')).toContainText('あと0個・素材不足');
+  await expect(page.locator('[data-stock-id="identify_powder"]')).toContainText('霊粉 2／素材が足りない（霊粉 あと1）');
   await expect(page.locator('.milestone-merchant-balance-item[data-material="霊粉"]')).toHaveText('霊粉 1');
 });
 
@@ -341,7 +340,7 @@ for (const vp of VIEWPORTS) {
       });
       expect(await readCraftBalances()).toEqual(expected);
     };
-    await expect(summary).toContainText('0品');
+    await expect(summary).not.toContainText('出発前に作る');
     await expect(heal).toHaveCount(1);
     await expect(heal).toHaveAttribute('aria-pressed', 'false');
     await expect(heal).toContainText('硬い皮 1/10');
@@ -375,7 +374,7 @@ for (const vp of VIEWPORTS) {
 
     await heal.click();
     await expect(heal).toHaveAttribute('aria-pressed', 'true');
-    await expect(summary).toContainText('1品');
+    await expect(summary).toContainText('うち1品は出発前に作る');
     await expect(summary).toContainText('硬い皮 9 (-1)');
     await expect(summary).toContainText('獣の牙 9 (-1)');
     await expect(heal).toContainText('あと9個');
@@ -383,13 +382,13 @@ for (const vp of VIEWPORTS) {
     await expect(page.locator('[data-material="獣の牙"]')).toContainText('9 (-1)');
     await expect(healDecrement).toBeEnabled();
     await healDecrement.click();
-    await expect(summary).toContainText('0品');
+    await expect(summary).not.toContainText('出発前に作る');
     await expect(summary).toContainText('硬い皮 10');
     await expect(summary).toContainText('獣の牙 10');
     await expect(heal).toContainText('あと10個');
     await expectCraftBalancesToMatchState();
     await portal.click();
-    await expect(summary).toContainText('1品');
+    await expect(summary).toContainText('うち1品は出発前に作る');
     await heal.click();
     await expect(summary).toContainText('2品');
     await heal.click();
@@ -497,7 +496,7 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
     state.workshop = { ranks: { gear_fighter_saber: 1 } };
     state.unlockedMilestones = [5];
     state.feats.counters.bestDepth = 4;
-    openSubmenu('solo_start', '開始キットを選択：潜行ごとにLv1から開始');
+    openSubmenu('solo_start', '開始キットを選ぶ：冒険はいつもLv1から');
   });
 
   await page.getByRole('button', { name: /軽装探索キット/ }).click();
@@ -505,13 +504,14 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await page.locator('#btn-kit-confirm').click();
 
   const summary = page.locator('.solo-preparation-summary');
-  await expect(summary).toContainText('今回の出発条件');
+  await expect(summary).toContainText('今回の支度');
   await expect(summary).toContainText('軽装探索キット');
   await expect(summary).toContainText('ショートソード（工房で解放）');
-  await expect(summary).toContainText('装備中');
-  await expect(summary).toContainText('媒体');
-  await expect(summary).toContainText('使用中のルーン');
-  await expect(summary).toContainText('ルーン枠');
+  await expect(summary).toContainText('身につける品');
+  // Only what applies to this kit is listed: the scout casts nothing.
+  await expect(summary).not.toContainText('媒体');
+  await expect(summary).not.toContainText('ルーン');
+  await expect(summary).not.toContainText('バッグ外');
   await expect(summary).not.toContainText('Medium');
   await expect(summary).not.toContainText('active Rune');
   await expect(summary.locator('.solo-preparation-feat')).toContainText('坑道を抜ける（B4F / B5F）');
@@ -519,8 +519,8 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
   await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(20);
   await expect(summary).toContainText('持ち込み 0/20');
-  await expect(summary).toContainText('迷宮で拾う品の余地');
-  await expect(summary).toContainText('開始階未選択');
+  await expect(summary).toContainText('迷宮で拾う品のために残る');
+  await expect(summary).toContainText('開始階まだ選んでいない');
   await expect(page.getByRole('button', { name: '迷宮へ向かう' })).toBeDisabled();
 
   const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
@@ -528,7 +528,7 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(summary).toContainText('持ち込み 1/20');
   await expect(summary.locator('.solo-preparation-slot.is-filled')).toHaveCount(1);
   await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(19);
-  await expect(page.getByRole('button', { name: /B5Fから開始/ })).toContainText('素材収入 60%');
+  await expect(page.getByRole('button', { name: /B5Fから開始/ })).toContainText('手に入る素材は6割');
 
   const milestoneStart = page.getByRole('button', { name: /B5Fから開始/ });
   await milestoneStart.click();
@@ -558,7 +558,7 @@ test('A single start floor is selected up front and several floors keep the expl
   await openPreparation([5]);
   await expect(page.locator('.solo-start-floor-option')).toHaveCount(2);
   await expect(page.locator('.solo-start-floor-option[aria-pressed="true"]')).toHaveCount(0);
-  await expect(page.locator('.solo-preparation-summary')).toContainText('開始階未選択');
+  await expect(page.locator('.solo-preparation-summary')).toContainText('開始階まだ選んでいない');
   await expect(page.locator('#btn-departure-start')).toBeDisabled();
 
   await openPreparation([]);

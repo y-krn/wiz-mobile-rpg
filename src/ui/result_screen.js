@@ -3,6 +3,7 @@ import { getItemBaseId, getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
 import { getFloorLabel } from "../data/floor_themes.js";
+import { BANKING_RATES } from "../rules/material_rules.js";
 import { setRepresentativeItem } from "../systems/run_return.js";
 import { clearPhase4cV1CharacterBaseline } from "../rules/phase4c_v1_trial.js";
 import { formatFeatProgress, formatFeatReward, getFeat } from "../systems/feats.js";
@@ -13,6 +14,13 @@ const ACHIEVEMENT_LABELS = {
   first_b5_reached: "初めてB5Fへ到達",
   first_b5_broken: "初めてB5Fを突破",
   first_b10_reached: "初めてB10Fへ到達"
+};
+
+// Personal bests other than depth, as the result names them.
+const RECORD_BEST_LABELS = {
+  最多撃破記録: "倒した数",
+  最多宝箱記録: "開けた宝箱",
+  最大戦利品記録: "拾った戦果"
 };
 
 // The repeat departure lives with the preparation menu. It is injected so
@@ -171,10 +179,10 @@ function getRepresentativeFacts(run, outcome) {
     facts.push(`階層守護者を${run.defeatedMilestones.at(-1)}Fで撃破`);
   }
   if (run.codexDiscoveries?.length > 0) {
-    facts.push(`Codexに新規記録: ${run.codexDiscoveries.slice(0, 2).join(" / ")}`);
+    facts.push(`書庫に新しい記録: ${run.codexDiscoveries.slice(0, 2).join(" / ")}`);
   }
   if (run.workshopDiscoveries?.length > 0) {
-    facts.push("工房で新しい選択肢が利用可能になった");
+    facts.push("工房で選べるものが増えた");
   }
   return [...new Set(facts)].slice(0, 5);
 }
@@ -280,7 +288,7 @@ function createDiscoverySection(run) {
     column.appendChild(list);
     section.appendChild(column);
   };
-  appendColumn("新しく分かったこと", codex, name => `${name}をCodexに記録`);
+  appendColumn("新しく分かったこと", codex, name => `${name}を書庫に記録`);
   appendColumn("広がった可能性", workshop, name => `工房で${name}を選べるようになった`);
   return section;
 }
@@ -293,19 +301,26 @@ function createRecordSection(run) {
     steady.appendChild(textElement("strong", null, "更新なし"));
     return steady;
   }
-  const updateLabels = [...new Set([
-    ...(result.updates || []),
-    ...(result.milestones || []).map(id => ACHIEVEMENT_LABELS[id] || id)
-  ])].filter(update => typeof update === "string" && (
-    ["最深到達記録", "撤退最深", "死亡最深"].includes(update) || !update.endsWith("最深")
-  )).map(update => update === "撤退最深" ? "帰還最深" : update);
-  const hasDepthRecord = (result.updates || []).some(update => ["最深到達記録", "撤退最深", "死亡最深"].includes(update));
+  // The depth is the headline. The line under it names only what else was a
+  // personal best, in plain words: a first run breaks every record at once.
+  const updates = (result.updates || []).filter(update => typeof update === "string");
+  const kicker = updates.includes("最深到達記録")
+    ? "最深記録を更新"
+    : updates.includes("撤退最深")
+      ? "生還での最深記録を更新"
+      : updates.includes("死亡最深") ? "倒れた階の最深記録を更新" : "記録を更新";
+  const bests = updates.map(update => RECORD_BEST_LABELS[update]).filter(Boolean);
+  const firsts = (result.milestones || []).map(id => ACHIEVEMENT_LABELS[id] || id);
+  const details = [...new Set([
+    ...firsts,
+    ...(bests.length > 0 ? [`${bests.join("・")}も過去最多`] : [])
+  ])];
   const record = textElement("div", "result-record-new");
   setAttributeSafe(record, "role", "status");
   setAttributeSafe(record, "aria-live", "polite");
-  record.appendChild(textElement("span", "result-record-kicker", hasDepthRecord ? "NEW DEPTH RECORD" : "ADVENTURE RECORD"));
+  record.appendChild(textElement("span", "result-record-kicker", kicker));
   record.appendChild(textElement("strong", null, `B${result.depth}F`));
-  record.appendChild(textElement("small", null, updateLabels.join(" / ")));
+  if (details.length > 0) record.appendChild(textElement("small", null, details.join(" / ")));
   return record;
 }
 
@@ -406,7 +421,7 @@ export function getFeatResultRows(featResult, run = null) {
     const gained = entry.after - entry.before;
     rows.push({
       id: feat.id,
-      status: gained > 0 ? "前進" : "次の目標",
+      status: gained > 0 ? "進んだ" : "次は",
       completed: false,
       name: feat.name,
       detail: gained > 0 && feat.metric.unit !== "floor" ? `${progress}（今回 +${gained}）` : progress
@@ -468,7 +483,7 @@ function createReturnProcessingSection(run) {
   }
   if (history.length > 0) {
     const historyNode = textElement("div", "result-return-history");
-    historyNode.appendChild(textElement("small", null, "印象に残った品（能力値への効果なし）"));
+    historyNode.appendChild(textElement("small", null, "印象に残った品"));
     history.forEach((item, index) => {
       const row = document.createElement("div");
       row.appendChild(textElement("span", null, item.name));
@@ -485,13 +500,13 @@ function createReturnProcessingSection(run) {
   }
   if (insights.length > 0) {
     const node = textElement("div", "result-return-insights");
-    node.appendChild(textElement("small", null, "図鑑に記録した新しい気づき"));
+    node.appendChild(textElement("small", null, "書庫に記録した気づき"));
     insights.forEach(insight => node.appendChild(textElement("div", null, insight.label)));
     section.appendChild(node);
   }
   if (unlocks.length > 0) {
     const node = textElement("div", "result-return-unlocks");
-    node.appendChild(textElement("small", null, "工房で利用可能になった内容"));
+    node.appendChild(textElement("small", null, "工房で選べるようになったもの"));
     unlocks.forEach(unlock => {
       const row = document.createElement("div");
       row.appendChild(textElement("strong", null, unlock.name));
@@ -509,7 +524,7 @@ function leaveResult(overlay, { announce = true } = {}) {
   clearPhase4cV1CharacterBaseline(state);
   state.currentRun = null;
   state.party = [];
-  if (announce) addLog("街へ戻った。次の潜行に備えよう。");
+  if (announce) addLog("街へ戻った。次の冒険に備えよう。");
   saveGame();
   updateUI();
 }
@@ -517,7 +532,7 @@ function leaveResult(overlay, { announce = true } = {}) {
 export function getEvaluationText(run, isSuccess) {
   if (!run) return "";
   // A broken oath (#2021) banks none of the carried materials.
-  const banked = run.oath === true ? "誓約により、手持ちの素材は残らなかった。" : "素材の30%を持ち帰った。";
+  const banked = run.oath === true ? "誓約により、手持ちの素材は残らなかった。" : "素材の一部を持ち帰った。";
   if (run.returnReason === "abandon") {
     return run.oath === true
       ? `${getFloorLabel(state, run.deepestFloor)}で冒険を断念した。${banked}`
@@ -567,10 +582,17 @@ export function renderResultScreen() {
   setAttributeSafe(materialsSection, "aria-labelledby", "result-material-title");
   const materialsHeading = textElement("h2", "result-section-heading");
   materialsHeading.id = "result-material-title";
-  materialsHeading.appendChild(textElement("span", null, "素材収支"));
-  materialsHeading.appendChild(textElement("strong", null, `${rawTotal} → ${bankedTotal}`));
+  // How many came home out of how many were picked up, then why.
+  materialsHeading.appendChild(textElement("span", null, "素材"));
+  materialsHeading.appendChild(textElement("strong", null, isSuccess
+    ? `${bankedTotal}個を持ち帰った`
+    : `${rawTotal}個のうち${bankedTotal}個を持ち帰った`));
   materialsSection.appendChild(materialsHeading);
-  materialsSection.appendChild(textElement("div", "result-banking-rate", `潜行中に取得 → ${isSuccess ? "帰還100%" : run.oath === true ? "誓約0%（献灯で送った分を除く）" : run.returnReason === "abandon" ? "断念30%（死亡時と同じ）" : "死亡30%"} 持ち帰り`));
+  materialsSection.appendChild(textElement("div", "result-banking-rate", isSuccess
+    ? "拾った素材は、すべて街に届いた。"
+    : run.oath === true
+      ? "誓約を果たせなかったので、手持ちの素材は街に届かなかった（献灯で送った分を除く）。"
+      : `${run.returnReason === "abandon" ? "断念" : "死亡"}では、種類ごとに${Math.round(BANKING_RATES.death * 10)}割だけが街に届く（端数は切り捨て）。`));
   const materialFlow = textElement("div", "result-material-flow");
   const appendMaterialColumn = (label, materials) => {
     const column = document.createElement("div");
@@ -580,12 +602,13 @@ export function renderResultScreen() {
     column.appendChild(content);
     materialFlow.appendChild(column);
   };
-  appendMaterialColumn("取得", run.materialsBeforeBanking);
-  appendMaterialColumn("持ち帰り", run.bankedMaterials);
+  // A safe return brings everything home: one column says it.
+  if (!isSuccess) appendMaterialColumn("拾った", run.materialsBeforeBanking);
+  appendMaterialColumn("持ち帰った", run.bankedMaterials);
   materialsSection.appendChild(materialFlow);
   if (codexTotal > 0) {
     const bonus = textElement("div", "result-codex-bonus");
-    bonus.appendChild(textElement("span", null, "初討伐メタ報酬"));
+    bonus.appendChild(textElement("span", null, "初めて倒した魔物の報酬"));
     const content = document.createElement("div");
     content.appendChild(createMaterialContent(run.codexRewards));
     bonus.appendChild(content);

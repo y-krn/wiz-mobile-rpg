@@ -122,7 +122,7 @@ test('Town shows a silhouette until the foreman is home, then opens the miner gu
   await expect(detail.locator('.solo-kit-equipment')).not.toContainText('シールド');
   await expect(detail.locator('.solo-kit-items')).toContainText('罠外しキット×2・探知石（毎回支給・倉庫には戻らない）');
   await page.locator('#btn-kit-confirm').click();
-  await expect(page.locator('.solo-preparation-summary')).toContainText('持ち込み 3/20（出発クラフト 0品）');
+  await expect(page.locator('.solo-preparation-summary')).toContainText('持ち込み 3/20');
   await page.locator('#btn-departure-start').click();
   await expect(page.locator('#explore-controls')).toBeVisible();
   const started = await page.evaluate(async () => {

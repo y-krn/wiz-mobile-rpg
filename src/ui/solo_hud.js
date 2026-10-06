@@ -111,7 +111,7 @@ export function updateSoloHUD({ showExplorationRecovery = false } = {}) {
       if (row.dataset) row.dataset.recoveryReserve = String(reservePoints);
       const note = document.createElement("span");
       note.className = "sr-only";
-      note.textContent = `この階の踏破回復であと${reservePoints}回復できる`;
+      note.textContent = `この階を歩けば、あと${reservePoints}回復できる`;
       row.appendChild(note);
     }
     const value = document.createElement("span");

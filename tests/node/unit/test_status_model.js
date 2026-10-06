@@ -8,7 +8,11 @@ import {
   hasStatusEffectForDamage,
   normalizeStatusEffectTarget,
   removeStatusEffect,
+  EXPLORATION_PARALYSIS_DURATION_MAX,
+  EXPLORATION_PARALYSIS_DURATION_MIN,
+  resolveExplorationParalysisStep,
   resolveExplorationPoisonStep,
+  rollExplorationParalysisDuration,
   rollExplorationPoisonDuration,
   EXPLORATION_POISON_DURATION_MIN,
   EXPLORATION_POISON_DURATION_MAX,
@@ -340,4 +344,41 @@ test("CORE_EXECUTIONER keeps the #313 pre-damage poison setup contract", () => {
   assert.equal(tryApplyExecutionerSetup(executionerCharacter(), sleeping, { rng: () => { throw new Error("sleep roll"); } }), false);
   assert.equal(sleeping.status, "sleep");
   assert.equal(sleeping.sleepTurns, 2);
+});
+
+test("paralysis outside combat wears off after a few exploration steps (#1807)", () => {
+  assert.equal(rollExplorationParalysisDuration(() => 0), EXPLORATION_PARALYSIS_DURATION_MIN);
+  assert.equal(rollExplorationParalysisDuration(() => 0.999999), EXPLORATION_PARALYSIS_DURATION_MAX);
+
+  // The fountain stores a step count: it runs down and the status clears.
+  const target = { name: "Hero", hp: 10, maxHp: 10, status: "ok" };
+  applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, { remainingTurns: 3, source: "spring" });
+  assert.equal(target.status, "paralyzed");
+  assert.deepEqual(resolveExplorationParalysisStep(target), { active: true, naturalCure: false, remainingSteps: 2 });
+  assert.equal(target.paralyzeTurns, 2);
+  assert.equal(target.statusEffects.paralyzed.remainingTurns, 2);
+  assert.equal(resolveExplorationParalysisStep(target).naturalCure, false);
+  assert.deepEqual(resolveExplorationParalysisStep(target), { active: true, naturalCure: true, remainingSteps: 0 });
+  assert.equal(target.status, "ok");
+  assert.equal(hasStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED), false);
+  assert.equal(target.paralyzeTurns, undefined);
+  assert.deepEqual(resolveExplorationParalysisStep(target), { active: false, naturalCure: false, remainingSteps: null });
+
+  // Paralysis with no step count (carried out of a fight, or an older save)
+  // gets one on its first step and then fades the same way.
+  const legacy = { name: "Legacy", hp: 10, maxHp: 10, status: "paralyzed" };
+  const first = resolveExplorationParalysisStep(legacy, { rng: () => 0 });
+  assert.equal(first.remainingSteps, EXPLORATION_PARALYSIS_DURATION_MIN - 1);
+  for (let step = 0; step < EXPLORATION_PARALYSIS_DURATION_MIN - 2; step++) {
+    assert.equal(resolveExplorationParalysisStep(legacy).naturalCure, false);
+  }
+  assert.equal(resolveExplorationParalysisStep(legacy).naturalCure, true);
+  assert.equal(legacy.status, "ok");
+
+  // The older spelling of the status fades too; the dead do not tick.
+  const spelled = { name: "Old", hp: 10, maxHp: 10, status: "paralyze", paralyzeTurns: 1 };
+  assert.equal(resolveExplorationParalysisStep(spelled).naturalCure, true);
+  assert.equal(spelled.status, "ok");
+  const fallen = { name: "Fallen", hp: 0, maxHp: 10, status: "paralyzed", paralyzeTurns: 1 };
+  assert.equal(resolveExplorationParalysisStep(fallen).active, false);
 });

@@ -32,7 +32,7 @@ function runFactLabel(run) {
   if (startingKit) return `開始キット: ${startingKit}`;
   const representative = run?.representativeItem?.name || run?.meaningfulItemHistory?.[0]?.name;
   if (representative) return `この冒険を象徴する品: ${representative}`;
-  return "潜行の事実を記録";
+  return "記録に残した";
 }
 
 function returnedMaterialCount(run) {
@@ -45,7 +45,7 @@ function getLastRunSummary(run) {
   if (!run) {
     const empty = document.createElement("p");
     empty.className = "town-last-run-empty";
-    empty.textContent = "まだ冒険の記録はありません。次の潜行が最初の一頁になります。";
+    empty.textContent = "まだ冒険の記録はありません。次の冒険が最初の一頁になります。";
     return empty;
   }
 

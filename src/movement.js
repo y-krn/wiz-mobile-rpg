@@ -1,5 +1,5 @@
 import { state, saveAutosave, scheduleAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, getStartingKitItems, INVENTORY_CAPACITY } from "./state.js";
-import { applyExplorationRecovery } from "./systems/exploration_recovery.js";
+import { applyExplorationRecovery, getExplorationRecoveryOutlook } from "./systems/exploration_recovery.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum, getEffectiveHealAmount } from "./data.js";
 import { playSound } from "./audio.js";
@@ -17,6 +17,7 @@ import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { detectAdjacentTraps, startTrapEncounter, triggerTrap, triggerPitfall } from "./systems/traps.js";
 import {
   clearCharIncapacitationOnDamage,
+  resolveExplorationParalysisStep,
   resolveExplorationPoisonStep
 } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/elite_perception.js";
@@ -193,6 +194,23 @@ function blockOneWayMove() {
 // A blocked step spends no turn and changes no progress, so it skips autosave.
 function finishBlockedMove() {
   updateUI();
+}
+
+// The HP bar's striped stretch is the only standing sign of walking recovery,
+// so the first recovery of a run says what happened and how much this floor
+// still holds (#2044). Later steps stay silent. Runtime-only: a reload says it
+// once more.
+let recoveryExplainedRunSeed = null;
+
+function explainFirstExplorationRecovery(recovered) {
+  if (!recovered || recovered.hpRecovered + recovered.mpRecovered <= 0) return;
+  const runSeed = state.currentRun?.runSeed ?? "";
+  if (recoveryExplainedRunSeed === runSeed) return;
+  recoveryExplainedRunSeed = runSeed;
+  const outlook = getExplorationRecoveryOutlook(state);
+  const amounts = [`HP ${outlook?.allowance?.hp ?? 0}`];
+  if (outlook?.hasMpAllowance) amounts.push(`MP ${outlook.allowance.mp}`);
+  addLog(`初めて歩く場所を進むと、少しずつ回復する（この階であと${amounts.join("・")}）。`);
 }
 
 // Rubble asks for a second push in a row before digging, so a stray tap never
@@ -423,7 +441,7 @@ export function handleMove(action) {
       
       // Mark as visited
       if (markMapCellVisited(state.x, state.y)) {
-        applyExplorationRecovery(state);
+        explainFirstExplorationRecovery(applyExplorationRecovery(state));
         recordEliteGreedAction(state, "new_room");
       }
 
@@ -462,7 +480,7 @@ export function handleMove(action) {
       recordExplorationSteps();
       tickExplorationSpellEffects();
       if (markMapCellVisited(state.x, state.y)) {
-        applyExplorationRecovery(state);
+        explainFirstExplorationRecovery(applyExplorationRecovery(state));
         recordEliteGreedAction(state, "new_room");
       }
       
@@ -588,7 +606,10 @@ export function resumePendingCampEntry() {
   return true;
 }
 
-function checkSensoryAura() {
+// Observations are what the event strip shows as unresolved: something near
+// that still asks for attention. `announce: false` only settles them: it
+// retires the ones that no longer hold and raises nothing new (#1821).
+function checkSensoryAura({ announce = true } = {}) {
   const aura = getFloorTheme(state.floor)?.auraLexicon;
   const px = state.x;
   const py = state.y;
@@ -602,8 +623,11 @@ function checkSensoryAura() {
   const activeObservationKeys = new Set();
   const observe = (key, text) => {
     activeObservationKeys.add(key);
-    addEventLog(text, { key, scope: `aura:${state.floor}` });
+    if (announce) addEventLog(text, { key, scope: `aura:${state.floor}` });
   };
+  // A chest or a merchant the adventurer has already stood at is known, not
+  // sensed: it raises no observation again.
+  const isKnownCell = (x, y) => state.visitedMap?.[y]?.[x] === true;
   
   let nearestBoss = null;
   let nearestMerchant = null;
@@ -625,9 +649,9 @@ function checkSensoryAura() {
       if (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS) {
         if (dist < minDistBoss) { minDistBoss = dist; nearestBoss = { x, y }; }
       } else if (cell.event === EVENT_TYPES.MERCHANT) {
-        if (dist < minDistMerchant) { minDistMerchant = dist; nearestMerchant = { x, y }; }
+        if (dist < minDistMerchant && !isKnownCell(x, y)) { minDistMerchant = dist; nearestMerchant = { x, y }; }
       } else if (cell.event === EVENT_TYPES.CHEST) {
-        if (dist < minDistChest) { minDistChest = dist; nearestChest = { x, y }; }
+        if (dist < minDistChest && !isKnownCell(x, y)) { minDistChest = dist; nearestChest = { x, y }; }
       }
     }
   }
@@ -679,13 +703,32 @@ function checkSensoryAura() {
     if (nearest && minFlackDist <= roamingRange) {
       const threatKey = `aura:${state.floor}:roaming:${nearest.id || nearest.name || `${nearest.x}:${nearest.y}`}`;
       observe(threatKey, `【⚠️警告】近くから桁違いの殺気が漂ってくる…強敵「${nearest.name}」が近くにいる！`);
-      playSound("miss");
+      if (announce) playSound("miss");
     }
   }
 
   // A floor move, defeated/left encounter, or leaving an aura's range marks
   // the previous observation resolved. The log remains available in history.
   clearEventObservations({ scopePrefix: "aura:", keepKeys: activeObservationKeys });
+}
+
+// A trap trace asks for a decision while the trap is the next step. Once the
+// adventurer has moved on, the trap is a mark on the map, not an open question.
+function settleTrapObservations() {
+  const observations = state.currentRun?.eventObservations;
+  if (!observations) return;
+  Object.values(observations).forEach(observation => {
+    if (observation?.lifecycle !== "active" || !observation.scope?.startsWith("trap:")) return;
+    const [, floor, x, y] = String(observation.key).split(":").map(Number);
+    const adjacent = floor === state.floor && Math.abs(x - state.x) + Math.abs(y - state.y) === 1;
+    if (!adjacent) observation.lifecycle = "resolved";
+  });
+}
+
+/** Retire observations that no longer hold, without raising new ones. */
+export function settleEventObservations() {
+  checkSensoryAura({ announce: false });
+  settleTrapObservations();
 }
 
 function getAdjacentHiddenSecretDoorDir() {
@@ -736,6 +779,9 @@ export function applyStairsHeal(cell) {
 export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   const cell = state.map[state.y][state.x];
   applyStairsHeal(cell);
+  // Arriving on stairs, a chest or any other event returns early below, so
+  // what was sensed from the previous cell is settled here first (#1821).
+  settleEventObservations();
 
   // Floors are one-way during a run. The entrance stairs never return upward.
   if (cell.type === "stairs-up") {
@@ -898,6 +944,10 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 export function applyExplorationPoison() {
   let tookDamage = false;
   state.party.forEach(c => {
+    // Paralysis fades with the same exploration time poison runs on (#1807).
+    if (resolveExplorationParalysisStep(c).naturalCure) {
+      addLog(`[!] ${c.name}のしびれが取れた。`);
+    }
     if (c.status === "poisoned" && c.hp > 0) {
       const result = resolveExplorationPoisonStep(c);
       if (result.damage > 0) {
@@ -1017,7 +1067,7 @@ export function triggerFlameTrap() {
 }
 
 export function enterDungeon() {
-  openSubmenu("solo_start", "開始キットを選択：潜行ごとにLv1から開始");
+  openSubmenu("solo_start", "開始キットを選ぶ：冒険はいつもLv1から");
 }
 
 export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {

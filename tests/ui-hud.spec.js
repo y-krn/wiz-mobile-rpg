@@ -116,8 +116,10 @@ for (const vp of VIEWPORTS) {
     const result = page.locator('#result-overlay');
     await expect(result).toBeVisible();
     await expect(result).toContainText('今回の深度 B13F');
-    await expect(result).toContainText('NEW DEPTH RECORD');
-    await expect(result).toContainText('素材収支');
+    await expect(result).toContainText('最深記録を更新');
+    await expect(result).not.toContainText('NEW DEPTH RECORD');
+    await expect(result).toContainText('8個を持ち帰った');
+    await expect(result).toContainText('初めて倒した魔物の報酬');
     await expect(result.locator('[data-result-feats]')).toContainText('偉業');
     const button = page.locator('#btn-result-castle');
     const buttonBox = await button.boundingBox();
@@ -143,7 +145,7 @@ for (const vp of VIEWPORTS) {
     });
 
     await expect(page.locator('#location-label')).toContainText('崩れた坑道');
-    await expect(page.locator('#goal-banner')).toContainText('下り階段を探して、地下2階へ');
+    await expect(page.locator('#goal-banner')).toContainText('階段を探して地下2階へ');
     await expect(page.locator('#goal-banner')).not.toContainText('???');
     const stinger = page.locator('#floor-entry-stinger');
     await expect(stinger).toBeVisible();

@@ -70,7 +70,7 @@ test('Result lists found loot without return or loss labels', async ({ page }) =
   await expect(page.locator('[data-result-loot]')).not.toContainText('喪失');
   await expect(page.locator('[data-result-loot]')).not.toContainText('翼で持ち帰り');
   expect((await page.locator('[data-result-loot]').textContent()).match(/傷薬/g)).toHaveLength(1);
-  await expect(page.locator('[data-result-discoveries]')).toContainText('Codex');
+  await expect(page.locator('[data-result-discoveries]')).toContainText('書庫に記録');
   await expect(page.locator('[data-result-discoveries]')).toContainText('可能性');
   const order = await page.locator('.result-body').evaluate((body) =>
     [...body.children].map((child) => child.dataset.resultMemory !== undefined
@@ -414,8 +414,8 @@ test('Result shows the feats achieved and how far the closest ones moved', async
 
   const rows = page.locator('[data-result-feats] .result-feat-row');
   await expect(rows.nth(0)).toHaveText('達成坑道を抜ける報酬 鉄片×4');
-  await expect(page.locator('.result-feat-row[data-feat-id="elite_5"]')).toHaveText('前進強敵狩り3 / 5（今回 +2）');
-  await expect(page.locator('.result-feat-row[data-feat-id="depth_10"]')).toHaveText('前進地下墓地の底へB5F / B10F');
+  await expect(page.locator('.result-feat-row[data-feat-id="elite_5"]')).toHaveText('進んだ強敵狩り3 / 5（今回 +2）');
+  await expect(page.locator('.result-feat-row[data-feat-id="depth_10"]')).toHaveText('進んだ地下墓地の底へB5F / B10F');
   await expect(page.locator('#result-overlay')).not.toContainText('今回の依頼');
 
   await page.reload();
@@ -460,7 +460,8 @@ test('Explore shows the closest feats with live progress and announces a feat on
   });
   expect(live.first).toEqual(['【偉業達成】宝箱あさり（宝箱を累計30個開ける）。報酬は街で受け取る。']);
   expect(live.second).toEqual([]);
-  expect(live.hud).toEqual(['宝箱あさり達成', '坑道を抜けるB4F / B5F', '傷なき踏破B1F / B5F']);
+  // What is still ahead comes first; what this run already achieved follows.
+  expect(live.hud).toEqual(['坑道を抜けるB4F/B5F', '傷なき踏破B1F/B5F', '宝箱あさり達成']);
   expect(live.storedChests).toBe(29);
 });
 
@@ -481,17 +482,17 @@ test('Town home is organized as previous run, next descent, and accumulated know
   await expect(home.locator('.town-home-section').nth(0)).toContainText('前回の冒険');
   await expect(home.locator('.town-home-section').nth(0)).toContainText('死亡');
   await expect(home.locator('.town-home-section').nth(0)).toContainText('開始キット');
-  await expect(home.locator('.town-home-section').nth(1)).toContainText('次の潜行');
+  await expect(home.locator('.town-home-section').nth(1)).toContainText('次の冒険');
   await expect(home.locator('#town-next-run-title')).toHaveText('あと少しで届く偉業');
   await expect(home.locator('.town-home-section').nth(2)).toContainText('街の施設');
-  await expect(home.locator('.town-home-section').nth(3)).toContainText('蓄積した記録');
+  await expect(home.locator('.town-home-section').nth(3)).toContainText('これまでの蓄え');
   await expect(page.locator('#btn-town-dungeon')).toContainText('準備を整える');
-  await expect(page.locator('#btn-town-dungeon')).toContainText('開始キットと開始地点を選ぶ');
+  await expect(page.locator('#btn-town-dungeon')).toContainText('開始キットと開始階を選ぶ');
   await expect(page.locator('#btn-town-dungeon')).not.toContainText('クラス');
   await expect(page.locator('#btn-town-quest-board')).toHaveCount(0);
   await expect(page.locator('#btn-town-feats')).toContainText('偉業の一覧を見る');
   await expect(page.locator('#btn-town-archives')).toContainText('迷宮について分かったこと');
-  await expect(page.locator('#btn-town-workshop')).toContainText('広がった可能性を見る');
+  await expect(page.locator('#btn-town-workshop')).toContainText('工房');
 });
 
 test('Town home without a recorded run offers the castle as a records visit', async ({ page }) => {
@@ -541,9 +542,9 @@ test('Castle presents death causes as facts with preparation choices', async ({ 
   await page.getByRole('button', { name: '全滅ログ確認' }).click();
   const countermeasure = page.locator('.death-countermeasure');
   await expect(countermeasure).toContainText('準備を見直す');
-  await expect(countermeasure).toContainText('開始キット・持込品・開始地点を比較する。');
+  await expect(countermeasure).toContainText('開始キット・持ち込む道具・開始階を選び直す。');
   await expect(countermeasure).not.toContainText('クラス');
-  await expect(countermeasure).toContainText('広がった可能性を見る');
+  await expect(countermeasure).toContainText('工房を見る');
   for (const specificSolution of ['罠外しキット', '罠喰いの記憶', '解毒薬', '目薬', '守りの薬', '生命鍛錬']) {
     await expect(countermeasure).not.toContainText(specificSolution);
   }

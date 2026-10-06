@@ -17,7 +17,7 @@ function isWorkshopVnextNode(node) {
 }
 
 function formatCost(cost) {
-  return Object.entries(cost || {}).map(([name, quantity]) => `${name}×${quantity}`).join(" / ");
+  return Object.entries(cost || {}).map(([name, quantity]) => `${name} ${quantity}`).join("・");
 }
 
 // pools/milestoneBuild/abyssBuild ノードは「抽選へ追加する」だけでは解放判断できない
@@ -43,11 +43,11 @@ function describeWorkshopNode(node) {
 function renderBalance(container) {
   const balance = document.createElement("div");
   balance.className = "materials-hud";
-  balance.setAttribute("aria-label", "素材残高");
+  balance.setAttribute("aria-label", "手持ちの素材");
   const owned = MATERIAL_TYPES.filter(name => (state.metaMaterials?.[name] || 0) > 0);
   balance.textContent = owned.length > 0
-    ? owned.map(name => `${name}:${state.metaMaterials[name]}`).join(" / ")
-    : "素材なし";
+    ? `手持ち: ${owned.map(name => `${name} ${state.metaMaterials[name]}`).join("・")}`
+    : "素材を持っていない";
   container.appendChild(balance);
 }
 
@@ -58,9 +58,9 @@ export function renderWorkshop(optGrid) {
   intro.className = "workshop-purpose";
   intro.dataset.workshopPurpose = "possibilities";
   const introTitle = document.createElement("strong");
-  introTitle.textContent = "次の潜行で試せる可能性を増やす場所";
+  introTitle.textContent = "次の冒険で選べるものを増やす";
   const introText = document.createElement("span");
-  introText.textContent = "記録から候補を広げます。どれが最適かは、あなたの潜行で確かめてください。";
+  introText.textContent = "素材を渡すと、開始武器や、迷宮で見つかる品の種類が増える。";
   intro.appendChild(introTitle);
   intro.appendChild(introText);
   optGrid.appendChild(intro);
@@ -84,7 +84,7 @@ export function renderWorkshop(optGrid) {
       const cost = getWorkshopNodeCost(node, rank);
       const button = document.createElement("button");
       button.className = "btn btn-neon btn-block workshop-node";
-      const status = lateralUnlocked ? "冒険の記録から利用可能になった" : cost ? formatCost(cost) : "利用可能";
+      const status = lateralUnlocked ? "冒険の記録から選べるようになった" : cost ? formatCost(cost) : "解放済み";
       const nodeTitle = document.createElement("strong");
       nodeTitle.textContent = `${node.name} ${maxRank > 1 ? `${rank}/${maxRank}` : ""}`;
       const description = document.createElement("span");
@@ -104,18 +104,18 @@ export function renderWorkshop(optGrid) {
         );
         if (!result.ok) {
           const message = result.reason === "insufficient_materials"
-            ? "工房: 素材が不足している。"
+            ? "素材が足りない。"
             : result.reason === "missing_key_item"
-              ? "工房: 対応する印が必要だ。"
+              ? "守護者の印が要る。"
               : result.reason === "already_unlocked"
-                ? "工房: 冒険の記録からすでに利用可能になっている。"
-              : "工房: これ以上利用可能にできない。";
+                ? "冒険の記録から、すでに選べるようになっている。"
+              : "これはもう解放してある。";
           addLog(message);
           return;
         }
         state.metaMaterials = result.metaMaterials;
         state.workshop = result.workshop;
-        addLog(`工房: ${node.name}が利用可能になった。`);
+        addLog(`工房で「${node.name}」を解放した。`);
         saveAutosave();
         renderWorkshop(optGrid);
       });

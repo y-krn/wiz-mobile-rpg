@@ -799,7 +799,7 @@ for (const vp of VIEWPORTS) {
 
     test('Starting kit selection starts exactly one Lv1 solo character', async ({ page }) => {
       await page.locator('#btn-town-dungeon').click();
-      await expect(page.locator('#submenu-title')).toContainText('開始キットを選択');
+      await expect(page.locator('#submenu-title')).toContainText('開始キットを選ぶ');
       await page.getByRole('button', { name: /軽装探索キット/ }).click();
       await page.locator('#btn-kit-confirm').click();
       await page.getByRole('button', { name: '迷宮へ向かう' }).click();

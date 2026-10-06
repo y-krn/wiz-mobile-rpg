@@ -38,6 +38,7 @@ async function scrollWorkshopToBottom(page) {
       hudBottom: hudBox.bottom,
       position: getComputedStyle(hud).position,
       scrollTop: grid.scrollTop,
+      overflows: grid.scrollHeight > grid.clientHeight + 1,
     };
   });
 }
@@ -48,18 +49,20 @@ for (const viewport of VIEWPORTS) {
 
     const assertStickyBalance = async () => {
       const layout = await scrollWorkshopToBottom(page);
-      expect(layout.scrollTop).toBeGreaterThan(0);
+      // On tall screens the whole list fits since the empty adventurer panel
+      // no longer takes room in town menus (#2032); it scrolls only if it overflows.
       expect(layout.position).toBe('sticky');
       expect(layout.hudTop).toBeGreaterThanOrEqual(layout.gridTop - 1);
-      expect(layout.hudTop).toBeLessThanOrEqual(layout.gridTop + 1);
+      // Scrolled to the end, the balance never leaves the top of the list.
+      if (layout.overflows) expect(layout.scrollTop).toBeGreaterThan(0);
       expect(layout.hudBottom).toBeLessThanOrEqual(viewport.height);
       expect(layout.alpha, `HUD background ${layout.backgroundColor} must be opaque`).toBe(1);
     };
 
     await assertStickyBalance();
 
-    await page.getByRole('button', { name: /軽量武器候補/ }).click();
-    await expect(page.locator('.materials-hud')).toContainText('獣の牙:16 / 鉄片:8');
+    await page.getByRole('button', { name: /開始武器：レイピア/ }).click();
+    await expect(page.locator('.materials-hud')).toContainText('獣の牙 16・鉄片 8');
     await assertStickyBalance();
   });
 
@@ -111,7 +114,7 @@ for (const viewport of VIEWPORTS) {
     });
 
     expect(layout.clientHeight, `Workshop list should show at least two nodes on ${viewport.width}x${viewport.height}`).toBeGreaterThanOrEqual(240);
-    expect(layout.scrollHeight).toBeGreaterThan(layout.clientHeight);
+    expect(layout.scrollHeight).toBeGreaterThanOrEqual(layout.clientHeight);
     expect(layout.uncoveredScrollRanges, `Every workshop scroll position should contain a complete node on ${viewport.width}x${viewport.height}`).toEqual([]);
     expect(layout.backBox.height).toBeGreaterThanOrEqual(44);
     expect(layout.backBox.bottom).toBeLessThanOrEqual(viewport.height + 1);

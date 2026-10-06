@@ -1,10 +1,10 @@
 import { KEY_ITEMS } from "./key_items.js";
 
 export const WORKSHOP_CATEGORIES = Object.freeze({
-  startingGear: "初期装備候補",
-  pools: "出現候補",
-  milestoneBuild: "深層ビルド",
-  abyssBuild: "深淵ビルド",
+  startingGear: "開始武器",
+  pools: "迷宮で見つかる品",
+  milestoneBuild: "深層の型",
+  abyssBuild: "深淵の型",
   convenience: "利便"
 });
 
@@ -12,24 +12,24 @@ const WORKSHOP_BASE_NODES = [
   {
     id: "gear_rapier",
     category: "startingGear",
-    name: "軽量武器候補",
-    description: "潜行開始時にレイピアを選べる。",
+    name: "開始武器：レイピア",
+    description: "冒険の始めに、レイピアを選べるようになる。",
     costs: [{ "獣の牙": 4, "鉄片": 2 }],
     grants: { startingGear: "RAPIER" }
   },
   {
     id: "gear_sage_staff",
     category: "startingGear",
-    name: "術者武器候補",
-    description: "潜行開始時に賢者の杖を選べる。",
+    name: "開始武器：賢者の杖",
+    description: "冒険の始めに、賢者の杖を選べるようになる。",
     costs: [{ "霊粉": 4, "魔石片": 2 }],
     grants: { startingGear: "SAGE_STAFF" }
   },
   {
     id: "gear_fighter_saber",
     category: "startingGear",
-    name: "戦士武器候補",
-    description: "潜行開始時に鍛錬サーベルを選べる。",
+    name: "開始武器：鍛錬サーベル",
+    description: "冒険の始めに、鍛錬サーベルを選べるようになる。",
     costs: [{ "獣の牙": 4, "鉄片": 2 }],
     grants: { startingGear: "FIGHTER_SABER" }
   },
@@ -37,7 +37,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_blood_wand",
     category: "pools",
     name: "血杖の記憶",
-    description: "血杖コアを出現候補に追加する。",
+    description: "迷宮で「血杖」の品が見つかるようになる。",
     costs: [{ "呪布": 5, "黒角": 2 }],
     grants: { affixIds: ["CORE_BLOOD_WAND"] }
   },
@@ -45,7 +45,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_deep_spells",
     category: "pools",
     name: "深層呪文写本",
-    description: "高位スペルを出現候補に追加する。",
+    description: "迷宮で高位の呪文のルーンが見つかるようになる。",
     costs: [{ "魔石片": 6, "霊粉": 4 }],
     grants: { spellIds: ["MADALTO", "DIALMA"] }
   },
@@ -53,7 +53,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_trap_eater",
     category: "pools",
     name: "罠喰いの記憶",
-    description: "罠喰いコアを出現候補に追加する。",
+    description: "迷宮で「罠喰い」の品が見つかるようになる。",
     costs: [{ "硬い皮": 7, "鉄片": 3 }],
     grants: { affixIds: ["CORE_TRAP_EATER"] }
   },
@@ -61,7 +61,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_thorn_shield",
     category: "pools",
     name: "棘盾の記憶",
-    description: "棘盾コアを出現候補に追加する。",
+    description: "迷宮で「棘盾」の品が見つかるようになる。",
     costs: [{ "硬い皮": 7, "呪布": 3 }],
     grants: { affixIds: ["CORE_THORN_SHIELD"] }
   },
@@ -69,7 +69,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_tomb_raider",
     category: "pools",
     name: "盗掘王の記憶",
-    description: "盗掘王コアを出現候補に追加する。",
+    description: "迷宮で「盗掘王」の品が見つかるようになる。",
     costs: [{ "獣の牙": 7, "竜鱗": 3 }],
     grants: { affixIds: ["CORE_TOMB_RAIDER"] }
   },
@@ -77,7 +77,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_scholar_eye",
     category: "pools",
     name: "学者の眼の記憶",
-    description: "学者の眼コアを出現候補に追加する。",
+    description: "迷宮で「学者の眼」の品が見つかるようになる。",
     costs: [{ "霊粉": 7, "骨片": 3 }],
     grants: { affixIds: ["CORE_SCHOLAR_EYE"] }
   },
@@ -85,7 +85,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_thin_ice_pact",
     category: "abyssBuild",
     name: "薄氷の誓約",
-    description: "低HP時に攻撃と被害が増すコアを出現候補に追加する。",
+    description: "迷宮で、HPが低いほど攻撃も被害も増す品が見つかるようになる。",
     costs: [{ "黒角": 7, "竜鱗": 3 }],
     requiresKeyItem: KEY_ITEMS.ABYSS_SEAL,
     grants: { affixIds: ["CORE_THIN_ICE_PACT"] }
@@ -94,7 +94,7 @@ const WORKSHOP_BASE_NODES = [
     id: "convenience_identify_powder",
     category: "convenience",
     name: "鑑定粉の備蓄",
-    description: "潜行開始時の鑑定粉が1個増える。",
+    description: "冒険の始めに持つ鑑定粉が1個増える。",
     costs: [{ "霊粉": 5, "呪布": 2 }],
     grants: { identifyPowder: 1 }
   },
