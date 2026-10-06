@@ -53,6 +53,8 @@ function parseArgs(argv) {
   const opts = {
     url: "http://localhost:5173", compare: null, seeds: "1-5", kit: "vanguard",
     explore: 0.6, equip: "greedy", maxFloor: null, speed: 0.1, out: null,
+    // Run policy; null keeps the driver's default (see browser_playtest_driver.js).
+    recovery: null, rooms: null, cores: null,
     boss: false, bossLevel: 3, bossMaxHp: 55, bossHp: 40, headed: false,
     seedTimeout: 900, allowHmr: false, fps: null, jobs: 1
   };
@@ -174,7 +176,8 @@ async function playOne(browser, baseUrl, seed, opts) {
     const run = opts.boss
       ? page.evaluate(o => window.__bossTest(o), { floor: 5, level: opts.bossLevel, maxHp: opts.bossMaxHp, hp: opts.bossHp, seed })
       : page.evaluate(o => window.__playRun(o), {
-        kit: opts.kit, seed, explore: opts.explore, maxFloor: opts.maxFloor, equip: opts.equip
+        kit: opts.kit, seed, explore: opts.explore, maxFloor: opts.maxFloor, equip: opts.equip,
+        recovery: opts.recovery, rooms: opts.rooms, cores: opts.cores
       });
     const limit = new Promise((_, reject) => {
       if (opts.seedTimeout > 0) timer = setTimeout(() => reject(new Error(`seed timed out after ${opts.seedTimeout}s`)), opts.seedTimeout * 1000);
@@ -236,7 +239,13 @@ function summarize(label, results) {
   const reachedB5 = results.filter(r => (r.deepest ?? 0) >= 5).length;
   const guardianWins = results.filter(r => r.guardian?.some(g => g.includes("WON"))).length;
   const cores = results.reduce((n, r) => n + (r.loot || []).filter(l => l.core).length, 0);
+  const stuck = results.filter(r => r.end === "stuck").map(r => r.seed);
+  const returned = results.filter(r => r.returned).length;
+  const potions = results.reduce((n, r) => n + (r.purchases || []).reduce((m, p) => m + p.count, 0), 0);
+  const rooms = results.reduce((n, r) => n + (r.roomActions || []).length, 0);
+  const refusedEquips = results.reduce((n, r) => n + (r.equipLog || []).filter(l => l.includes("cannot equip")).length, 0);
   console.log(`${label}: deepest [${deepest.join(",")}] reachedB5 ${reachedB5}/${results.length} guardianWins ${guardianWins} coreItemsSeen ${cores}${failed.length ? ` failedSeeds [${failed.map(r => r.seed).join(",")}]` : ""}`);
+  console.log(`${label}: stuck [${stuck.join(",")}] returned ${returned} potionsBought ${potions} roomActions ${rooms} cannotEquip ${refusedEquips}`);
 }
 
 function formatLine(url, seed, r, opts) {
