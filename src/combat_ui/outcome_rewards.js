@@ -19,6 +19,9 @@ function clearOutcomeCell(stateLike, event, { openBossExitFloor = null } = {}) {
   const cell = stateLike.map?.[stateLike.y]?.[stateLike.x];
   if (cell?.event !== event) return;
   cell.event = null;
+  // The presence that was sensed from a distance is gone with its source (#1821).
+  const sensed = stateLike.currentRun?.eventObservations?.[`aura:${stateLike.floor}:boss:${stateLike.x}:${stateLike.y}`];
+  if (sensed) sensed.lifecycle = "resolved";
   if (cell.milestoneFloor === openBossExitFloor) {
     cell.type = "stairs-down";
     cell.message = "【階層守護者撃破】階段への短絡路が開いた。";

@@ -33,6 +33,10 @@ module names, and exact scenario inventories.
   traps, mutations, navigation, or other observable effects.
 - Interrupted, lethal, abandoned, and recovery paths preserve the player's
   visible intent and leave the system at a valid next boundary.
+- An action the current state makes unavailable is shown disabled with its
+  reason, never as a control that silently does nothing. A status that blocks
+  an exploration action can end during exploration itself; clearing it never
+  requires a fight.
 - A grouped player action has one defined world-time boundary. The cost is
   applied at that boundary, not once per internal sub-change; invalid, no-op,
   and canceled actions do not advance time unless the mechanic explicitly

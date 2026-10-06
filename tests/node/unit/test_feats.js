@@ -197,7 +197,7 @@ assert.deepEqual(getFeatResultRows(settled.result).slice(0, 1), [
 const eliteRow = getFeatResultRows({
   completed: [], rewards: {}, progress: [{ id: "elite_5", before: 1, after: 3, target: 5 }]
 })[0];
-assert.deepEqual(eliteRow, { id: "elite_5", status: "前進", completed: false, name: "強敵狩り", detail: "3 / 5（今回 +2）" });
+assert.deepEqual(eliteRow, { id: "elite_5", status: "進んだ", completed: false, name: "強敵狩り", detail: "3 / 5（今回 +2）" });
 assert.deepEqual(getFeatResultRows(null), []);
 console.log("[PASS] result rows are built from the stored ids and numbers");
 

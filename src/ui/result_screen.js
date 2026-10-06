@@ -421,7 +421,7 @@ export function getFeatResultRows(featResult, run = null) {
     const gained = entry.after - entry.before;
     rows.push({
       id: feat.id,
-      status: gained > 0 ? "前進" : "次の目標",
+      status: gained > 0 ? "進んだ" : "次は",
       completed: false,
       name: feat.name,
       detail: gained > 0 && feat.metric.unit !== "floor" ? `${progress}（今回 +${gained}）` : progress

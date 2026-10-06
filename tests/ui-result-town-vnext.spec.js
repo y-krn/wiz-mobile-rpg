@@ -414,8 +414,8 @@ test('Result shows the feats achieved and how far the closest ones moved', async
 
   const rows = page.locator('[data-result-feats] .result-feat-row');
   await expect(rows.nth(0)).toHaveText('達成坑道を抜ける報酬 鉄片×4');
-  await expect(page.locator('.result-feat-row[data-feat-id="elite_5"]')).toHaveText('前進強敵狩り3 / 5（今回 +2）');
-  await expect(page.locator('.result-feat-row[data-feat-id="depth_10"]')).toHaveText('前進地下墓地の底へB5F / B10F');
+  await expect(page.locator('.result-feat-row[data-feat-id="elite_5"]')).toHaveText('進んだ強敵狩り3 / 5（今回 +2）');
+  await expect(page.locator('.result-feat-row[data-feat-id="depth_10"]')).toHaveText('進んだ地下墓地の底へB5F / B10F');
   await expect(page.locator('#result-overlay')).not.toContainText('今回の依頼');
 
   await page.reload();
@@ -460,7 +460,8 @@ test('Explore shows the closest feats with live progress and announces a feat on
   });
   expect(live.first).toEqual(['【偉業達成】宝箱あさり（宝箱を累計30個開ける）。報酬は街で受け取る。']);
   expect(live.second).toEqual([]);
-  expect(live.hud).toEqual(['宝箱あさり達成', '坑道を抜けるB4F / B5F', '傷なき踏破B1F / B5F']);
+  // What is still ahead comes first; what this run already achieved follows.
+  expect(live.hud).toEqual(['坑道を抜けるB4F/B5F', '傷なき踏破B1F/B5F', '宝箱あさり達成']);
   expect(live.storedChests).toBe(29);
 });
 

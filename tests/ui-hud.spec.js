@@ -145,7 +145,7 @@ for (const vp of VIEWPORTS) {
     });
 
     await expect(page.locator('#location-label')).toContainText('崩れた坑道');
-    await expect(page.locator('#goal-banner')).toContainText('下り階段を探して、地下2階へ');
+    await expect(page.locator('#goal-banner')).toContainText('階段を探して地下2階へ');
     await expect(page.locator('#goal-banner')).not.toContainText('???');
     const stinger = page.locator('#floor-entry-stinger');
     await expect(stinger).toBeVisible();
