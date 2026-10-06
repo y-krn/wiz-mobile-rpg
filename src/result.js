@@ -44,6 +44,8 @@ export function triggerRunResult(reason) {
   const isDeathLike = outcome === "death" || outcome === "abandon";
   run.returnReason = reason;
   run.outcome = outcome;
+  // Round-trip prototype (#2066): the treasure only leaves the dungeon on foot.
+  if (run.roundTrip && reason !== "surface") run.roundTrip.treasure = false;
   const objectLootOutcome = reason === "escape_scroll"
     ? "wing"
     : isSuccess ? "retreat" : "loss";

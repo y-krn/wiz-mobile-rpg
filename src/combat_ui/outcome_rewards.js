@@ -7,6 +7,7 @@ import { applyPhase4cV1PlayerBaseline } from "../rules/phase4c_v1_trial.js";
 import { getItemData } from "../data.js";
 import { KEY_ITEM_LABELS, MILESTONE_KEY_ITEMS } from "../data/key_items.js";
 import { WORKSHOP_CATEGORIES, WORKSHOP_NODES } from "../data/workshop.js";
+import { getHunterName, takeTreasure } from "../systems/round_trip.js";
 
 // The workshop shelf a seal opens, named as the workshop names it. A seal
 // with nothing behind it yet promises nothing.
@@ -45,6 +46,12 @@ function applyMilestoneVictoryRewards(stateLike, floor) {
         (shelf ? `工房に「${shelf}」が並ぶようになった。` : "")
       );
     }
+  }
+  // Round-trip prototype (#2066): the guardian held the treasure, and taking
+  // it wakes the dungeon.
+  if (takeTreasure(stateLike)) {
+    messages.push("迷宮の至宝を手に入れた！");
+    messages.push(`【予兆】迷宮が目を覚ました。${getHunterName(stateLike.floor)}が後を追ってくる。歩いて地上へ戻れ。`);
   }
   return messages;
 }

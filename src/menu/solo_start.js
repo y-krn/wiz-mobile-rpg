@@ -40,10 +40,13 @@ import { getStartingKitCopy } from "../data/starting_kit_copy.js";
 import { TECHNIQUE_BY_PROFILE } from "../data/techniques.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
 import { getCharDerivedStats } from "../rules/character_stats.js";
+import { canChooseRoundTrip } from "../rules/round_trip.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
 let selectedStartFloor = null;
+// Round-trip prototype rule (#2066): opt-in for a run from the top.
+let selectedRoundTrip = false;
 // Kit selection is a two-step choice: pick a kit to read its details, then
 // confirm. The picked kit and weapon swap survive "choose again".
 let selectedKitId = null;
@@ -95,7 +98,7 @@ function createDepartureCharacter(startingKitId, startingGear = null) {
 
 // Every departure goes through here: the preparation screen and the repeat
 // departure from the result screen pay and start by the same steps.
-function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
+function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds, roundTrip = false) {
   const kit = getStartingKit(startingKitId);
   if (!kit || !isStartingKitAvailable(startingKitId, state.facilities)) return false;
   const { character, handConflict } = createDepartureCharacter(startingKitId, startingGear);
@@ -123,13 +126,14 @@ function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
     kitId: startingKitId,
     startingGear,
     recipeIds: departureCraft,
-    startFloor
+    startFloor,
+    roundTrip: roundTrip && canChooseRoundTrip(startFloor)
   });
   departureCraftQuantities = new Map();
   droppedPreparationLines = [];
   state.party = [character];
   addLog(`${kit.name}で、ひとり迷宮へ向かう。`);
-  executeEnterDungeon(startFloor, { departureCraft });
+  executeEnterDungeon(startFloor, { departureCraft, roundTrip });
   return true;
 }
 
@@ -138,7 +142,7 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
   // exploration surface. Replayed events from the old button must not start
   // another run or charge its preparation choices twice.
   if (state.gameState !== "submenu") return false;
-  return launchRun(startingKitId, startingGear, startFloor, getSelectedRecipeIds());
+  return launchRun(startingKitId, startingGear, startFloor, getSelectedRecipeIds(), selectedRoundTrip);
 }
 
 /** The previous preparation checked against what can be chosen right now. */
@@ -165,7 +169,7 @@ export function repeatLastDeparture() {
   if (state.gameState !== "town") return false;
   const plan = getRepeatDeparturePlan();
   if (!plan?.canRepeat) return false;
-  return launchRun(plan.kitId, plan.startingGear, plan.startFloor, plan.recipeIds);
+  return launchRun(plan.kitId, plan.startingGear, plan.startFloor, plan.recipeIds, plan.roundTrip);
 }
 
 function getSelectedRecipeIds() {
@@ -329,6 +333,9 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
     ? "まだ選んでいない"
     : `B${selectedStartFloor}F・${getFloorBand(selectedStartFloor)}（${getFloorTheme(selectedStartFloor).name}）`;
   appendPreparationRow(conditions, "開始階", startFloorLabel, "solo-preparation-floor");
+  if (selectedRoundTrip && canChooseRoundTrip(selectedStartFloor)) {
+    appendPreparationRow(conditions, "ルール", "往復の試作（地下5階まで・歩いて帰る）", "solo-preparation-round-trip");
+  }
   summary.appendChild(conditions);
 
   optGrid.appendChild(summary);
@@ -529,6 +536,34 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   });
   optGrid.appendChild(floorSection);
 
+  // Round-trip prototype (#2066): an opt-in rule for a run from the top.
+  if (canChooseRoundTrip(selectedStartFloor)) {
+    const ruleSection = document.createElement("section");
+    ruleSection.className = "solo-start-rule-section";
+    ruleSection.setAttribute("aria-label", "試作ルール");
+    const ruleHeading = document.createElement("div");
+    ruleHeading.className = "solo-start-rule-heading";
+    const ruleTitle = document.createElement("strong");
+    ruleTitle.textContent = "試作ルール";
+    ruleHeading.append(ruleTitle);
+    const ruleButton = document.createElement("button");
+    ruleButton.type = "button";
+    ruleButton.className = `btn btn-neon btn-block solo-start-rule-option${selectedRoundTrip ? " is-selected" : ""}`;
+    ruleButton.dataset.roundTrip = String(selectedRoundTrip);
+    ruleButton.setAttribute("aria-pressed", String(selectedRoundTrip));
+    const ruleName = document.createElement("strong");
+    ruleName.textContent = selectedRoundTrip ? "往復の試作：使う" : "往復の試作：使わない";
+    const ruleDetail = document.createElement("span");
+    ruleDetail.textContent = "地下5階で終わり。帰還の門は無く、上り階段を歩いて地上へ戻る。引き返すと追われる。";
+    ruleButton.append(ruleName, ruleDetail);
+    ruleButton.addEventListener("click", () => {
+      selectedRoundTrip = !selectedRoundTrip;
+      renderStartFloorChoices(optGrid, startingKitId, startingGear, ".solo-start-rule-option");
+    });
+    ruleSection.append(ruleHeading, ruleButton);
+    optGrid.appendChild(ruleSection);
+  }
+
   renderDepartureCraftOptions(optGrid, startingKitId, startingGear);
 
   const startButton = document.createElement("button");
@@ -714,6 +749,7 @@ function seedFromLastPreparation() {
     departureCraftQuantities.set(recipeId, (departureCraftQuantities.get(recipeId) || 0) + 1);
   });
   selectedStartFloor = plan.startFloor;
+  selectedRoundTrip = plan.roundTrip === true;
   droppedPreparationLines = describeDroppedPreparation(plan.dropped);
   return true;
 }

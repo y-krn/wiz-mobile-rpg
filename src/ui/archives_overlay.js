@@ -37,6 +37,7 @@ function getRunOutcomeLabel(run) {
   if (run?.outcome === "abandon" || (!run?.outcome && run?.returnReason === "abandon")) return "断念";
   if (run?.outcome === "death" || (!run?.outcome && run?.returnReason === "gameover")) return "死亡";
   if (run?.returnReason === "escape_scroll") return "翼で帰還";
+  if (run?.returnReason === "surface") return "歩いて帰還";
   return "帰還";
 }
 

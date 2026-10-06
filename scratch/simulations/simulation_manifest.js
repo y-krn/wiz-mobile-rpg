@@ -283,6 +283,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/state/run_floor_state.js", domains: ["maps"] },
     { pattern: "src/systems/roaming_elites.js", domains: ["combat", "maps"] },
     { pattern: "src/systems/roaming_elites.ts", domains: ["combat", "maps"] },
+    // Round-trip prototype rule (#2066): the hunter is a roaming threat on opt-in runs.
+    { pattern: "src/rules/round_trip.js", domains: ["combat", "maps"] },
+    { pattern: "src/systems/round_trip.js", domains: ["combat", "maps"] },
     { pattern: "src/systems/elite_perception.js", domains: ["combat", "maps"] },
     { pattern: "src/systems/elite_perception.ts", domains: ["combat", "maps"] },
     // Build vNext (#1801): weapon techniques and trial supply/seed offer.
@@ -312,6 +315,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/equipment_ui_loader.js", "src/equipment_ui_state.js",
     "src/data/starting_kit_copy.js",
     "src/state/last_preparation.ts", "src/systems/departure_preparation.js",
+    // Round-trip prototype (#2066): normalized run state only.
+    "src/state/run_round_trip.ts",
     "src/state/feats_state.ts", "src/state/facilities_state.ts",
     "src/state/guidebook_state.ts", "src/data/guidebook.js", "src/systems/guidebook.js"
   ]),

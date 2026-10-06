@@ -32,6 +32,7 @@ import {
   type NormalizedPendingCampEntryFloor
 } from "./camp_state.js";
 import { isNormalizedFloorSteps, type NormalizedFloorSteps } from "./floor_steps.js";
+import { isNormalizedRunRoundTrip, type NormalizedRunRoundTrip } from "./run_round_trip.js";
 import {
   isNormalizedCodexRewards,
   isNormalizedBankedMaterials,
@@ -138,6 +139,8 @@ export interface NormalizedCurrentRun {
   graveResult: NormalizedRunGraveResult;
   /** An oath sworn at the oath altar: a death or an abandoned run banks no carried material (#2021). */
   oath: boolean;
+  /** Round-trip prototype rule (#2066): null for an ordinary run. */
+  roundTrip: NormalizedRunRoundTrip | null;
   guideFragments: number;
   guideResult: NormalizedRunGuideResult;
   orderResult: NormalizedRunOrderResult;
@@ -184,7 +187,7 @@ const ITEM_COLLECTION_FIELDS = [
 const REQUIRED_FIELDS = [
   ...NUMBER_FIELDS,
   "startingKit", "unbankedObjectLoot", "pendingRewardBundle", "representativeItem",
-  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing", "nearMiss", "featResult", "featsAnnounced", "companions", "offeredMaterials", "graveResult", "oath", "guideFragments", "guideResult", "orderResult",
+  "meaningfulItemHistory", "codexInsights", "workshopUnlocks", "returnProcessing", "nearMiss", "featResult", "featsAnnounced", "companions", "offeredMaterials", "graveResult", "oath", "roundTrip", "guideFragments", "guideResult", "orderResult",
   "lootSequence", "returnReason", "outcome", "pendingCampEntryFloor",
   "campRested", "completedCampEntryFloors", "recordResult", "quests", "trialBands",
   "floorSteps", "explorationRecovery", "eventObservations",
@@ -268,6 +271,7 @@ export function isNormalizedCurrentRun(value: unknown): value is NormalizedCurre
   if (!isNormalizedCompanions(value.companions)) return false;
   if (!isNormalizedRunOfferedMaterials(value.offeredMaterials) || !isNormalizedRunGraveResult(value.graveResult)) return false;
   if (typeof value.oath !== "boolean") return false;
+  if (!isNormalizedRunRoundTrip(value.roundTrip)) return false;
   if (!isRunGuideFragments(value.guideFragments) || !isNormalizedRunGuideResult(value.guideResult)) return false;
   if (!isNormalizedRunOrderResult(value.orderResult)) return false;
   if (value.recordResult !== null && !isNormalizedRunRecordResult(value.recordResult)) return false;

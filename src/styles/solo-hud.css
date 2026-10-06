@@ -301,7 +301,8 @@
   align-content: start;
 }
 
-.solo-start-floor-section {
+.solo-start-floor-section,
+.solo-start-rule-section {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-auto-rows: minmax(var(--tap-min), auto);
@@ -335,7 +336,8 @@
   padding-left: var(--sp-xl);
 }
 
-.solo-start-floor-heading {
+.solo-start-floor-heading,
+.solo-start-rule-heading {
   display: grid;
   grid-column: 1 / -1;
   gap: var(--sp-xxs);
@@ -345,13 +347,15 @@
 }
 
 .solo-start-floor-heading span,
-.solo-start-floor-option span {
+.solo-start-floor-option span,
+.solo-start-rule-option span {
   color: var(--text-muted);
   font-size: var(--fs-xs);
 }
 
 .solo-start-change,
 .solo-start-floor-option,
+.solo-start-rule-option,
 .solo-start-craft-option,
 .milestone-portal-action {
   min-height: var(--tap-min);
@@ -650,14 +654,21 @@
   color: var(--text-danger, var(--neon-red));
 }
 
-.solo-start-floor-option {
+.solo-start-floor-option,
+.solo-start-rule-option {
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 2px;
 }
 
+/* Round-trip prototype rule (#2066): one option across the full width. */
+.solo-start-rule-option {
+  grid-column: 1 / -1;
+}
+
 .solo-start-floor-option.is-selected,
+.solo-start-rule-option.is-selected,
 .solo-start-confirm {
   border-color: var(--neon-cyan);
   box-shadow: var(--neon-glow-cyan);

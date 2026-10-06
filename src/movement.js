@@ -56,6 +56,9 @@ import { getSpecialRoomInfo } from "./rules/special_rooms.js";
 import { getWaitingKeeperFacility } from "./systems/facility_rooms.js";
 import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
+import { createRunRoundTrip } from "./state/run_round_trip.js";
+import { canChooseRoundTrip, isRoundTripRun } from "./rules/round_trip.js";
+import { arriveOnFloor, getHunterName, tickHunter, wakeDungeon } from "./systems/round_trip.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -559,6 +562,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     state.x = target.x;
     state.y = target.y;
     markMapCellVisited(state.x, state.y);
+    arriveOnFloor(state, nextFloor, target);
 
     const theme = getFloorTheme(nextFloor);
     const firstVisit = revealFloor(state, nextFloor);
@@ -582,6 +586,42 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
       onLanding();
     }
   }, 1200);
+}
+
+/**
+ * Round-trip prototype (#2066): climb back to a floor the run already came
+ * through. The floor is as it was left; the run arrives on its down stairs.
+ * The first climb wakes the dungeon.
+ */
+export function ascendToFloor(prevFloor) {
+  if (!isRoundTripRun(state.currentRun) || prevFloor < 1 || !state.maps?.[prevFloor - 1]) return false;
+  state.transitioning = true;
+  addLog(`階段を上ります。地下${prevFloor}階へ...`);
+  playSound("move");
+
+  setTimeout(() => {
+    ensureRunFloor(state, prevFloor);
+    clearEventObservations({ scopePrefix: "aura:" });
+    clearEventObservations({ scopePrefix: "trap:" });
+    const woke = wakeDungeon(state);
+    state.floor = prevFloor;
+
+    const target = findCellCoordsByType(state.maps[prevFloor - 1], "stairs-down");
+    state.x = target.x;
+    state.y = target.y;
+    markMapCellVisited(state.x, state.y);
+    arriveOnFloor(state, prevFloor, target);
+
+    const theme = getFloorTheme(prevFloor);
+    addLog(`${theme.name}：${theme.entryText.revisit}`);
+    if (woke) addLog(`【予兆】迷宮が目を覚ました。${getHunterName(prevFloor)}が後を追ってくる。`);
+
+    state.transitioning = false;
+    saveAutosave();
+    updateUI();
+    showFloorEntryStinger(prevFloor, false);
+  }, 1200);
+  return true;
 }
 
 function getCampEntryTitle(floor) {
@@ -784,7 +824,14 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   settleEventObservations();
 
   // Floors are one-way during a run. The entrance stairs never return upward.
+  // The round-trip prototype (#2066) is the exception: the way home is up.
   if (cell.type === "stairs-up") {
+    if (isRoundTripRun(state.currentRun)) {
+      openGuardedSubmenu("stairs_up", state.floor > 1
+        ? `${getFloorLabel(state, state.floor - 1)}への上り階段`
+        : "地上への上り階段");
+      return;
+    }
     addLog("上り階段は崩れ、前のフロアには戻れない。");
     playSound("bump");
     return;
@@ -905,6 +952,10 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   }
 
   if (cell.event === EVENT_TYPES.RETURN_PORTAL) {
+    if (isRoundTripRun(state.currentRun)) {
+      addLog("帰還の門は沈黙している。歩いて地上へ戻るしかない。");
+      return;
+    }
     if (!state.currentRun?.defeatedMilestones?.includes(state.floor)) {
       addLog("帰還の門は階層守護者の力で封じられている。");
       return;
@@ -1070,7 +1121,7 @@ export function enterDungeon() {
   openSubmenu("solo_start", "開始キットを選ぶ：冒険はいつもLv1から");
 }
 
-export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
+export function executeEnterDungeon(floor, { departureCraft = [], roundTrip = false } = {}) {
   state.party = state.party.slice(0, 1);
   state.gameState = "explore";
   menuContext.prevGameState = null;
@@ -1084,6 +1135,7 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.currentRun.startFloor = floor;
   state.currentRun.deepestFloor = floor;
   state.currentRun.startingKit = normalizeStartingKitId(state.party[0]?.startingKit);
+  state.currentRun.roundTrip = roundTrip && canChooseRoundTrip(floor) ? createRunRoundTrip() : null;
   state.currentRun.floorSteps = {};
   resetRunFloors(state);
   ensureRunFloor(state, floor);
@@ -1133,6 +1185,7 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   const firstVisit = revealFloor(state, floor);
   addLog(`${theme.name}：${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
   addLog(`鑑定粉を${state.identifyTickets}個持って冒険を始めた。`);
+  if (state.currentRun.roundTrip) addLog("往復の試作：帰還の門は無い。帰るには上り階段を歩いて地上へ戻る。");
   const nearestFeat = getNearestFeats(state.feats, null, 1)[0];
   if (nearestFeat) addLog(`近い偉業：${nearestFeat.feat.name}（${nearestFeat.feat.condition}）`);
   checkFloorOmenMessage();
@@ -1244,6 +1297,8 @@ export function moveRoamingMonsters(playerMoved = true) {
 
   state.roamingMonsters.forEach(monster => {
     if (monster.floor !== currentFloor) return;
+    // The round-trip hunter has its own pursuit (systems/round_trip.js).
+    if (monster.hunter) return;
     // Lost the player after a flee (see ELITE_FLEE_GRACE_TICKS): hold still.
     if (monster.fleeGraceTicks > 0) {
       monster.fleeGraceTicks -= 1;
@@ -1289,6 +1344,10 @@ export function advanceRoamingTurn(playerMoved) {
     .map(event => ({ ...event, ttl: event.ttl - 1 }))
     .filter(event => event.ttl > 0);
   state.roamingMovementStepCount = (state.roamingMovementStepCount || 0) + 1;
+  // The round-trip hunter (#2066) moves on every action, not every second one.
+  const hunted = tickHunter(state);
+  hunted.messages.forEach(message => addLog(message));
+  if (hunted.contact) return checkRoamingMonsterEncounter();
   if (state.roamingMovementStepCount % 2 !== 0) return false;
   moveRoamingMonsters(playerMoved);
   return checkRoamingMonsterEncounter();
