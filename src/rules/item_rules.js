@@ -26,10 +26,14 @@ export function isSpecialOrQuestItem(itemId) {
          itemId === "LEGENDARY_SHIELD";
 }
 
+// Healing that is not a healing spell (potions, kill heal, camps, springs,
+// walking recovery) takes only what lowers devotion. Raising devotion belongs
+// to healing spells, so it never buys back a lowering source such as the
+// 渇血 curse (#1995).
 export function getHealMultiplier(target, { applyDevotion = true } = {}) {
   let mult = 1;
   if (applyDevotion) {
-    mult *= 1 + Math.min(0, getCharAffixSum(target, "devotion")) / 100;
+    mult *= 1 + getCharAffixPenaltySum(target, "devotion") / 100;
   }
   if (target?.antiHealTurns > 0) {
     mult *= 0.5;
@@ -65,6 +69,32 @@ export function getEquippedItemData(char, item) {
     return getItemData({ ...item, identified: true });
   }
   return getItemData(item);
+}
+
+// The lowering side of an affix only: every equipped affix or curse whose
+// value is negative counts, and no positive value on any piece offsets it.
+// Read per source, like getCharAffixSum, so the two agree on what a source is.
+export function getCharAffixPenaltySum(char, affixType) {
+  if (!char) return 0;
+  let sum = 0;
+  const addPenalty = value => {
+    if (Number.isFinite(value) && value < 0) sum += value;
+  };
+  getEquipmentValues(char.equipment).forEach(eqKey => {
+    if (!eqKey) return;
+    const fixedValue = getEquippedItemData(char, eqKey)?.affixBonus?.[affixType];
+    addPenalty(fixedValue);
+    if (typeof eqKey !== "object") return;
+    if (eqKey.affixes && fixedValue === undefined) {
+      eqKey.affixes.forEach(aff => {
+        if (aff.type === affixType) addPenalty(aff.value);
+      });
+    }
+    if (eqKey.curseEffectId) {
+      addPenalty(getScaledCurseModifier(CURSE_EFFECTS[eqKey.curseEffectId], affixType, eqKey.cursePower));
+    }
+  });
+  return sum;
 }
 
 export function getCharAffixSum(char, affixType) {

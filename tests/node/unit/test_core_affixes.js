@@ -27,7 +27,7 @@ import {
   getCharWeaponAtk
 } from "../../../src/rules/character_stats.js";
 import { isVNextTrialCore } from "../../../src/rules/equipment_vnext_trial.js";
-import { getCharAffixSum } from "../../../src/rules/item_rules.js";
+import { getCharAffixPenaltySum, getCharAffixSum, getHealMultiplier } from "../../../src/rules/item_rules.js";
 import {
   applyKillAffixEffects,
   getMeleeModifiers,
@@ -750,6 +750,72 @@ test("正のdevotionは薬・キル回復・キャンプに影響しない", () 
   char.hp = 50;
   const camp = restAtCamp({ floor: 1, party: [char], currentRun: {} });
   assert.equal(camp.hpRecovered, 20);
+});
+
+test("渇血と正のdevotionを併用しても、一般回復の低下は打ち消されない", () => {
+  const cursed = () => ({
+    ...supportItem("atk", 0, "SHORT_SWORD"),
+    curseEffectId: "curse_blood_thirst",
+    cursePower: 1
+  });
+  for (const devotion of [30, 15]) {
+    const char = makeChar(null);
+    char.hp = 50;
+    char.equipment.weapon = cursed();
+    char.equipment.shield = supportItem("devotion", devotion, "SMALL_SHIELD");
+    // The sum still nets out; only the lowering side reaches general healing.
+    assert.equal(getCharAffixSum(char, "devotion"), devotion - 20);
+    assert.equal(getCharAffixPenaltySum(char, "devotion"), -20);
+    // Walking recovery and the spring read this multiplier directly.
+    assert.equal(getHealMultiplier(char), 0.8);
+    assert.equal(getHealMultiplier(char, { applyDevotion: false }), 1);
+
+    ITEM_EFFECTS.HEAL_POTION({ char });
+    assert.equal(char.hp, 62, `potion with devotion +${devotion}`);
+
+    char.hp = 50;
+    char.equipment.armor = supportItem("killHeal", 5);
+    applyKillAffixEffects(char, { name: "Enemy", tags: [] }, { combatState: {} }, []);
+    assert.equal(char.hp, 54, `kill heal with devotion +${devotion}`);
+
+    char.hp = 50;
+    const camp = restAtCamp({ floor: 1, party: [char], currentRun: {} });
+    assert.equal(camp.hpRecovered, 16, `camp with devotion +${devotion}`);
+  }
+});
+
+test("回復呪文は術者のdevotionの合算を使い続ける", () => {
+  const healWith = equipment => {
+    const caster = makeChar(null);
+    Object.assign(caster.equipment, equipment);
+    const target = makeChar(null);
+    target.hp = 1;
+    return SPELL_EFFECTS.DIOS({ caster, target, rng: () => 0.5 }).heal;
+  };
+  const cursedWeapon = { ...supportItem("atk", 0, "SHORT_SWORD"), curseEffectId: "curse_blood_thirst", cursePower: 1 };
+  const base = healWith({});
+  // +30 and the curse net to +10 for the caster; nothing else changes.
+  assert.equal(healWith({ shield: supportItem("devotion", 30, "SMALL_SHIELD") }), Math.round(base * 1.3));
+  assert.equal(healWith({ weapon: cursedWeapon }), Math.round(base * 0.8));
+  assert.equal(
+    healWith({ weapon: cursedWeapon, shield: supportItem("devotion", 30, "SMALL_SHIELD") }),
+    Math.round(base * 1.1)
+  );
+});
+
+test("devotionを下げるものが無ければ、一般回復は変わらない", () => {
+  const char = makeChar(null);
+  assert.equal(getCharAffixPenaltySum(char, "devotion"), 0);
+  assert.equal(getHealMultiplier(char), 1);
+  char.equipment.shield = supportItem("devotion", 30, "SMALL_SHIELD");
+  assert.equal(getCharAffixPenaltySum(char, "devotion"), 0);
+  assert.equal(getHealMultiplier(char), 1);
+  // Two lowering sources add up; the floor of the multiplier still holds.
+  char.equipment.armor = supportItem("devotion", -10);
+  char.equipment.weapon = { ...supportItem("atk", 0, "SHORT_SWORD"), curseEffectId: "curse_blood_thirst", cursePower: 1 };
+  assert.equal(getCharAffixPenaltySum(char, "devotion"), -30);
+  assert.equal(getHealMultiplier(char), 0.7);
+  assert.equal(getCharAffixPenaltySum(null, "devotion"), 0);
 });
 
 test("killHealのcausal potentialは回復低下前の値", () => {
