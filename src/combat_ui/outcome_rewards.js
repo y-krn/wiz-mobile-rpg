@@ -5,11 +5,15 @@ import { markMapChanged } from "../state/state_core.js";
 import { recordMilestoneVictory } from "../state/run_state.js";
 import { applyPhase4cV1PlayerBaseline } from "../rules/phase4c_v1_trial.js";
 import { getItemData } from "../data.js";
-import {
-  KEY_ITEM_LABELS,
-  KEY_ITEM_WORKSHOP_BRANCHES,
-  MILESTONE_KEY_ITEMS
-} from "../data/key_items.js";
+import { KEY_ITEM_LABELS, MILESTONE_KEY_ITEMS } from "../data/key_items.js";
+import { WORKSHOP_CATEGORIES, WORKSHOP_NODES } from "../data/workshop.js";
+
+// The workshop shelf a seal opens, named as the workshop names it. A seal
+// with nothing behind it yet promises nothing.
+function getSealWorkshopShelf(keyItem) {
+  const node = WORKSHOP_NODES.find(candidate => candidate.requiresKeyItem === keyItem);
+  return node ? WORKSHOP_CATEGORIES[node.category] : null;
+}
 
 function clearOutcomeCell(stateLike, event, { openBossExitFloor = null } = {}) {
   const cell = stateLike.map?.[stateLike.y]?.[stateLike.x];
@@ -29,15 +33,16 @@ function applyMilestoneVictoryRewards(stateLike, floor) {
   clearOutcomeCell(stateLike, "boss", { openBossExitFloor: floor });
   const milestone = recordMilestoneVictory(stateLike, floor);
   applyPhase4cV1PlayerBaseline(stateLike);
-  const messages = [`B${floor}F開始を恒久アンロックした。`];
+  const messages = [`B${floor}Fから冒険を始められるようになった。`];
   const keyItem = MILESTONE_KEY_ITEMS[floor];
   if (milestone.unlocked && keyItem) {
     stateLike.keyItems ||= [];
     if (!stateLike.keyItems.includes(keyItem)) {
       stateLike.keyItems.push(keyItem);
+      const shelf = getSealWorkshopShelf(keyItem);
       messages.push(
         `【恒久解放】${KEY_ITEM_LABELS[keyItem]}を手に入れた。` +
-        `工房に「${KEY_ITEM_WORKSHOP_BRANCHES[keyItem]}」の強化が並ぶようになった。`
+        (shelf ? `工房に「${shelf}」が並ぶようになった。` : "")
       );
     }
   }

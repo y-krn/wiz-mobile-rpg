@@ -1067,7 +1067,7 @@ export function triggerFlameTrap() {
 }
 
 export function enterDungeon() {
-  openSubmenu("solo_start", "開始キットを選択：潜行ごとにLv1から開始");
+  openSubmenu("solo_start", "開始キットを選ぶ：冒険はいつもLv1から");
 }
 
 export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {

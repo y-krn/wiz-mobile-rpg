@@ -10,9 +10,19 @@ import { updateUI } from "../ui.js";
 import { createActionCard } from "./action_card.js";
 
 let selectedOffer = null;
-function formatCostWithBalance(cost, materials) {
+function formatCost(cost) {
   return Object.entries(cost || {})
-    .map(([name, amount]) => `${name} ${amount}（所持 ${materials?.[name] || 0}）`)
+    .map(([name, amount]) => `${name} ${amount}`)
+    .join("・");
+}
+
+// What is carried is shown once, at the top of the stall. A price line adds
+// only what is missing: "霊粉 あと2".
+function formatShortage(cost, materials) {
+  return Object.entries(cost || {})
+    .map(([name, amount]) => [name, amount - Math.max(0, Math.floor(Number(materials?.[name]) || 0))])
+    .filter(([, missing]) => missing > 0)
+    .map(([name, missing]) => `${name} あと${missing}`)
     .join("・");
 }
 
@@ -53,12 +63,12 @@ function getEntryDescription(entry) {
 }
 
 function getSelectedLabel() {
-  if (!selectedOffer) return "商品を選択してください";
+  if (!selectedOffer) return "買うものを選ぶ";
   if (selectedOffer.kind === "uncurse") {
     return `${getItemData(selectedOffer.item).name}の呪いを解く`;
   }
   const entry = getMilestoneMerchantStock().find(item => item.id === selectedOffer.id);
-  return entry ? `${getEntryDisplayName(entry)}を購入` : "商品を選択してください";
+  return entry ? `${getEntryDisplayName(entry)}を買う` : "買うものを選ぶ";
 }
 
 function getSelectedCost() {
@@ -72,11 +82,11 @@ function renderMaterialBalance(materials) {
   const remaining = selectedCost ? spendMaterials(materials, selectedCost) || materials : materials;
   const balance = createSection(
     selectedCost
-      ? `購入確定前：${selectedOffer.kind === "uncurse" ? "解呪後" : "購入後"}の残素材`
-      : "素材残高",
+      ? `${selectedOffer.kind === "uncurse" ? "呪いを解いた" : "買った"}あとの素材`
+      : "手持ちの素材",
     "milestone-merchant-balance"
   );
-  balance.setAttribute("aria-label", selectedCost ? "購入確定前の残素材" : "所持素材");
+  balance.setAttribute("aria-label", selectedCost ? "買ったあとの素材" : "手持ちの素材");
 
   const balances = document.createElement("div");
   balances.className = "milestone-merchant-balances solo-start-craft-balances";
@@ -95,7 +105,7 @@ function renderMaterialBalance(materials) {
   if (balances.childElementCount === 0) {
     const empty = document.createElement("span");
     empty.className = "milestone-merchant-balance-empty";
-    empty.textContent = "所持素材なし";
+    empty.textContent = "素材を持っていない";
     balances.appendChild(empty);
   }
   balance.appendChild(balances);
@@ -109,14 +119,14 @@ function renderConfirmFooter(optGrid) {
 
   const summary = document.createElement("div");
   summary.className = "merchant-selection-summary";
-  summary.textContent = selectedOffer ? `選択中：${getSelectedLabel()}` : "商品を選択してください";
+  summary.textContent = getSelectedLabel();
   footer.appendChild(summary);
 
   const confirm = document.createElement("button");
   confirm.id = "btn-merchant-confirm";
   confirm.type = "button";
   confirm.className = "btn btn-neon btn-block merchant-confirm-button";
-  confirm.textContent = selectedOffer?.kind === "uncurse" ? "解呪する" : "購入する";
+  confirm.textContent = selectedOffer?.kind === "uncurse" ? "呪いを解く" : "買う";
   confirm.disabled = !selectedOffer;
   confirm.addEventListener("click", () => {
     if (!selectedOffer) return;
@@ -124,10 +134,10 @@ function renderConfirmFooter(optGrid) {
       ? purchaseMilestoneUncurse(state, selectedOffer.slot)
       : purchaseMilestoneStock(state, selectedOffer.id);
     if (!result.ok) return;
-    const label = getSelectedLabel();
+    const bought = getMilestoneMerchantStock().find(item => item.id === selectedOffer.id);
     addLog(selectedOffer.kind === "uncurse"
       ? `${getItemData(selectedOffer.item).name}の呪いを解いた。`
-      : `深層商人から${label}した。`);
+      : `深層商人から${bought ? getEntryDisplayName(bought) : "品"}を買った。`);
     state.codex.events.facilities.merchant.purchased++;
     saveAutosave();
     selectedOffer = null;
@@ -144,7 +154,7 @@ export function renderMilestoneMerchant(optGrid) {
   if (isFresh) selectedOffer = null;
   const materials = state.currentRun?.materials || {};
   optGrid.appendChild(renderMaterialBalance(materials));
-  optGrid.appendChild(createSection("購入できる品"));
+  optGrid.appendChild(createSection("売り物"));
 
   getMilestoneMerchantStock().forEach(entry => {
     const inventorySlots = entry.kind === "item"
@@ -154,12 +164,14 @@ export function renderMilestoneMerchant(optGrid) {
     const full = entry.kind === "item" && inventorySlots === 0;
     const itemName = getEntryDisplayName(entry);
     const status = additionalPurchaseCount > 0
-      ? `あと${additionalPurchaseCount}個`
-      : `あと0個・${full ? "バッグ満杯" : "素材不足"}`;
+      ? `・あと${additionalPurchaseCount}個買える`
+      : full
+        ? "／バッグがいっぱい"
+        : `／素材が足りない（${formatShortage(entry.cost, materials)}）`;
     const button = createActionCard({
       name: itemName,
       description: getEntryDescription(entry),
-      cost: `価格：${formatCostWithBalance(entry.cost, materials)} ・ ${status}`,
+      cost: `${formatCost(entry.cost)}${status}`,
       costClassName: additionalPurchaseCount === 0 ? "is-insufficient" : "",
       className: "milestone-merchant-option",
       selected: selectedOffer?.kind === "stock" && selectedOffer.id === entry.id,
@@ -175,11 +187,11 @@ export function renderMilestoneMerchant(optGrid) {
   });
 
   const cursed = getCursedEquipment(state.party[0]);
-  optGrid.appendChild(createSection("解呪できる装備"));
+  optGrid.appendChild(createSection("呪いを解く"));
   if (cursed.length === 0) {
     const empty = document.createElement("div");
     empty.className = "list-empty";
-    empty.textContent = "解呪できる装備なし";
+    empty.textContent = "呪われた装備は身につけていない。";
     optGrid.appendChild(empty);
   }
   cursed.forEach(({ slot, item }) => {
@@ -188,7 +200,9 @@ export function renderMilestoneMerchant(optGrid) {
     const button = createActionCard({
       name: `${itemName}の呪いを解く`,
       description: "呪いを解き、装備を使える状態に戻す。",
-      cost: `価格：${formatCostWithBalance(MILESTONE_UNCURSE_COST, materials)} ・ ${affordable ? "実行可能" : "素材不足"}`,
+      cost: affordable
+        ? formatCost(MILESTONE_UNCURSE_COST)
+        : `${formatCost(MILESTONE_UNCURSE_COST)}／素材が足りない（${formatShortage(MILESTONE_UNCURSE_COST, materials)}）`,
       costClassName: affordable ? "" : "is-insufficient",
       className: "milestone-merchant-option milestone-merchant-uncurse-option",
       selected: selectedOffer?.kind === "uncurse" && selectedOffer.slot === slot,

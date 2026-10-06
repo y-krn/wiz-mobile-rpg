@@ -29,7 +29,7 @@ export function handleTownOption(option) {
       openSubmenu(`facility_${facility.id}`, `${facility.name} - ${facility.keeper}の施設`);
     }
   } else if (option === "workshop") {
-    openSubmenu("workshop_main", "工房 - 広がった可能性");
+    openSubmenu("workshop_main", "工房");
   } else if (option === "archives") {
     openArchivesOverlay();
   }
@@ -59,7 +59,7 @@ export function renderCastleMain(optGrid) {
   };
   addRecord("帰還最深", records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録");
   addRecord("死亡最深", records.deepestDeath ? `B${records.deepestDeath}F` : "未記録");
-  addRecord("総潜行", `${records.totalRuns}回`);
+  addRecord("冒険の数", `${records.totalRuns}回`);
   addRecord("断念", `${abandonCount}回`);
   optGrid.appendChild(summary);
   const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
@@ -175,13 +175,13 @@ function appendDeathCountermeasure(optGrid, summary) {
   panel.appendChild(heading);
   const note = document.createElement("p");
   note.className = "death-countermeasure-note";
-  note.textContent = `${formatDeathCause(summary)} / B${summary.floor}F / ${summary.count}件。次の潜行では複数の備えを比較できます。`;
+  note.textContent = `${formatDeathCause(summary)} / B${summary.floor}F / ${summary.count}件。次の冒険の前に、備えを見直せます。`;
   panel.appendChild(note);
 
   const actions = document.createElement("div");
   actions.className = "death-countermeasure-actions";
-  appendDeathReviewButton(actions, "準備を見直す", "開始キット・持込品・開始地点を比較する。", "solo_start", "潜行の準備");
-  appendDeathReviewButton(actions, "広がった可能性を見る", "記録から利用可能になった選択肢を確認する。", "workshop_main", "工房 - 広がった可能性");
+  appendDeathReviewButton(actions, "準備を見直す", "開始キット・持ち込む道具・開始階を選び直す。", "solo_start", "冒険の準備");
+  appendDeathReviewButton(actions, "工房を見る", "次の冒険で選べるものを増やす。", "workshop_main", "工房");
   panel.appendChild(actions);
   optGrid.appendChild(panel);
 }

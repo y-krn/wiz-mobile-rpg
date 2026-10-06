@@ -1270,7 +1270,7 @@ for (const vp of VIEWPORTS) {
       expect(button.right, `Workshop button should stay inside viewport on ${vp.name}`).toBeLessThanOrEqual(vp.width);
     }
 
-    await page.getByRole('button', { name: /軽量武器候補/ }).click();
+    await page.getByRole('button', { name: /開始武器：レイピア/ }).click();
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return {
@@ -1280,6 +1280,6 @@ for (const vp of VIEWPORTS) {
       };
     });
     expect(result).toEqual({ beastFang: 16, iron: 8, rank: 1 });
-    await expect(page.getByRole('button', { name: /軽量武器候補/ })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /開始武器：レイピア/ })).toBeDisabled();
   });
 }
