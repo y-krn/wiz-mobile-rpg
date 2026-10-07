@@ -54,7 +54,7 @@ function parseArgs(argv) {
     url: "http://localhost:5173", compare: null, seeds: "1-5", kit: "vanguard",
     explore: 0.6, equip: "greedy", maxFloor: null, speed: 0.1, out: null,
     // Run policy; null keeps the driver's default (see browser_playtest_driver.js).
-    recovery: null, rooms: null, cores: null,
+    recovery: null, rooms: null, cores: null, roundTrip: null, turnBack: null,
     boss: false, bossLevel: 3, bossMaxHp: 55, bossHp: 40, headed: false,
     seedTimeout: 900, allowHmr: false, fps: null, jobs: 1
   };
@@ -62,6 +62,7 @@ function parseArgs(argv) {
     const [k, inline] = argv[i].replace(/^--/, "").split("=", 2);
     const v = inline ?? (argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : "true");
     if (k === "maxFloor" || k === "bossLevel" || k === "bossMaxHp" || k === "bossHp") opts[k] = Number(v);
+    else if (k === "turnBack") opts[k] = Number(v);
     else if (k === "explore" || k === "speed" || k === "seedTimeout" || k === "fps" || k === "jobs") opts[k] = Number(v);
     else if (k === "boss" || k === "headed" || k === "allowHmr") opts[k] = v !== "false";
     else opts[k] = v;
@@ -177,7 +178,7 @@ async function playOne(browser, baseUrl, seed, opts) {
       ? page.evaluate(o => window.__bossTest(o), { floor: 5, level: opts.bossLevel, maxHp: opts.bossMaxHp, hp: opts.bossHp, seed })
       : page.evaluate(o => window.__playRun(o), {
         kit: opts.kit, seed, explore: opts.explore, maxFloor: opts.maxFloor, equip: opts.equip,
-        recovery: opts.recovery, rooms: opts.rooms, cores: opts.cores
+        recovery: opts.recovery, rooms: opts.rooms, cores: opts.cores, roundTrip: opts.roundTrip, turnBack: opts.turnBack
       });
     const limit = new Promise((_, reject) => {
       if (opts.seedTimeout > 0) timer = setTimeout(() => reject(new Error(`seed timed out after ${opts.seedTimeout}s`)), opts.seedTimeout * 1000);
@@ -246,6 +247,17 @@ function summarize(label, results) {
   const refusedEquips = results.reduce((n, r) => n + (r.equipLog || []).filter(l => l.includes("cannot equip")).length, 0);
   console.log(`${label}: deepest [${deepest.join(",")}] reachedB5 ${reachedB5}/${results.length} guardianWins ${guardianWins} coreItemsSeen ${cores}${failed.length ? ` failedSeeds [${failed.map(r => r.seed).join(",")}]` : ""}`);
   console.log(`${label}: stuck [${stuck.join(",")}] returned ${returned} potionsBought ${potions} roomActions ${rooms} cannotEquip ${refusedEquips}`);
+  // Round-trip prototype (#2066): how the way back went.
+  const roundTrips = results.filter(r => r.roundTrip);
+  if (roundTrips.length > 0) {
+    const walkedOut = roundTrips.filter(r => r.returnReason === "surface").length;
+    const treasureOut = roundTrips.filter(r => r.returnReason === "surface" && r.roundTrip.treasure).length;
+    const diedOnWayBack = roundTrips.filter(r => r.died && r.roundTrip.awake).length;
+    const caught = roundTrips.reduce((n, r) => n + (r.returnFlees || 0), 0);
+    const closest = roundTrips.flatMap(r => Object.values(r.hunterMin || {})).sort((a, b) => a - b);
+    const median = closest.length ? closest[Math.floor(closest.length / 2)] : "-";
+    console.log(`${label}: roundTrip walkedOut ${walkedOut}/${roundTrips.length} treasureOut ${treasureOut} diedOnWayBack ${diedOnWayBack} caughtOnWayBack ${caught} hunterClosestMedian ${median}`);
+  }
 }
 
 function formatLine(url, seed, r, opts) {
