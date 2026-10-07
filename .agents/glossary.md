@@ -27,6 +27,10 @@ needs a name, add a row here in the same change.
 | Concept | Use | Do not use |
 | --- | --- | --- |
 | One trip into the dungeon | 冒険 (the person is 冒険者) | 潜行, 遠征 |
+| One of the places a run goes into | 迷宮 (named by its biome: 崩れた坑道) | — |
+| What a dungeon's guardian holds | 至宝 | — |
+| The strong enemy that follows on the way back | 追跡者 | — |
+| Ending a run by climbing out | 歩いて地上へ帰還 (歩いて戻る) | — |
 | Going back to town: the act and the facilities | 帰還 (帰還の門, 帰還の翼, 帰還する) | — |
 | Coming back alive, as the outcome opposed to dying | 生還 (生還すれば持ち帰る) | — |
 | The master of a milestone floor | 守護者 (first mention may be 階層守護者) | ボス, 中ボス |

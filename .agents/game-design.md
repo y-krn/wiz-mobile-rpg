@@ -1,9 +1,9 @@
 # Game Design: Economy and Resource Roles
 
-This document owns the durable economy meaning of the solo depth-attack
-roguelite: materials, resource exchange, status counterplay, milestone
-merchants, feats, and the relationship between a run's value and the next
-descent. The core question and push-your-luck contract live in
+This document owns the durable economy meaning of the solo expedition
+roguelite: materials, resource exchange, status counterplay, the merchant,
+feats, and the relationship between a run's value and the next trip. The core
+question and push-your-luck contract live in
 `.agents/game-design-core-loop.md`; this document refines their economy-facing
 implications.
 
@@ -18,12 +18,15 @@ One currency, one sink, one question:
 ```text
 run ends → outcome determines what value is recovered →
 Castle records what happened, Codex records what was understood, Workshop
-expands what may exist in future runs → descend again
+expands what may exist in future runs → choose a dungeon and go again
 ```
 
-Every economic knob must support “descend again, deeper.” A loop that pays
-better than descending—shallow farming, merchant arbitrage, or a target-build
-lottery—is a failure of the economy.
+Every economic knob must support “go again, and go further in.” A loop that
+pays better than that—repeating the easiest dungeon, stopping on its first
+floors, merchant arbitrage, or a target-build lottery—is a failure of the
+economy. The family a carried-out treasure lets the player fix is not such a
+lottery: it is earned by a full run, names a family and not a build, covers
+one slot of one dungeon, and lasts for one draw (core-loop canon).
 
 The repeat-run feeling of becoming stronger is primarily knowledge and
 possibility growth: player knowledge, Codex knowledge, Workshop horizontal
@@ -32,16 +35,15 @@ possibilities, and new risk-conversion methods. Permanent ATK/HP growth is not
 the central progression model. Starting Kit is an initial condition, not a
 permanent class, and a run-local build remains a primary power source.
 
-Five-floor bands are resource-allocation chapters, not a second currency. A
-band may make HP, MP, status, information, actions, or inventory pressure more
-important, but it must not impose a build-specific loot guarantee or a
-mandatory consumable tax. Player-facing clues communicate the kind of pressure
-without exposing exact odds or hidden theme metadata.
+A dungeon's rule is a resource question, not a second currency. It may make
+HP, MP, status, information, actions, or inventory pressure more important,
+but it must not impose a build-specific loot guarantee or a mandatory
+consumable tax. Player-facing clues communicate the kind of pressure without
+exposing exact odds or hidden theme metadata.
 
-The First Band is B1-B5 and teaches build formation: B1-B2 expose a build seed,
-B3-B4 begin to form run identity, and B5 is the first compound test of that
-emerging build. B6+ develops build transformation through cost conversion,
-direction change, and counterplay. The First Band is not a build-free tutorial;
+The five floors of every dungeon teach and test build formation: the first
+floor shows a plan, floors 2-3 assemble the build, floor 4 tests it, and the
+guardian on floor 5 settles it. They are not a build-free tutorial;
 Preparation may absorb early variance and buy formation time, but Preparation
 safety is not Build power and must not make run-local build choices irrelevant.
 
@@ -66,9 +68,10 @@ The authored material families are:
 | dragon | 竜鱗 | 獣の牙 |
 | rare or boss | the normal group material | an additional rare material |
 
-The material species should vary with biome and depth so that “I need this
-material, so I choose that route” is a real decision. Deeper floors may pay more,
-but the increase must not make shallow farming dominate the descent. Materials
+The material species should vary with the dungeon so that “I need this
+material, so I go there” is a real decision. Lower floors may pay more, but
+the increase must not make turning back on the first floors, or repeating the
+easiest dungeon, the best way to gather. Materials
 do not consume ordinary bag slots. Avoid a new material for every enemy and do
 not introduce a material name that is easily confused with an item name.
 
@@ -143,11 +146,11 @@ Materials and object loot have different economic roles:
 - materials support resource exchange and horizontal future possibilities;
 - dungeon equipment, consumables, curios, and Wings are unconfirmed object loot
   until a terminal outcome settles them;
-- Portal and Wing settle all unconfirmed object loot as run history, while
-  Death/Abandon lose the unconfirmed subset;
+- a safe return (Walk out or Wing) settles all unconfirmed object loot as
+  run history, while Death/Abandon lose the unconfirmed subset;
 - returned dungeon equipment is history and knowledge, not permanent next-run
   battle inventory;
-- only unused departure-craft supplies return to storage after Portal or Wing;
+- only unused departure-craft supplies return to storage after a safe return;
   Death and Abandon lose them. Workshop grants are issued again each run and do
   not return to storage, and dungeon-acquired consumables never replenish it.
 
@@ -175,13 +178,13 @@ existing room. A node may name a feat as its condition; the condition and its
 progress are shown before it can be bought. Supplies a kit carries are handed
 out at every departure and never return to storage.
 
-Every biome band can hold one facility. Its keeper waits on the band's third
+Every dungeon can hold one facility. Its keeper waits on the dungeon's third
 floor, in place of the biome's special room, and freeing them costs what that
-room already trades in (turns and noise, HP, materials, or a fight). A run may
-lead several keepers at once; all are rescued by a safe return and all stay
-behind after a death or an abandoned run. The town shows the open facilities
-and only the shallowest closed one, so there is always one next person to look
-for and the deeper ones are not spelled out in advance.
+room already trades in (turns and noise, HP, materials, or a fight). A keeper
+is rescued only when the run walks out on foot and stays behind after a Wing,
+a death, or an abandoned run. The town shows the open facilities and only the
+next closed one in dungeon order, so there is always one next person to look
+for and the later ones are not spelled out in advance.
 
 A facility may soften the cost of dying only inside the materials economy and
 only at its own room: the chapel's offering makes a bounded share of the
@@ -237,8 +240,10 @@ Loot supply is build-blind: candidate availability and weighting must not read
 the player's equipped loadout, starting choice, current shortage, or desired
 build. A supply chapter may emphasize reinforcement, cost conversion, or
 direction change, but all meaningful roles should remain possible. Earlier
-horizontal bases remain eligible at greater depth so that deeper progression
-adds possibilities rather than invalidating the collection.
+horizontal bases remain eligible on lower floors and in later dungeons so
+that progress adds possibilities rather than invalidating the collection.
+The three likely Core families a dungeon shows are part of this build-blind
+supply: the draw never reads the player.
 
 The distinction between a rule-changing Core and a numeric/probability Support
 is durable: a Core changes a resource exchange, path, target, or interpretation;
@@ -247,20 +252,22 @@ active registry and parameter values in `src/data/affixes.js` are the
 authoritative data boundary; this document owns the meaning of the boundary,
 not a snapshot of its counts.
 
-## Milestone merchants and camps
+## The merchant
 
-Merchants appear at milestone chapters and support the descent; they never solve
-it. Their useful stock includes identification resources, affordable
-counterplay consumables, finite retreat items, and expensive curse removal.
-Accessibility of basic counterplay is more important than scarcity, while a
-retreat valve must still preserve the gap between retreat and death.
+The merchant stands on the fifth floor, behind the guardian, and supports the
+way back; it never solves it. Its useful stock includes identification
+resources, affordable counterplay consumables, finite retreat items, and
+expensive curse removal. It is paid in materials the run would otherwise
+carry home, which is the trade. Accessibility of basic counterplay is more
+important than scarcity, while a retreat valve must still preserve the gap
+between retreat and death.
 
 Merchants do not sell ordinary dungeon equipment. Equipment remains the main
 source of improvised builds and the identify-or-gamble hook.
 
-A guaranteed breather after a milestone offers recovery and preparation before
-the next floor. Rest should be a choice about resources, not a replacement for
-route risk or a second safe-return system.
+Rest inside a dungeon should be a choice about resources, not a replacement
+for route risk or a second safe-return system. There is no guaranteed
+breather floor.
 
 ## Biome special rooms
 
@@ -269,7 +276,7 @@ converts an existing resource into another existing one—turns and noise into
 materials, materials into status relief or a short weapon temper, HP into MP
 or next-floor information, risk into an ordinary dropped chest—so it adds a
 route decision without a new currency, a permanent stat, or a substitute for
-the milestone merchant's curse removal. The room list and its rules live in the
+the merchant's curse removal. The room list and its rules live in the
 core-loop canon.
 
 ## Feats
@@ -283,10 +290,10 @@ achieved once.
 - Feats exist so that every time scale shows something within reach: the
   explore HUD carries the closest ones with live progress, the Result shows
   what moved, and the town opens on the three closest to completion.
-- A feat points the player deeper or into meaningful risk: depth, guardians,
-  elites, role-carrying enemies, a descent without a trap. Cumulative feats
-  may advance in a shallow run, but each pays once, so no shallow route
-  becomes a farm.
+- A feat points the player further in or into meaningful risk: a dungeon's
+  treasure, guardians, elites, role-carrying enemies, a trip without a trap.
+  Cumulative feats may advance in a short run, but each pays once, so no
+  short route becomes a farm.
 - A feat pays a one-time material reward straight to the town balance, in
   full and independent of the run's outcome. It is not part of the run's
   haul and is not subject to the death or abandon rate.
@@ -298,14 +305,15 @@ achieved once.
 
 ## Castle, Codex, and knowledge
 
-- Castle records factual outcome, depth, return route, representative value,
-  and a bounded history of meaningful item decisions.
+- Castle records factual outcome, the dungeon and floor reached, how the run
+  ended, the treasure, representative value, and a bounded history of
+  meaningful item decisions.
 - Codex records what the player observed and inferred. Unknown equipment moves
   from signs to observation, trial, and full understanding; the Codex never
   answers exact hidden probabilities or declares an optimal build.
-- Workshop may make an existing side-grade possibility eligible after a deep
-  result, but it must not choose a build, guarantee a drop, or provide a
-  vertical tier.
+- Workshop may make an existing side-grade possibility eligible after a
+  dungeon is cleared, but it must not choose a build, guarantee a drop, or
+  provide a vertical tier.
 - The dungeon guidebook is knowledge the player carries home. Strong enemies
   and floor guardians yield fragments; a fragment is not a material and
   takes no bag slot. Fragments come home only with a safe return and are
@@ -324,7 +332,7 @@ analysis, but it must not become an exact player-facing recommendation.
 ## Level and identity boundary
 
 Level is a run-local durability floor that helps a character remain in the
-conversation with deeper threats. It does not grant MP, spells, permission to
+conversation with the lower floors' threats. It does not grant MP, spells, permission to
 use equipment, critical scaling, melee scaling, or exploration authority. Power
 should come from choices made in the run—equipment, Runes, Supports, Cores,
 tools, and resource timing—not from a permanent class or level ladder.
