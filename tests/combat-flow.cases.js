@@ -151,14 +151,17 @@ test('combat result observations are cleared at combat boundaries', async ({ pag
     state.currentRun = createDefaultCurrentRun();
     state.gameState = 'explore';
     state.transitioning = false;
+    // New round results may be active; only these prior observations must clear.
+    const countActiveFixtures = () => ['combat-result:test:boundary', 'combat-result:test:round']
+      .filter(key => state.currentRun.eventObservations[key]?.lifecycle === 'active').length;
     addEventLog('【戦闘結果】反射された。', {
       key: 'combat-result:test:boundary',
       scope: 'combat:1',
       kind: 'result',
     });
-    const before = Object.values(state.currentRun.eventObservations).filter(entry => entry.kind === 'result' && entry.lifecycle === 'active').length;
+    const before = countActiveFixtures();
     startCombat(false, false);
-    const afterCombatStart = Object.values(state.currentRun.eventObservations).filter(entry => entry.kind === 'result' && entry.lifecycle === 'active').length;
+    const afterCombatStart = countActiveFixtures();
 
     addEventLog('【戦闘結果】無効化された。', {
       key: 'combat-result:test:round',
@@ -167,11 +170,11 @@ test('combat result observations are cleared at combat boundaries', async ({ pag
     });
     const { combatSelection, resolveCombatRound, resumeCombat } = await import('/src/combat.js');
     resumeCombat();
-    const afterResume = Object.values(state.currentRun.eventObservations).filter(entry => entry.kind === 'result' && entry.lifecycle === 'active').length;
+    const afterResume = countActiveFixtures();
     combatSelection.actions = [{ type: 'defend', actorIdx: 0 }];
     combatSelection.charIdx = 1;
     resolveCombatRound();
-    const afterRoundStart = Object.values(state.currentRun.eventObservations).filter(entry => entry.kind === 'result' && entry.lifecycle === 'active').length;
+    const afterRoundStart = countActiveFixtures();
     return { before, afterCombatStart, afterResume, afterRoundStart };
   });
 
