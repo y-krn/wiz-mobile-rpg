@@ -259,11 +259,10 @@ covers one slot of one dungeon, and it lasts for one draw.
   open corridors. It is a little slower than a straight walk, so the head
   start holds on a direct way and every turn in place, search, detour, or
   dead end gives ground. It also gains ground during every round the run
-  spends fighting something else. It cannot use secret
-  doors, cross standing rubble, or step onto stairs, so what the run opened
-  on the way down is its lead on the way back. The floor's own roaming strong
-  enemy stands down while the hunter is out, and lingering calls no second
-  one.
+  spends fighting something else. It cannot use secret doors, cross standing
+  rubble, or step onto stairs, so what the run opened on the way down is its
+  lead on the way back. The floor's own roaming strong enemy stands down
+  while the hunter is out, and lingering calls no second one.
 - **Being caught is a fight, not an ending.** Contact starts a strong-enemy
   fight with the usual rules. Fleeing shakes the hunter off: it is driven
   back, away from the way out, and the run keeps its place. Only when the
