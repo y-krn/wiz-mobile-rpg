@@ -58,7 +58,7 @@ import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 import { createRunRoundTrip } from "./state/run_round_trip.js";
 import { canChooseRoundTrip, isRoundTripRun } from "./rules/round_trip.js";
-import { arriveOnFloor, getHunterName, tickHunter, wakeDungeon } from "./systems/round_trip.js";
+import { arriveOnFloor, getHunterName, isHunted, tickHunter, wakeDungeon } from "./systems/round_trip.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -615,6 +615,7 @@ export function ascendToFloor(prevFloor) {
     const theme = getFloorTheme(prevFloor);
     addLog(`${theme.name}：${theme.entryText.revisit}`);
     if (woke) addLog(`【予兆】迷宮が目を覚ました。${getHunterName(prevFloor)}が後を追ってくる。`);
+    else if (isHunted(state)) addLog(`【気配】下の階段から、${getHunterName(prevFloor)}の足音が上がってくる…`);
 
     state.transitioning = false;
     saveAutosave();
@@ -1347,6 +1348,8 @@ export function advanceRoamingTurn(playerMoved) {
   // The round-trip hunter (#2066) moves on every action, not every second one.
   const hunted = tickHunter(state);
   hunted.messages.forEach(message => addLog(message));
+  // Its footsteps carry once it is near, louder when it is right behind (#2069).
+  if (hunted.moved && hunted.level > 0) playSound(hunted.level >= 2 ? "hunter_close" : "hunter_near");
   if (hunted.contact) return checkRoamingMonsterEncounter();
   if (state.roamingMovementStepCount % 2 !== 0) return false;
   moveRoamingMonsters(playerMoved);

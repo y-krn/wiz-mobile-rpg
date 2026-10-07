@@ -13,6 +13,7 @@ import {
   HUNTER_SPEED,
   ROUND_TRIP_BOTTOM_FLOOR,
   findHunterStep,
+  findHunterStepAway,
   getHunterAlertLevel
 } from "../rules/round_trip.js";
 
@@ -46,6 +47,33 @@ export function isHunted(stateLike) {
 /** The floor below the bottom is closed in a round-trip run. */
 export function isRoundTripBottom(stateLike, floor = stateLike?.floor) {
   return Boolean(getRoundTrip(stateLike)) && floor >= ROUND_TRIP_BOTTOM_FLOOR;
+}
+
+/**
+ * What the explore screen says about the hunt (#2069), or null when nothing
+ * follows. `level` is the alert level of the distance (0 far, 1 near, 2 close).
+ * - arriving: it has not stepped out yet; `actions` are left.
+ * - shaken: the run fled it; it stands still for `actions` more.
+ * - following: it is `distance` steps behind along open corridors.
+ * - lost: it cannot reach the run from where it stands (stairs, a secret door).
+ */
+export function getHuntStatus(stateLike) {
+  const roundTrip = getRoundTrip(stateLike);
+  if (!roundTrip?.awake || roundTrip.hunterSlain) return null;
+  const name = getHunterName(stateLike.floor);
+  const hunter = getFloorHunter(stateLike);
+  if (!hunter) {
+    if (!roundTrip.hunterEntry) return null;
+    return { phase: "arriving", name, actions: Math.max(1, roundTrip.hunterDelay), level: 0 };
+  }
+  const grid = stateLike.maps?.[stateLike.floor - 1];
+  if (!grid) return null;
+  const { distance } = findHunterStep(grid, hunter, { x: stateLike.x, y: stateLike.y }, isTraversalObstacleBlocking);
+  if (hunter.fleeGraceTicks > 0) {
+    return { phase: "shaken", name, actions: Math.ceil(hunter.fleeGraceTicks * 2), distance, level: 0 };
+  }
+  if (!Number.isFinite(distance)) return { phase: "lost", name, level: 0 };
+  return { phase: "following", name, distance, level: getHunterAlertLevel(distance) };
 }
 
 /**
@@ -104,14 +132,36 @@ export function markHunterSlain(stateLike) {
 }
 
 /**
- * The run fled from the hunter. A flee throws the run one cell back, which
- * would leave the hunter standing in the way home; instead it is shaken off
- * and falls back toward the stairs it came from, behind the run again.
- * `retreat` is the cell the run lands on.
+ * The run fled from the hunter and shakes it off. The hunter must end up
+ * behind the run, never between the run and the way out: it may have come
+ * round from the front, and a corridor cannot be passed while it stands there.
+ *
+ * So the hunter is driven away from the up stairs along the corridors it can
+ * walk, and the run holds its ground instead of being thrown a cell back
+ * (`holdGround`). Only when the hunter has nowhere farther from the stairs to
+ * go (a dead end) does the old rule apply: the run falls back to `retreat` and
+ * the hunter toward the stairs it came from.
  */
-export function dropHunterBack(stateLike, hunter, retreat = null) {
+export function shakeOffHunter(stateLike, hunter, retreat = null) {
   const grid = stateLike?.maps?.[hunter.floor - 1];
-  if (!grid || !hunter.hunter) return;
+  if (!grid || !hunter.hunter) return { holdGround: false };
+  const roundTrip = getRoundTrip(stateLike);
+  if (roundTrip) {
+    roundTrip.hunterCarry = 0;
+    roundTrip.alert = 0;
+  }
+
+  const exit = findCell(grid, "stairs-up");
+  let driven = 0;
+  while (exit && driven < HUNTER_FALL_BACK) {
+    const next = findHunterStepAway(grid, hunter, exit, isTraversalObstacleBlocking);
+    if (!next) break;
+    hunter.x = next.x;
+    hunter.y = next.y;
+    driven += 1;
+  }
+  if (driven > 0) return { holdGround: true };
+
   const home = { x: hunter.homeX, y: hunter.homeY };
   const onRetreat = () => Boolean(retreat) && hunter.x === retreat.x && hunter.y === retreat.y;
   let previous = { x: hunter.x, y: hunter.y };
@@ -127,11 +177,7 @@ export function dropHunterBack(stateLike, hunter, retreat = null) {
     hunter.x = previous.x;
     hunter.y = previous.y;
   }
-  const roundTrip = getRoundTrip(stateLike);
-  if (roundTrip) {
-    roundTrip.hunterCarry = 0;
-    roundTrip.alert = 0;
-  }
+  return { holdGround: false };
 }
 
 /**
@@ -153,7 +199,8 @@ export function noteCombatRound(stateLike) {
  * reached the player's cell (the caller starts the fight).
  */
 export function tickHunter(stateLike) {
-  const result = { messages: [], contact: false };
+  // `moved` and `level` let the caller sound its footsteps (#2069).
+  const result = { messages: [], contact: false, moved: false, level: 0 };
   const roundTrip = getRoundTrip(stateLike);
   if (!roundTrip?.awake || roundTrip.hunterSlain) return result;
   const floor = stateLike.floor;
@@ -208,6 +255,7 @@ export function tickHunter(stateLike) {
     if (!next.step) break;
     hunter.x = next.step.x;
     hunter.y = next.step.y;
+    result.moved = true;
     distance -= 1;
     if (hunter.x === player.x && hunter.y === player.y) {
       result.contact = true;
@@ -226,5 +274,6 @@ export function tickHunter(stateLike) {
       : `【気配】${name}の足音が近づいてくる。`);
   }
   roundTrip.alert = level;
+  result.level = level;
   return result;
 }

@@ -89,7 +89,7 @@ import {
   getStatusEffectChance,
   tryApplyExecutionerSetup
 } from "../rules/affix_rules.js";
-import { dropHunterBack } from "../systems/round_trip.js";
+import { shakeOffHunter } from "../systems/round_trip.js";
 
 function resolveMeasurementWeaponCandidate(candidate) {
   if (!candidate) return null;
@@ -494,21 +494,24 @@ function applyFleePartingAttack(state, monsters, logQueue, rng = Math.random, me
 // "optional" elite becomes an unavoidable death (#1801).
 export const ELITE_FLEE_GRACE_TICKS = 6;
 
+// Returns "retreated" (thrown one cell back), "stayed" (nowhere to fall back
+// to) or "held" (the round-trip hunter was driven off instead).
 function applyFleeRetreat(state) {
+  const retreat = state.combatState.retreatPosition;
   if (state.combatState?.isRoamingFlack && state.combatState.roamingMonsterId) {
     const elite = state.roamingMonsters?.find(monster => monster.id === state.combatState.roamingMonsterId);
     if (elite) {
       elite.fleeGraceTicks = ELITE_FLEE_GRACE_TICKS;
       elite.detected = false;
-      // Round-trip prototype (#2066): the hunter is shaken off behind the run.
-      if (elite.hunter) dropHunterBack(state, elite, state.combatState.retreatPosition);
+      // Round-trip prototype (#2066, #2069): the hunter is shaken off behind
+      // the run, which then keeps its ground.
+      if (elite.hunter && shakeOffHunter(state, elite, retreat).holdGround) return "held";
     }
   }
-  const retreat = state.combatState.retreatPosition;
-  if (!retreat) return false;
+  if (!retreat) return "stayed";
   state.x = retreat.x;
   state.y = retreat.y;
-  return true;
+  return "retreated";
 }
 
 function cloneCodexMonsterRecord(record) {
@@ -1077,9 +1080,11 @@ export function runCombatRoundCalculation(
         applyFleePartingAttack(state, monsters, logQueue, rng, measurement);
         const retreated = applyFleeRetreat(state);
         logQueue.push({
-          msg: retreated
+          msg: retreated === "retreated"
             ? "[味方] 追撃を受けながら戦闘から逃れ、1マス後退した！"
-            : "[味方] 追撃を受けながら戦闘から逃れた！後退先がないため、その場に留まった。",
+            : retreated === "held"
+              ? "[味方] 追撃を受けながら振り切った！追跡者は後ろへ退いた。"
+              : "[味方] 追撃を受けながら戦闘から逃れた！後退先がないため、その場に留まった。",
           sound: "miss",
           runEscape: true,
           fleeExecution: true

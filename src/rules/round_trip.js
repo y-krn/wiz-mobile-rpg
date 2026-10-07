@@ -9,10 +9,14 @@
 export const ROUND_TRIP_BOTTOM_FLOOR = 5;
 /** Player actions between arriving on a floor and the hunter stepping out of the stairs. */
 export const HUNTER_ENTRY_DELAY = 6;
-/** Cells the hunter covers per player action (a turn in place is an action too). */
-export const HUNTER_SPEED = 0.75;
+/**
+ * Cells the hunter covers per player action (a turn in place is an action
+ * too). Just under one: a straight walk keeps most of its lead, and every
+ * turn, search and detour gives ground (#2069).
+ */
+export const HUNTER_SPEED = 0.9;
 /** Cells the hunter gains for every round the run spends fighting something else. */
-export const HUNTER_COMBAT_SPEED = 0.5;
+export const HUNTER_COMBAT_SPEED = 0.75;
 /** Most movement the hunter can save up while the run is held in a fight. */
 export const HUNTER_MAX_CARRY = 12;
 /** Cells the hunter falls back toward the stairs it came from when the run flees it. */
@@ -111,6 +115,25 @@ export function findHunterStep(grid, hunter, player, isBlockingObstacle = () => 
     cursor = `${entry.previous.x},${entry.previous.y}`;
   }
   return { step, distance };
+}
+
+/**
+ * The hunter's next cell away from the way out: the neighbour that lies
+ * farthest from `exit` along the corridors it can walk, if any lies farther
+ * than where it stands. Returns { x, y } or null.
+ */
+export function findHunterStepAway(grid, hunter, exit, isBlockingObstacle = () => false) {
+  const field = mapHunterReach(grid, exit, isBlockingObstacle);
+  const depth = cell => field.get(`${cell.x},${cell.y}`)?.distance ?? -1;
+  let best = null;
+  let bestDepth = depth(hunter);
+  for (const next of hunterNeighbors(grid, hunter.x, hunter.y, isBlockingObstacle)) {
+    if (depth(next) > bestDepth) {
+      best = next;
+      bestDepth = depth(next);
+    }
+  }
+  return best;
 }
 
 /** How many alert distances `distance` has crossed (0 = far away). */
