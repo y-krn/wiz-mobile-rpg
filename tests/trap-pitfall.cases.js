@@ -1,9 +1,11 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { waitForAppStart } from './ui-ux-helpers.js';
 
 test('jumping into a discovered pitfall descends from a lazily generated floor @e2e @smoke', async ({ page }) => {
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  await waitForAppStart(page);
   await page.evaluate(async () => {
     const { state, createStartingKitCharacter } = await import('/src/state.js');
     const { executeEnterDungeon, handleMove } = await import('/src/movement.js');
@@ -44,11 +46,10 @@ test('jumping into a discovered pitfall descends from a lazily generated floor @
   });
 
   await expect(page.locator('#btn-trap-force')).toHaveText('飛び込む');
-  await expect.poll(async () => {
-    const location = await page.locator('#location-label').textContent();
-    if (!location?.includes('B2F')) await page.locator('#btn-trap-force').click();
-    return location;
-  }).toContain('B2F');
+  // A successful click hides the trap dock; polling must never click it again.
+  await expect(page.locator('#trap-controls')).not.toHaveAttribute('data-input-guard', 'active');
+  await page.locator('#btn-trap-force').click();
+  await expect(page.locator('#location-label')).toContainText('B2F');
   await expect(page.locator('#explore-controls')).toBeVisible();
   await expect(page.locator('#game-container')).toHaveAttribute('data-explore-hud', /.+/);
   await expect(page.locator('#trap-controls')).toBeHidden();

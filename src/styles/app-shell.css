@@ -1368,9 +1368,9 @@
   --event-strip-top: calc(var(--safe-area-top) + 144px);
 }
 
-/* Unfolded: the goal line, the stats line, and two rows of the list (#2044). */
+/* Allow both feat rows after web fonts load; the list must not shrink and clip. */
 #game-container.dungeon-first-mode[data-explore-hud][data-goal-expanded="true"] #goal-banner {
-  max-height: 80px;
+  max-height: 84px;
 }
 
 #game-container.dungeon-first-mode[data-explore-hud] #log-content .event-strip-item {

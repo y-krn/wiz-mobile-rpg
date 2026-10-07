@@ -638,6 +638,7 @@ for (const vp of VIEWPORTS) {
   test(`Startup combat resume advances an incapacitated party safely at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
+    await waitForAppStart(page);
 
     const basePayload = await page.evaluate(async () => {
       const { createSavePayload, createStartingKitCharacter, state } = await import('/src/state.js');
@@ -676,7 +677,11 @@ for (const vp of VIEWPORTS) {
       }, { payload: basePayload, partyCase });
       await page.reload();
       await waitForAppStart(page);
-      await page.waitForLoadState('networkidle');
+      if (partyCase.status && partyCase.status !== 'confused') {
+        await expect.poll(() => page.evaluate(async () => (
+          (await import('/src/state.js')).state.party[0]?.status
+        ))).toBe('ok');
+      }
 
       results.push(await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
@@ -1476,9 +1481,14 @@ test('giveKey outcome reload before reward log applies missing rewards once', as
 
 test('giveKey outcome reload after reward log does not duplicate rewards', async ({ page }) => {
   await startSoloRun(page);
+  const frozenTime = new Date('2026-01-01T00:00:00Z');
+  await page.clock.install({ time: frozenTime });
+  await page.clock.pauseAt(new Date(frozenTime.getTime() + 60_000));
   const playback = await beginPendingOutcomePlayback(page, 'giveKey');
   expect(playback.pendingOutcome).toEqual({ kind: 'giveKey', rewardsApplied: false });
 
+  // Execute the preceding logs, then hold the saved reward checkpoint until reload.
+  await page.clock.runFor(playback.delayBeforeReward);
   await expect.poll(() => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return state.combatState?.pendingOutcome?.rewardsApplied;
@@ -1551,6 +1561,9 @@ test('milestoneVictory outcome reload before reward log applies missing rewards 
 
 test('milestoneVictory outcome reload after reward log does not duplicate rewards', async ({ page }) => {
   await startSoloRun(page);
+  const frozenTime = new Date('2026-01-01T00:00:00Z');
+  await page.clock.install({ time: frozenTime });
+  await page.clock.pauseAt(new Date(frozenTime.getTime() + 60_000));
   const playback = await beginPendingOutcomePlayback(page, 'milestoneVictory', 5);
   expect(playback.pendingOutcome).toEqual({
     kind: 'milestoneVictory',
@@ -1558,6 +1571,8 @@ test('milestoneVictory outcome reload after reward log does not duplicate reward
     rewardsApplied: false,
   });
 
+  // Execute the preceding logs, then hold the saved reward checkpoint until reload.
+  await page.clock.runFor(playback.delayBeforeReward);
   await expect.poll(() => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return state.combatState?.pendingOutcome?.rewardsApplied;

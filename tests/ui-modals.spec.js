@@ -937,13 +937,21 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     const bagRows = overlay.locator('.equip-bag-section .equip-item-row');
     await expect(overlay.locator('.equip-equipped-row')).toHaveCount(5);
     await expect(bagRows).toHaveCount(2);
-    const itemListBox = await overlay.locator('.equip-item-list').boundingBox();
-    for (const row of [bagRows.nth(0), bagRows.nth(1)]) {
-      const rowBox = await row.boundingBox();
-      expect(rowBox?.height, `bag row should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
-      expect(rowBox?.y, `bag row should be visible on ${vp.name}`).toBeGreaterThanOrEqual(itemListBox?.y || 0);
-      expect(rowBox?.y + rowBox?.height, `bag row should fit before selection on ${vp.name}`).toBeLessThanOrEqual(
-        (itemListBox?.y || 0) + (itemListBox?.height || 0) + 0.5
+    const layout = await overlay.evaluate(async element => {
+      // Read one settled layout; separate browser calls can straddle a font swap.
+      element.getBoundingClientRect();
+      await document.fonts.ready;
+      const rect = target => target.getBoundingClientRect().toJSON();
+      return {
+        itemList: rect(element.querySelector('.equip-item-list')),
+        rows: [...element.querySelectorAll('.equip-bag-section .equip-item-row')].map(rect),
+      };
+    });
+    for (const rowBox of layout.rows) {
+      expect(rowBox.height, `bag row should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(rowBox.y, `bag row should be visible on ${vp.name}`).toBeGreaterThanOrEqual(layout.itemList.y);
+      expect(rowBox.y + rowBox.height, `bag row should fit before selection on ${vp.name}`).toBeLessThanOrEqual(
+        layout.itemList.y + layout.itemList.height + 0.5
       );
     }
 
