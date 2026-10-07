@@ -2,6 +2,30 @@ import { state } from "../state.js";
 import { menuContext } from "../navigation.js";
 import { getScreenViewState } from "../state/view_state.js";
 import { getEnemyHpState } from "../rules/enemy_hp_state.js";
+import { getHuntStatus } from "../systems/round_trip.js";
+
+// Round-trip prototype (#2066, #2069): the hunter comes from behind, where the
+// view never shows it, so its distance stays on screen for the whole way back.
+function describeHunt(status) {
+  if (status.phase === "arriving") return `${status.name}：あと${status.actions}手で現れる`;
+  if (status.phase === "shaken") return `${status.name}：振り切った（あと${status.actions}手）`;
+  if (status.phase === "lost") return `${status.name}：こちらへ来られない`;
+  return `${status.name}：あと${status.distance}歩`;
+}
+
+function createHuntChip() {
+  const status = getHuntStatus(state);
+  if (!status) return null;
+  const chip = document.createElement("div");
+  chip.className = "hud-hunter";
+  chip.dataset.phase = status.phase;
+  chip.dataset.level = String(status.level);
+  if (Number.isFinite(status.distance)) chip.dataset.distance = String(status.distance);
+  // The log announces the approach; the live region need not repeat every step.
+  chip.setAttribute("aria-hidden", "true");
+  chip.textContent = describeHunt(status);
+  return chip;
+}
 
 export function updateViewportHUD() {
   const hud = document.getElementById("viewport-hud");
@@ -47,4 +71,6 @@ export function updateViewportHUD() {
     ? `${state.lightPower === "lomilwa" ? "大灯り" : "灯り"}: 残り${state.lightTurns}手番 / 方角: ${dirLabel}`
     : `方角: ${dirLabel}`;
   hud.appendChild(direction);
+  const huntChip = createHuntChip();
+  if (huntChip) hud.appendChild(huntChip);
 }

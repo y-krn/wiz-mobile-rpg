@@ -564,6 +564,31 @@
   text-shadow: none;
 }
 
+/* Round-trip prototype (#2069): how far behind the hunter is. */
+#viewport-hud:has(> .hud-hunter) {
+  border-radius: 14px;
+}
+.hud-hunter {
+  font-weight: bold;
+  color: var(--text-muted);
+}
+.hud-hunter[data-level="1"] {
+  color: var(--neon-amber);
+}
+.hud-hunter[data-level="2"] {
+  color: var(--neon-red);
+  animation: hud-hunter-close 0.7s ease-in-out infinite alternate;
+}
+@keyframes hud-hunter-close {
+  from { opacity: 1; }
+  to { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-hunter[data-level="2"] {
+    animation: none;
+  }
+}
+
 /* Combat labels occupy the upper part of the fixed dungeon render surface;
    keep the orientation badge in the surrounding lower gutter so the final
    DOM/canvas composite stays readable at narrow portrait widths. */
@@ -1368,9 +1393,9 @@
   --event-strip-top: calc(var(--safe-area-top) + 144px);
 }
 
-/* Unfolded: the goal line, the stats line, and two rows of the list (#2044). */
+/* Allow both feat rows after web fonts load; the list must not shrink and clip. */
 #game-container.dungeon-first-mode[data-explore-hud][data-goal-expanded="true"] #goal-banner {
-  max-height: 80px;
+  max-height: 84px;
 }
 
 #game-container.dungeon-first-mode[data-explore-hud] #log-content .event-strip-item {

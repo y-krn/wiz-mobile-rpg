@@ -34,6 +34,7 @@ async function seedExplore(page, { width = 390, companions = [], fragments = 0, 
     state.logs = [];
     updateUI();
   }, { companions, fragments, oath, announced });
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await expect(page.locator('#game-container')).toHaveAttribute('data-goal-expanded', 'false');
 }
 
@@ -85,7 +86,10 @@ test('The unfolded goal lists at most four entries and cuts none of them', async
   await expect(page.locator('#game-container')).toHaveAttribute('data-goal-expanded', 'true');
   await expect(page.locator('#goal-banner .goal-label')).toBeVisible();
 
-  const list = await page.evaluate(() => {
+  await page.waitForFunction(() => document.getAnimations().every(animation => !(animation instanceof CSSTransition)));
+  const list = await page.evaluate(async () => {
+    document.querySelector('#goal-banner').getBoundingClientRect();
+    await document.fonts.ready;
     const element = document.querySelector('#goal-banner .feat-hud-list');
     const banner = document.querySelector('#goal-banner').getBoundingClientRect();
     return {

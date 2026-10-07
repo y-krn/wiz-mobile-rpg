@@ -21,6 +21,11 @@
 //   takes what helps this run (a supply, a rest, a grave, a temper); 'rescue'
 //   also frees keepers and walks out through the return gate with them.
 // - cores ('on' | 'off'): Core-specific combat habits (Riposte, Blood).
+// - roundTrip ('off' | 'on'): play the round-trip prototype rule (#2066). The bot
+//   picks the rule at departure, and once it holds the treasure or has decided
+//   to turn back it walks to the up stairs of each floor and out at the top.
+// - turnBack: HP share under which a round-trip run with no potion and nothing
+//   left to heal with turns back (0 = never turn back on its own).
 
 const S = await import('/src/state.js');
 const M = await import('/src/movement.js');
@@ -44,7 +49,7 @@ const st = () => S.state;
 const W = window;
 const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
-const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on' };
+const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'off', turnBack: 0.3 };
 W.__policy = { ...POLICY_DEFAULTS };
 const hasCore = id => W.__policy.cores !== 'off' && Boolean(DATA.getCharCoreParams?.(P(), id));
 const guardianDown = () => Boolean(st().currentRun?.defeatedMilestones?.includes(st().floor));
@@ -134,6 +139,7 @@ const goals = {
   // it is crossed only when it lies on the way to something else.
   frontier: (x, y) => !st().visitedMap[y][x] && st().map[y][x].event !== 'boss' && st().map[y][x].trap?.state !== 'discovered',
   stairs: (x, y) => st().map[y][x].type === 'stairs-down',
+  stairsUp: (x, y) => st().map[y][x].type === 'stairs-up',
   boss: (x, y) => st().map[y][x].event === 'boss',
   // An unused spring or camp (camps rest once per floor per run).
   heal: (x, y) => {
@@ -282,7 +288,7 @@ W.__fight = async () => {
     const enemyHp = alive.reduce((a, m) => a + m.hp, 0);
     // A roaming elite is an optional risk: leave at once, like a player would.
     if (s.combatState.isRoamingFlack && !W.__fightElite[s.floor]) {
-      if (!note.includes('[flee-elite]')) W.__eliteFlees[s.floor] = (W.__eliteFlees[s.floor] || 0) + 1;
+      if (!note.includes('[flee-elite]')) { W.__eliteFlees[s.floor] = (W.__eliteFlees[s.floor] || 0) + 1; if (goingHome()) W.__returnFlees++; }
       await W.__act('逃走'); note += ' [flee-elite]'; continue;
     }
     if (P().hp <= DATA.getCharMaxHp(P()) * 0.3) {
@@ -568,6 +574,24 @@ const trackInventory = () => {
   if (p && p.hp > 0) W.__lastEquipment = Object.fromEntries(Object.entries(p.equipment || {}).map(([k, v]) => [k, v ? describeItem(v) : null]));
 };
 
+// ---------- round trip (#2066) ----------
+const roundTrip = () => st().currentRun?.roundTrip || null;
+// The run is on its way out: it holds the treasure, the dungeon is awake, or the bot decided to turn back.
+const goingHome = () => { const rt = roundTrip(); return Boolean(rt && (rt.treasure || rt.awake || W.__turnBack)); };
+const countSteps = () => {
+  const run = st().currentRun; if (!run || run.returnReason) return;
+  const steps = Number(run.steps) || 0; const key = `${goingHome() ? 'up' : 'down'}:${st().floor}`;
+  W.__stepsBy[key] = (W.__stepsBy[key] || 0) + Math.max(0, steps - W.__lastSteps); W.__lastSteps = steps;
+  const hunter = (st().roamingMonsters || []).find(m => m.hunter && m.floor === st().floor);
+  if (hunter) { const d = Math.abs(hunter.x - st().x) + Math.abs(hunter.y - st().y); const f = st().floor; W.__hunterMin[f] = Math.min(W.__hunterMin[f] ?? 99, d); }
+};
+const turnBackNow = why => {
+  if (W.__turnBack || !roundTrip()) return false;
+  W.__turnBack = true; W.__turnBackAt = st().floor;
+  W.__journal.push(`<<< turn back on F${st().floor}: ${why} ${W.__status()}`);
+  return true;
+};
+
 // ---------- run loop ----------
 // Walking unvisited cells gives HP back up to a per-floor allowance (#1993).
 const walkingStillHeals = () => {
@@ -604,7 +628,7 @@ const postGuardianErrand = () => {
 W.__auto = async (policy = W.__policy, maxIter = 600) => {
   const s = st();
   for (let i = 0; i < maxIter; i++) {
-    trackInventory();
+    trackInventory(); countSteps();
     const b = W.__btns(); const p = P();
     if (s.gameState === 'result' || p.hp <= 0) return p.hp > 0 ? 'returned' : 'dead';
     if (s.gameState === 'combat') { if (s.combatState?.isBoss) await W.__bossFight(); else await W.__fight(); continue; }
@@ -622,6 +646,19 @@ W.__auto = async (policy = W.__policy, maxIter = 600) => {
     if (b.some(t => t.includes('探索に戻る'))) { await W.__click('探索に戻る'); await sl(200); continue; }
     if (b.some(t => t === '休息する')) { await W.__click('休息する'); await sl(400); W.__journal.push('camp F' + s.floor + ': ' + W.__log(1)); continue; }
     if (b.some(t => t.includes('休息せず進む'))) { await W.__click('休息せず進む'); await sl(300); continue; }
+    // Round trip: the up-stairs menu. Climb (or walk out) when going home, otherwise stay.
+    const upButton = document.querySelector('[data-stairs-up]');
+    if (s.gameState === 'submenu' && upButton && upButton.offsetParent) {
+      if (goingHome()) {
+        const f0 = s.floor; const kind = upButton.dataset.stairsUp;
+        upButton.click();
+        for (let w = 0; w < 60 && s.gameState !== 'result' && (s.floor === f0 || s.transitioning); w++) await sl(80);
+        await sl(200);
+        if (s.floor !== f0 && s.gameState !== 'result') W.__journal.push(`<<< F${s.floor} ${W.__status()}`);
+        if (kind === 'surface' && s.gameState === 'result') W.__journal.push(`surface: walked out${roundTrip()?.treasure ? ' with the treasure' : ''}`);
+      } else { await W.__click('とどまる'); await sl(200); }
+      continue;
+    }
     if (b.some(t => t.includes('降りずに進む')) && !b.some(t => t.includes('へ降りる'))) {
       // milestone floor with an undefeated guardian: commit to fighting it
       // (the explore step below walks there, resuming after interruptions)
@@ -670,6 +707,8 @@ W.__auto = async (policy = W.__policy, maxIter = 600) => {
         const h = await W.__walk('heal', 250); W.__journal.push(`-> heal before guardian: ${h} ${W.__status()}`);
         continue;
       }
+      if (roundTrip() && P().hp < maxHp * W.__policy.turnBack && potionCount() === 0 && turnBackNow('too hurt for the guardian')) continue;
+      if (W.__turnBack) { W.__guardianFloor = null; continue; }
       let r = await W.__walk('boss', 250);
       for (let w = 0; r === 'no path' && w < 40 && s.gameState === 'explore'; w++) { await paceOnce(); r = await W.__walk('boss', 250); }
       W.__journal.push(`-> guardian: ${r} ${W.__status()}`);
@@ -688,6 +727,14 @@ W.__auto = async (policy = W.__policy, maxIter = 600) => {
       const m = await W.__walk('merchant', 250); W.__journal.push(`-> merchant: ${m} ${W.__status()}`);
       continue;
     }
+    if (roundTrip() && goingHome()) {
+      if (goals.stairsUp(s.x, s.y)) await paceOnce();
+      let h = await W.__walk('stairsUp', 250);
+      if (h === 'no path') { for (let w = 0; h === 'no path' && w < 20 && s.gameState === 'explore'; w++) { await paceOnce(); h = await W.__walk('stairsUp', 250); } }
+      if (h === 'no path') { const forced = await forcePastElite('stairsUp'); if (forced === null || forced === 'no path') { W.__journal.push('!! no way up: ' + noPathReason(goals.stairsUp)); return 'stuck'; } }
+      if (h === 'at stairsUp' && s.gameState === 'explore') { M.handleMove('turn-left'); await sl(100); M.handleMove('turn-right'); await sl(200); if (s.gameState === 'explore') { await paceOnce(); } }
+      continue;
+    }
     if (errand === 'portal') {
       W.__portalTries[s.floor] = (W.__portalTries[s.floor] || 0) + 1;
       const g = await W.__walk('portal', 250); W.__journal.push(`-> return gate: ${g} ${W.__status()}`);
@@ -702,6 +749,8 @@ W.__auto = async (policy = W.__policy, maxIter = 600) => {
       const k = await W.__walk('keeper', 250); W.__journal.push(`-> keeper room: ${k} ${W.__status()}`);
       continue;
     }
+    if (roundTrip() && !goingHome() && p.hp < DATA.getCharMaxHp(p) * W.__policy.turnBack && potionCount() === 0 && !worthWalking(policy, p)
+      && turnBackNow('badly hurt, nothing left to heal with')) continue;
     const wantStairs = stopExploring(policy, p);
     let r = await W.__walk(wantStairs && W.__bfs(goals.stairs) ? 'stairs' : 'frontier', 150);
     if (r === 'no path') r = await W.__walk('stairs', 150);
@@ -725,7 +774,7 @@ W.__auto = async (policy = W.__policy, maxIter = 600) => {
 // ---------- run start (seedable) ----------
 const KIT_NAMES = { vanguard: '鋼の前線キット', scout: '軽装探索キット', devotion: '祈りの旅装キット', arcana: '術式の旅装キット' };
 // There is a single run rule set (#1815); there is no mode picker.
-W.__startRun = async ({ kit = 'vanguard', seed = null } = {}) => {
+W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false } = {}) => {
   if (W.__btns().some(t => t.includes('街へ戻る'))) { await W.__click('街へ戻る'); await sl(1000); }
   for (let t = 0; t < 4 && !document.querySelector('button.solo-start-floor-option'); t++) {
     await W.__tap('準備を整える'); await sl(300); await W.__tap(KIT_NAMES[kit] || kit); await sl(300); await W.__tap('このキットで準備へ'); await sl(500);
@@ -733,6 +782,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null } = {}) => {
   if (!document.querySelector('button.solo-start-floor-option')) return { ok: false, reason: 'no start floor options; gs=' + st().gameState };
   const fb = [...document.querySelectorAll('button.solo-start-floor-option')].find(b => b.textContent.includes('B1F')); if (!fb) return { ok: false, reason: 'no B1 option' };
   fb.click(); await sl(300);
+  if (roundTrip) { const rule = document.querySelector('.solo-start-rule-option'); if (rule && rule.getAttribute('aria-pressed') !== 'true') { rule.click(); await sl(300); } }
   // Fix the map seed: runSeed = `${state.seed}:run:${Date.now()}` at entry.
   const realNow = Date.now;
   if (seed !== null) { st().seed = `PT-${seed}`; Date.now = () => 1700000000000; }
@@ -740,6 +790,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null } = {}) => {
   finally { Date.now = realNow; }
   W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   resetPolicyState();
+  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null;
   const run = st().currentRun;
   // Fingerprint of the B1 layout so before/after runs can prove they share maps.
   let h = 2166136261; for (const row of st().map) for (const c of row) for (const w of c.walls) { h ^= w ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
@@ -752,7 +803,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
   // Unset options keep their defaults (the runner passes null for "not given").
   W.__policy = { ...POLICY_DEFAULTS, ...Object.fromEntries(Object.entries(policyOptions).filter(([, v]) => v !== null && v !== undefined)) };
   const { explore, maxFloor } = W.__policy;
-  const start = await W.__startRun({ kit, seed });
+  const start = await W.__startRun({ kit, seed, roundTrip: W.__policy.roundTrip === 'on' });
   if (!start.ok) return { start, error: 'start failed' };
   let end = '';
   for (let i = 0; i < 8 && st().gameState !== 'result'; i++) { end = await W.__auto(W.__policy); if (end !== 'maxIter') break; }
@@ -765,6 +816,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     returned: s.gameState === 'result' && (P()?.hp ?? 0) > 0,
     companions: companionNames() || null,
     roomActions: W.__roomActions, purchases: W.__purchases,
+    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
     eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, riposteGuards: W.__riposteGuards || 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,

@@ -21,12 +21,13 @@ import {
 } from "../../../src/state/run_round_trip.js";
 import {
   arriveOnFloor,
-  dropHunterBack,
   getFloorHunter,
+  getHuntStatus,
   isHunted,
   isRoundTripBottom,
   markHunterSlain,
   noteCombatRound,
+  shakeOffHunter,
   takeTreasure,
   tickHunter,
   wakeDungeon
@@ -241,23 +242,135 @@ check("a fight with something else lets the hunter gain ground, up to a limit", 
   assert.equal(roundTrip.hunterCarry, HUNTER_MAX_CARRY);
 });
 
-check("fleeing the hunter shakes it off behind the run, never onto the run's own cell", () => {
-  const stateLike = makeState([">..............<"], { x: 9 });
+check("fleeing the hunter drives it away from the way out, and the run holds its ground", () => {
+  const stateLike = makeState([">..............<"], { x: 10 });
   wakeDungeon(stateLike);
   pass(stateLike, HUNTER_ENTRY_DELAY + 1);
   const hunter = getFloorHunter(stateLike);
-  // It caught the run at x=10; the flee throws the run back to x=9.
   hunter.x = 10;
   stateLike.currentRun.roundTrip.hunterCarry = 0.5;
-  dropHunterBack(stateLike, hunter, { x: 9, y: 0 });
-  assert.equal(hunter.x, 10 - HUNTER_FALL_BACK, "it falls back toward the stairs it came from");
-  assert.ok(hunter.x < 9, "and is behind the run again");
+  assert.deepEqual(shakeOffHunter(stateLike, hunter, { x: 9, y: 0 }), { holdGround: true });
+  assert.equal(hunter.x, 10 - HUNTER_FALL_BACK, "driven back from the up stairs");
   assert.equal(stateLike.currentRun.roundTrip.hunterCarry, 0);
+});
 
-  // Right beside its stairs there is nowhere to fall back to.
-  hunter.x = 2;
-  dropHunterBack(stateLike, hunter, { x: 1, y: 0 });
-  assert.notDeepEqual({ x: hunter.x, y: hunter.y }, { x: 1, y: 0 });
+check("a hunter that came round from the front ends up behind the run, not in its way", () => {
+  // The run took a secret door up the left side (which the hunter cannot use)
+  // and walks east along the top to the up stairs hanging below the middle.
+  // The hunter went round by the right and meets the run head on.
+  const stateLike = makeState([
+    ".....",
+    ".#<#.",
+    ">...."
+  ], { x: 1, y: 0 });
+  const grid = stateLike.maps[1];
+  grid[1][0].walls[2] = true; // the secret door is a wall to the hunter
+  grid[2][0].walls[0] = true;
+  grid[1][2].walls[2] = true; // the up stairs open only onto the top corridor
+  grid[2][2].walls[0] = true;
+  wakeDungeon(stateLike);
+  pass(stateLike, HUNTER_ENTRY_DELAY + 30);
+  const hunter = getFloorHunter(stateLike);
+  assert.deepEqual({ x: hunter.x, y: hunter.y }, { x: 1, y: 0 }, "it reached the run from the east");
+
+  const result = shakeOffHunter(stateLike, hunter, { x: 0, y: 0 });
+  assert.equal(result.holdGround, true);
+  assert.deepEqual({ x: hunter.x, y: hunter.y }, { x: 0, y: 1 }, "it is driven into the dead end behind the run");
+  // The run kept its cell, and its way east to the up stairs is clear.
+  assert.equal(findHunterStep(grid, hunter, { x: stateLike.x, y: stateLike.y }).distance, 2);
+});
+
+check("with nowhere farther from the way out, the old rule applies: the run falls back", () => {
+  // Caught at the very end of a dead end: the hunter cannot be driven deeper.
+  const stateLike = makeState(["<.....>"], { x: 5 });
+  wakeDungeon(stateLike);
+  pass(stateLike, HUNTER_ENTRY_DELAY + 1);
+  const hunter = getFloorHunter(stateLike);
+  hunter.x = 5;
+  const result = shakeOffHunter(stateLike, hunter, { x: 4, y: 0 });
+  assert.equal(result.holdGround, false);
+  assert.notDeepEqual({ x: hunter.x, y: hunter.y }, { x: 4, y: 0 }, "never onto the cell the run falls back to");
+});
+
+check("the hunt status says when it arrives, how far behind it is, and when it is shaken or lost", () => {
+  const stateLike = makeState([">..............<"], { x: 12 });
+  assert.equal(getHuntStatus(stateLike), null, "nothing follows a sleeping dungeon");
+  wakeDungeon(stateLike);
+  assert.deepEqual(
+    { phase: getHuntStatus(stateLike).phase, actions: getHuntStatus(stateLike).actions },
+    { phase: "arriving", actions: HUNTER_ENTRY_DELAY }
+  );
+  pass(stateLike, 2);
+  assert.equal(getHuntStatus(stateLike).actions, HUNTER_ENTRY_DELAY - 2);
+
+  pass(stateLike, HUNTER_ENTRY_DELAY - 2);
+  const hunter = getFloorHunter(stateLike);
+  let status = getHuntStatus(stateLike);
+  assert.deepEqual({ phase: status.phase, distance: status.distance, level: status.level }, { phase: "following", distance: 12, level: 0 });
+  assert.equal(typeof status.name, "string");
+
+  hunter.x = 5;
+  status = getHuntStatus(stateLike);
+  assert.deepEqual({ distance: status.distance, level: status.level }, { distance: 7, level: 1 });
+  hunter.x = 10;
+  assert.equal(getHuntStatus(stateLike).level, 2);
+
+  hunter.fleeGraceTicks = 6;
+  status = getHuntStatus(stateLike);
+  assert.deepEqual({ phase: status.phase, actions: status.actions }, { phase: "shaken", actions: 12 });
+  hunter.fleeGraceTicks = 0;
+
+  // On the up stairs the hunter cannot reach the run.
+  stateLike.x = 15;
+  assert.equal(getHuntStatus(stateLike).phase, "lost");
+
+  markHunterSlain(stateLike);
+  assert.equal(getHuntStatus(stateLike), null);
+});
+
+check("a tick reports the hunter's footsteps and how near they are", () => {
+  const stateLike = makeState([">..............<"], { x: 14 });
+  wakeDungeon(stateLike);
+  const waiting = tickHunter(stateLike);
+  assert.deepEqual({ moved: waiting.moved, level: waiting.level }, { moved: false, level: 0 });
+  pass(stateLike, HUNTER_ENTRY_DELAY);
+  const hunter = getFloorHunter(stateLike);
+  hunter.x = 8;
+  stateLike.currentRun.roundTrip.hunterCarry = 1;
+  const step = tickHunter(stateLike);
+  assert.equal(step.moved, true);
+  assert.equal(step.level, 1, "within the first alert distance");
+  hunter.x = 11;
+  stateLike.currentRun.roundTrip.hunterCarry = 1;
+  assert.equal(tickHunter(stateLike).level, 2);
+});
+
+check("a straight walk keeps its lead, turning gives ground, and standing still loses it", () => {
+  const corridor = `>${".".repeat(30)}<`;
+  const walk = turnEvery => {
+    const stateLike = makeState([corridor], { x: 0 });
+    wakeDungeon(stateLike);
+    let caught = false;
+    for (let step = 1; step <= 26 && !caught; step++) {
+      stateLike.x += 1;
+      caught ||= tickHunter(stateLike).contact;
+      // A turn in place is an action that covers no ground.
+      if (turnEvery && step % turnEvery === 0) caught ||= tickHunter(stateLike).contact;
+    }
+    const hunter = getFloorHunter(stateLike);
+    return { caught, gap: hunter ? stateLike.x - hunter.x : Infinity };
+  };
+  const straight = walk(0);
+  assert.equal(straight.caught, false);
+  assert.ok(straight.gap >= HUNTER_ENTRY_DELAY, `a straight walk keeps the head start: ${straight.gap}`);
+  const winding = walk(3);
+  assert.equal(winding.caught, false);
+  assert.ok(winding.gap < straight.gap - 3, `a winding way gives ground: ${winding.gap} against ${straight.gap}`);
+
+  const waiting = makeState([corridor], { x: 10 });
+  wakeDungeon(waiting);
+  const result = pass(waiting, HUNTER_ENTRY_DELAY + Math.ceil(10 / HUNTER_SPEED) + 2);
+  assert.equal(result.contact, true);
 });
 
 check("arriving on another floor moves the hunt there", () => {

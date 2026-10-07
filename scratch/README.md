@@ -61,6 +61,8 @@ enforces these directory and naming boundaries.
    | `--recovery on\|off\|always` | HP が `--explore` を切ったあとの動き。`on`（既定）は、その階の踏破回復が残っていて HP が3割以上なら未踏マスを歩き続ける。`always` は3割未満でも歩き続ける。`off` はすぐ階段へ向かう |
    | `--rooms use\|leave\|rescue` | 特殊な部屋の扱い。`use`（既定）は今回の冒険に効くものだけ使う。`leave` は素通り。`rescue` は番人も助け出し、守護者を倒したら帰還の門から連れ帰る |
    | `--cores on\|off` | Core 別の立ち回り（返しの構え・血の型）を使うか（既定 `on`） |
+   | `--roundTrip on` | 往復の試作ルール（#2066）で冒険する。出発の準備でルールを選び、至宝を取るか引き返すと決めたら、上り階段を歩いて地上へ出る（既定 `off`） |
+   | `--turnBack 0.3` | 往復のとき、傷薬も踏破回復も無く HP がこの割合を切ったら引き返す（`0` で自分からは引き返さない） |
    | `--maxFloor 3` | この階の階段で止める |
    | `--boss` | B5 守護者に直接ワープして戦う（`--bossLevel 3 --bossMaxHp 55 --bossHp 40`） |
    | `--headed` | ブラウザを表示して見る |
@@ -105,6 +107,7 @@ enforces these directory and naming boundaries.
 - **装備の評価**: 戦い方に合わせて重みを変える。杖を持っているあいだは魔力と最大MPを重く、攻撃力を軽く見る。剣の冒険者は杖に持ち替えず、杖の冒険者は剣に持ち替えない（以前は剣キットが杖を拾って持ち替え、術式キットが杖をメイスに替えて呪文を失っていた）。
 - **Core 別の立ち回り**: 返しの構えは、攻撃の技が待ち時間のあいだ防御して技を戻し、次の技を1.5倍で打つ（魔力集中のような自分に使う技では行わない）。血の型は、守護者戦に限り、払ったあと HP が半分以上残るなら HP を払って技を打つ。罠喰いは宝箱を必ず開ける方針がそのまま当てはまる。
 - **瓦礫**: 階段・守護者・商人などへの道が瓦礫でしか通じないときは掘って進む。道が無いときは理由（瓦礫の先／強敵が道をふさいでいる／通れる道が無い）を `journal` に残す。
+- **往復（`--roundTrip on`）**: 至宝を取った後と、引き返すと決めた後は、各階の上り階段へまっすぐ向かう（寄り道しない）。追跡者からは逃げる。結果に `stepsBy`（行き `down:階`・帰り `up:階` の手数）、`turnBackAt`（引き返した階）、`hunterMin`（階ごとに追跡者がいちばん近づいた距離）、`returnFlees`（帰り道で追いつかれた回数）、`roundTrip.treasure`（至宝を持ち帰ったか）が入る。要約の3行目に、歩いて生還した数・至宝を持ち帰った数・帰りで死んだ数・追いつかれた回数・最接近の中央値が出る。
 - **強敵が唯一の道をふさぐとき**: ふだんは強敵から逃げる。強敵が階段や守護者への唯一の道にいるときは、その場で40手ほど待つ。それでも道が開かなければ、その階では逃げずに戦って通る（`eliteFightsForced` に階が入る。#2056）。
 
 注意: 経路探索はマップ全体を見ている、通常戦では（返しの構えを除き）ガードしない、HP30%以下で回復薬→なければ逃走、など人間とは違う近道がある（下の Known shortcuts）。結果は傾向として扱う。
@@ -140,6 +143,11 @@ Options:
   this run; `leave` walks past; `rescue` also frees keepers and returns through
   the gate with them once the guardian is down
 - `--cores on|off` — Core-specific combat habits (Riposte, Blood; default `on`)
+- `--roundTrip on` — play the round-trip prototype rule (#2066): pick the rule
+  at departure, and walk back up and out once the run holds the treasure or
+  has decided to turn back (default `off`)
+- `--turnBack 0.3` — on a round trip, turn back when HP is under this share
+  with no potion and no walking recovery left (`0` = never on its own)
 - `--equip greedy|none` — gear policy (below)
 - `--maxFloor N` — stop at the stairs of floor N
 - `--speed 0.1` — timer scale for animations (`1` = real time)
@@ -244,6 +252,13 @@ Measurement policy, not game rules.
   the HP left afterwards. Trap Eater needs no habit: every chest is opened.
 - Rubble is dug only when the stairs, guardian, merchant or gate cannot be
   reached otherwise. A missing path is journaled with its reason.
+- Round trip (`--roundTrip on`): once going home the bot heads straight for
+  each floor's up stairs (no detours) and flees the hunter. The run records
+  `stepsBy` (`down:<floor>` / `up:<floor>`), `turnBackAt`, `hunterMin` (the
+  hunter's closest approach per floor), `returnFlees` (times it was caught on
+  the way back) and `roundTrip.treasure`; the summary's third line counts
+  walk-outs, treasures carried out, deaths on the way back, catches and the
+  median closest approach.
 - Roaming elites are fled from. When one stands on the only way to the stairs
   or the guardian, the bot waits about forty steps; if the way stays shut it
   walks into the elite and fights it out on that floor (`eliteFightsForced`

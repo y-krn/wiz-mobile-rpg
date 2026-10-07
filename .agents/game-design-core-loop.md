@@ -256,8 +256,10 @@ covers one slot of one dungeon, and it lasts for one draw.
   treasure, wakes it for the rest of the run.
 - **A hunter follows.** The dungeon's strong enemy steps out of the stairs
   the run last used, after a short delay that is announced, and follows along
-  open corridors. It is a little slower than a straight walk, so corners,
-  detours, dead ends, and fights are what let it close. It cannot use secret
+  open corridors. It is a little slower than a straight walk, so the head
+  start holds on a direct way and every turn in place, search, detour, or
+  dead end gives ground. It also gains ground during every round the run
+  spends fighting something else. It cannot use secret
   doors, cross standing rubble, or step onto stairs, so what the run opened
   on the way down is its lead on the way back. The floor's own roaming strong
   enemy stands down while the hunter is out, and lingering calls no second
@@ -270,7 +272,8 @@ covers one slot of one dungeon, and it lasts for one draw.
   strong enemy; the chase is made by pace and route, not by a stronger body.
 - **The chase is felt.** The hunter comes from behind and is not on the
   first-person screen, so its distance is readable on the explore screen at
-  all times without opening the log, its coming is told before it appears,
+  all times without opening the log (a countdown before it steps out, then
+  steps behind), its coming is told before it appears, it shows on the map,
   and sound and the screen grow tenser as it closes.
 - **Walking straight home is neither a death sentence nor free.** A run that
   turns back in time and walks straight should usually get out with the
@@ -849,8 +852,8 @@ this document inside an unrelated change; use the Issue that owns the part.
 | The endless dungeon | #2065 |
 
 Until #2062, the way back exists as a prototype: a rule chosen at departure
-from the first floor (#2066), in the mine only, where the treasure is only
-recorded and a Wing still rescues a keeper.
+from the first floor (#2066, #2069), in the mine only, where the treasure is
+only recorded and a Wing still rescues a keeper.
 
 Two other documents still describe the previous structure and are rewritten
 with the part they own: `.agents/game-design-equipment-builds.md` (floor

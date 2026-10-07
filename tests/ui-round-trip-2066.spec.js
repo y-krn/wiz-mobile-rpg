@@ -196,6 +196,60 @@ test('A round-trip run climbs back to the floor it left, is hunted, and walks ou
   expect(ended).toEqual({ reason: 'surface', outcome: 'retreat' });
 });
 
+test('The way back shows how far behind the hunter is, from before it appears until it is right behind', async ({ page }) => {
+  await startRun(page, { roundTrip: true });
+  await expect(page.locator('.hud-hunter')).toHaveCount(0);
+  await goToFloor(page, 2, 'down');
+  await goToFloor(page, 1, 'up');
+  expect(await logText(page)).toContain('迷宮が目を覚ました');
+
+  // Before it steps out: a countdown.
+  const chip = page.locator('.hud-hunter');
+  await expect(chip).toHaveAttribute('data-phase', 'arriving');
+  await expect(chip).toHaveText(/：あと\d+手で現れる$/);
+
+  // Stand well away along open corridors and let it come.
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { mapHunterReach } = await import('/src/rules/round_trip.js');
+    const { updateUI } = await import('/src/ui.js');
+    const entry = state.currentRun.roundTrip.hunterEntry;
+    const far = [...mapHunterReach(state.map, entry)].filter(([, cell]) => cell.distance >= 12 && cell.distance <= 16)[0];
+    [state.x, state.y] = far[0].split(',').map(Number);
+    updateUI();
+  });
+  await passActions(page, 7);
+  await expect(chip).toHaveAttribute('data-phase', 'following');
+  await expect(chip).toHaveText(/：あと\d+歩$/);
+  await expect(chip).toHaveAttribute('data-level', '0');
+  const first = Number(await chip.getAttribute('data-distance'));
+
+  // It closes in while the run stands and turns: near, then right behind.
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { handleMove } = await import('/src/movement.js');
+    const { getHuntStatus } = await import('/src/systems/round_trip.js');
+    for (let i = 0; i < 40 && getHuntStatus(state)?.distance > 3; i++) handleMove(i % 2 === 0 ? 'turn-left' : 'turn-right');
+  });
+  await expect(chip).toHaveAttribute('data-level', '2');
+  expect(Number(await chip.getAttribute('data-distance'))).toBeLessThan(first);
+  const log = await logText(page);
+  expect(log).toContain('足音が近づいてくる');
+  expect(log).toContain('すぐ後ろに迫っている');
+
+  // On the up stairs it cannot follow; the chip says so.
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const y = state.map.findIndex(row => row.some(cell => cell.type === 'stairs-up'));
+    state.y = y;
+    state.x = state.map[y].findIndex(cell => cell.type === 'stairs-up');
+    updateUI();
+  });
+  await expect(chip).toHaveAttribute('data-phase', 'lost');
+  await expect(chip).toContainText('こちらへ来られない');
+});
+
 test('The bottom floor gives the treasure, closes the way down and silences the Portal', async ({ page }) => {
   await startRun(page, { roundTrip: true });
   await goToFloor(page, 5, 'down');
