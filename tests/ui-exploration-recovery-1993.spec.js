@@ -52,6 +52,7 @@ async function seedExplore(page, { viewport = { width: 375, height: 667 }, kit =
     updateUI();
     (await import('/src/renderer.js')).dungeonRenderer.draw();
   }, { map: makeCorridorMap(), kit, hp, mp });
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await expect(page.locator('#game-container')).toHaveAttribute('data-goal-expanded', 'false');
 }
 
@@ -169,7 +170,10 @@ test('The bars hold the reserve to what is missing, and poison suspends it', asy
 for (const width of [320, 360, 390]) {
   test(`The recovery allowance costs the folded goal no width and fits the unfolded goal at ${width}px`, async ({ page }) => {
     await seedExplore(page, { viewport: { width, height: 640 }, kit: 'arcana', hp: 10, mp: 0 });
-    const measure = () => page.evaluate(() => {
+    const measure = () => page.evaluate(async () => {
+      // Unfolding introduces new glyphs and can load another web-font subset.
+      document.querySelector('#goal-banner').getBoundingClientRect();
+      await document.fonts.ready;
       const box = selector => document.querySelector(selector)?.getBoundingClientRect();
       const stat = document.querySelector('.goal-recovery-stat');
       return {
@@ -198,6 +202,7 @@ for (const width of [320, 360, 390]) {
     await expect(stat).toBeVisible();
     await expect(page.locator('.goal-stats-container')).toContainText('探索率: 100%');
     await expect(stat).toContainText('あとHP 50・MP 1');
+    await page.waitForFunction(() => document.getAnimations().every(animation => !(animation instanceof CSSTransition)));
     const unfolded = await measure();
     expect(unfolded.statClipped).toBe(false);
     expect(unfolded.featListHeight).toBeGreaterThan(0);

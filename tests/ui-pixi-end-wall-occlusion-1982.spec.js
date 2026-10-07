@@ -53,12 +53,6 @@ test('PixiJS dead end hides the corridor, walls, and chest looped behind it @smo
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=pixi');
   await expect(page.locator('#dungeon-canvas')).toHaveAttribute('data-renderer', 'pixi');
-  // Let the canvas settle to the portrait viewport before comparing frames.
-  await page.waitForFunction(async () => {
-    const { dungeonRenderer } = await import('/src/renderer.js');
-    return dungeonRenderer.resize().height > dungeonRenderer.resize().width;
-  });
-
   for (const chest of [true, false]) {
     expect(await renderLoop(page, { closed: false, chest }), 'the looped cell behind the dead end is in the visible topology').toBe(true);
     expect(await renderLoop(page, { closed: true, chest })).toBe(false);

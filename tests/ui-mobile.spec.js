@@ -527,6 +527,9 @@ for (const vp of VIEWPORTS) {
         const stairs = map.flatMap((row, y) => row.map((cell, x) => (
           cell.type === 'stairs-down' ? { x, y } : null
         ))).find(Boolean);
+        // Facility disclosure is independent of the optional secret-wall search action.
+        map[stairs.y][stairs.x].secretDoor = [false, false, false, false];
+        map[stairs.y][stairs.x].secretFound = [false, false, false, false];
         state.floor = 5;
         state.x = stairs.x;
         state.y = stairs.y;
