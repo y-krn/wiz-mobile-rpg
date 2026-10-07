@@ -1,54 +1,90 @@
 # Game Design: Core Loop and Pillars
 
-This is the top-level design canon for the solo depth-attack roguelite. It
+This is the top-level design canon for the solo expedition roguelite. It
 defines what the game should mean and feel like: the core question, the
 player-facing stakes, information flow, and the pacing qualities that support
 short mobile sessions. Source and tests define the present implementation;
-this document defines the durable intent.
+this document defines the durable intent. While the structure is being
+rebuilt, the "Migration" section at the end says which Issue brings each part
+into source.
 
 When another design note conflicts with this contract, preserve the question
-of depth, the push-your-luck stakes, and the value of an improvised run build.
+of the expedition (which dungeon, how far in, how to carry it home), the
+push-your-luck stakes, and the value of an improvised run build.
 
 ## Core Loop Contract
 
-> Make an improvised build every run, expose it to a different resource trial
-> in each depth band, and decide how much of the value earned in that run to
-> risk before returning.
+> Choose one of several five-floor dungeons that play by different rules, make
+> an improvised build on the way down, and decide how far to go before walking
+> what the run has earned back up to the surface.
 
 ```text
-town: choose a starting kit and optional departure supplies
+town: read each dungeon's rule and its three likely Core families; choose a
+dungeon, a starting kit, and optional departure supplies
         ↓
-descend and explore a generated floor
+floors 1-4: explore, fight, spend resources, identify or gamble on loot, and
+assemble the build; at every stair choose to go down or to turn back
         ↓
-fight, spend resources, identify or gamble on loot, and assemble the build
+floor 5: the guardian tests the build and holds the dungeon's treasure
         ↓
-at each five-floor band: face that band's resource trial and choose whether
-to continue toward the next Portal
+the way back: the same floors as they were left, the dungeon awake, a hunter
+behind
         ↓
-Portal / Push / Wing / Death / Abandon resolves the run's stakes
+Walk out / Wing / Death / Abandon resolves the run's stakes
         ↓
-Castle records what happened; Codex records what was understood; Workshop
-expands what may exist in future runs
+Castle records what happened; Codex records what was understood; Workshop and
+facilities expand what may exist in future runs; a run that went deep enough
+redraws every dungeon's likely Core families
         ↓
-descend again with the resulting knowledge and possibility space
+choose again with the resulting knowledge and possibility space
 ```
+
+The question has three parts, and each must stay a real decision:
+
+- **Which dungeon.** The choice is made from the dungeon's rule, the three
+  Core families it is likely to give this time, and the purpose of the trip:
+  the treasure, a keeper to bring home, or materials.
+- **How far in.** Every stair down adds to what the way back will cost. There
+  is no safe exit at the bottom, so the decision is where to turn back, and
+  it is made again on every floor.
+- **How to carry it home.** The floors on the way back are the ones the run
+  left behind. What it opened, dug, found, and left unopened on the way down
+  decides how the way back goes.
 
 ### Run outcome contract
 
-- **Portal is safe victory.** It ends the run safely and protects materials
-  and unused departure supplies. Dungeon objects remain run history.
-- **Push defers confirmation.** It does not destroy anything; it keeps the
-  unconfirmed results at risk until the next confirmation opportunity.
-- **Wing is immediate safe return.** It protects materials and unused
-  departure supplies like Portal, and consumes one carried Wing. It never
-  activates automatically and at most one Wing is carried into a run.
-- **Death loses the gamble.** Unconfirmed object loot is lost by default, while
-  knowledge and records follow their own contracts.
-- **Abandon has the same object-loot loss as Death but remains a distinct
-  outcome.** It is not a free Wing.
+A run ends in one of four ways. A **safe return** is Walk out or Wing.
 
-Dungeon objects remain run-local regardless of return method. The explicit
-risk decision concerns materials and unused departure supplies.
+| | Materials | Unused departure supplies | Treasure | Keeper led by the run | Dungeon objects |
+| --- | --- | --- | --- | --- | --- |
+| **Walk out** | banked | returned to storage | carried out | rescued | run history |
+| **Wing** | banked | returned to storage | left behind | left behind | run history |
+| **Death** | lost | lost | lost | left behind | lost |
+| **Abandon** | lost | lost | lost | left behind | lost |
+
+- **Walk out is the victory.** The up stairs of the first floor lead to the
+  surface. Only a run that walks out carries the treasure and rescues a
+  keeper.
+- **Wing is the emergency exit.** It ends the run at once and protects
+  materials and unused departure supplies, and it carries one person: the
+  treasure and a keeper stay in the dungeon. It consumes one carried Wing,
+  never activates automatically, and at most one Wing is carried into a run.
+  Its price must keep walking out the ordinary way home.
+- **Death loses the gamble.** Object loot, materials, and unused supplies are
+  lost by default, while knowledge and records follow their own contracts. A
+  facility may soften or widen this inside the materials economy only
+  (`.agents/game-design.md`).
+- **Abandon has the same loss as Death but remains a distinct outcome.** It is
+  not a free Wing.
+
+Dungeon objects remain run-local regardless of how the run ends. The explicit
+risk decision concerns materials, unused departure supplies, the treasure, and
+a keeper. A keeper left behind waits where they were and the next run meets
+them again.
+
+There is no Portal in a dungeon and nothing to confirm on the way: going one
+floor deeper always puts everything carried at more risk, and turning back is
+the only way to start taking it home.
 
 ### Bag and value competition
 
@@ -58,25 +94,227 @@ The 20-slot ordinary bag is part of the push-your-luck design:
 - spare equipment, consumables, unknown items, curios, and Wings compete for
   ordinary slots and do not gain special safety or treasure compartments;
 - preparation supplies and dungeon finds use the same capacity;
-- departure-craft supplies are consumed when used. Portal and Wing return only
-  unused departure-craft supplies to storage, up to its capacity; Death and
-  Abandon lose unused supplies. Workshop grants are issued again each run and
-  never enter storage. Dungeon-acquired consumables never enter storage;
+- departure-craft supplies are consumed when used. A safe return brings only
+  unused departure-craft supplies back to storage, up to its capacity; Death
+  and Abandon lose unused supplies. Workshop grants are issued again each run
+  and never enter storage. Dungeon-acquired consumables never enter storage;
 - removing equipment into a full bag requires an explicit discard decision;
 - permanent capacity expansion is not part of the contract.
 
 The roles are intentionally different: equipped items provide power, spare
 equipment provides adaptation, consumables provide safety, unknown items carry
 future build potential and danger, curios provide value and information, and a
-Wing consumes capacity to enable immediate safe return.
+Wing consumes capacity to keep an emergency exit open.
 
-## Five-floor bands and build meaning
+## Dungeons
 
-Each five-floor band is a resource-allocation chapter, not merely a stronger
-copy of the previous floors. A band asks a different question about HP, MP,
-status, information, actions, or inventory pressure. The theme should be
-readable through encounters and clues without becoming an exact probability or
-threat label.
+A run is one dungeon: five floors down, the guardian at the bottom, and the
+same five floors back. Each of the six biomes is one dungeon.
+
+- Every run starts from a fresh adventurer. Level, equipment, and dungeon
+  finds never cross from one run or one dungeon to another.
+- Floors are numbered inside the dungeon, 1 to 5. Nothing in the rules reads
+  a floor number that runs across dungeons.
+- The town shows every open dungeon with its rule in one line and its three
+  likely Core families. A closed dungeon shows only its name and what opens
+  it.
+
+### Order, opening, and rules
+
+A dungeon opens when the treasure of the one before it is carried out on foot
+for the first time.
+
+| # | Dungeon | Opens with | Rule, in one line |
+| --- | --- | --- | --- |
+| 1 | Collapsed mine | open from the start | **Noise.** Digging and drawn-out fights make noise, and noise brings monsters: go quietly or finish fast. |
+| 2 | Forgotten catacomb | the mine's treasure | **Curses.** Finds are cursed more often and a cursed piece is stronger for it, while chances to cleanse are few: cleanse it or wear the curse. |
+| 3 | Rift nest | the catacomb's treasure | **Collapse.** A ledge falls once crossed, so the way back is not the way down: choose which crossings to spend. |
+| 4 | Sunken library | the nest's treasure | **Rising water.** The longer the run stays on a floor, the more of it lies under water and costs turns: time is the resource. |
+| 5 | Dragon forge | the library's treasure | **Tempering.** Finds are few, materials are many, and every floor has a furnace: grow what is worn instead of replacing it. |
+| 6 | Abyssal throne | the forge's treasure | **Darkness.** The adventurer may put out their own light: monsters notice later and chests are better, but less is seen. |
+| — | Endless dungeon | the throne's treasure | Decided when it is built (#2065). |
+
+The lines above are the starting point. A dungeon's rule is settled when that
+dungeon is built, under these limits:
+
+- One rule per dungeon, readable in one line where the dungeon is chosen.
+- It takes a mechanic the game already has and makes it extreme. It does not
+  add a currency, a meter with its own economy, or a second progression loop.
+- It changes which equipment is worth taking or how the floor is walked.
+- It never forces a build. At least two Core families answer it well, and a
+  family that fits badly still has another answer (a tool, a route, a price).
+- It may change the route, never whether the way down or the way back exists.
+- A danger the player chooses (dig or walk round, wear the curse, put out the
+  light) is preferred to one that only takes something away.
+
+### Strength without a running floor number
+
+Every dungeon is winnable by a fresh adventurer with any starting kit and no
+permanent stat growth.
+
+- Enemy strength, chest contents, material amounts, hazards, and the
+  guardian are set by **the dungeon and the floor within it**. One table per
+  dungeon owns them; the values live in source.
+- The first floor of every dungeon is sized for the starting kit: an ordinary
+  fight costs a meaningful but not run-ending share of HP.
+- The adventurer grows inside the run through level, equipment grade, and
+  affix slots, and the five floors of every dungeon follow that same growth.
+  One shared baseline by floor states what the adventurer is expected to
+  have (HP, damage) and what a floor may ask of it (hits to fell an ordinary
+  monster, the share of HP a round may take, rounds to fell the guardian).
+  A dungeon's table departs from the baseline only where its rule needs it,
+  and says so.
+- A later dungeon is harder because its rule asks for more understanding and
+  more decisions held at once (the mine asks for one; the throne asks the
+  player to manage several dangers together), and because its monsters play
+  different roles. It is not harder through a larger stat multiplier.
+- Damage that ignores who is hit breaks this: a fixed-value trap or enemy
+  spell written for a deep floor would kill a fresh adventurer. Such damage
+  scales with the victim's maximum HP or the attacker's attack.
+- Town progress widens what a run may start with or meet. It does not raise
+  the baseline, and no dungeon gives a permanent reward for being repeated.
+
+### The five floors
+
+Each floor has a job, the same in every dungeon.
+
+- **Floor 1: the plan shows.** The dungeon's rule appears once, in a readable
+  first meeting. The first chest offers one of three: two drawn with the
+  dungeon's three likely families weighted, one drawn from the whole pool, so
+  one offer is never what the plan expected. The starting kit carries this
+  floor.
+- **Floors 2-3: the build is assembled.** Reinforcement is common enough for
+  a way of fighting to form. The third floor holds the dungeon's keeper.
+  Reaching it is what makes a run count for the redraw, and a run that turns
+  back from here with a keeper and its materials is a complete short run.
+- **Floor 4: the build is tested.** It is the hardest ordinary floor and the
+  last place to mend a weak build. Its stair down is the main decision of the
+  run: the guardian and five floors home, or home now with what is carried.
+- **Floor 5: the decision is settled.** The guardian tests the build formed
+  on the floors above. Starting gear and a large supply of consumables should
+  usually lose here; a build that has become a real source of power should
+  usually win. The build does not need to be finished. The guardian gives up
+  the treasure, the merchant stands behind it, and the only way on is up.
+
+Floors 1-4 are not a build-free tutorial, and they must not be a passage that
+can be stably cleared while mostly ignoring dungeon equipment, affixes, Runes,
+Cores, and Supports. Preparation can buy time and absorb early variance, but
+it cannot make that formation irrelevant.
+
+### Likely Core families and the redraw
+
+Kinds of equipment are not gated by floor. Apart from named and other special
+pieces, every Core, Support, and equipment kind can appear from the first
+floor of every dungeon. What rises with the floor is grade and the number of
+affix slots. `.agents/game-design-equipment-builds.md` owns the list of
+exceptions and the supply model.
+
+So that runs do not all converge on one strong combination, each dungeon
+holds a draw of three Core families that are more likely there. The others
+still appear.
+
+- The draw is shown where the dungeon is chosen, as families. It is a true,
+  coarse statement, never odds.
+- The draw is build-blind: it does not read the player's loadout, starting
+  kit, or history.
+- **Redraw:** when a run that reached the third floor or deeper ends, every
+  dungeon draws again. The outcome does not matter: walking out, a Wing, a
+  death, and an abandoned run all redraw. A shallower run changes nothing.
+  Dying on purpose or stepping in and out is therefore not worth it, and a
+  losing streak still moves the board.
+- The draw must not carry the choice of dungeon alone. A dungeon is chosen
+  for its rule and for the trip's purpose as well, and a draw the player
+  would not have picked is a reason to build differently, not to wait.
+
+### The treasure
+
+The guardian holds the dungeon's treasure. It counts only when carried out on
+foot.
+
+- **The first time** a dungeon's treasure is carried out, it opens the next
+  dungeon.
+- **Every later time**, in the redraw that follows that run the player fixes
+  one of the three families of one open dungeon of their choice. The other
+  two, and every other dungeon, are drawn as usual. The choice is not banked
+  for later.
+- The treasure gives no permanent strength, materials bonus, or drop
+  guarantee. A permanent reward would make repeating the easiest dungeon the
+  best plan.
+
+This is the one place where the player steers supply. It is bounded on
+purpose: it is earned by a full run, it names a family and not a build, it
+covers one slot of one dungeon, and it lasts for one draw.
+
+### The way back
+
+- **Floors stay as they were left.** The map, opened secret doors, dug
+  rubble, found traps, fallen ledges, opened and unopened chests, and used
+  and unused rooms are all still there on the way back.
+- **Up stairs lead to the floor above**, onto the stairs the run came down.
+  The first floor's up stairs lead out.
+- **Turning back wakes the dungeon.** The first climb, or taking the
+  treasure, wakes it for the rest of the run.
+- **A hunter follows.** The dungeon's strong enemy steps out of the stairs
+  the run last used, after a short delay that is announced, and follows along
+  open corridors. It is a little slower than a straight walk, so the head
+  start holds on a direct way and every turn in place, search, detour, or
+  dead end gives ground. It also gains ground during every round the run
+  spends fighting something else. It cannot use secret doors, cross standing
+  rubble, or step onto stairs, so what the run opened on the way down is its
+  lead on the way back. The floor's own roaming strong enemy stands down
+  while the hunter is out, and lingering calls no second one.
+- **Being caught is a fight, not an ending.** Contact starts a strong-enemy
+  fight with the usual rules. Fleeing shakes the hunter off: it is driven
+  back, away from the way out, and the run keeps its place. Only when the
+  hunter has nowhere to go does the run fall back instead. A slain hunter
+  does not return. The hunter's combat strength is that of the dungeon's
+  strong enemy; the chase is made by pace and route, not by a stronger body.
+- **The chase is felt.** The hunter comes from behind and is not on the
+  first-person screen, so its distance is readable on the explore screen at
+  all times without opening the log (a countdown before it steps out, then
+  steps behind), its coming is told before it appears, it shows on the map,
+  and sound and the screen grow tenser as it closes.
+- **Walking straight home is neither a death sentence nor free.** A run that
+  turns back in time and walks straight should usually get out with the
+  hunter close behind. Detours, dead ends, and long fights are what make the
+  way back dangerous.
+- **There is something to detour for.** A chest left unopened and a room left
+  unused on the way down can still be taken on the way back.
+- The merchant behind the guardian now serves the way back: materials the
+  run would carry home buy the means to get there.
+
+### Why exploring pays
+
+Before this structure, walking straight to the stairs on every floor went
+deeper than exploring (#1803). In a dungeon of five floors with the guardian
+at the bottom, exploring must be the better plan, for reasons the player can
+name:
+
+1. **The build is on the floors.** With no floor gate on kinds, any chest on
+   any floor can hold the piece the run needs, most build pieces lie off the
+   natural route, and the guardian is sized against a formed build.
+2. **Recovery is on the floors.** Walking recovery comes only from cells not
+   yet visited, up to a cap per floor. Five floors hold all of it, and a run
+   that walks straight leaves most of it behind.
+3. **The lead on the way back is made on the way down.** An opened secret
+   door is a way through that the hunter cannot follow, rubble dug on the way
+   down does not have to be dug with the hunter behind, found traps are not
+   stepped on twice, and a known map has no dead ends in it.
+4. **What is left is still there.** An unopened chest or an unused room is a
+   choice kept for the way back, not a loss.
+
+This is checked by measurement, not assumed: on the same seeds, a policy that
+walks straight to the stairs must carry the treasure out less often than a
+policy that explores. If it does not, fix loot placement, the guardian's
+size, or recovery. Do not fix it with a turn limit on the way down, a level
+wall, or a key that must be found on every floor.
+
+## Build meaning
+
+A dungeon's rule is a resource question, not merely a different skin: it asks
+about HP, MP, status, information, actions, or inventory in its own way. The
+rule should be readable through encounters and clues without becoming an exact
+probability or threat label.
 
 Loot has three durable roles:
 
@@ -85,43 +323,12 @@ Loot has three durable roles:
   time, or inventory space.
 - **Direction change** replaces the main way of fighting.
 
-Shallow bands should make reinforcement common enough for a build to form.
-Deeper bands should increase the meaningful opportunities for cost conversion
-and direction change while retaining earlier possibilities. Depth should expand
-choices, not turn the collection into obsolete filler or a simple base-stat
-treadmill.
-
-### First Band: B1-B5 is Build Formation
-
-B1-B5 is the First Band: the player learns to form and test a run-local build.
-It is not a build-free tutorial, and it must not be a passage that can be
-stably cleared by Starting Gear plus a large consumable supply while mostly
-ignoring dungeon equipment, affixes, Runes, Cores, and Supports.
-
-The intended pacing is:
-
-- **B1-B2: Build seed.** The run should expose a plausible direction through
-  found equipment, information, and resource choices.
-- **B3-B4: Build identity.** Reinforcement and supporting choices begin to make
-  the run's plan distinct, without requiring a finished build.
-- **B5: First-band graduation.** The player first puts that emerging build
-  through a compound milestone test.
-- **B6+: Build Development.** Cost conversion, direction change, counterplay,
-  and the interaction between build choices and Push/Return decisions become
-  increasingly important.
-
-B1-B5 does not require a complete build. It does require that the run-local
-build is already becoming a meaningful source of power and answers to risk.
-Preparation can buy time and absorb early variance, but it cannot make that
-formation irrelevant.
-
-B5 is a mandatory progression gate for the next band: the milestone guardian
-must be defeated before the down stairs, merchant, and Portal can be used.
-The flame trap, guardian, and the available merchant/Portal choices are one
-compound milestone context, not separate reasons to reduce B5 to an HP/ATK
-check. The guardian tests the first run-local build; the merchant offers
-recovery and counterplay choices afterward; the Portal makes the explicit
-Push/Return decision. None of these contracts replaces the build test.
+Every floor can offer all three. Reinforcement must be common enough on the
+first floors for a build to form; cost conversion and direction change stay
+possible throughout, and the one first-chest offer drawn from the whole pool
+keeps a direction change on the table from the start. Later floors and later
+dungeons widen choices; they must not turn the collection into obsolete
+filler or a simple base-stat treadmill.
 
 ### Starting kit and preparation
 
@@ -142,26 +349,29 @@ power, and consumables do not universally substitute for a build.
 
 Strong enemies are temptations and risks of greedy exploration, not a mandatory
 fixed encounter on every floor. The player should understand the pressure and
-have a meaningful response before the threat becomes decisive.
+have a meaningful response before the threat becomes decisive. The hunter on
+the way back is the one pursuit the structure asks for; the response to it is
+pace and route.
 
 ## Town meta roles
 
-- **Castle = what happened.** Record outcome, depth, Portal/Wing/Death/Abandon,
-  representative and found items, and meaningful item
-  history as structured facts.
+- **Castle = what happened.** Record the dungeon, the floor reached, how the
+  run ended (Walk out/Wing/Death/Abandon), the treasure and anyone brought
+  home, representative and found items, and meaningful item history as
+  structured facts.
 - **Codex = what was understood.** Store observed facts and hypotheses. Unknown
   items progress from signs to observation to trial to full understanding; the
   Codex does not reveal an undiscovered answer or an optimal build.
 - **Workshop = what may exist.** Expand the horizontal possibility space for
   future runs. It must not target a chosen build, raise that build's appearance
-  rate, provide a permanently superior combat tier, or turn shallow farming
-  into the best route.
+  rate, provide a permanently superior combat tier, or turn repeating an
+  easy dungeon into the best route.
 
 - **Facilities = who was brought home.** A craftsman trapped in the dungeon
   can be dug out and led home. He follows as a companion and takes no part in
-  combat; he counts as rescued only when the run walks out by the Portal or
-  the Wing, so a death or an abandoned run leaves him where he was and the
-  next run meets him again. A rescue is recorded as a feat and opens his
+  combat; he counts as rescued only when the run walks out on foot, so a
+  Wing, a death, or an abandoned run leaves him where he was and the next
+  run meets him again. A rescue is recorded as a feat and opens his
   facility in the town. Until then the town shows the facility as a
   silhouette with a hint. A facility sells horizontal unlocks for materials
   under the same limits as the Workshop: a starting kit, a change to a room
@@ -170,7 +380,7 @@ have a meaningful response before the threat becomes decisive.
 Recovered dungeon equipment is terminal evidence, not permanent next-run
 combat equipment. Dungeon-acquired consumables also remain run loot and never
 replenish preparation storage. Only unused departure-craft supplies return
-after Portal or Wing, subject to storage capacity.
+after a safe return, subject to storage capacity.
 
 ### Permanent progression meaning
 
@@ -179,6 +389,7 @@ has more meaningful possibilities, not because permanent ATK/HP is the primary
 answer. The main progression sources are:
 
 - player knowledge and Codex knowledge;
+- more dungeons to choose from, each with its own rule;
 - Workshop horizontal unlocks;
 - broader starting and preparation choices;
 - more possible Rune, Core, Support, and affix combinations; and
@@ -193,55 +404,76 @@ test the run-local build.
 ## Canon invariants
 
 - Starting Kit = initial condition, not permanent class.
+- Every run starts from a fresh adventurer; only knowledge and unlocked
+  possibility cross from one run to the next.
 - The run-local build is a primary power source.
 - Preparation safety is not build power.
 - Permanent progression primarily broadens possibility and knowledge.
-- The First Band teaches build formation.
-- Deeper bands deepen build transformation and interaction.
-- B5 tests the first run-local build.
+- Every dungeon is winnable from the starting state. Later dungeons ask for
+  more understanding, not more stats.
+- Floors 1-4 form the build; floor 5 tests it.
+- There is no safe exit at the bottom. The treasure and a keeper leave only
+  on foot.
+- No dungeon gives a permanent reward for being repeated.
+- Exploring a floor is a better plan than walking straight through it.
 - Consumables do not universally substitute for a build.
 - Recovered equipment is not permanent next-run combat gear.
 - Do not introduce a scalar "Build Power" as the design model.
 
 ## Follow-up measurement contract
 
-This canon is validated by a separate First Band diagnostic after review and
-merge; this design-only change does not add a runner or tune production values.
-The diagnostic must keep Preparation and run-local Build as separate causes and
+This canon is validated dungeon by dungeon as each part lands, with the
+browser auto-play in `scratch/measurements/`. A measurement names the dungeon,
+the starting kit, and the policy, and compares the same seeds before and
+after. It must keep Preparation and run-local Build as separate causes and
 must not collapse them into a scalar Build Power.
+
+### The trip
+
+Per dungeon and kit, count: floors reached, where the run turned back, the
+guardian fought and won, the treasure carried out, deaths on the way down and
+on the way back, and how close the hunter came on each floor.
+
+- A fresh adventurer reaches the fifth floor of a later dungeon about as
+  often as that of the mine.
+- Most runs that arrive on the fifth floor reach the guardian with enough HP
+  to fight it.
+- A policy that walks straight to the stairs carries the treasure out less
+  often than one that explores ("Why exploring pays").
+- A policy that turns back in time usually walks out, with the hunter close.
 
 ### Build formation
 
-At B2, B3, B4, and B5, measure:
+On floors 2, 3, 4, and 5, measure:
 
 - equipment changes and materially distinct Build Snapshots from the start;
 - reinforcement, cost-conversion, and direction-change opportunities;
-- Core, Support, Rune, and Medium participation; and
-- Build identity differences by Starting Kit.
+- Core, Support, Rune, and Medium participation;
+- Build identity differences by Starting Kit; and
+- how the Core families of the final build spread over runs of the same
+  dungeon and kit: they must not collapse onto one family, and must not
+  simply repeat the three that were drawn.
 
 ### Build usefulness
 
 At equal Preparation, compare whether a stronger or more coherent run-local
-build changes B5 boss arrival, B5 clear, or B6 reach. Separate the outcome
-variation explained by Preparation from the variation explained by the
-run-local build, including cases where good build decisions overcome weaker
-Preparation and cases where Preparation makes build differences negligible.
-
-### B5 decomposition
-
-For B5 entrants, keep separate counts for flame-trap exposure/count/damage/death,
-boss arrival and arrival HP/MP/recovery, boss start/victory/flee/death, Return
-before or after the boss, and B6 transition.
+build changes arrival at the guardian, the guardian fight, and the treasure
+carried out. Separate the outcome variation explained by Preparation from the
+variation explained by the run-local build, including cases where good build
+decisions overcome weaker Preparation and cases where Preparation makes build
+differences negligible.
 
 ## Design pillars
 
-1. **Depth is the question.** Every system must help the player descend, make
-   the descent decision harder, or record the result. A system that creates a
-   separate dominant goal, such as farming or arbitrage, competes with the
-   question and should be redesigned or cut.
-2. **Push your luck has explicit outcomes.** Portal, Push, Wing, Death, and
+1. **The trip is the question.** Every system must help the player choose
+   where to go, make the decision to go deeper or turn back harder, shape the
+   way home, or record the result. A system that creates a separate dominant
+   goal, such as farming or arbitrage, competes with the question and should
+   be redesigned or cut.
+2. **Push your luck has explicit outcomes.** Walk out, Wing, Death, and
    Abandon must remain legible player-facing contracts. Do not replace the
-   decision with an automatic escape or a percentage-only reward rule.
+   decision with an automatic escape, a safe exit at the bottom, or a
+   percentage-only reward rule.
 3. **Builds come from unknown loot.** The character is assembled during the
    run from found equipment and skills. The player chooses between spending
    scarce identification resources and acting on partial information. The
@@ -250,25 +482,26 @@ before or after the boss, and B6 transition.
 
 ## Run structure
 
-- Floors are one-way. The meaningful exits are down stairs, a milestone Portal,
-  or a return item; earlier floors are not a farming route within the same run.
-- Down stairs are an explicit choice. Staying on the stair leaves the player
-  able to reconsider before descending.
-- Milestones occur every five floors. A defeated milestone guardian opens an
-  optional shortcut, while the original route remains available so the player
-  can visit the merchant or Portal.
-- The floor after a milestone provides a guaranteed breather before normal
-  exploration. Rest is a resource choice, not a free replacement for the
-  descent decision.
+- A run is one dungeon of five floors, down and back ("Dungeons"). The whole
+  run is the session unit; turning back early makes a shorter complete run.
+- Floors persist for the run. A floor is generated on first arrival and kept
+  as the run leaves it, so earlier floors hold nothing new to farm: what was
+  taken stays taken.
+- Stairs are an explicit choice in both directions. Staying on a stair leaves
+  the player able to reconsider before going down, going up, or walking out.
+- The guardian of the fifth floor must be defeated to take the treasure and
+  to reach the merchant behind it. Nothing lies below.
 - During exploration, each unvisited cell restores 2% of maximum HP and MP,
   carrying fractional points forward and capping actual recovery at 50% of
   each maximum per floor. HP recovery is subject to healing modifiers; MP
   recovery is not. Poison suspends this recovery. Stairs and pitfall descents
-  do not restore HP or MP; the milestone breather remains separate. The
-  explore screen shows what the floor can still give back (on the HP/MP bars,
-  in the unfolded goal, and at the stairs prompt) and logs nothing per step.
-- Biomes rotate on a five-floor rhythm. Their enemy themes, hazards, landmarks,
-  and atmosphere answer “where am I?” while depth supplies the pressure axis.
+  do not restore HP or MP, and a floor walked again on the way back gives
+  back only what its unvisited cells still hold. The explore screen shows
+  what the floor can still give back (on the HP/MP bars, in the unfolded
+  goal, and at the stairs prompt) and logs nothing per step.
+- Each dungeon is one biome. Its enemy themes, hazards, landmarks, and
+  atmosphere answer “where am I?” while the floor within it and the way back
+  supply the pressure axis.
 - Each biome owns one layout archetype, so the floor silhouette and route graph
   answer “where am I?” before color does: winding mine tunnels, a symmetric
   catacomb lattice, a chasm crossed only by bridges, flooded library stacks,
@@ -276,10 +509,10 @@ before or after the boss, and B6 transition.
   staircase causeways. The seed varies each archetype's proportions and
   placement; it must not collapse biomes back onto one shared skeleton.
   Impassable archetype terrain (chasm, water, furnace) stays impassable through
-  every later generation stage. The depth template still owns floor size,
+  every later generation stage. The floor template still owns floor size,
   gimmick density, and the critical-path envelope, and the natural route stays
   within the mobile pacing targets below.
-- Each biome adds one traversal gimmick that changes a route decision, never
+- Each biome has one traversal gimmick that changes a route decision, never
   whether the floor can be finished: every required cell stays reachable with
   the gimmick unresolved, and the natural route keeps the critical-path
   envelope. Resolving a gimmick is a resource or ordering trade, not a key
@@ -300,7 +533,7 @@ before or after the boss, and B6 transition.
     new heading; the compass and the map are the counterplay.
   A biome's first floor introduces one instance; later floors may add a
   second. Turn and HP costs stay small so the gimmick changes a choice
-  rather than the floor's difficulty band.
+  rather than the floor's difficulty.
   A gimmick's first meeting explains itself through the exploration log, and
   discovered gimmicks stay marked on the minimap and the full map.
 - Each biome owns one special room, so a floor offers an exploration goal
@@ -311,7 +544,7 @@ before or after the boss, and B6 transition.
   Placement only marks an existing cell and never changes the layout.
   - Collapsed mine — ore vein: digging costs exploration turns and makes noise;
     it yields a small chest-pool material bundle and may draw an ambush.
-    On the band's third floor the vein's cell holds the trapped foreman
+    On the dungeon's third floor the vein's cell holds the trapped foreman
     instead, until he has been brought home. Digging him out costs the same
     turns and noise; only the room kind on the placed cell changes, never the
     layout or its random streams.
@@ -323,7 +556,7 @@ before or after the boss, and B6 transition.
     Supply and blast are exclusive, and the outpost appears nowhere else.
   - Forgotten catacomb — altar: a material-priced cleanse of status effects,
     or a blood blessing that converts a share of max HP into full MP.
-    On the band's third floor the altar's cell holds the sealed priest until
+    On the dungeon's third floor the altar's cell holds the sealed priest until
     he has been brought home; the seal takes a share of max HP, never the
     last point. Once the chapel tends that altar it also takes an offering:
     one kind of carried material, up to a limit, is sent home and arrives
@@ -335,7 +568,7 @@ before or after the boss, and B6 transition.
     exclusive.
   - Rift nest — brood chamber: breaking the eggs starts an elite-strength fight
     whose victory leaves an ordinary dropped chest. Fleeing still spends the room.
-    On the band's third floor the chamber holds the cocooned weaver until she
+    On the dungeon's third floor the chamber holds the cocooned weaver until she
     has been brought home: cutting the cocoon is that same fight, winning it
     frees her (and still pays the chest), and fleeing leaves the room to be
     tried again. Once the weaving house has strung its hammock there, the room
@@ -345,7 +578,7 @@ before or after the boss, and B6 transition.
     and mend are exclusive.
   - Sunken library — reading room: a few turns of study mark the down stairs
     and every unopened chest on this floor's map.
-    On the band's third floor the room holds the stranded scribe until he has
+    On the dungeon's third floor the room holds the stranded scribe until he has
     been brought home; draining the room takes turns and makes no noise. Once
     the scriptorium keeps that room, its floor plan also marks the next
     floor's down stairs. If the scriptorium has a copy desk, a few turns can
@@ -353,7 +586,7 @@ before or after the boss, and B6 transition.
     a safe return like any other fragment. Floor plan and copy are exclusive.
   - Dragon forge — forge: a material-priced temper adds a share of weapon ATK
     for the next few battles, then cools.
-    On the band's third floor the furnace is cold and the smith is shut in
+    On the dungeon's third floor the furnace is cold and the smith is shut in
     behind it until he has been brought home; feeding it carried materials
     opens the door. Once the smithy keeps that furnace, its temper holds for
     more battles. If the smithy also reforges, materials can instead raise the
@@ -362,7 +595,7 @@ before or after the boss, and B6 transition.
     temper and reforge are exclusive.
   - Abyssal throne — mirror hall: paying a share of max HP marks the next
     floor's down stairs and their approach on that floor's map.
-    On the band's third floor the mirror holds the chamberlain until he has
+    On the dungeon's third floor the mirror holds the chamberlain until he has
     been brought home; giving it a share of max HP lets him out. Once the
     audience hall has raised its oath altar there, the room offers the mirror
     as before or an oath: HP and MP are fully restored, and if the run then
@@ -374,47 +607,9 @@ before or after the boss, and B6 transition.
   Rewards stay inside the economy canon: materials come from the existing chest
   pool, the elite fight pays the existing dropped chest, and costs are turns,
   noise, HP, or materials. No room adds a currency, a permanent stat, curse
-  removal (the merchant owns it), or a guaranteed build piece. Springs,
-  merchants, and camps keep their roles and are not replaced.
-- Starting deeper may be a useful record-oriented option, but it must carry a
-  meaningful material or preparation trade-off so it cannot replace B1 runs for
-  every purpose.
-- **Round-trip prototype (#2066, opt-in at departure).** This is a trial of the
-  structure proposed in #2058, not yet canon: it exists to find out whether
-  the way back is fun. A run that chooses it from B1F plays by these rules
-  instead of the ones above; every other run is unchanged.
-  - The dungeon is five floors. With the guardian down, the stairs below and
-    the Portal do nothing. There is no safe exit at the bottom: Portal protects
-    everything that persists, so with a Portal walking back would never be
-    chosen.
-  - Up stairs lead back to the floor above, which is exactly as it was left
-    (map, opened secret doors, dug rubble, found traps, opened chests). The up
-    stairs of B1F lead out and end the run as a safe return: materials and
-    unused departure supplies are kept and a companion is rescued. The
-    question becomes where to turn back.
-  - The guardian holds the treasure. The prototype only records that it was
-    carried out on foot; a Wing leaves it behind.
-  - Turning back, or taking the treasure, wakes the dungeon. A hunter (the
-    biome's elite) steps out of the stairs the run just used after a short
-    delay and follows along open corridors. It cannot use secret doors, cross
-    standing rubble, or step onto stairs, so what the run opened on the way
-    down is its lead on the way back. The floor's own roaming elite stands
-    down while the hunter is out, and lingering calls no second one.
-  - The hunter is a little slower than a straight walk, so the head start
-    holds on a direct way and every turn in place, search, detour, or dead end
-    gives ground. It also gains ground during every round the run spends
-    fighting something else. A direct way home should reach the up stairs
-    with the hunter close behind, not safely ahead of it (#2069).
-  - Being chased must be felt, not read: the hunter comes from behind, where
-    the view never shows it. Its distance stays on screen for the whole way
-    back (a countdown before it steps out, then steps behind), its footsteps
-    sound once it is near and louder when it is right behind, and it shows on
-    the map. The log announces the approach twice.
-  - Reaching the run starts an elite fight. Fleeing shakes the hunter off: it
-    is driven away from the up stairs and the run holds its ground, so the
-    hunter is never left standing between the run and the way out, even when
-    it came round from the front. It then loses the run for the usual grace.
-    A slain hunter does not return.
+  removal (the merchant owns it), or a guaranteed build piece. Springs and
+  the merchant keep their roles and are not replaced. A dungeon's rule may
+  lean on its gimmick or its room; the limits in "Dungeons" then apply.
 - Autosave and resume support multi-session mobile play. A terminal outcome
   replaces the active run so reloading cannot erase a decision. Decisions,
   events, fights, and floor changes save at once; plain steps and turns save
@@ -459,8 +654,8 @@ trap-only minigame.
   other risks.
 
 Secret-route search follows the same ownership boundary. Searching is a
-universal exploration verb; depth supplies pressure and `arcaneSense` from the
-current run build supplies a bounded information modifier. A class label,
+universal exploration verb; the floor supplies pressure and `arcaneSense` from
+the current run build supplies a bounded information modifier. A class label,
 level, or raw character statistic must not grant hidden-door permission. The
 production action and simulation use the same exploration resolver so a build
 comparison cannot silently measure a different search rule.
@@ -499,25 +694,25 @@ The game is solo, so a chest trap never distinguishes one target from a
 party. Each trap instead costs a different resource, so which one hurts
 depends on the run's state rather than on a counter-verb table:
 
-| Trap | Costs | From | Sign |
+| Trap | Costs | From floor | Sign |
 | --- | --- | --- | --- |
-| Poison needle | HP and poison over time | B2 | danger |
-| Flash bomb | sight (blind) | B2 | rigged |
-| Corrosion | one carried consumable | B2 | rigged |
-| Teleporter | position | B3 | danger |
-| Mimic | a forced fight | B4 | danger, always |
+| Poison needle | HP and poison over time | 2 | danger |
+| Flash bomb | sight (blind) | 2 | rigged |
+| Corrosion | one carried consumable | 2 | rigged |
+| Teleporter | position | 3 | danger |
+| Mimic | a forced fight | 4 | danger, always |
 
 Corrosion destroys one usable item from the bag; it never takes the retreat
 item, special, quest, or progression items, or equipment, and does nothing
 when nothing qualifies. `trapGuard` does not reduce it. A mimic cannot be
 disarmed by the automatic roll or a kit (the kit is kept); only leaving
-avoids it. It fights with the floor elite's depth-scaled body, ordinary flee
+avoids it. It fights with the body of that floor's strong enemy, ordinary flee
 rules apply, and a fled mimic takes its chest with it. A defeated mimic leaves
 its chest with the main reward upgraded to at least rare equipment. Its sign
 is always danger, but danger also covers the other dangerous traps, so the
 sign alone never confirms a mimic. A monster's dropped chest is never a
-mimic. Leaving is therefore a real choice on deep floors, where a danger sign
-pairs the strongest risks with the better expected reward.
+mimic. Leaving is therefore a real choice on the lower floors, where a danger
+sign pairs the strongest risks with the better expected reward.
 
 The trap codex records floor and chest traps under separate IDs
 (`floor:<type>`, `chest:<trap>`); the pre-#1939 trap codex was reset.
@@ -540,7 +735,7 @@ not a one-to-one answer key.
 
 ## Combat
 
-Combat paces the descent; it is not the goal. Turn-based menu combat should
+Combat paces the trip; it is not the goal. Turn-based menu combat should
 support one-handed mobile play and a solo skill axis based on target priority,
 resource timing, and build counterplay.
 
@@ -553,7 +748,7 @@ resource timing, and build counterplay.
   a parting hit rather than losing to an opaque escape roll.
 - Healing exists through consumables, safe transitions, and build effects, but
   in-combat healing must compete with the resources and actions needed to
-  descend.
+  go on and to get home.
 - The HP budget is solo-scale (#1799): the single character's HP pool must
   absorb a floor's ordinary fights with a meaningful but not run-ending share
   lost per fight. Generic floor-trap damage scales with the victim's max HP
@@ -565,7 +760,7 @@ resource timing, and build counterplay.
 - Live combat and deterministic simulation share action-selection and combat
   resolution semantics. Simulation-only policies such as retreat thresholds
   remain measurement policy, not hidden game rules.
-- A milestone guardian may telegraph a build-dependent counter window. The
+- A guardian may telegraph a build-dependent counter window. The
   window should reward recognizing and paying the right cost without changing
   the rules of ordinary floors.
 
@@ -579,8 +774,11 @@ level validation:
   without visiting every room;
 - a biome introduces at most one or two new gimmicks, with a readable first
   encounter before heavy repetition;
-- at most one roaming avoid-for-now threat pressures a floor, while a milestone
-  guardian remains a destination fight.
+- at most one roaming avoid-for-now threat pressures a floor, while the
+  guardian remains a destination fight. On the way back the hunter is that
+  one threat;
+- an avoid-for-now threat leaves a way to avoid it: it does not hold the only
+  corridor to a cell the run must reach.
 
 ## Tactical consumables
 
@@ -591,7 +789,7 @@ holding it is better; it must not become a permanent universal upgrade.
 - An encounter-calling item trades HP, MP, or time for experience, drops, or a
   feat opportunity.
 - An encounter-suppressing item trades experience and drop opportunities for a
-  safer route to depth.
+  safer route down or home.
 - A detection item reveals nearby trap information without improving disarm
   success, so it competes with equipment support and other tools.
 
@@ -602,9 +800,10 @@ not a second meta-game.
 ## Relationship to other documents
 
 - `.agents/game-design.md` owns durable economy, resource, status-counterplay,
-  merchant, and feat semantics.
+  merchant, facility, and feat semantics.
 - `.agents/game-design-equipment-builds.md` owns the Core/Support build model,
-  equipment knowledge, and horizontal equipment possibility space.
+  Core families and their supply, equipment knowledge, and horizontal
+  equipment possibility space.
 - `.agents/game-design-combat-model.md` owns combat formula structure,
   application order, and combat information disclosure.
 - `.agents/game-design-telemetry.md` owns what can be observed without changing
@@ -616,24 +815,65 @@ not a second meta-game.
 
 ## Castle return contract
 
-Every terminal route is resolved before the result view: Portal and Wing
-settle dungeon objects as run history; Death and Abandon lose them. Materials
-and unused departure supplies return only after Portal or Wing. The next run
-starts from Town preparations, never from dungeon-found equipment.
+Every terminal route is resolved before the result view: a safe return
+(Walk out or Wing) settles dungeon objects as run history; Death and Abandon
+lose them. Materials and unused departure supplies return only after a safe
+return. The treasure counts and a keeper is rescued only after Walk out. A
+run that reached the third floor redraws the likely Core families whatever
+the outcome. The next run starts from Town preparations, never from
+dungeon-found equipment.
 
 Castle keeps one representative item and a small bounded set of meaningful
-facts per run. Records list found items without a return-method status and do
-not preserve full items as combat bonuses. Codex stores
-finite coarse observations, and Workshop rewards broaden existing side-grade
-possibilities without granting a superior tier, a target-build advantage, or
-exact drop information.
+facts per run. Its lasting record is which dungeons' treasures have been
+carried out, not a deepest floor. Records list found items without a
+return-method status and do not preserve full items as combat bonuses. Codex
+stores finite coarse observations, and Workshop rewards broaden existing
+side-grade possibilities without granting a superior tier, a target-build
+advantage, or exact drop information.
+
+
+## Migration to the dungeon structure (#2058)
+
+This document states the structure decided in #2058. Source reaches it in
+steps, and until a step lands, source keeps the previous rule for that part:
+thirty floors in one line with a biome every five, a Portal and a merchant on
+every fifth floor, the choice to push on past a Portal, a choice of starting
+floor, and kinds of equipment gated by floor. Do not change behavior to match
+this document inside an unrelated change; use the Issue that owns the part.
+
+| Part of this canon | Lands with |
+| --- | --- |
+| Choosing a dungeon; floors numbered inside it; strength by dungeon and floor; the mine and the catacomb | #2060 |
+| No floor gate on kinds; three likely families; the redraw; the first-chest draw; fixing a family with a treasure | #2061 |
+| Every run a round trip; the treasure; a keeper and the Wing on the way back; a strong enemy never holding the only way | #2062 |
+| Each dungeon's rule, one dungeon at a time | #2063 |
+| The rift nest, the library, the forge, and the throne opened and tuned | #2064 |
+| The endless dungeon | #2065 |
+
+Until #2062, the way back exists as a prototype: a rule chosen at departure
+from the first floor (#2066, #2069), in the mine only, where the treasure is
+only recorded and a Wing still rescues a keeper.
+
+Two other documents still describe the previous structure and are rewritten
+with the part they own: `.agents/game-design-equipment-builds.md` (floor
+bands in supply) with #2061, and `.agents/game-design-telemetry.md` (Portal
+events) with #2062. Where they disagree with this document, this document
+holds. Remove this section when #2058 closes.
 
 ## Avoid
 
-- systems that make depth a function of run count rather than judgment and
+- systems that make progress a function of run count rather than judgment and
   build quality;
-- free, reliable, or purchasable-at-will retreat;
+- free, reliable, or purchasable-at-will retreat, and a safe exit at the
+  bottom of a dungeon;
+- a permanent reward for repeating a dungeon, or any reason to farm the
+  easiest one;
+- difficulty between dungeons carried by a stat multiplier;
+- a dungeon rule that only one build can answer, or that only takes something
+  away;
+- walking straight to the stairs being the best way through a floor;
 - unidentified gear or identification resources tuned so the gamble disappears;
-- a second town currency or a between-run economy that competes with descent;
+- a second town currency or a between-run economy that competes with the trip;
 - permanent equipment carryover, bag expansion, or dedicated safety storage;
-- systems that serve none of depth, push-your-luck, or improvised builds.
+- systems that serve none of the trip's question, push-your-luck, or
+  improvised builds.

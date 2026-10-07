@@ -3,7 +3,7 @@
 ## Role
 
 Review player-facing content for a clear gameplay purpose, readable choices,
-theme fit, and a useful contribution to the depth-attack loop. This document is
+theme fit, and a useful contribution to the expedition loop. This document is
 a review lens, not a catalogue of the current content implementation.
 
 ## Scope
@@ -20,18 +20,19 @@ a review lens, not a catalogue of the current content implementation.
 
 ### Content has a job
 
-Every piece of content should help the player descend, make the descent
-decision harder, reveal useful information, or record what happened. A new
+Every piece of content should help the player choose where to go, make the
+decision to go deeper or turn back harder, shape the way home, reveal useful
+information, or record what happened. A new
 name, reward, enemy, or rule is not justified by flavor alone. Additions should
 not create a second progression loop, a redundant choice, or a new resource
 when an existing role is sufficient.
 
 ### Place and depth communicate different things
 
-Biome communicates “where am I?” through a coherent visual and thematic
-signature. Depth communicates increasing pressure, corruption, or stakes. The
-two signals may reinforce one another, but depth must not be represented by
-color alone. Shape, silhouette, texture, lighting, motion, wording, and route
+The dungeon (one biome) communicates “where am I?” through a coherent visual
+and thematic signature. The floor within it, and a dungeon awake on the way
+back, communicate increasing pressure, corruption, or stakes. The two signals
+may reinforce one another, but depth must not be represented by color alone. Shape, silhouette, texture, lighting, motion, wording, and route
 context should keep the distinction readable in grayscale and on a small
 screen.
 
