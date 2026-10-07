@@ -10,7 +10,10 @@ async function readEquipmentBagLayout(overlay) {
     return {
       bag: rect(element.querySelector('.equip-bag-section')),
       itemList: rect(element.querySelector('.equip-bag-section .equip-item-list')),
-      rows: [...element.querySelectorAll('.equip-bag-section .equip-item-row')].map(rect),
+      rows: [...element.querySelectorAll('.equip-bag-section .equip-item-row')].map(row => ({
+        ...rect(row),
+        layoutHeight: Number.parseFloat(getComputedStyle(row).height),
+      })),
     };
   });
 }
@@ -861,7 +864,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     const bagRows = overlay.locator('.equip-bag-section .equip-item-row');
     expect(await bagRows.count()).toBeGreaterThanOrEqual(2);
     for (const rowBox of layout.rows.slice(0, 2)) {
-      expect(rowBox.height, `bag rows keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(rowBox.layoutHeight, `bag rows keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
       expect(rowBox.y, `bag row should be inside the scrolling list on ${vp.name}`).toBeGreaterThanOrEqual(layout.itemList.y - 0.5);
       expect(rowBox.y + rowBox.height, `two bag rows should fit on ${vp.name}`).toBeLessThanOrEqual(layout.itemList.y + layout.itemList.height + 0.5);
     }
@@ -951,7 +954,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     await expect(bagRows).toHaveCount(2);
     const layout = await readEquipmentBagLayout(overlay);
     for (const rowBox of layout.rows) {
-      expect(rowBox.height, `bag row should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(rowBox.layoutHeight, `bag row should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
       expect(rowBox.y, `bag row should be visible on ${vp.name}`).toBeGreaterThanOrEqual(layout.itemList.y);
       expect(rowBox.y + rowBox.height, `bag row should fit before selection on ${vp.name}`).toBeLessThanOrEqual(
         layout.itemList.y + layout.itemList.height + 0.5
@@ -963,7 +966,9 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     await expect(overlay.locator('.equip-exchange-line')).toHaveText(/武器: ショートソード →/);
     await expect(overlay.locator('.equip-detail-content')).toContainText('比較不能');
 
-    const unidentifiedMetrics = await overlay.evaluate((root) => {
+    const unidentifiedMetrics = await overlay.evaluate(async (root) => {
+      root.getBoundingClientRect();
+      await document.fonts.ready;
       const detail = root.querySelector('.equip-detail-col');
       const content = root.querySelector('.equip-detail-content');
       const actions = root.querySelector('.equip-detail-actions');
@@ -977,19 +982,25 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
         contentHeight: content.scrollHeight,
         actionsHeight: actionsBox.height,
         identifyBox: { y: identifyBox.y, height: identifyBox.height },
+        // Border-box CSS dimensions avoid float error in rendered coordinates.
+        identifyLayoutHeight: Number.parseFloat(getComputedStyle(identify).height),
+        actionButtons: [...actions.querySelectorAll('button')].map(button => ({
+          label: button.textContent,
+          box: button.getBoundingClientRect().toJSON(),
+          layoutHeight: Number.parseFloat(getComputedStyle(button).height),
+        })),
         identifyVisible: identifyBox.y >= 0 && identifyBox.y + identifyBox.height <= innerHeight,
         contentScrollTop: content.scrollTop,
         contentBottom: contentBox.y + contentBox.height,
       };
     });
     expect(unidentifiedMetrics.identifyVisible, `identify button should fit without scrolling on ${vp.name}`).toBe(true);
-    expect(unidentifiedMetrics.identifyBox.height, `identify button should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+    expect(unidentifiedMetrics.identifyLayoutHeight, `identify button should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
     expect(unidentifiedMetrics.contentScrollTop, `detail content should start at the top on ${vp.name}`).toBe(0);
-    for (const button of await overlay.locator('.equip-detail-actions button').all()) {
-      const box = await button.boundingBox();
-      expect(box?.height, `${await button.textContent()} should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
-      expect(box?.y, `${await button.textContent()} should be inside the viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
-      expect(box?.y + box?.height, `${await button.textContent()} should fit the viewport on ${vp.name}`).toBeLessThanOrEqual(vp.height);
+    for (const { label, box, layoutHeight } of unidentifiedMetrics.actionButtons) {
+      expect(layoutHeight, `${label} should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(box.y, `${label} should be inside the viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height, `${label} should fit the viewport on ${vp.name}`).toBeLessThanOrEqual(vp.height);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
     console.log(`[equipment-identification-unidentified] ${vp.width}x${vp.height} ${JSON.stringify(unidentifiedMetrics)}`);
