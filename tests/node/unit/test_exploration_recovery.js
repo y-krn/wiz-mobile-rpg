@@ -207,18 +207,16 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   state.repelTurns = 999;
   state.encounterQuietSteps = 99;
   state.roamingMonsters = [];
-  const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-  let target = null;
-  for (let direction = 0; direction < 4 && !target; direction++) {
-    const x = state.x + directions[direction][0];
-    const y = state.y + directions[direction][1];
-    const cell = state.map[y]?.[x];
-    if (!state.map[state.y][state.x].walls[direction] && cell && !cell.event && !cell.trap && !cell.obstacle) {
-      target = { x, y, direction };
-    }
-  }
-  assert.ok(target, "start cell has a plain adjacent cell");
-  state.dir = target.direction;
+  // A two-cell corridor isolates revisit recovery from generated start-cell hazards.
+  const plainCell = { blockEnter: [false, false, false, false], secretDoor: [false, false, false, false], secretFound: [false, false, false, false] };
+  state.maps[0] = [[
+    { ...plainCell, walls: [true, false, true, true], type: "empty" },
+    { ...plainCell, walls: [true, true, true, false], type: "empty" }
+  ]];
+  state.visitedMaps[0] = [[true, false]];
+  state.x = 0;
+  state.y = 0;
+  state.dir = 1;
   handleMove("forward");
   const afterFirstVisit = { ...state.currentRun.explorationRecovery["1"] };
   assert.ok(afterFirstVisit.hpRecovered > 0 || afterFirstVisit.hpRemainder > 0);

@@ -67,6 +67,7 @@ async function beginPendingOutcomePlayback(page, kind, floor = 1) {
   return page.evaluate(async ({ outcomeKind, outcomeFloor }) => {
     const { state, saveAutosave } = await import('/src/state.js');
     const { playBattleLogs } = await import('/src/combat.js');
+    const { getCombatLogDelay } = await import('/src/combat_ui/combat_log_presentation.js');
 
     if (outcomeKind === 'milestoneVictory' && !state.maps[outcomeFloor - 1]) {
       state.maps[outcomeFloor - 1] = structuredClone(state.maps[0]);
@@ -126,6 +127,7 @@ async function beginPendingOutcomePlayback(page, kind, floor = 1) {
     playBattleLogs(queue, 0);
 
     return {
+      delayBeforeReward: queue.slice(0, -1).reduce((total, entry) => total + getCombatLogDelay(entry, { isAuto: false }), 0),
       transitioning: state.transitioning,
       pendingOutcome: state.combatState?.pendingOutcome,
       savedPhase: JSON.parse(

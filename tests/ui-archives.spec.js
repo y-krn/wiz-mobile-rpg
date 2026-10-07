@@ -82,22 +82,31 @@ test('Archives list restores scroll after detail and resets on navigation', asyn
       await page.getByRole('button', { name: '🛡️ 装備' }).click();
     }
 
-    const initialScrollTop = await body.evaluate((element) => {
+    const { scrollTop: initialScrollTop, rowIndex } = await body.evaluate(async element => {
+      element.getBoundingClientRect();
+      await document.fonts.ready;
       element.scrollTop = Math.floor(element.scrollHeight / 2);
-      return element.scrollTop;
+      const viewport = element.getBoundingClientRect();
+      const rowIndex = [...element.querySelectorAll('.codex-row')].findIndex(row => {
+        const box = row.getBoundingClientRect();
+        return box.top >= viewport.top && box.bottom <= viewport.bottom;
+      });
+      return { scrollTop: element.scrollTop, rowIndex };
     });
+    expect(rowIndex).toBeGreaterThanOrEqual(0);
     expect(initialScrollTop).toBeGreaterThan(0);
     await expect.poll(async () => page.evaluate(async () => {
       const { archivesState } = await import('/src/ui/archives_overlay.js');
       return archivesState.listScrollTop;
     })).toBe(initialScrollTop);
 
-    await page.locator('#archives-overlay .codex-row').last().click();
+    // Keep the chosen position: clicking the last row auto-scrolls to a moving end boundary.
+    await body.locator('.codex-row').nth(rowIndex).click();
     const savedScrollTop = await page.evaluate(async () => {
       const { archivesState } = await import('/src/ui/archives_overlay.js');
       return archivesState.listScrollTop;
     });
-    expect(savedScrollTop).toBeGreaterThan(0);
+    expect(savedScrollTop).toBe(initialScrollTop);
     await page.getByRole('button', { name: '一覧に戻る' }).click();
     await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBe(savedScrollTop);
   }
