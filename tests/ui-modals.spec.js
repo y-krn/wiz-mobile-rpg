@@ -1,5 +1,19 @@
 import { test, expect } from './fixtures/browser-health.js';
-import { VIEWPORTS } from './ui-ux-helpers.js';
+import { VIEWPORTS, waitForAppStart } from './ui-ux-helpers.js';
+
+async function readEquipmentBagLayout(overlay) {
+  return overlay.evaluate(async element => {
+    // Read one settled layout; separate browser calls can straddle a font swap.
+    element.getBoundingClientRect();
+    await document.fonts.ready;
+    const rect = target => target.getBoundingClientRect().toJSON();
+    return {
+      bag: rect(element.querySelector('.equip-bag-section')),
+      itemList: rect(element.querySelector('.equip-bag-section .equip-item-list')),
+      rows: [...element.querySelectorAll('.equip-bag-section .equip-item-row')].map(rect),
+    };
+  });
+}
 
 const EQUIPMENT_SHORT_VIEWPORTS = [
   { width: 375, height: 667, name: 'iPhone SE' },
@@ -806,6 +820,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
   test(`Filled equipment layout keeps two bag rows at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
+    await waitForAppStart(page);
     await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
@@ -838,21 +853,17 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     await expect(overlay.locator('.equip-section-heading', { hasText: '装備中' })).toBeVisible();
     await expect(overlay.locator('.equip-section-heading', { hasText: 'バッグの装備品' })).toBeVisible();
 
-    const bagSection = overlay.locator('.equip-bag-section');
-    const bagBox = await bagSection.boundingBox();
-    const itemList = overlay.locator('.equip-bag-section .equip-item-list');
-    const itemListBox = await itemList.boundingBox();
-    expect(bagBox?.height, `bag section should reserve two tap rows on ${vp.name}`).toBeGreaterThanOrEqual(154);
+    const layout = await readEquipmentBagLayout(overlay);
+    expect(layout.bag.height, `bag section should reserve two tap rows on ${vp.name}`).toBeGreaterThanOrEqual(154);
     // The list screen has no idle detail placeholder; the bag owns the remaining space.
     await expect(overlay.locator('.equip-detail-col')).toHaveCount(0);
 
     const bagRows = overlay.locator('.equip-bag-section .equip-item-row');
     expect(await bagRows.count()).toBeGreaterThanOrEqual(2);
-    for (const row of [bagRows.nth(0), bagRows.nth(1)]) {
-      const rowBox = await row.boundingBox();
-      expect(rowBox?.height, `bag rows keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
-      expect(rowBox?.y, `bag row should be inside the scrolling list on ${vp.name}`).toBeGreaterThanOrEqual((itemListBox?.y || 0) - 0.5);
-      expect(rowBox?.y + rowBox?.height, `two bag rows should fit on ${vp.name}`).toBeLessThanOrEqual((itemListBox?.y || 0) + (itemListBox?.height || 0) + 0.5);
+    for (const rowBox of layout.rows.slice(0, 2)) {
+      expect(rowBox.height, `bag rows keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(rowBox.y, `bag row should be inside the scrolling list on ${vp.name}`).toBeGreaterThanOrEqual(layout.itemList.y - 0.5);
+      expect(rowBox.y + rowBox.height, `two bag rows should fit on ${vp.name}`).toBeLessThanOrEqual(layout.itemList.y + layout.itemList.height + 0.5);
     }
 
     await bagRows.first().click();
@@ -895,6 +906,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
   test(`Equipment detail keeps primary actions and comparison visible at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
+    await waitForAppStart(page);
     await page.evaluate(async () => {
       const { createStartingKitCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
@@ -937,16 +949,7 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     const bagRows = overlay.locator('.equip-bag-section .equip-item-row');
     await expect(overlay.locator('.equip-equipped-row')).toHaveCount(5);
     await expect(bagRows).toHaveCount(2);
-    const layout = await overlay.evaluate(async element => {
-      // Read one settled layout; separate browser calls can straddle a font swap.
-      element.getBoundingClientRect();
-      await document.fonts.ready;
-      const rect = target => target.getBoundingClientRect().toJSON();
-      return {
-        itemList: rect(element.querySelector('.equip-item-list')),
-        rows: [...element.querySelectorAll('.equip-bag-section .equip-item-row')].map(rect),
-      };
-    });
+    const layout = await readEquipmentBagLayout(overlay);
     for (const rowBox of layout.rows) {
       expect(rowBox.height, `bag row should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
       expect(rowBox.y, `bag row should be visible on ${vp.name}`).toBeGreaterThanOrEqual(layout.itemList.y);
