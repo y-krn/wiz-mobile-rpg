@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { waitForAppStart } from './ui-ux-helpers.js';
 
 const TOWN_SUBMENUS = [
   ['castle_main', 'おしろ - 記録'],
@@ -31,6 +32,7 @@ async function readGoalLayout(page) {
 test('Town submenus hide the goal banner and expand the workshop list', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/');
+  await waitForAppStart(page);
 
   for (const [type, title] of TOWN_SUBMENUS) {
     await openTownSubmenu(page, type, title);
@@ -45,19 +47,21 @@ test('Town submenus hide the goal banner and expand the workshop list', async ({
 
     if (type === 'workshop_main') {
       const workshopGrid = page.locator('#submenu-options.workshop-grid');
-      const hiddenHeight = await workshopGrid.evaluate((grid) => grid.clientHeight);
-      const visibleLayout = await workshopGrid.evaluate((grid) => {
+      const visibleLayout = await workshopGrid.evaluate(async (grid) => {
         const container = document.getElementById('game-container');
         container.classList.remove('town-submenu-mode');
+        // Showing the banner can introduce new glyphs; compare one settled font set.
+        document.getElementById('goal-banner').getBoundingClientRect();
+        await document.fonts.ready;
         const layout = {
           gridHeight: grid.clientHeight,
           bannerHeight: document.getElementById('goal-banner').getBoundingClientRect().height,
         };
         container.classList.add('town-submenu-mode');
-        return layout;
+        return { ...layout, hiddenHeight: grid.clientHeight };
       });
 
-      const heightGain = hiddenHeight - visibleLayout.gridHeight;
+      const heightGain = visibleLayout.hiddenHeight - visibleLayout.gridHeight;
       // The town goal is one line since #2034 (27px here); it was two (51px).
       expect(visibleLayout.bannerHeight, 'Goal banner should occupy a compact HUD row').toBeGreaterThanOrEqual(24);
       expect(visibleLayout.bannerHeight, 'Goal banner should stay within two lines').toBeLessThanOrEqual(64);
