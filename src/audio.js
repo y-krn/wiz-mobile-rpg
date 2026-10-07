@@ -149,6 +149,29 @@ export const playSound = (type) => {
         osc.stop(now + 0.08);
         break;
       }
+      case "hunter_near":
+      case "hunter_close": {
+        // Round-trip prototype (#2069): a heavy footfall behind the run. Two
+        // low thuds, deeper and louder when the hunter is right behind.
+        const close = type === "hunter_close";
+        [0, 0.16].forEach((offset, index) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const at = now + offset;
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(close ? 62 : 54, at);
+          osc.frequency.exponentialRampToValueAtTime(close ? 34 : 30, at + 0.14);
+          const level = (close ? 0.34 : 0.16) * (index === 0 ? 1 : 0.7);
+          gain.gain.setValueAtTime(0.0001, at);
+          gain.gain.exponentialRampToValueAtTime(level, at + 0.012);
+          gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(at);
+          osc.stop(at + 0.18);
+        });
+        break;
+      }
       case "bump": {
         // Dull thud
         const osc = ctx.createOscillator();

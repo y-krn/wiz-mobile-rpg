@@ -396,13 +396,25 @@ before or after the boss, and B6 transition.
     carried out on foot; a Wing leaves it behind.
   - Turning back, or taking the treasure, wakes the dungeon. A hunter (the
     biome's elite) steps out of the stairs the run just used after a short
-    delay and follows along open corridors at about the run's walking pace.
-    It cannot use secret doors, cross standing rubble, or step onto stairs, so
-    what the run opened on the way down is its lead on the way back. The floor's own roaming
-    elite stands down while the hunter is out, and lingering calls no second
-    one. Reaching the run starts an elite fight; a flee buys the usual grace;
-    a slain hunter does not return.
-  - Its distance is announced twice as it closes in, and it shows on the map.
+    delay and follows along open corridors. It cannot use secret doors, cross
+    standing rubble, or step onto stairs, so what the run opened on the way
+    down is its lead on the way back. The floor's own roaming elite stands
+    down while the hunter is out, and lingering calls no second one.
+  - The hunter is a little slower than a straight walk, so the head start
+    holds on a direct way and every turn in place, search, detour, or dead end
+    gives ground. It also gains ground during every round the run spends
+    fighting something else. A direct way home should reach the up stairs
+    with the hunter close behind, not safely ahead of it (#2069).
+  - Being chased must be felt, not read: the hunter comes from behind, where
+    the view never shows it. Its distance stays on screen for the whole way
+    back (a countdown before it steps out, then steps behind), its footsteps
+    sound once it is near and louder when it is right behind, and it shows on
+    the map. The log announces the approach twice.
+  - Reaching the run starts an elite fight. Fleeing shakes the hunter off: it
+    is driven away from the up stairs and the run holds its ground, so the
+    hunter is never left standing between the run and the way out, even when
+    it came round from the front. It then loses the run for the usual grace.
+    A slain hunter does not return.
 - Autosave and resume support multi-session mobile play. A terminal outcome
   replaces the active run so reloading cannot erase a decision. Decisions,
   events, fights, and floor changes save at once; plain steps and turns save
