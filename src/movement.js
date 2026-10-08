@@ -1427,7 +1427,7 @@ export function processExplorationResolution(prevX, prevY) {
   }
   const flameCooldownActive = state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0;
 
-  if (state.floor === 5 && !isSpecialCell && !flameCooldownActive && Math.random() < 0.05) {
+  if (false && state.floor === 5 && !isSpecialCell && !flameCooldownActive && Math.random() < 0.05) {
     state.flameTrapCooldownTurns = 5; // 5 steps cooldown to prevent back-to-back triggers
     triggerFlameTrap();
   } else {

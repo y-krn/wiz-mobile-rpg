@@ -2,8 +2,8 @@
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
 import { getHealMultiplier } from "../rules/item_rules.js";
 
-const RECOVERY_RATE = 0.02;
-const FLOOR_CAP_RATE = 0.5;
+const RECOVERY_RATE = 0.006;
+const FLOOR_CAP_RATE = 0.6;
 
 function getFloorRecovery(run, floor) {
   if (!run || !Number.isInteger(floor) || floor < 1) return null;
