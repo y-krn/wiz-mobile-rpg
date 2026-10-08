@@ -260,7 +260,15 @@ export function getNearMissFacts(nearMiss) {
       ? `この迷宮での自己最深 ${formatFloorCode(nearMiss.bestDepth.best)} まであと${nearMiss.bestDepth.gap}階だった`
       : `この迷宮での自己最深 ${formatFloorCode(nearMiss.bestDepth.best)} に並んでいた`);
   }
-  if (nearMiss.portal?.kind === "ahead") {
+  if (nearMiss.portal?.kind === "surface") {
+    facts.push(nearMiss.portal.gap <= 1
+      ? "地上への上り階段がある階まで戻っていた"
+      : `地上まであと${nearMiss.portal.gap}階だった`);
+  } else if (nearMiss.portal?.kind === "guardian") {
+    facts.push(nearMiss.portal.gap > 0
+      ? `守護者のいる${formatFloorCode(nearMiss.portal.floor)}まであと${nearMiss.portal.gap}階だった`
+      : "守護者はこの階にいた");
+  } else if (nearMiss.portal?.kind === "ahead") {
     facts.push(`帰還の門（${formatFloorCode(nearMiss.portal.floor)}）まであと${nearMiss.portal.gap}階だった`);
   } else if (nearMiss.portal?.kind === "guardian_ahead") {
     facts.push("帰還の門は、この階の階層守護者の先にあった");
@@ -683,7 +691,7 @@ export function renderResultScreen() {
       againButton.appendChild(textElement(
         "span",
         "result-again-detail",
-        `${kitName}・${getDungeonForFloor(plan.startFloor).name}${plan.roundTrip ? "・往復の試作" : ""}・${departureActions.formatCost(plan)}`
+        `${kitName}・${getDungeonForFloor(plan.startFloor).name}・${departureActions.formatCost(plan)}`
       ));
       againButton.addEventListener("click", () => {
         if (settleResult({ announce: false })) departureActions.repeat();

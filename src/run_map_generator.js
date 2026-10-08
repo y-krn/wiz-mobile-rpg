@@ -53,15 +53,14 @@ function placeMilestoneEvents(grid, floor) {
     if (Number.isFinite(distance)) candidates.push({ x, y, distance });
   }));
   candidates.sort((a, b) => b.distance - a.distance);
-  if (candidates.length < 3) throw new Error("milestone event cells unavailable");
-  const [boss, merchant, portal] = candidates;
+  if (candidates.length < 2) throw new Error("milestone event cells unavailable");
+  // There is no Portal in a dungeon (#2062): the way home is the stairs up.
+  const [boss, merchant] = candidates;
   grid[boss.y][boss.x].event = EVENT_TYPES.BOSS;
   grid[boss.y][boss.x].milestoneFloor = floor;
   grid[merchant.y][merchant.x].event = EVENT_TYPES.MERCHANT;
   grid[merchant.y][merchant.x].milestoneFloor = floor;
-  grid[portal.y][portal.x].event = EVENT_TYPES.RETURN_PORTAL;
-  grid[portal.y][portal.x].milestoneFloor = floor;
-  return { boss, merchant, portal };
+  return { boss, merchant };
 }
 
 // 野営は守護者撃破直後の階に置く。表示名は階層のバイオームから取得する。

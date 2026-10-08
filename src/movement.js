@@ -57,7 +57,7 @@ import { getWaitingKeeperFacility } from "./systems/facility_rooms.js";
 import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 import { createRunRoundTrip } from "./state/run_round_trip.js";
-import { canChooseRoundTrip, isRoundTripRun } from "./rules/round_trip.js";
+import { isRoundTripRun } from "./rules/round_trip.js";
 import { getDungeonFloor, isDungeonBottomFloor, isDungeonEntryFloor } from "./rules/dungeons.js";
 import { arriveOnFloor, getHunterName, isHunted, tickHunter, wakeDungeon } from "./systems/round_trip.js";
 import { takeCoreFamiliesForRun } from "./systems/core_families.js";
@@ -593,12 +593,13 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
 }
 
 /**
- * Round-trip prototype (#2066): climb back to a floor the run already came
+ * The way home (#2066, #2062): climb back to a floor the run already came
  * through. The floor is as it was left; the run arrives on its down stairs.
- * The first climb wakes the dungeon.
+ * The first climb wakes the dungeon. Never above the dungeon's first floor.
  */
 export function ascendToFloor(prevFloor) {
-  if (!isRoundTripRun(state.currentRun) || prevFloor < 1 || !state.maps?.[prevFloor - 1]) return false;
+  if (!isRoundTripRun(state.currentRun) || isDungeonEntryFloor(state.floor) ||
+      prevFloor !== state.floor - 1 || !state.maps?.[prevFloor - 1]) return false;
   state.transitioning = true;
   addLog(`階段を上ります。地下${getDungeonFloor(prevFloor)}階へ...`);
   playSound("move");
@@ -828,8 +829,8 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // what was sensed from the previous cell is settled here first (#1821).
   settleEventObservations();
 
-  // Floors are one-way during a run. The entrance stairs never return upward.
-  // The round-trip prototype (#2066) is the exception: the way home is up.
+  // The way home is up (#2062). A run saved before every run became a round
+  // trip keeps one-way stairs.
   if (cell.type === "stairs-up") {
     if (isRoundTripRun(state.currentRun)) {
       openGuardedSubmenu("stairs_up", !isDungeonEntryFloor(state.floor)
@@ -1127,7 +1128,7 @@ export function enterDungeon() {
   openSubmenu("solo_start", "開始キットを選ぶ：冒険はいつもLv1から");
 }
 
-export function executeEnterDungeon(floor, { departureCraft = [], roundTrip = false } = {}) {
+export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.party = state.party.slice(0, 1);
   state.gameState = "explore";
   menuContext.prevGameState = null;
@@ -1143,7 +1144,8 @@ export function executeEnterDungeon(floor, { departureCraft = [], roundTrip = fa
   state.currentRun.startFloor = floor;
   state.currentRun.deepestFloor = floor;
   state.currentRun.startingKit = normalizeStartingKitId(state.party[0]?.startingKit);
-  state.currentRun.roundTrip = roundTrip && canChooseRoundTrip(floor) ? createRunRoundTrip() : null;
+  // Every run is a round trip (#2062): five floors down, then walk back up.
+  state.currentRun.roundTrip = isDungeonEntryFloor(floor) ? createRunRoundTrip() : null;
   state.currentRun.floorSteps = {};
   resetRunFloors(state);
   ensureRunFloor(state, floor);
@@ -1195,7 +1197,7 @@ export function executeEnterDungeon(floor, { departureCraft = [], roundTrip = fa
   const firstVisit = revealFloor(state, floor);
   addLog(`${theme.name}：${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
   addLog(`鑑定粉を${state.identifyTickets}個持って冒険を始めた。`);
-  if (state.currentRun.roundTrip) addLog("往復の試作：帰還の門は無い。帰るには上り階段を歩いて地上へ戻る。");
+  if (state.currentRun.roundTrip) addLog("この迷宮に帰還の門は無い。帰るときは、上り階段を歩いて地上へ戻る。");
   const nearestFeat = getNearestFeats(state.feats, null, 1)[0];
   if (nearestFeat) addLog(`近い偉業：${nearestFeat.feat.name}（${nearestFeat.feat.condition}）`);
   checkFloorOmenMessage();

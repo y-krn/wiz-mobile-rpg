@@ -43,7 +43,7 @@ function createFacilityStatus(label, eventType, guardianDefeated) {
     : "未訪問";
 
   const availability = document.createElement("span");
-  // Round-trip prototype (#2066): the Portal never opens; the way home is the stairs.
+  // A round trip (#2062): an old Portal never opens; the way home is the stairs.
   const silentPortal = eventType === EVENT_TYPES.RETURN_PORTAL && isRoundTripBottom(state);
   availability.className = guardianDefeated && !silentPortal
     ? "milestone-disclosure-available"
@@ -73,10 +73,11 @@ function createMilestoneDisclosure(guardianDefeated) {
 
   const facilities = document.createElement("div");
   facilities.className = "milestone-disclosure-list";
-  facilities.append(
-    createFacilityStatus("深層商人", EVENT_TYPES.MERCHANT, guardianDefeated),
-    createFacilityStatus("帰還の門", EVENT_TYPES.RETURN_PORTAL, guardianDefeated)
-  );
+  facilities.append(createFacilityStatus("深層商人", EVENT_TYPES.MERCHANT, guardianDefeated));
+  // A floor generated before #2062 may still hold a Portal.
+  if (findMilestoneEvent(EVENT_TYPES.RETURN_PORTAL)) {
+    facilities.append(createFacilityStatus("帰還の門", EVENT_TYPES.RETURN_PORTAL, guardianDefeated));
+  }
 
   disclosure.append(title, intro, facilities);
   return disclosure;
@@ -127,8 +128,9 @@ export function renderStairsDown(optGrid) {
     descend.className = "btn btn-block disabled";
     descend.textContent = "この先の道はまだ開いていない";
   }
-  // Round-trip prototype (#2066): with the guardian down the way on is back up.
-  const roundTripEnd = isRoundTripBottom(state) && guardianDefeated;
+  // A round trip (#2062): with the guardian down the way on is back up.
+  const roundTrip = isRoundTripBottom(state);
+  const roundTripEnd = roundTrip && guardianDefeated;
   descend.addEventListener("click", () => {
     // The submenu closes with an animation; a second tap during it must not
     // start another descent.
@@ -171,15 +173,17 @@ export function renderStairsDown(optGrid) {
     const note = document.createElement("p");
     note.className = "submenu-info stairs-round-trip-note";
     if (note.dataset) note.dataset.testid = "stairs-round-trip-note";
-    note.textContent = "至宝を手に入れた。帰還の門は無い。上り階段を歩いて地上へ戻る。";
+    note.textContent = "至宝を手に入れた。この迷宮はここまで。上り階段を歩いて地上へ戻る。";
     roundTripNote.push(note);
   } else if (dungeonEnd) {
     const note = document.createElement("p");
     note.className = "submenu-info stairs-dungeon-end-note";
     if (note.dataset) note.dataset.testid = "stairs-dungeon-end-note";
-    note.textContent = guardianDefeated
-      ? "この迷宮はここまで。帰還の門から街へ帰る。"
-      : "この迷宮はここまで。守護者を倒すと、帰還の門が開く。";
+    note.textContent = roundTrip
+      ? "この迷宮はここまで。守護者を倒して至宝を取り、上り階段を歩いて地上へ戻る。"
+      : guardianDefeated
+        ? "この迷宮はここまで。帰還の門から街へ帰る。"
+        : "この迷宮はここまで。守護者を倒すと、帰還の門が開く。";
     roundTripNote.push(note);
   }
   optGrid.append(createRunStakesSummary(), ...roundTripNote, ...(recoveryNote ? [recoveryNote] : []), descend, stay, ...searchWalls);

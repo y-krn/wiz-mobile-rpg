@@ -76,7 +76,7 @@ export const FEATS = Object.freeze([
     id: "foreman_rescue",
     chain: "rescue",
     name: "鉱夫頭を連れ帰る",
-    condition: "崩れた坑道の3階目で鉱夫頭を掘り出し、帰還の門か帰還の翼で生還する",
+    condition: "崩れた坑道の3階目で鉱夫頭を掘り出し、連れて歩いて地上へ出る",
     metric: { kind: "counter", key: "foremanRescued", target: 1, unit: "rescue", companion: "foreman" },
     reward: { materials: {}, unlock: "坑夫組合が開く" }
   }),
@@ -84,7 +84,7 @@ export const FEATS = Object.freeze([
     id: "priest_rescue",
     chain: "rescue",
     name: "司祭を連れ帰る",
-    condition: "忘れられた地下墓地の3階目で司祭の封印を解き、帰還の門か帰還の翼で生還する",
+    condition: "忘れられた地下墓地の3階目で司祭の封印を解き、連れて歩いて地上へ出る",
     metric: { kind: "counter", key: "priestRescued", target: 1, unit: "rescue", companion: "priest" },
     reward: { materials: {}, unlock: "礼拝堂が開く" }
   }),
@@ -92,7 +92,7 @@ export const FEATS = Object.freeze([
     id: "weaver_rescue",
     chain: "rescue",
     name: "織り手を連れ帰る",
-    condition: "大裂溝の巣窟の3階目で巣の主を倒して織り手の繭を切り、帰還の門か帰還の翼で生還する",
+    condition: "大裂溝の巣窟の3階目で巣の主を倒して織り手の繭を切り、連れて歩いて地上へ出る",
     metric: { kind: "counter", key: "weaverRescued", target: 1, unit: "rescue", companion: "weaver" },
     reward: { materials: {}, unlock: "織り場が開く" }
   }),
@@ -100,7 +100,7 @@ export const FEATS = Object.freeze([
     id: "scribe_rescue",
     chain: "rescue",
     name: "写本師を連れ帰る",
-    condition: "水没した魔導書庫の3階目で閲覧室の水を抜いて写本師を助け、帰還の門か帰還の翼で生還する",
+    condition: "水没した魔導書庫の3階目で閲覧室の水を抜いて写本師を助け、連れて歩いて地上へ出る",
     metric: { kind: "counter", key: "scribeRescued", target: 1, unit: "rescue", companion: "scribe" },
     reward: { materials: {}, unlock: "写本室が開く" }
   }),
@@ -108,7 +108,7 @@ export const FEATS = Object.freeze([
     id: "smith_rescue",
     chain: "rescue",
     name: "鍛冶師を連れ帰る",
-    condition: "竜火の鍛造殿の3階目で炉に火を入れて鍛冶師を助け、帰還の門か帰還の翼で生還する",
+    condition: "竜火の鍛造殿の3階目で炉に火を入れて鍛冶師を助け、連れて歩いて地上へ出る",
     metric: { kind: "counter", key: "smithRescued", target: 1, unit: "rescue", companion: "smith" },
     reward: { materials: {}, unlock: "鍛冶場が開く" }
   }),
@@ -116,7 +116,7 @@ export const FEATS = Object.freeze([
     id: "chamberlain_rescue",
     chain: "rescue",
     name: "侍従を連れ帰る",
-    condition: "深淵の玉座の3階目で鏡に生気を与えて侍従を助け、帰還の門か帰還の翼で生還する",
+    condition: "深淵の玉座の3階目で鏡に生気を与えて侍従を助け、連れて歩いて地上へ出る",
     metric: { kind: "counter", key: "chamberlainRescued", target: 1, unit: "rescue", companion: "chamberlain" },
     reward: { materials: {}, unlock: "謁見の間が開く" }
   }),

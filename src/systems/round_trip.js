@@ -1,17 +1,17 @@
-// balance-impact: combat, maps — round-trip prototype rule (#2066). Opt-in at departure; ordinary runs are untouched.
+// balance-impact: combat, maps — every run is a round trip (#2066, #2062).
 //
-// State changes of the round-trip prototype: waking the dungeon, the hunter
+// State changes of the round trip: waking the dungeon, the hunter
 // that follows from below, and the treasure. Movement and menus call in here;
 // nothing in this module touches the DOM.
 import { getBiomeForFloor } from "../data/biomes.js";
 import { isTraversalObstacleBlocking } from "../rules/traversal_gimmicks.js";
+import { isDungeonBottomFloor } from "../rules/dungeons.js";
 import {
   HUNTER_COMBAT_SPEED,
   HUNTER_ENTRY_DELAY,
   HUNTER_FALL_BACK,
   HUNTER_MAX_CARRY,
   HUNTER_SPEED,
-  ROUND_TRIP_BOTTOM_FLOOR,
   findHunterStep,
   findHunterStepAway,
   getHunterAlertLevel
@@ -44,9 +44,9 @@ export function isHunted(stateLike) {
   return Boolean(roundTrip?.awake && !roundTrip.hunterSlain);
 }
 
-/** The floor below the bottom is closed in a round-trip run. */
+/** The bottom floor of the run's dungeon, in a round-trip run. */
 export function isRoundTripBottom(stateLike, floor = stateLike?.floor) {
-  return Boolean(getRoundTrip(stateLike)) && floor >= ROUND_TRIP_BOTTOM_FLOOR;
+  return Boolean(getRoundTrip(stateLike)) && isDungeonBottomFloor(floor);
 }
 
 /**

@@ -9,6 +9,7 @@ import { KEY_ITEM_LABELS, MILESTONE_KEY_ITEMS } from "../data/key_items.js";
 import { WORKSHOP_CATEGORIES, WORKSHOP_NODES } from "../data/workshop.js";
 import { getHunterName, takeTreasure } from "../systems/round_trip.js";
 import { getDungeonOpenedByClearing } from "../systems/dungeon_progress.js";
+import { isDungeonBottomFloor } from "../rules/dungeons.js";
 
 // The workshop shelf a seal opens, named as the workshop names it. A seal
 // with nothing behind it yet promises nothing.
@@ -24,7 +25,11 @@ function clearOutcomeCell(stateLike, event, { openBossExitFloor = null } = {}) {
   // The presence that was sensed from a distance is gone with its source (#1821).
   const sensed = stateLike.currentRun?.eventObservations?.[`aura:${stateLike.floor}:boss:${stateLike.x}:${stateLike.y}`];
   if (sensed) sensed.lifecycle = "resolved";
-  if (cell.milestoneFloor === openBossExitFloor) {
+  // The guardian's cell becomes a short way down, except on a dungeon's
+  // bottom floor of a round trip (#2062): nothing lies below, and the way on
+  // is back up.
+  if (cell.milestoneFloor === openBossExitFloor &&
+      !(stateLike.currentRun?.roundTrip && isDungeonBottomFloor(openBossExitFloor))) {
     cell.type = "stairs-down";
     cell.message = "階層守護者を倒した。階段への短絡路が開いた。";
   }
@@ -50,8 +55,7 @@ function applyMilestoneVictoryRewards(stateLike, floor) {
       );
     }
   }
-  // Round-trip prototype (#2066): the guardian held the treasure, and taking
-  // it wakes the dungeon.
+  // The guardian held the treasure, and taking it wakes the dungeon (#2062).
   if (takeTreasure(stateLike)) {
     messages.push("迷宮の至宝を手に入れた！");
     messages.push(`【予兆】迷宮が目を覚ました。${getHunterName(stateLike.floor)}が後を追ってくる。歩いて地上へ戻れ。`);

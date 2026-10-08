@@ -361,7 +361,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
 
   if (state.combatState.isBoss) {
     logQueue.push({
-      msg: `${formatFloorCode(state.floor)}の階層守護者を撃破した！帰還の門と商人が解放された。`,
+      msg: state.currentRun?.roundTrip
+        ? `${formatFloorCode(state.floor)}の階層守護者を撃破した！深層商人が取引に応じるようになった。`
+        : `${formatFloorCode(state.floor)}の階層守護者を撃破した！帰還の門と商人が解放された。`,
       sound: "item",
       milestoneVictory: state.floor
     });
@@ -390,7 +392,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
         sound: "item"
       });
       logQueue.push({
-        msg: `${freed.companion.name}が同行する。帰還の門か帰還の翼で生還すれば、街に${freed.name}が開く。`
+        msg: `${freed.companion.name}が同行する。連れて歩いて地上へ出れば、街に${freed.name}が開く。帰還の翼では連れて帰れない。`
       });
     }
     logQueue.push({

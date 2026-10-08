@@ -67,7 +67,8 @@ export function triggerRunResult(reason) {
       defeatedMilestones: run.defeatedMilestones,
       deathLog: run.deathLogs?.at(-1) || null,
       combat: state.combatState,
-      inventory: state.inventory
+      inventory: state.inventory,
+      roundTrip: run.roundTrip
     })
     : null;
   const settlementSnapshotPoint = "terminal_settlement_before";
