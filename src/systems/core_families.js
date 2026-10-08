@@ -23,12 +23,14 @@ export function getDrawableCoreFamilyIds(stateLike) {
   return getAvailableCoreFamilyIds(getGeneratableCoreIds(getWorkshopGrants(stateLike?.workshop).affixIds));
 }
 
+// Dungeons are drawn in order, each avoiding the sets drawn before it.
 function drawAll(stateLike, draws) {
   const available = getDrawableCoreFamilyIds(stateLike);
-  return Object.fromEntries(DUNGEONS.map(dungeon => [
-    dungeon.id,
-    drawCoreFamilies(stateLike?.seed, draws, dungeon.id, available)
-  ]));
+  const byDungeon = {};
+  DUNGEONS.forEach(dungeon => {
+    byDungeon[dungeon.id] = drawCoreFamilies(stateLike?.seed, draws, dungeon.id, available, Object.values(byDungeon));
+  });
+  return byDungeon;
 }
 
 /**

@@ -92,6 +92,8 @@ check("the draw is three different families, the same for the same seed and draw
   }
   assert.ok(seen.size >= 8, `redraws move the board (${seen.size} distinct of 30)`);
   assert.equal(formatCoreFamilies(["technique", "guard", "curse"]), "技・構え・呪い");
+  const avoided = drawCoreFamilies("S-1", 0, "forgotten_catacomb", CORE_FAMILY_IDS, [a]);
+  assert.notDeepEqual([...avoided].sort(), [...a].sort(), "a draw equal to another dungeon's is drawn again");
 });
 
 check("a new save draws every dungeon on first use, from its own seed", () => {
@@ -100,6 +102,10 @@ check("a new save draws every dungeon on first use, from its own seed", () => {
   assert.equal(mine.length, 3);
   mine.forEach(id => assert.ok(NEW_SAVE_FAMILIES.includes(id)));
   DUNGEONS.forEach(dungeon => assert.equal(state.coreFamilies.byDungeon[dungeon.id].length, 3));
+  for (let seed = 0; seed < 40; seed += 1) {
+    const draw = ensureCoreFamilyDraw(newState(`seed-${seed}`)).byDungeon;
+    assert.notEqual([...draw.collapsed_mine].sort().join(), [...draw.forgotten_catacomb].sort().join(), `seed-${seed}`);
+  }
   assert.deepEqual(getLikelyCoreFamilies(newState("S-7"), "collapsed_mine"), mine);
   assert.ok(isNormalizedCoreFamilyState(state.coreFamilies));
 });

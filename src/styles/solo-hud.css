@@ -372,6 +372,11 @@
   padding: 0;
 }
 
+.solo-start-treasure-pin .solo-start-rule-heading span {
+  color: var(--text-main);
+  font-size: var(--fs-xs);
+}
+
 .solo-start-pin-choices {
   display: flex;
   flex-wrap: wrap;

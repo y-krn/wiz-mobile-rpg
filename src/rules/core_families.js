@@ -56,13 +56,24 @@ function shuffled(values, rng) {
   return result;
 }
 
+const setKey = familyIds => [...familyIds].sort().join(",");
+
 /**
  * The likely families of one dungeon for one draw. The same save seed, draw
  * number, dungeon, and available families always give the same three.
+ * `avoid` lists draws already made for other dungeons: a draw equal to one
+ * of them is drawn again (a few times at most), so two dungeons rarely read
+ * the same.
  */
-export function drawCoreFamilies(seed, drawIndex, dungeonId, availableFamilyIds) {
-  const rng = createRng(`${seed || "core-families"}:core-families:${drawIndex}:${dungeonId}`);
-  return shuffled(availableFamilyIds, rng).slice(0, LIKELY_CORE_FAMILY_COUNT);
+export function drawCoreFamilies(seed, drawIndex, dungeonId, availableFamilyIds, avoid = []) {
+  const taken = new Set(avoid.map(setKey));
+  let draw = [];
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const rng = createRng(`${seed || "core-families"}:core-families:${drawIndex}:${dungeonId}${attempt > 0 ? `:${attempt}` : ""}`);
+    draw = shuffled(availableFamilyIds, rng).slice(0, LIKELY_CORE_FAMILY_COUNT);
+    if (!taken.has(setKey(draw))) break;
+  }
+  return draw;
 }
 
 /**
