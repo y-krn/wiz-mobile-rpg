@@ -70,20 +70,21 @@ test('Walking an unvisited cell recovers HP and the bars, goal, and stairs menu 
   const hpRow = page.locator('#character-hud .hp-row');
   const recoveryStat = page.locator('.goal-recovery-stat');
 
-  // Max HP 100: the floor allowance is 50, and all of it fits in the 60 missing.
-  await expect(hpRow).toHaveAttribute('data-recovery-reserve', '50');
+  // Max HP 100: the floor allowance is a whole bar (#1803), held to the 60 missing.
+  await expect(hpRow).toHaveAttribute('data-recovery-reserve', '60');
   await expect(hpRow.locator('.bar-reserve.hp')).toBeVisible();
   await expect(recoveryStat).toBeHidden();
 
   await stepForward(page);
-  await expect.poll(() => heroHp(page)).toBe(42);
-  await expect(hpRow.locator('.bar-value')).toHaveText('42/100');
-  await expect(hpRow).toHaveAttribute('data-recovery-reserve', '48');
-  await expect(hpRow).toContainText('この階を歩けば、あと48回復できる');
+  // 1.5% of 100 per cell: one point now, the half point carries to the next cell.
+  await expect.poll(() => heroHp(page)).toBe(41);
+  await expect(hpRow.locator('.bar-value')).toHaveText('41/100');
+  await expect(hpRow).toHaveAttribute('data-recovery-reserve', '59');
+  await expect(hpRow).toContainText('この階を歩けば、あと59回復できる');
   // The first recovery of the run says what happened; later steps stay silent (#2044).
   const recoveryLogs = () => page.evaluate(async () => (await import('/src/state.js')).state.logs
     .map(entry => String(entry?.text ?? entry)).filter(text => /回復/.test(text)));
-  expect(await recoveryLogs()).toEqual(['初めて歩く場所を進むと、少しずつ回復する（この階であとHP 48）。']);
+  expect(await recoveryLogs()).toEqual(['初めて歩く場所を進むと、少しずつ回復する（この階であとHP 99）。']);
 
   // Stepping back onto a visited cell gives nothing.
   await page.evaluate(async () => {
@@ -93,12 +94,12 @@ test('Walking an unvisited cell recovers HP and the bars, goal, and stairs menu 
     handleMove('backward');
   });
   await expect.poll(() => page.evaluate(async () => (await import('/src/state.js')).state.y)).toBe(4);
-  expect(await heroHp(page)).toBe(42);
+  expect(await heroHp(page)).toBe(41);
 
   // The unfolded goal names the allowance; vanguard's single MP earns none.
   await page.locator('#btn-goal-toggle').click();
   await expect(recoveryStat).toBeVisible();
-  await expect(recoveryStat).toHaveText('♨️ 歩いて回復 あとHP 48');
+  await expect(recoveryStat).toHaveText('♨️ 歩いて回復 あとHP 99');
 
   // The stairs menu says what the floor can still give before descending.
   await page.evaluate(async () => {
@@ -107,15 +108,15 @@ test('Walking an unvisited cell recovers HP and the bars, goal, and stairs menu 
   });
   const note = page.getByTestId('stairs-recovery-note');
   await expect(note).toBeVisible();
-  await expect(note).toHaveText('この階を歩けば、あとHP 48回復できる。 階段を降りても回復はしない。');
-  await expect(hpRow).toHaveAttribute('data-recovery-reserve', '48');
+  await expect(note).toHaveText('この階を歩けば、あとHP 59回復できる。 階段を降りても回復はしない。');
+  await expect(hpRow).toHaveAttribute('data-recovery-reserve', '59');
 });
 
 test('Only the first recovery of a run is explained in the log', async ({ page }) => {
   await seedExplore(page);
   const recoveryLogs = () => page.evaluate(async () => (await import('/src/state.js')).state.logs
     .map(entry => String(entry?.text ?? entry)).filter(text => /回復/.test(text)));
-  for (const hp of [42, 44, 46]) {
+  for (const hp of [41, 43, 44]) {
     await page.evaluate(async () => { (await import('/src/state.js')).state.transitioning = false; });
     await stepForward(page);
     await expect.poll(() => heroHp(page)).toBe(hp);
@@ -127,11 +128,11 @@ test('The bars hold the reserve to what is missing, and poison suspends it', asy
   await seedExplore(page, { kit: 'arcana', hp: 97, mp: 0 });
   const hpRow = page.locator('#character-hud .hp-row');
   const mpRow = page.locator('#character-hud .mp-row');
-  // 3 HP missing of a 50 allowance; arcana's 3 MP gives a 1 MP allowance.
+  // 3 HP missing of a 100 allowance; arcana's 3 MP gives a 1 MP allowance.
   await expect(hpRow).toHaveAttribute('data-recovery-reserve', '3');
   await expect(mpRow).toHaveAttribute('data-recovery-reserve', '1');
   await page.locator('#btn-goal-toggle').click();
-  await expect(page.locator('.goal-recovery-stat')).toHaveText('♨️ 歩いて回復 あとHP 50・MP 1');
+  await expect(page.locator('.goal-recovery-stat')).toHaveText('♨️ 歩いて回復 あとHP 100・MP 1');
 
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -201,7 +202,7 @@ for (const width of [320, 360, 390]) {
     const stat = page.locator('.goal-recovery-stat');
     await expect(stat).toBeVisible();
     await expect(page.locator('.goal-stats-container')).toContainText('探索率: 100%');
-    await expect(stat).toContainText('あとHP 50・MP 1');
+    await expect(stat).toContainText('あとHP 100・MP 1');
     await page.waitForFunction(() => document.getAnimations().every(animation => !(animation instanceof CSSTransition)));
     const unfolded = await measure();
     expect(unfolded.statClipped).toBe(false);
