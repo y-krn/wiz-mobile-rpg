@@ -40,23 +40,39 @@
 // Floors come from runSeed (independent of combat RNG), so both sides see the
 // same maps. Combat/loot rolls share one Math.random stream, so they diverge
 // after the first point where the two builds consume randomness differently.
+//
+// Measuring a commit (#2079): --ref <git ref> (and --compareRef <git ref>)
+// checks the commit out into a temporary worktree, serves it from its own dev
+// server on a free port, and stops both afterwards, so edits in your checkout
+// cannot reach the run. Each finished seed is cached under the shared git
+// directory, keyed by the game's source tree at that commit, this runner and
+// its driver, the options that change play, and the seed. A later run with the
+// same key reads the cache instead of playing (only the missing seeds play);
+// --fresh ignores it. Failed, timed-out and HMR-touched runs are never cached.
+//   node scratch/measurements/run_browser_playtest.js --ref origin/main \
+//     --compareRef HEAD --seeds 1-10 --kit vanguard --dungeon mine
 
+import { execFileSync, spawn } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
+import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const HELPER_SOURCE = fs.readFileSync(path.join(here, "browser_playtest_driver.js"), "utf8");
+const RUNNER_SOURCE = fs.readFileSync(fileURLToPath(import.meta.url), "utf8");
 
 function parseArgs(argv) {
   const opts = {
-    url: "http://localhost:5173", compare: null, seeds: "1-5", kit: "vanguard",
+    url: "http://localhost:5173", compare: null, ref: null, compareRef: null, fresh: false, seeds: "1-5", kit: "vanguard",
     explore: 0.6, equip: "greedy", maxFloor: null, speed: 0.1, out: null,
     // Run policy; null keeps the driver's default (see browser_playtest_driver.js).
     recovery: null, rooms: null, cores: null, roundTrip: null, turnBack: null, dungeon: null,
     boss: false, bossLevel: 3, bossMaxHp: 55, bossHp: 40, headed: false,
-    seedTimeout: 900, allowHmr: false, fps: null, jobs: 1
+    seedTimeout: 900, allowHmr: false, fps: null, jobs: os.availableParallelism()
   };
   for (let i = 0; i < argv.length; i++) {
     const [k, inline] = argv[i].replace(/^--/, "").split("=", 2);
@@ -64,7 +80,7 @@ function parseArgs(argv) {
     if (k === "maxFloor" || k === "bossLevel" || k === "bossMaxHp" || k === "bossHp") opts[k] = Number(v);
     else if (k === "turnBack") opts[k] = Number(v);
     else if (k === "explore" || k === "speed" || k === "seedTimeout" || k === "fps" || k === "jobs") opts[k] = Number(v);
-    else if (k === "boss" || k === "headed" || k === "allowHmr") opts[k] = v !== "false";
+    else if (k === "boss" || k === "headed" || k === "allowHmr" || k === "fresh") opts[k] = v !== "false";
     else opts[k] = v;
   }
   // Watching a headed run at one frame a second is useless; measuring at 60 is waste.
@@ -276,25 +292,119 @@ function formatLine(url, seed, r, opts) {
   return `${url} seed ${seed}: ${body}${notes ? ` [${notes}]` : ""} (${r.seconds}s)`;
 }
 
+// --- Measuring commits (--ref / --compareRef) and the per-seed cache ---
+
+const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+// What the served game is built from. A commit that touches none of these
+// (design notes, tests, scratch) plays exactly like its parent.
+const GAME_PATHS = ["src", "public", "index.html", "vite.config.js", "package-lock.json"];
+// Options that change how a seed plays out. url/jobs/fps/seedTimeout/headed do not.
+const PLAY_OPTIONS = ["kit", "explore", "equip", "maxFloor", "speed", "recovery", "rooms", "cores", "roundTrip", "turnBack", "dungeon", "boss", "bossLevel", "bossMaxHp", "bossHp"];
+const sha256 = text => crypto.createHash("sha256").update(text).digest("hex");
+const CACHE_DIR = path.join(path.resolve(git("rev-parse", "--git-common-dir")), "playtest-cache");
+const BOT_HASH = sha256(`${RUNNER_SOURCE}\0${HELPER_SOURCE}`);
+
+function resolveRef(ref) {
+  const sha = git("rev-parse", "--verify", `${ref}^{commit}`);
+  const gameTree = sha256(git("ls-tree", sha, "--", ...GAME_PATHS));
+  const play = Object.fromEntries(PLAY_OPTIONS.map(k => [k, opts[k]]));
+  const key = sha256(JSON.stringify({ gameTree, bot: BOT_HASH, play })).slice(0, 24);
+  return { ref, sha, gameTree, key, label: `${ref}@${sha.slice(0, 8)}` };
+}
+
+const cacheFile = (target, seed) => path.join(CACHE_DIR, "runs", target.key, `seed-${seed}.json`);
+function readCached(target, seed) {
+  if (opts.fresh) return null;
+  try {
+    return JSON.parse(fs.readFileSync(cacheFile(target, seed), "utf8"));
+  } catch {
+    return null;
+  }
+}
+function writeCached(target, seed, r) {
+  if (r.error || r.hmrSuppressed) return;
+  const file = cacheFile(target, seed);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  // Write then rename so a concurrent reader never sees half a file.
+  fs.writeFileSync(`${file}.${process.pid}.tmp`, `${JSON.stringify({ ...r, cachedFrom: { sha: target.sha, at: new Date().toISOString() } })}\n`);
+  fs.renameSync(`${file}.${process.pid}.tmp`, file);
+}
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+// Checks the commit out into a temporary worktree (node_modules linked from
+// this checkout) and serves it; returns the url and a stop function.
+async function serveCommit(target) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `playtest-${target.sha.slice(0, 8)}-`));
+  git("worktree", "add", "--detach", "--force", dir, target.sha);
+  fs.symlinkSync(path.resolve(git("rev-parse", "--show-toplevel"), "node_modules"), path.join(dir, "node_modules"));
+  const port = await freePort();
+  const url = `http://127.0.0.1:${port}`;
+  const server = spawn(process.execPath, [path.join(dir, "node_modules", "vite", "bin", "vite.js"), "--port", String(port), "--strictPort", "--host", "127.0.0.1"], { cwd: dir, stdio: "ignore" });
+  const stop = () => {
+    server.kill();
+    try {
+      git("worktree", "remove", "--force", dir);
+    } catch {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  for (const started = Date.now(); ;) {
+    if (server.exitCode !== null) { stop(); throw new Error(`dev server for ${target.label} exited with ${server.exitCode}`); }
+    if (await fetch(url).then(res => res.ok, () => false)) break;
+    if (Date.now() - started > 60000) { stop(); throw new Error(`dev server for ${target.label} did not start in 60s`); }
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  console.log(`serving ${target.label} at ${url}`);
+  return { url, stop };
+}
+
 const opts = parseArgs(process.argv.slice(2));
 const seeds = parseSeeds(opts.seeds);
-const targets = [opts.url, ...(opts.compare ? [opts.compare] : [])];
+// A target is a url you serve yourself, or a commit this runner serves (and caches).
+const targets = [
+  opts.ref ? resolveRef(opts.ref) : { label: opts.url, url: opts.url },
+  ...(opts.compareRef ? [resolveRef(opts.compareRef)] : opts.compare ? [{ label: opts.compare, url: opts.compare }] : [])
+];
 // One slot per seed and side, filled as runs finish, so each side stays in
 // seed order however the runs are interleaved.
-const all = Object.fromEntries(targets.map(url => [url, new Array(seeds.length).fill(null)]));
-const tasks = targets.flatMap(url => seeds.map((seed, index) => ({ url, seed, index })));
+const all = Object.fromEntries(targets.map(t => [t.label, new Array(seeds.length).fill(null)]));
+const tasks = [];
+let cachedRuns = 0;
+for (const target of targets) {
+  seeds.forEach((seed, index) => {
+    const cached = target.key ? readCached(target, seed) : null;
+    if (!cached) return tasks.push({ target, seed, index });
+    all[target.label][index] = { ...cached, url: target.label, cached: true };
+    cachedRuns++;
+    console.log(`${formatLine(target.label, seed, cached, opts)} (cached)`);
+  });
+}
 
 function writeOut(complete) {
   if (!opts.out) return;
   // A partial file holds the finished runs only.
-  const results = Object.fromEntries(targets.map(url => [url, all[url].filter(Boolean)]));
-  fs.writeFileSync(opts.out, `${JSON.stringify({ options: opts, seeds, complete, results }, null, 2)}\n`);
+  const results = Object.fromEntries(targets.map(t => [t.label, all[t.label].filter(Boolean)]));
+  const refs = targets.filter(t => t.key).map(({ ref, sha, gameTree, key, label }) => ({ ref, sha, gameTree, key, label }));
+  fs.writeFileSync(opts.out, `${JSON.stringify({ options: opts, seeds, complete, ...(refs.length ? { refs } : {}), results }, null, 2)}\n`);
 }
 
+const servers = [];
+const stopServers = () => { for (const s of servers.splice(0)) s.stop(); };
 // Ctrl-C: keep the finished seeds and exit at once. Chromium gets the same
 // SIGINT, so the seed in flight would otherwise be recorded as a failure.
 process.once("SIGINT", () => {
   writeOut(false);
+  stopServers();
   if (opts.out) console.log(`interrupted; wrote partial ${opts.out}`);
   process.exit(130);
 });
@@ -307,30 +417,40 @@ async function runJob() {
   const browser = await chromium.launch({ headless: !opts.headed });
   browsers.push(browser);
   while (nextTask < tasks.length) {
-    const { url, seed, index } = tasks[nextTask++];
-    const r = await playWithRetry(browser, url, seed, opts);
-    all[url][index] = r;
-    console.log(formatLine(url, seed, r, opts));
+    const { target, seed, index } = tasks[nextTask++];
+    const played = await playWithRetry(browser, target.url, seed, opts);
+    const r = { ...played, url: target.label };
+    if (target.key) writeCached(target, seed, r);
+    all[target.label][index] = r;
+    console.log(formatLine(target.label, seed, r, opts));
     writeOut(false);
   }
 }
 const startedAt = Date.now();
 try {
+  for (const target of targets) {
+    if (!target.key || !tasks.some(t => t.target === target)) continue;
+    const server = await serveCommit(target);
+    servers.push(server);
+    target.url = server.url;
+  }
   await Promise.all(Array.from({ length: Math.min(opts.jobs, tasks.length) }, runJob));
 } finally {
   await Promise.all(browsers.map(browser => browser.close().catch(() => {})));
+  stopServers();
 }
-console.log(`${tasks.length} runs in ${Math.round((Date.now() - startedAt) / 1000)}s (jobs ${opts.jobs}, fps ${opts.fps || "unlimited"})`);
-if (!opts.boss) for (const url of targets) summarize(url, all[url]);
-for (const url of targets) {
+console.log(`${tasks.length} runs in ${Math.round((Date.now() - startedAt) / 1000)}s (jobs ${opts.jobs}, fps ${opts.fps || "unlimited"})${cachedRuns ? `, ${cachedRuns} from cache` : ""}`);
+const labels = targets.map(t => t.label);
+if (!opts.boss) for (const label of labels) summarize(label, all[label]);
+for (const label of labels) {
   const errors = new Map();
-  for (const r of all[url]) for (const e of r.pageErrors || []) errors.set(e.message, (errors.get(e.message) || 0) + e.count);
-  for (const [message, count] of errors) console.log(`${url} page error x${count}: ${message}`);
-  const reloads = all[url].filter(r => r.hmrSuppressed).map(r => r.seed);
-  if (reloads.length) console.log(`${url} source changed during seeds [${reloads.join(",")}]: later seeds ran newer code`);
+  for (const r of all[label]) for (const e of r.pageErrors || []) errors.set(e.message, (errors.get(e.message) || 0) + e.count);
+  for (const [message, count] of errors) console.log(`${label} page error x${count}: ${message}`);
+  const reloads = all[label].filter(r => r.hmrSuppressed).map(r => r.seed);
+  if (reloads.length) console.log(`${label} source changed during seeds [${reloads.join(",")}]: later seeds ran newer code`);
 }
-if (opts.compare && !opts.boss) {
-  const [a, b] = targets;
+if (labels.length === 2 && !opts.boss) {
+  const [a, b] = labels;
   const same = all[a].filter((r, i) => r.start?.mapFingerprint && r.start.mapFingerprint === all[b][i]?.start?.mapFingerprint).length;
   console.log(`same B1 map on both sides: ${same}/${seeds.length}`);
 }
