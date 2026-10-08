@@ -57,6 +57,21 @@ export function getDungeonStrength(floor) {
 }
 
 /**
+ * The multipliers for one monster on `floor`: the guardian, the dungeon's
+ * roaming strong enemy (by its template name; a mimic and a brood keeper wear
+ * that body too), or any other monster.
+ */
+export function getEnemyStrength(floor, templateName, { boss = false } = {}) {
+  const dungeon = getDungeonForFloor(floor);
+  const strength = dungeon.strength;
+  if (boss) return { hp: strength.guardianHp, atk: strength.guardianAtk, def: strength.guardianDef };
+  if (templateName && templateName === dungeon.eliteName) {
+    return { hp: strength.eliteHp, atk: strength.eliteAtk, def: strength.eliteDef };
+  }
+  return { hp: strength.enemyHp, atk: strength.enemyAtk, def: strength.enemyDef };
+}
+
+/**
  * A dungeon opens when the one before it has been cleared: its guardian
  * beaten by a run that then came home. `clearedBottomFloors` is the saved
  * list of those bottom floors (`state.unlockedMilestones`).

@@ -1,6 +1,6 @@
 import { MONSTERS } from "../data/monsters.js";
 import { getMilestoneBossStatRule } from "./boss_rules.js";
-import { getDungeonFloor, getDungeonStrength } from "./dungeons.js";
+import { getDungeonFloor, getEnemyStrength } from "./dungeons.js";
 
 const clampBaseline = value => Math.max(0, Math.min(5, Math.floor(Number(value) || 0)));
 
@@ -56,14 +56,14 @@ export const PHASE4C_V1_GUARDIAN_SOLO_SCALE = Object.freeze({ hp: 0.38, atk: 0.4
 
 function applyPhase4cV1GuardianBaseline(monster, template, band, strength) {
   const hp = Math.max(1, Math.round(
-    template.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * (1 + 0.20 * band) * strength.guardianHp
+    template.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * (1 + 0.20 * band) * strength.hp
   ));
   monster.maxHp = hp;
   monster.hp = hp;
   monster.atk = Math.max(1, Math.round(
-    template.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * (1 + 0.10 * band) * strength.guardianAtk
+    template.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * (1 + 0.10 * band) * strength.atk
   ));
-  monster.def = Math.max(0, Math.round(template.def * strength.guardianDef));
+  monster.def = Math.max(0, Math.round(template.def * strength.def));
   // A summoning guardian keeps at most one add alive at a time.
   if (monster.traits?.includes("summonAlly")) {
     monster.summon = { ...(monster.summon || {}), maxAllies: 2 };
@@ -72,12 +72,11 @@ function applyPhase4cV1GuardianBaseline(monster, template, band, strength) {
 
 export function applyPhase4cV1EnemyBaseline(monsters, floor) {
   const band = phase4cV1EnemyBand(floor);
-  const strength = getDungeonStrength(floor);
   for (const monster of monsters || []) {
     if (monster.isBoss === true) {
       const template = MONSTERS.find(entry => entry.name === templateName(monster.name));
       if (template && !getMilestoneBossStatRule(floor, template.name, { isBoss: true })) {
-        applyPhase4cV1GuardianBaseline(monster, template, band, strength);
+        applyPhase4cV1GuardianBaseline(monster, template, band, getEnemyStrength(floor, template.name, { boss: true }));
       }
       continue;
     }
@@ -86,11 +85,12 @@ export function applyPhase4cV1EnemyBaseline(monsters, floor) {
     if (monster.isMimic === true || monster.isBroodKeeper === true) continue;
     const template = MONSTERS.find(entry => entry.name === templateName(monster.name));
     if (!template) throw new Error(`Phase 4c v1 missing generic enemy template: ${monster.name}`);
-    const hp = Math.max(1, Math.round(template.hp * (1 + 0.20 * band) * strength.enemyHp));
+    const strength = getEnemyStrength(floor, template.name);
+    const hp = Math.max(1, Math.round(template.hp * (1 + 0.20 * band) * strength.hp));
     monster.maxHp = hp;
     monster.hp = hp;
-    monster.atk = Math.max(1, Math.round(template.atk * (1 + 0.10 * band) * strength.enemyAtk));
-    monster.def = Math.max(0, Math.round(template.def * strength.enemyDef));
+    monster.atk = Math.max(1, Math.round(template.atk * (1 + 0.10 * band) * strength.atk));
+    monster.def = Math.max(0, Math.round(template.def * strength.def));
   }
   return band;
 }

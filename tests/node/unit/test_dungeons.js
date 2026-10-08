@@ -15,6 +15,7 @@ import {
   getDungeonForFloor,
   getDungeonIndexForFloor,
   getDungeonStrength,
+  getEnemyStrength,
   getOpenEntryFloors,
   isDungeonBottomFloor,
   isDungeonEntryFloor,
@@ -172,7 +173,9 @@ check("the last preparation repeats a dungeon only while it is open", () => {
 
 check("the mine plays as before, and every dungeon starts at the same strength", () => {
   assert.deepEqual(getDungeonStrength(3), {
-    enemyHp: 1, enemyAtk: 1, enemyDef: 1, guardianHp: 1, guardianAtk: 1, guardianDef: 1
+    enemyHp: 1, enemyAtk: 1, enemyDef: 1,
+    eliteHp: 1, eliteAtk: 1, eliteDef: 1,
+    guardianHp: 1, guardianAtk: 1, guardianDef: 1
   });
   // The band that scales enemies is counted inside the dungeon.
   assert.deepEqual([1, 4, 5, 6, 9, 10].map(phase4cV1EnemyBand), [0, 0, 1, 0, 0, 1]);
@@ -187,6 +190,19 @@ check("the mine plays as before, and every dungeon starts at the same strength",
   assert.equal(atEntry.atk, Math.round(zombie.atk * strength.enemyAtk));
   assert.equal(atEntry.def, Math.round(zombie.def * strength.enemyDef));
   assert.ok(atEntry.maxHp < zombie.hp, "the catacomb is scaled down for a fresh adventurer");
+
+  // The roaming strong enemy has its own multipliers: it keeps the HP and
+  // attack it was authored with, whichever body wears them.
+  const keeper = template("墓守の巨躯");
+  const roaming = scaleEnemyForDepth(keeper, 8);
+  applyPhase4cV1EnemyBaseline([roaming], 8);
+  assert.equal(roaming.maxHp, Math.round(keeper.hp * strength.eliteHp));
+  assert.equal(roaming.atk, Math.round(keeper.atk * strength.eliteAtk));
+  assert.equal(roaming.def, Math.round(keeper.def * strength.eliteDef));
+  assert.deepEqual(getEnemyStrength(8, "墓守の巨躯"), { hp: strength.eliteHp, atk: strength.eliteAtk, def: strength.eliteDef });
+  assert.deepEqual(getEnemyStrength(8, "ゾンビ"), { hp: strength.enemyHp, atk: strength.enemyAtk, def: strength.enemyDef });
+  assert.deepEqual(getEnemyStrength(10, "ストーンガード", { boss: true }),
+    { hp: strength.guardianHp, atk: strength.guardianAtk, def: strength.guardianDef });
 
   // A mine monster is untouched on every floor of the mine.
   const slime = template("マッドスライム");

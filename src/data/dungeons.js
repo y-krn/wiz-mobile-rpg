@@ -6,12 +6,16 @@
 // fresh adventurer meets the same pressure on the same floor of any dungeon.
 // The collapsed mine is the baseline (all 1). A later dungeon's monsters were
 // authored for a character that had already cleared the ones before it.
+// The roaming strong enemy (`elite*`) has its own multipliers: every dungeon's
+// strong enemy was authored at about the mine's HP and attack, and only its
+// defense grew.
 import { BIOMES } from "./biomes.js";
 
 export const DUNGEON_FLOOR_COUNT = 5;
 
 const BASELINE = Object.freeze({
   enemyHp: 1, enemyAtk: 1, enemyDef: 1,
+  eliteHp: 1, eliteAtk: 1, eliteDef: 1,
   guardianHp: 1, guardianAtk: 1, guardianDef: 1
 });
 
@@ -23,6 +27,7 @@ const DUNGEON_SETTINGS = Object.freeze({
     built: true,
     strength: Object.freeze({
       enemyHp: 0.65, enemyAtk: 0.7, enemyDef: 0.5,
+      eliteHp: 1, eliteAtk: 1, eliteDef: 0.3,
       guardianHp: 1, guardianAtk: 1, guardianDef: 0.5
     })
   }),
@@ -39,6 +44,7 @@ export const DUNGEONS = Object.freeze(BIOMES.map((biome, index) => {
     id: biome.id,
     name: biome.name,
     shortName: settings?.shortName || biome.name,
+    eliteName: biome.eliteName,
     built: settings?.built === true,
     strength: settings?.strength || BASELINE
   });
