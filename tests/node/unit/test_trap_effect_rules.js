@@ -5,7 +5,6 @@ import {
 } from "../../../src/rules/trap_rules.js";
 import {
   applyTrapGuardToEffect,
-  B5_FLAME_TRAP_DAMAGE_PROFILE,
   getCorrosionCandidateIndexes,
   calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
@@ -56,7 +55,13 @@ const poison = resolveChestTrapEffect({
   character: soloFighter,
   rng: () => 0.99
 });
-check("full poison needle damage", poison.damage, 12);
+// #1803: the needle takes a tenth of the opener's maximum HP.
+check("full poison needle damage", poison.damage, 2);
+check(
+  "poison needle damage follows maximum HP",
+  resolveChestTrapEffect({ trap: "poison needle", character: { ...soloFighter, hp: 60, maxHp: 60 }, rng: () => 0.99 }).damage,
+  6
+);
 check("full poison needle poison roll", poison.poisonTriggered, true);
 
 const cursedPoisonRisk = calculateChestTrapExpectedRisk({
@@ -172,29 +177,6 @@ const ordinaryB5TrapMax = resolveFloorTrapEffect({
 });
 check("ordinary B5 floor damage min is unchanged", ordinaryB5Trap.damage, 16);
 check("ordinary B5 floor damage max is unchanged", ordinaryB5TrapMax.damage, 32);
-const flameTrap = { type: "damage", damageProfile: B5_FLAME_TRAP_DAMAGE_PROFILE };
-const flameFullMin = resolveFloorTrapEffect({
-  trap: flameTrap,
-  floor: 5,
-  character: soloFighter,
-  rng: () => 0
-});
-const flameFullMax = resolveFloorTrapEffect({
-  trap: flameTrap,
-  floor: 5,
-  character: soloFighter,
-  rng: () => 0.999
-});
-const flamePartialMin = resolveFloorTrapEffect({
-  trap: flameTrap,
-  floor: 5,
-  character: soloFighter,
-  weakened: true,
-  rng: () => 0
-});
-check("B5 flame full failure min is 8", flameFullMin.damage, 8);
-check("B5 flame full failure max is 16", flameFullMax.damage, 16);
-check("B5 flame partial success is weaker", flamePartialMin.damage < flameFullMin.damage, true);
 check(
   "corrosion risk is item loss only when something can corrode",
   JSON.stringify([

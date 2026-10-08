@@ -171,11 +171,13 @@ check("the last preparation repeats a dungeon only while it is open", () => {
   assert.deepEqual(describeDroppedPreparation(closed.dropped), ["行き先「忘れられた地下墓地」（今は入れない）"]);
 });
 
-check("the mine plays as before, and every dungeon starts at the same strength", () => {
+check("the mine is the baseline, and every dungeon starts at the same strength", () => {
+  // #1803: every guardian is sized against a formed build, so the baseline
+  // guardian has twice its authored HP and 1.6 times its attack.
   assert.deepEqual(getDungeonStrength(3), {
     enemyHp: 1, enemyAtk: 1, enemyDef: 1, entry: 1,
     eliteHp: 1, eliteAtk: 1, eliteDef: 1,
-    guardianHp: 1, guardianAtk: 1, guardianDef: 1
+    guardianHp: 2, guardianAtk: 1.6, guardianDef: 1
   });
   // The band that scales enemies is counted inside the dungeon.
   assert.deepEqual([1, 4, 5, 6, 9, 10].map(phase4cV1EnemyBand), [0, 0, 1, 0, 0, 1]);

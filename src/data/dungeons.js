@@ -17,7 +17,7 @@ export const DUNGEON_FLOOR_COUNT = 5;
 const BASELINE = Object.freeze({
   enemyHp: 1, enemyAtk: 1, enemyDef: 1, entry: 1,
   eliteHp: 1, eliteAtk: 1, eliteDef: 1,
-  guardianHp: 1, guardianAtk: 1, guardianDef: 1
+  guardianHp: 2, guardianAtk: 1.6, guardianDef: 1
 });
 
 // `shortName` is the word a record uses in front of a floor: 坑道 B3F.
@@ -29,7 +29,7 @@ const DUNGEON_SETTINGS = Object.freeze({
     strength: Object.freeze({
       enemyHp: 0.65, enemyAtk: 0.7, enemyDef: 0.5, entry: 0.85,
       eliteHp: 1, eliteAtk: 1, eliteDef: 0.3,
-      guardianHp: 1, guardianAtk: 1, guardianDef: 0.5
+      guardianHp: 2, guardianAtk: 1.6, guardianDef: 0.5
     })
   }),
   rift_nest: Object.freeze({ shortName: "大裂溝" }),

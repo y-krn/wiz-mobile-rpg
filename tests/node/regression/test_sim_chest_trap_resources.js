@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { findSeed, seedWindow } from "../fixtures/seed_search.js";
 
 process.env.SIM_SEED = "231";
 process.env.SIM_INDEPENDENT_RUN_RANDOM = "1";
@@ -29,25 +30,22 @@ function mimicOutcome(result) {
   return result.chestTrapOutcomes.mimic;
 }
 
-const victory = run(14);
-assert.deepEqual(mimicOutcome(victory), {
-  encounters: 1, left: 0, fights: 1, victories: 1, flees: 0, deaths: 0
-});
-assert.deepEqual(mimicOutcome(run(14)), mimicOutcome(victory), "mimic fights are deterministic");
+// Run indexes are scenario fixtures: floor layouts (#1962), gimmicks (#1963),
+// the unified rules, exploration recovery (#2028) and #1803's recovery and
+// needle each moved which run meets which chest (57 -> 14, 28 -> 2, 2 -> 31
+// by hand). Each scenario now takes the first run index that shows it.
+const { seed: victoryIndex, result: victory } = await findSeed("mimic fought and beaten", seedWindow(14, 40), run,
+  result => mimicOutcome(result).victories > 0);
+assert.deepEqual(mimicOutcome(run(victoryIndex)), mimicOutcome(victory), "mimic fights are deterministic");
 
-// Run indexes are fixtures; floor layouts (#1962) and gimmicks (#1963) decide
-// which chests a run meets. Removing the normal run profile moved the
-// fixtures (57 -> 14, 28 -> 2) because runs now use the unified Build vNext rules.
-// #2028: with production exploration recovery the run-2 player reaches its
-// mimic healthy enough to fight it, so the low-HP fixture moves to run 31.
-// Run 2 still loses the same consumable to corrosion.
-const cautious = run(31);
-const cautiousMimic = mimicOutcome(cautious);
-assert.ok(cautiousMimic.encounters > 0, "the cautious fixture meets a mimic");
-assert.equal(cautiousMimic.left, cautiousMimic.encounters, "a low-HP player leaves every mimic");
-assert.equal(cautiousMimic.fights, 0);
-const corroded = run(2);
-assert.deepEqual(corroded.chestTrapOutcomes.corrosionItemsLost, { ETHER: 1 });
+const { result: cautious } = await findSeed("low-HP player leaves every mimic", seedWindow(31, 60), run, result => {
+  const mimic = mimicOutcome(result);
+  return mimic.encounters > 0 && mimic.left === mimic.encounters;
+});
+assert.equal(mimicOutcome(cautious).fights, 0);
+const { result: corroded } = await findSeed("corrosion takes a consumable", seedWindow(2, 40), run,
+  result => Object.values(result.chestTrapOutcomes.corrosionItemsLost || {}).some(count => count > 0));
+assert.equal(Object.values(corroded.chestTrapOutcomes.corrosionItemsLost).reduce((sum, count) => sum + count, 0) >= 1, true);
 
 for (const result of [victory, cautious, corroded]) {
   const mimic = mimicOutcome(result);

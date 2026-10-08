@@ -402,12 +402,16 @@ const servers = [];
 const stopServers = () => { for (const s of servers.splice(0)) s.stop(); };
 // Ctrl-C: keep the finished seeds and exit at once. Chromium gets the same
 // SIGINT, so the seed in flight would otherwise be recorded as a failure.
-process.once("SIGINT", () => {
-  writeOut(false);
-  stopServers();
-  if (opts.out) console.log(`interrupted; wrote partial ${opts.out}`);
-  process.exit(130);
-});
+// SIGTERM (a stopped background job) cleans up the same way, so no temporary
+// worktree or dev server is left behind.
+for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
+  process.once(signal, () => {
+    writeOut(false);
+    stopServers();
+    if (opts.out) console.log(`interrupted; wrote partial ${opts.out}`);
+    process.exit(code);
+  });
+}
 
 // Each job owns a browser: runs that share one also share its GPU process,
 // which is the part that runs out of CPU first.

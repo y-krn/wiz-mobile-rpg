@@ -16,7 +16,6 @@ import { hasPendingRewardBundle } from "./pending_rewards.js";
 import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { detectAdjacentTraps, startTrapEncounter, triggerTrap, triggerPitfall } from "./systems/traps.js";
 import {
-  clearCharIncapacitationOnDamage,
   resolveExplorationParalysisStep,
   resolveExplorationPoisonStep
 } from "./combat_logic/status_effects.js";
@@ -29,13 +28,7 @@ import {
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.js";
 import { getFeatAnnouncementLines, getNearestFeats } from "./systems/feats.js";
-import { calculateFloorTrapSuccessRate, resolveTrapAction } from "./rules/trap_rules.js";
 import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
-import {
-  applyTrapGuardToEffect,
-  B5_FLAME_TRAP_DAMAGE_PROFILE,
-  resolveFloorTrapEffect
-} from "./rules/trap_effect_rules.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
@@ -1035,95 +1028,6 @@ export function applyExplorationPoison() {
   return false;
 }
 
-export function triggerFlameTrap() {
-  addLog("周囲に熱気が走った！");
-  playSound("chest_trap");
-  if (renderer && typeof renderer.triggerFlash === "function") {
-    renderer.triggerFlash(400);
-  }
-
-  const trap = { type: "damage", damageProfile: B5_FLAME_TRAP_DAMAGE_PROFILE };
-  const activeCharacter = state.party.find(
-    char => char?.hp > 0 && !["dead", "ash"].includes(char.status)
-  );
-  const successRate = activeCharacter
-    ? calculateFloorTrapSuccessRate({
-      trap,
-      floor: state.floor,
-      affixBonus: Math.round(getCharAffixSum(activeCharacter, "trapBonus"))
-    })
-    : 0;
-  const resolution = resolveTrapAction({
-    action: "disarm",
-    trap,
-    successRate,
-    rng: Math.random
-  });
-  if (resolution.outcome === "disarmed") {
-    trackTrapResolution("disarmed", {
-      state,
-      character: activeCharacter,
-      source: "flame",
-      trap,
-      action: "disarm",
-      successRate,
-      x: state.x,
-      y: state.y
-    });
-    addLog("熱気の気配を感じ、とっさに身をかわした！");
-    saveAutosave();
-    updateUI();
-    return;
-  }
-
-  if (resolution.partialSuccess) {
-    addLog("火炎の直撃をわずかにかわした！");
-  } else {
-    addLog("天井から猛烈な火炎ブレスが吹き出した！");
-  }
-  trackTrapResolution("triggered", {
-    state,
-    character: activeCharacter,
-    source: "flame",
-    trap,
-    action: "disarm",
-    successRate,
-    partialSuccess: resolution.partialSuccess,
-    x: state.x,
-    y: state.y
-  });
-  // The game is solo; the flame burns the run's one character.
-  const character = state.party[0] ?? null;
-  const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
-    trap,
-    floor: state.floor,
-    character,
-    weakened: resolution.partialSuccess,
-    rng: Math.random
-  }), {
-    trapGuard: getCharAffixSum(character, "trapGuard")
-  });
-  const dmg = effect.damage;
-  if (character && dmg > 0) {
-    character.hp = Math.max(0, character.hp - dmg);
-    clearCharIncapacitationOnDamage(character);
-    addLog(`${character.name}は${dmg}の炎ダメージを受けた。`);
-    if (character.hp === 0) {
-      character.status = "dead";
-      const deathLog = recordCharDeath(state, character, "火炎の罠", { type: "trap", source: "火炎の罠" });
-      if (deathLog) addLog(formatCharDeathLog(deathLog));
-      addLog(`${character.name}は炎に焼かれて力尽きた！`);
-    }
-  }
-
-  if (!character || character.status === "dead") {
-    triggerGameOver();
-  } else {
-    saveAutosave();
-    updateUI();
-  }
-}
-
 export function enterDungeon() {
   openSubmenu("solo_start", "開始キットを選ぶ：冒険はいつもLv1から");
 }
@@ -1416,21 +1320,8 @@ export function processExplorationResolution(prevX, prevY) {
   if (applyTraversalHazards()) return;
   resolveTraversalStep();
 
-  // 3. Regular floor events
-  const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
-                        cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
-                        cell.event === EVENT_TYPES.MERCHANT || cell.event === EVENT_TYPES.RETURN_PORTAL ||
-                        cell.message;
-
-  if (state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0) {
-    state.flameTrapCooldownTurns--;
-  }
-  const flameCooldownActive = state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0;
-
-  if (state.floor === 5 && !isSpecialCell && !flameCooldownActive && Math.random() < 0.05) {
-    state.flameTrapCooldownTurns = 5; // 5 steps cooldown to prevent back-to-back triggers
-    triggerFlameTrap();
-  } else {
-    checkCellEvents(prevX, prevY);
-  }
+  // 3. Regular floor events. The B5 flame trap that fired on any step was
+  // removed (#1803): it charged walking itself, so exploring cost more than
+  // walking straight to the stairs.
+  checkCellEvents(prevX, prevY);
 }

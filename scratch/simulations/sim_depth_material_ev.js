@@ -199,10 +199,8 @@ const {
 } = await import("../../src/rules/trap_rules.js");
 const {
   applyTrapGuardToEffect,
-  B5_FLAME_TRAP_DAMAGE_PROFILE,
   calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
-  getFloorTrapDamageRange,
   resolveChestTrapEffect,
   resolveFloorTrapEffect
 } = await import("../../src/rules/trap_effect_rules.js");
@@ -1088,16 +1086,9 @@ const EXPLORATION_FACTOR = Number(
 if (!Number.isFinite(EXPLORATION_FACTOR) || EXPLORATION_FACTOR <= 0) {
   throw new Error(`SIM_EXPLORATION_FACTOR must be a positive number: ${process.env.SIM_EXPLORATION_FACTOR}`);
 }
-const FLAME_TRAP_MODEL = Object.freeze({
-  floor: 5,
-  chance: 0.05,
-  cooldownTurns: 5,
-  damageProfile: B5_FLAME_TRAP_DAMAGE_PROFILE
-});
-const FLAME_TRAP_DAMAGE_RANGE = getFloorTrapDamageRange({
-  trap: { type: "damage", damageProfile: FLAME_TRAP_MODEL.damageProfile },
-  floor: FLAME_TRAP_MODEL.floor
-});
+// The B5 reports read this floor. Production removed the B5 flame trap
+// (#1803), so the simulator no longer rolls it and its counters stay 0.
+const B5_REPORT_FLOOR = 5;
 // 仮値・感度分析対象: 探索係数1.4に対応し、配置宝箱の70%を拾えると置く。
 const CHEST_PICKUP_RATE = 0.7;
 // 仮値・感度分析対象: 戦闘1ターンを探索3歩相当と置く。
@@ -4991,8 +4982,7 @@ function createSimulationState(
     lightPower: "",
     repelTurns: 0,
     silenceTurns: 0,
-    forcedEncounterSteps: 0,
-    flameTrapCooldownTurns: 0
+    forcedEncounterSteps: 0
   };
 }
 
@@ -13419,32 +13409,6 @@ function getRouteDirection(previous, current, fallback = 0) {
   return fallback;
 }
 
-function isFlameTrapSpecialCell(cell) {
-  return Boolean(
-    cell?.type === "stairs-up" ||
-    cell?.type === "stairs-down" ||
-    cell?.event === "midboss" ||
-    cell?.event === "boss" ||
-    cell?.event === "chest" ||
-    cell?.event === EVENT_TYPES.MERCHANT ||
-    cell?.event === EVENT_TYPES.RETURN_PORTAL ||
-    cell?.message
-  );
-}
-
-function isFlameTrapSpecialStep(generated, routePlan, floorSteps, step) {
-  const routePath = routePlan.path;
-  if (!routePath?.length || floorSteps <= 0) return false;
-  // floorSteps is an estimate; project each estimated step onto the generated route
-  // so special cells suppress the independent flame-trap trial.
-  const routeIndex = Math.min(
-    routePath.length - 1,
-    Math.floor((step / floorSteps) * Math.max(0, routePath.length - 1))
-  );
-  const coord = routePath[routeIndex];
-  return isFlameTrapSpecialCell(generated.grid[coord.y]?.[coord.x]);
-}
-
 function observeSneakStepPerception({
   state,
   observations,
@@ -14013,128 +13977,6 @@ function calculateSecretSearchSuccessRateForSimulation(party, floor) {
     .filter(character => character.hp > 0)
     .map(character => getCharAffixSum(character, "arcaneSense")), 0);
   return calculateSecretDoorSearchChance({ floor, arcaneSense });
-}
-
-function resolveFlameTrapAtStep({
-  state,
-  generated,
-  routePlan,
-  floorSteps,
-  step,
-  metrics
-}) {
-  if (state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0) {
-    state.flameTrapCooldownTurns--;
-  }
-  const flameCooldownActive =
-    state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0;
-  if (
-    state.floor !== FLAME_TRAP_MODEL.floor ||
-    state.simPolicy.b5FlameTrapDisabled === true ||
-    isFlameTrapSpecialStep(generated, routePlan, floorSteps, step) ||
-    flameCooldownActive
-  ) {
-    return false;
-  }
-
-  metrics.flameTrapEligibleSteps++;
-  if (Math.random() >= FLAME_TRAP_MODEL.chance) return false;
-
-  state.flameTrapCooldownTurns = FLAME_TRAP_MODEL.cooldownTurns;
-  metrics.flameTrapActivations++;
-  metrics.b5FlameActivationSteps.push(step);
-  recordB5HpSnapshot(state, metrics, step);
-  const trap = {
-    type: "damage",
-    id: "flame",
-    damageProfile: FLAME_TRAP_MODEL.damageProfile
-  };
-  const trapId = `flame:${state.floor}:${step}`;
-  const activeCharacter = state.party.find(character => isAlive(character));
-  const successRate = activeCharacter
-    ? calculateSimulationFloorTrapSuccessRate({
-      state,
-      trap,
-      floor: state.floor,
-      affixBonus: Math.round(getSimulationTrapBonus(activeCharacter, state) * 100)
-    })
-    : 0;
-  const resolution = resolveTrapAction({
-    action: "disarm",
-    trap,
-    successRate,
-    rng: Math.random
-  });
-  if (resolution.outcome === "disarmed") {
-    metrics.flameTrapDisarmed++;
-    recordSimulationTrapResolution(metrics, "disarmed", {
-      state,
-      trap,
-      trapId,
-      source: "flame",
-      action: "disarm",
-      successRate,
-      identified: true,
-      x: state.x,
-      y: state.y
-    });
-    recordB5HpSnapshot(state, metrics, step);
-    return true;
-  }
-  recordSimulationTrapResolution(metrics, "triggered", {
-    state,
-    trap,
-    trapId,
-    source: "flame",
-    action: "disarm",
-    successRate,
-    partialSuccess: resolution.partialSuccess,
-    identified: true,
-    x: state.x,
-    y: state.y
-  });
-  const character = state.party[0];
-  const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
-    trap,
-    floor: state.floor,
-    character,
-    weakened: resolution.partialSuccess,
-    rng: Math.random
-  }), { trapGuard: getSimulationTrapGuardByParty(state)[0] || 0 });
-  const appliedDamage = effect.damage;
-  if (character && appliedDamage > 0) {
-    const hpBefore = character.hp;
-    character.hp = Math.max(0, character.hp - appliedDamage);
-    clearCharIncapacitationOnDamage(character);
-    metrics.flameTrapDamageHp += appliedDamage;
-    recordDiagnosticCost(metrics, state, "flame-trap", appliedDamage, {
-      hpBefore,
-      type: "flame"
-    });
-    if (character.hp === 0) {
-      character.status = "dead";
-      recordCharDeath(state, character, "火炎の罠");
-      metrics.flameTrapDeaths++;
-      if (!metrics.deathSnapshot) {
-        metrics.deathSnapshot = {
-          source: "floor-trap",
-          floor: state.floor,
-          round: null,
-          cause: "火炎の罠",
-          hpBefore: character.hp + appliedDamage,
-          hpAfter: character.hp,
-          maxHp: getCharMaxHp(character),
-          damage: appliedDamage,
-          hits: 1,
-          damageMaxHpRate: appliedDamage / Math.max(1, getCharMaxHp(character)),
-          killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations,
-          ...createDeathStateSnapshot(state, metrics.scoringProfile)
-        };
-      }
-    }
-  }
-  recordB5HpSnapshot(state, metrics, step);
-  return true;
 }
 
 function createSimulationFloorRoute(generated, routePlan, state, floor, metrics) {
@@ -16074,7 +15916,7 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
   }
   if (metrics.b5FloorActive) {
     recordB5HpSnapshot(state, metrics, metrics.b5LastStep);
-    if (metrics.deathSnapshot?.floor === FLAME_TRAP_MODEL.floor) {
+    if (metrics.deathSnapshot?.floor === B5_REPORT_FLOOR) {
       recordB5HpValue(
         metrics,
         metrics.deathSnapshot.hpBefore,
@@ -16093,9 +15935,9 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
     };
   }
   const b5DeathLog = state.currentRun.deathLogs?.find(
-    log => log.floor === FLAME_TRAP_MODEL.floor
+    log => log.floor === B5_REPORT_FLOOR
   ) || null;
-  const b5DeathCause = outcome === "death" && state.floor === FLAME_TRAP_MODEL.floor
+  const b5DeathCause = outcome === "death" && state.floor === B5_REPORT_FLOOR
     ? b5DeathLog?.cause || null
     : null;
   const b5DeathStep = b5DeathCause ? metrics.b5LastStep : null;
@@ -17756,7 +17598,7 @@ export function simulateRun({
       state.x = floorStart.x;
       state.y = floorStart.y;
     }
-    if (floor === FLAME_TRAP_MODEL.floor) {
+    if (floor === B5_REPORT_FLOOR) {
       const entrant = state.party[0];
       metrics.b5FloorActive = true;
       metrics.b5EntrantHp = entrant?.hp ?? null;
@@ -17968,22 +17810,6 @@ export function simulateRun({
       }
       if (floorEndedByPitfall) break stepLoop;
 
-      const flameTrapTriggered = resolveFlameTrapAtStep({
-        state,
-        generated,
-        routePlan,
-        floorSteps,
-        step,
-        metrics
-      });
-      if (!isAlive(state.party[0])) {
-        metrics.deathEncounterType = "flame-trap";
-        return finishRun(state, "death", metrics);
-      }
-      // A trap can fire on the same movement step as a landmark. The player
-      // remains on that cell after surviving the trap, so do not drop the
-      // production event transition from this step.
-      if (flameTrapTriggered && scheduledSpecials.length === 0) continue stepLoop;
 
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
@@ -18777,14 +18603,14 @@ export function simulateRun({
 
     if (floorEndedByPitfall) {
       finalizeStage15Floor(state, metrics, floor, "survived");
-      if (floor === FLAME_TRAP_MODEL.floor) {
+      if (floor === B5_REPORT_FLOOR) {
         recordB5HpSnapshot(state, metrics, floorSteps);
         metrics.b5FloorActive = false;
       }
       continue;
     }
 
-    if (floor === FLAME_TRAP_MODEL.floor) {
+    if (floor === B5_REPORT_FLOOR) {
       recordB5HpSnapshot(state, metrics, floorSteps);
       metrics.b5FloorActive = false;
     }
@@ -22000,15 +21826,6 @@ const ENV_SIGNATURE = {
   identificationStartingPowder: IDENTIFICATION_STARTING_POWDER_INPUT,
   identificationCost: IDENTIFICATION_COST_INPUT,
   explorationFactor: EXPLORATION_FACTOR,
-  flameTrapModel: {
-    floor: FLAME_TRAP_MODEL.floor,
-    chance: FLAME_TRAP_MODEL.chance,
-    cooldownTurns: FLAME_TRAP_MODEL.cooldownTurns,
-    damageProfile: FLAME_TRAP_MODEL.damageProfile,
-    damageMin: FLAME_TRAP_DAMAGE_RANGE.min,
-    damageMax: FLAME_TRAP_DAMAGE_RANGE.max,
-    resolution: "floor-trap-damage"
-  },
   chestPickupRate: CHEST_PICKUP_RATE,
   combatTurnWeight: COMBAT_TURN_WEIGHT,
   initialHealPotions: INITIAL_HEAL_POTIONS,

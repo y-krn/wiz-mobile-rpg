@@ -6,7 +6,17 @@ import { getDungeonFloor } from "./dungeons.js";
 
 // Chest traps resolve at full strength only: a chest is either disarmed
 // automatically on opening, disarmed with a kit, or its trap fires.
-const CHEST_POISON_NEEDLE_DAMAGE = 12;
+// The needle takes a share of the opener's maximum HP, like floor traps: a
+// fixed 12 was a fifth of a fresh adventurer's HP on every trapped chest
+// (#1803).
+const CHEST_POISON_NEEDLE_MAX_HP_SHARE = 0.10;
+export function getChestPoisonNeedleDamage(character) {
+  const computed = getCharMaxHp(character);
+  const maxHp = Number.isFinite(computed) && computed > 0
+    ? computed
+    : Math.max(0, Number(character?.maxHp) || Number(character?.hp) || 0);
+  return Math.max(1, Math.round(maxHp * CHEST_POISON_NEEDLE_MAX_HP_SHARE));
+}
 const CHEST_FLASH_BLIND_CHANCE = 0.60;
 // Corrosion never takes the retreat item or special/quest/progression items.
 const CORROSION_PROTECTED_ITEM_IDS = new Set(["TOWN_PORTAL"]);
@@ -23,10 +33,6 @@ export function getCorrosionCandidateIndexes(inventory = []) {
   });
   return indexes;
 }
-export const B5_FLAME_TRAP_DAMAGE_PROFILE = "b5-flame";
-const FLOOR_TRAP_DAMAGE_PROFILES = Object.freeze({
-  [B5_FLAME_TRAP_DAMAGE_PROFILE]: Object.freeze({ min: 8, max: 16 })
-});
 
 function reduceTrapDamage(damage, trapGuard = 0) {
   const numericGuard = Number(trapGuard);
@@ -66,7 +72,7 @@ export function resolveChestTrapEffect({
   };
 
   if (trap === "poison needle") {
-    effect.damage = CHEST_POISON_NEEDLE_DAMAGE;
+    effect.damage = getChestPoisonNeedleDamage(character);
     effect.poisonTriggered = true;
     const hpAfter = Math.max(0, (character?.hp || 0) - effect.damage);
     const poisonChance = Math.max(0, Math.min(1,
@@ -124,7 +130,7 @@ export function calculateChestTrapExpectedRisk({
 
   if (trap === "poison needle") {
     if (alive) {
-      const damage = CHEST_POISON_NEEDLE_DAMAGE;
+      const damage = getChestPoisonNeedleDamage(character);
       const hpAfter = Math.max(0, character.hp - damage);
       effect.expectedDamageHp = damage;
       effect.poisonProbability = hpAfter > 0
@@ -171,9 +177,6 @@ const FLOOR_TRAP_MAX_HP_SHARE = Object.freeze({
 });
 
 export function getFloorTrapDamageRange({ trap, floor, maxHp } = {}) {
-  const profile = FLOOR_TRAP_DAMAGE_PROFILES[trap?.damageProfile];
-  if (profile) return profile;
-
   const trapType = trap?.type;
   const share = FLOOR_TRAP_MAX_HP_SHARE[trapType];
   const hp = Number(maxHp);

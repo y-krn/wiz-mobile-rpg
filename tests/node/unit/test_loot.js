@@ -363,10 +363,11 @@ import assert from "assert";
 
     console.log("[PASS] Failed automatic disarm trap target verified.");
 
-    // Test 5: A lethal trap keeps the existing delayed game-over path
+    // Test 5: A lethal trap keeps the existing delayed game-over path. The
+    // needle takes a tenth of maximum HP (#1803), so the opener is at 1 HP.
     initNewGame();
     state.party = [
-      { name: "Robin", status: "ok", hp: 10, maxHp: 10, equipment: {} }
+      { name: "Robin", status: "ok", hp: 1, maxHp: 10, equipment: {} }
     ];
     state.floor = 1;
     state.currentRun = {

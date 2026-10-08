@@ -2,8 +2,19 @@
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
 import { getHealMultiplier } from "../rules/item_rules.js";
 
-const RECOVERY_RATE = 0.02;
-const FLOOR_CAP_RATE = 0.5;
+// Walking recovery lives on the floors (#1803): a cell first entered gives
+// back a share of the maximum, up to a per-floor cap. For HP the rate is low
+// enough that walking straight to the stairs leaves most of the cap behind,
+// and the cap is a whole HP bar so a floor explored end to end can pay for its
+// own fights. MP keeps its earlier pace (#1993).
+export const EXPLORATION_RECOVERY_RATE = 0.015;
+export const EXPLORATION_RECOVERY_FLOOR_CAP = 1;
+export const EXPLORATION_MP_RECOVERY_RATE = 0.02;
+export const EXPLORATION_MP_RECOVERY_FLOOR_CAP = 0.5;
+const RECOVERY = Object.freeze({
+  hp: Object.freeze({ rate: EXPLORATION_RECOVERY_RATE, cap: EXPLORATION_RECOVERY_FLOOR_CAP }),
+  mp: Object.freeze({ rate: EXPLORATION_MP_RECOVERY_RATE, cap: EXPLORATION_MP_RECOVERY_FLOOR_CAP })
+});
 
 function getFloorRecovery(run, floor) {
   if (!run || !Number.isInteger(floor) || floor < 1) return null;
@@ -25,11 +36,11 @@ function recoverResource({ char, floorState, resource, getMax, multiplier = 1 })
 
   const recoveredKey = `${resource}Recovered`;
   const remainderKey = `${resource}Remainder`;
-  const cap = Math.floor(max * FLOOR_CAP_RATE);
+  const cap = Math.floor(max * RECOVERY[resource].cap);
   const remaining = Math.max(0, cap - floorState[recoveredKey]);
   if (remaining === 0) return 0;
 
-  const credit = max * RECOVERY_RATE * multiplier + floorState[remainderKey];
+  const credit = max * RECOVERY[resource].rate * multiplier + floorState[remainderKey];
   const points = Math.floor(credit + Number.EPSILON * max);
   if (points === 0) {
     floorState[remainderKey] = credit;
@@ -66,8 +77,8 @@ export function getExplorationRecoveryRemaining(stateLike, floor = stateLike?.fl
   const char = stateLike?.party?.[0];
   if (!char) return null;
   const floorState = stateLike?.currentRun?.explorationRecovery?.[String(floor)];
-  const hpCap = Math.floor(getCharMaxHp(char) * FLOOR_CAP_RATE);
-  const mpCap = Math.floor(getCharMaxMp(char) * FLOOR_CAP_RATE);
+  const hpCap = Math.floor(getCharMaxHp(char) * RECOVERY.hp.cap);
+  const mpCap = Math.floor(getCharMaxMp(char) * RECOVERY.mp.cap);
   return {
     hp: Math.max(0, hpCap - (floorState?.hpRecovered || 0)),
     mp: Math.max(0, mpCap - (floorState?.mpRecovered || 0))
@@ -95,7 +106,7 @@ export function getExplorationRecoveryOutlook(stateLike, floor = stateLike?.floo
     hp: reachable("hp", getCharMaxHp(char)),
     mp: reachable("mp", maxMp),
     allowance,
-    hasMpAllowance: Math.floor(maxMp * FLOOR_CAP_RATE) > 0,
+    hasMpAllowance: Math.floor(maxMp * RECOVERY.mp.cap) > 0,
     suspended
   };
 }

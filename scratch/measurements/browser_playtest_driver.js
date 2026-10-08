@@ -807,11 +807,67 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false, dungeo
   W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   resetPolicyState();
   W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null;
+  trackHpLedger();
   const run = st().currentRun;
   // Fingerprint of the first floor's layout so before/after runs can prove they share maps.
   let h = 2166136261; for (const row of st().map) for (const c of row) for (const w of c.walls) { h ^= w ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
   return { ok: st().floor === entry, entry, runSeed: run?.runSeed, mapFingerprint: h.toString(16), maxHp: DATA.getCharMaxHp(P()), mp: P().mp, maxMp: DATA.getCharMaxMp(P()) };
 };
+
+// Where HP went, by floor and leg (`down:3`, `up:3`) and by source: combat
+// (losses and heals inside a fight), poison, trap (trap prompts), event
+// (rooms, springs, chests), step (anything else while walking, e.g. a hidden
+// floor trap) and heal (walking recovery, potions and rests outside combat).
+function trackHpLedger() {
+  W.__hpLedger = {};
+  clearInterval(W.__hpLedgerTimer);
+  let lastHp = P()?.hp; let sawCombat = false;
+  const ledgerKey = () => `${goingHome() ? 'up' : 'down'}:${localFloor(st().floor)}`;
+  // Changes outside combat are named from the log lines the game writes
+  // with them, read on the next tick.
+  const pending = [];
+  const nameFromLog = ({ delta, state }) => {
+    const text = (st().logs || []).slice(-4).map(txt).join(' ');
+    if (delta > 0) return /傷薬|上薬|薬/.test(text) ? 'potion' : /休|野営|眠/.test(text) ? 'rest' : /泉/.test(text) ? 'spring' : 'walkHeal';
+    if (/毒のダメージ/.test(text)) return 'poison';
+    if (/宝箱|針|爆|閃光/.test(text) && state !== 'explore') return 'chestTrap';
+    if (/泉|水/.test(text)) return 'spring';
+    if (state === 'trap_encounter' || /罠|落とし穴|足場/.test(text)) return 'floorTrap';
+    if (state === 'explore') return 'step';
+    return 'room';
+  };
+  const record = (delta, source, key = ledgerKey()) => {
+    if (!delta) return;
+    const row = W.__hpLedger[key] ||= {};
+    row[source] = (row[source] || 0) + delta;
+  };
+  // Combat works on a copy of the character and swaps it back in, so a
+  // change seen only when the object is swapped belongs to that fight; other
+  // changes are caught by a setter on whichever object is current.
+  const install = () => {
+    while (pending.length) { const change = pending.shift(); record(change.delta, nameFromLog(change), change.key); }
+    const s = st(); const p = P();
+    if (s.gameState === 'combat') sawCombat = true;
+    if (!p || Object.getOwnPropertyDescriptor(p, 'hp')?.set) return;
+    record(p.hp - lastHp, sawCombat || s.gameState === 'combat' ? 'combat' : 'swap');
+    sawCombat = false;
+    let hp = p.hp; lastHp = hp;
+    Object.defineProperty(p, 'hp', {
+      configurable: true, enumerable: true,
+      get: () => hp,
+      set: next => {
+        const delta = next - hp; hp = next;
+        if (P() !== p) return;
+        lastHp = hp;
+        const state = st().gameState;
+        if (state === 'combat') record(delta, 'combat');
+        else pending.push({ delta, state, key: ledgerKey() });
+      }
+    });
+  };
+  install();
+  W.__hpLedgerTimer = setInterval(install, 20);
+}
 
 // One complete run; returns a plain JSON summary.
 W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...policyOptions } = {}) => {
@@ -835,7 +891,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     returned: s.gameState === 'result' && (P()?.hp ?? 0) > 0,
     companions: companionNames() || null,
     roomActions: W.__roomActions, purchases: W.__purchases,
-    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
+    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
     eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, riposteGuards: W.__riposteGuards || 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,

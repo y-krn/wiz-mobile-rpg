@@ -164,7 +164,7 @@ semantic boundaries are durable:
   springs, walking recovery) takes only what lowers `devotion`: each
   negative source counts and no positive source offsets it, so a curse's
   healing penalty cannot be bought back with a `devotion` weapon.
-- `trapBonus` is the build's disarm and flame-trap expertise. `trapGuard` only
+- `trapBonus` is the build's disarm expertise. `trapGuard` only
   mitigates the HP-damage part of a trap. Neither grants a class permission or
   changes status, MP, teleport, alarm, discovery, or disarm ownership.
 - `treasureSense`, `hearRange`, `traceRead`, and `arcaneSense` provide facts or

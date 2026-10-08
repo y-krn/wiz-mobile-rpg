@@ -149,10 +149,17 @@ test("Phase 4c scales generic enemies, summons, and guardians by band, and split
   assert.equal(generic.hp, Math.round(template.hp * 1.2));
   assert.equal(generic.atk, Math.round(template.atk * 1.1));
   assert.equal(generic.def, Math.round(template.def));
-  const guardianHp = Math.round(guardianTemplate.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * 1.2);
+  // The guardian also takes its dungeon's guardian multipliers (#1803).
+  const mineStrength = getDungeonStrength(5);
+  const guardianHp = Math.round(guardianTemplate.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * 1.2 * mineStrength.guardianHp);
   assert.deepEqual(
     [boss.hp, boss.maxHp, boss.atk, boss.def],
-    [guardianHp, guardianHp, Math.round(guardianTemplate.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * 1.1), guardianTemplate.def]
+    [
+      guardianHp,
+      guardianHp,
+      Math.round(guardianTemplate.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * 1.1 * mineStrength.guardianAtk),
+      Math.round(guardianTemplate.def * mineStrength.guardianDef)
+    ]
   );
   // The first four floors of every dungeon are band 0, and a later dungeon
   // applies its own multipliers on top.

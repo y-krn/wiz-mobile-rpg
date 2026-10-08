@@ -128,7 +128,6 @@ function assertMovementRunsTraceConsumer() {
   state.party = [createChar("Trace", [{ type: "traceRead", value: 3 }])];
   state.roamingMonsters = [];
   state.roamingMovementStepCount = 1;
-  state.flameTrapCooldownTurns = 0;
   state.gameState = "explore";
   state.map[3][2].trap = {
     id: "trap-consumer",
