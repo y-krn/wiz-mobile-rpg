@@ -491,13 +491,17 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   floorHeading.className = "solo-start-floor-heading";
   const floorTitle = document.createElement("strong");
   floorTitle.textContent = "行き先を選ぶ";
-  const floorHint = document.createElement("span");
-  floorHint.textContent = `どの迷宮も地下${DUNGEON_FLOOR_COUNT}階まで。冒険はいつもLv1から。`;
-  floorHeading.append(floorTitle, floorHint);
+  floorHeading.append(floorTitle);
   floorSection.appendChild(floorHeading);
 
   const dungeons = listDungeons(state);
   const openDungeons = dungeons.filter(dungeon => dungeon.open);
+  // What the dungeons have in common only matters once there is a choice.
+  if (openDungeons.length > 1) {
+    const floorHint = document.createElement("span");
+    floorHint.textContent = `どの迷宮も地下${DUNGEON_FLOOR_COUNT}階まで。どこへ行っても、冒険はLv1から。`;
+    floorHeading.append(floorHint);
+  }
   // With a single candidate there is nothing to choose: start with it
   // selected so the confirm button is ready. Several candidates keep the
   // explicit choice.

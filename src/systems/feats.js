@@ -78,15 +78,29 @@ export function getFeatProgress(feat, counters) {
     current = STARTING_KIT_IDS.filter(kitId => count(counters?.kitDepths?.[kitId]) >= metric.minDepth).length;
   }
   const target = metric.target;
+  if (metric.unit === "floor") {
+    // A floor feat is reached inside one dungeon (#2060): a floor of an
+    // earlier dungeon is no progress toward it, and the ratio counts the
+    // floors of the target's own dungeon.
+    const entry = getDungeonEntryFloor(getDungeonIndexForFloor(target));
+    const capped = current < entry ? 0 : Math.min(current, target);
+    return {
+      current: capped,
+      target,
+      ratio: capped > 0 ? (capped - entry + 1) / (target - entry + 1) : 0,
+      done: current >= target
+    };
+  }
   const capped = Math.min(current, target);
   return { current: capped, target, ratio: target > 0 ? capped / target : 0, done: current >= target };
 }
 
 /**
- * "B3F / 坑道 B5F" for depths, "3 / 5" for counts. A rescue reads as a state; pass
+ * "B3F / 坑道 B5F" for depths ("B3F / B5F" when `insideFloor` is a floor of
+ * the target's own dungeon), "3 / 5" for counts. A rescue reads as a state; pass
  * the running run to show that the person is being led out right now.
  */
-export function formatFeatProgress(feat, progress, run = null) {
+export function formatFeatProgress(feat, progress, run = null, { insideFloor = null } = {}) {
   if (feat.metric.unit === "rescue") {
     if (progress.current >= progress.target) return "救出";
     return run && !run.returnReason && normalizeCompanions(run.companions).includes(feat.metric.companion)
@@ -95,8 +109,13 @@ export function formatFeatProgress(feat, progress, run = null) {
   }
   if (feat.metric.unit === "floor") {
     // The target names its dungeon; progress counts only inside that dungeon.
-    const reached = progress.current >= getDungeonEntryFloor(getDungeonIndexForFloor(progress.target));
-    return `${reached ? formatFloorCode(progress.current) : "未到達"} / ${formatDungeonFloor(progress.target)}`;
+    const targetDungeon = getDungeonIndexForFloor(progress.target);
+    const reached = progress.current >= getDungeonEntryFloor(targetDungeon);
+    // Inside the target's own dungeon the name is already on screen.
+    const target = Number.isInteger(insideFloor) && getDungeonIndexForFloor(insideFloor) === targetDungeon
+      ? formatFloorCode(progress.target)
+      : formatDungeonFloor(progress.target);
+    return `${reached ? formatFloorCode(progress.current) : "未到達"} / ${target}`;
   }
   return `${progress.current} / ${progress.target}`;
 }

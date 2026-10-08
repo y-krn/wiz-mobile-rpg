@@ -94,7 +94,7 @@ for (const width of [390, 360, 320]) {
   });
 }
 
-test('Town menus hide the empty adventurer panel and the start-floor heading shows no design memo', async ({ page }) => {
+test('Town menus hide the empty adventurer panel and the destination heading shows no design memo', async ({ page }) => {
   await openTown(page);
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -109,18 +109,18 @@ test('Town menus hide the empty adventurer panel and the start-floor heading sho
   await page.locator('[data-kit-id="vanguard"]').click();
   await page.locator('#btn-kit-confirm').click();
   const heading = page.locator('.solo-start-floor-heading');
-  await expect(heading).toHaveText('開始階を選ぶ');
+  await expect(heading).toHaveText('行き先を選ぶ');
 
-  // The trade-off is stated once a deeper start exists.
+  // What the dungeons share is stated once there is a second one to choose.
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
     const { openSubmenu } = await import('/src/navigation.js');
-    state.unlockedMilestones = [6];
+    state.unlockedMilestones = [5];
     openSubmenu('solo_start', '出撃準備');
     updateUI();
   });
   await page.locator('[data-kit-id="vanguard"]').click();
   await page.locator('#btn-kit-confirm').click();
-  await expect(page.locator('.solo-start-floor-heading')).toContainText('深い階から始めると、手に入る素材は少なくなる。');
+  await expect(page.locator('.solo-start-floor-heading')).toContainText('どの迷宮も地下5階まで。');
 });

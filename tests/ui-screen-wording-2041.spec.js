@@ -28,8 +28,8 @@ test('The departure summary lists only what applies to the chosen kit', async ({
   const fighter = await openPreparation(page, 'vanguard');
   await expect(fighter).toContainText('今回の支度');
   await expect(fighter).toContainText('身につける品');
-  // With one floor to start from, it is already chosen.
-  await expect(fighter.locator('.solo-preparation-floor')).toContainText('開始階B1F');
+  // With one dungeon open, it is already chosen.
+  await expect(fighter.locator('.solo-preparation-floor')).toContainText('行き先崩れた坑道');
   await expect(fighter.locator('.solo-preparation-medium')).toHaveCount(0);
   await expect(fighter.locator('.solo-preparation-runes')).toHaveCount(0);
   const fighterText = await fighter.textContent();

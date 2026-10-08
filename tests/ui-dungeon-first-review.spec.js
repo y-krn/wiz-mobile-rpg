@@ -281,7 +281,7 @@ test('Portal decision keeps world context, neutral choices, and safe targets at 
   expect(state.classes).toContain('dungeon-first-mode');
   expect(state.canvas.height).toBeGreaterThanOrEqual(843);
   expect(state.viewport.height).toBeGreaterThanOrEqual(843);
-  expect(state.labels).toEqual(['ここで帰還', 'さらに深く進む']);
+  expect(state.labels).toEqual(['ここで帰還', 'まだ帰らない']);
   expect(state.styles[0]).toEqual(state.styles[1]);
   for (const button of state.buttons) {
     expect(button.width).toBeGreaterThanOrEqual(44);

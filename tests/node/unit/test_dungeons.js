@@ -44,7 +44,7 @@ import { recordMilestoneVictory } from "../../../src/state/run_state.js";
 import { normalizeLastPreparation } from "../../../src/state/last_preparation.js";
 import { describeDroppedPreparation, resolveLastPreparation } from "../../../src/systems/departure_preparation.js";
 import { getFloorLabel } from "../../../src/data/floor_themes.js";
-import { formatFeatProgress } from "../../../src/systems/feats.js";
+import { formatFeatProgress, getFeatProgress } from "../../../src/systems/feats.js";
 import { FEAT_BY_ID } from "../../../src/data/feats.js";
 import { buildDeathNearMiss } from "../../../src/rules/near_miss.js";
 import { createRng } from "../../../src/seed_rng.js";
@@ -260,6 +260,14 @@ check("feats and near misses name the dungeon", () => {
   const depth10 = FEAT_BY_ID.get("depth_10");
   assert.equal(formatFeatProgress(depth10, { current: 5, target: 10 }), "未到達 / 地下墓地 B5F");
   assert.equal(formatFeatProgress(depth10, { current: 7, target: 10 }), "B2F / 地下墓地 B5F");
+  // Inside that dungeon the HUD does not repeat its name.
+  assert.equal(formatFeatProgress(depth10, { current: 7, target: 10 }, null, { insideFloor: 8 }), "B2F / B5F");
+  assert.equal(formatFeatProgress(depth10, { current: 5, target: 10 }, null, { insideFloor: 3 }), "未到達 / 地下墓地 B5F");
+
+  // Reaching the bottom of the mine is no progress toward the catacomb's.
+  assert.deepEqual(getFeatProgress(depth10, { bestDepth: 5 }), { current: 0, target: 10, ratio: 0, done: false });
+  assert.deepEqual(getFeatProgress(depth10, { bestDepth: 7 }), { current: 7, target: 10, ratio: 0.4, done: false });
+  assert.deepEqual(getFeatProgress(depth10, { bestDepth: 10 }), { current: 10, target: 10, ratio: 1, done: true });
 
   // A record in another dungeon is no distance from this run.
   const other = buildDeathNearMiss({ floor: 3, deepestFloor: 3, previousBestFloor: 8 });

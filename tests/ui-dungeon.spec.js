@@ -1553,7 +1553,8 @@ test('milestoneVictory outcome reload before reward log applies missing rewards 
     gameState: 'explore',
     combatState: null,
     defeatedMilestones: [5],
-    unlockedMilestones: [5],
+    // The dungeon is saved as cleared when the run comes home (#2060).
+    unlockedMilestones: [],
     keyItems: ['FORGE_SEAL'],
     cellEvent: null,
   });
@@ -1595,7 +1596,7 @@ test('milestoneVictory outcome reload after reward log does not duplicate reward
     gameState: 'explore',
     combatState: null,
     defeatedMilestones: [5],
-    unlockedMilestones: [5],
+    unlockedMilestones: [],
     keyItems: ['FORGE_SEAL'],
     cellEvent: null,
   });

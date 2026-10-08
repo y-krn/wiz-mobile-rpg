@@ -317,7 +317,8 @@ function getHudFeats() {
   const nearest = getNearestFeats(state.feats, getLiveFeatCounters(state.feats, run), 2)
     .map(({ feat, progress }) => ({
       name: feat.name,
-      progress: formatFeatProgress(feat, progress, run).replace(" / ", "/"),
+      progress: formatFeatProgress(feat, progress, run, { insideFloor: state.floor })
+        .replace(" / ", "/").replaceAll(" ", ""),
       completed: false
     }));
   // Someone being led out comes first: it is what this run now stands to lose.
