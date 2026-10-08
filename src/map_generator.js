@@ -1984,8 +1984,15 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     voidKeys
   );
 
+  // `floor` is the running floor number and names the map (seed, trap ids).
+  // `depth` is the floor inside the dungeon: it decides how the floor is
+  // entered and how dangerous its traps are (#2060). Callers that pass no
+  // `dungeonFloor` keep the old meaning, where the two are the same.
+  const depth = Number.isInteger(options.dungeonFloor) && options.dungeonFloor >= 1
+    ? options.dungeonFloor
+    : floor;
   const b1EntryCandidates = [];
-  if (floor === 1) {
+  if (depth === 1) {
     for (let y = 1; y < mapHeight - 1; y++) {
       for (let x = 1; x < mapWidth - 1; x++) {
         if (visited[y][x] && grid[y][x].walls.filter(wall => !wall).length >= 2) {
@@ -1994,16 +2001,16 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       }
     }
   }
-  const entryCoord = floor > 1
+  const entryCoord = depth > 1
     ? (parentStairsCoord || { x: mapWidth - 2, y: 1 })
     : b1EntryCandidates[Math.floor(rng() * b1EntryCandidates.length)];
   if (!entryCoord) throw new Error("B1F entry candidate unavailable");
-  const stairsUpCoord = floor > 1 ? entryCoord : null;
+  const stairsUpCoord = depth > 1 ? entryCoord : null;
   const suCoord = entryCoord;
 
   // 3. Setup floor specific connections & detect dead ends
   // B1F candidates already have at least two open walls.
-  if (floor > 1) {
+  if (depth > 1) {
     if (grid[suCoord.y][suCoord.x].walls.every(w => w)) {
       // Find a visited (passage) neighbor first to guarantee connection to the main maze
       let opened = false;
@@ -2096,9 +2103,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   let bossCoord = null;
 
   // 4. Setup Stairs & Boss / Midboss
-  if (floor > 1) {
+  if (depth > 1) {
     grid[suCoord.y][suCoord.x].type = "stairs-up";
-    grid[suCoord.y][suCoord.x].message = `【上り階段】地下${floor - 1}階へ戻る階段です。`;
+    grid[suCoord.y][suCoord.x].message = `【上り階段】地下${depth - 1}階へ戻る階段です。`;
   } else {
     grid[suCoord.y][suCoord.x].type = "stairs-up";
     grid[suCoord.y][suCoord.x].message = "【上り階段】街へ戻る階段です。";
@@ -2156,7 +2163,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     if (grid[stairsDownCoord.y][stairsDownCoord.x].type !== "stairs-up") {
       grid[stairsDownCoord.y][stairsDownCoord.x].type = "stairs-down";
     }
-    grid[stairsDownCoord.y][stairsDownCoord.x].message = `【下り階段】地下${floor + 1}階へ進む階段です。`;
+    grid[stairsDownCoord.y][stairsDownCoord.x].message = `【下り階段】地下${depth + 1}階へ進む階段です。`;
   }
 
   // Place Midboss on Floor 3, Boss on Floor 5
@@ -2311,7 +2318,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   shuffle(trapCandidates);
   const trapCount = Math.min(options.trapCount ?? Math.min(6 + floor, 16), trapCandidates.length);
 
-  const chokeTargeted = Math.round(trapCount * getTrapChokeRate(floor));
+  const chokeTargeted = Math.round(trapCount * getTrapChokeRate(depth));
   const chokePool = [];
   const openPool = [];
   const chokeCells = getUndirectedChokeCells(grid, suCoord, stairsDownCoord);
@@ -2336,9 +2343,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   for (const spot of chosen) {
     const trapId = `trap_${floor}_${spot.x}_${spot.y}`;
 
-    const trapType = selectTrapType(floor, rng, options.trapSet);
+    const trapType = selectTrapType(depth, rng, options.trapSet);
     
-    const baseDifficulty = 15 + floor * 15;
+    const baseDifficulty = 15 + depth * 15;
     const diffNoise = Math.floor(rng() * 11) - 5;
     const difficulty = Math.max(10, baseDifficulty + diffNoise);
 

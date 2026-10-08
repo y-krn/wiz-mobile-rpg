@@ -57,7 +57,8 @@ for (const viewport of VIEWPORTS) {
     expect(portalText).toContain('賭け金');
     expect(portalText).not.toContain('まだ持ち帰っていない戦果');
     expect(portalText).not.toMatch(/object loot|\bReturn\b|\bPush\b|\brun\b/);
-    await expect(page.locator('[data-info-role="next-band-clue"]')).toBeVisible();
+    // The dungeon ends on this floor (#2060): there is no next band to hint at.
+    await expect(page.locator('[data-info-role="next-band-clue"]')).toHaveCount(0);
 
     const choices = page.locator('.milestone-portal-choice-card > .milestone-portal-choice');
     await expect(choices).toHaveCount(2);
@@ -73,7 +74,7 @@ for (const viewport of VIEWPORTS) {
     await page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button').click();
     await page.locator('#btn-portal-change').click();
     await page.locator('.milestone-portal-choice-card[data-portal-decision="push"] button').click();
-    await expect(page.locator('.milestone-portal-confirmation')).toContainText('さらに深く進みますか？');
+    await expect(page.locator('.milestone-portal-confirmation')).toContainText('まだこの階に残りますか？');
     await expect(page.locator('.milestone-portal-confirmation')).toContainText('素材と未使用の持ち込み品を賭けたまま');
     await page.locator('#btn-portal-confirm').click();
     await expect(page.locator('#explore-controls')).toBeVisible();

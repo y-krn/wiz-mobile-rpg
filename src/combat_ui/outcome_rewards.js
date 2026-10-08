@@ -8,6 +8,7 @@ import { getItemData } from "../data.js";
 import { KEY_ITEM_LABELS, MILESTONE_KEY_ITEMS } from "../data/key_items.js";
 import { WORKSHOP_CATEGORIES, WORKSHOP_NODES } from "../data/workshop.js";
 import { getHunterName, takeTreasure } from "../systems/round_trip.js";
+import { getDungeonOpenedByClearing } from "../systems/dungeon_progress.js";
 
 // The workshop shelf a seal opens, named as the workshop names it. A seal
 // with nothing behind it yet promises nothing.
@@ -34,7 +35,9 @@ function applyMilestoneVictoryRewards(stateLike, floor) {
   clearOutcomeCell(stateLike, "boss", { openBossExitFloor: floor });
   const milestone = recordMilestoneVictory(stateLike, floor);
   applyPhase4cV1PlayerBaseline(stateLike);
-  const messages = [`B${floor}Fから冒険を始められるようになった。`];
+  // The next dungeon opens when this run comes home, not here (#2060).
+  const opens = getDungeonOpenedByClearing(stateLike, floor);
+  const messages = opens ? [`生きて帰れば、${opens.name}への道が開く。`] : [];
   const keyItem = MILESTONE_KEY_ITEMS[floor];
   if (milestone.unlocked && keyItem) {
     stateLike.keyItems ||= [];

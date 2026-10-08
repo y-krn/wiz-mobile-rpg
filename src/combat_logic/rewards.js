@@ -11,6 +11,7 @@ import { addRunFragments, getVictoryFragments } from "../systems/guidebook.js";
 import { freeKeeperAfterFight } from "../systems/facility_rooms.js";
 import { settlePhase4jBExpOwnership } from "../rules/phase4j_b_trial.js";
 import { markHunterSlain } from "../systems/round_trip.js";
+import { formatFloorCode } from "../rules/dungeons.js";
 
 function rollCombatAccessoryDrop(state, rng) {
   const roll = rng();
@@ -360,7 +361,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
 
   if (state.combatState.isBoss) {
     logQueue.push({
-      msg: `B${state.floor}Fの階層守護者を撃破した！帰還の門と商人が解放された。`,
+      msg: `${formatFloorCode(state.floor)}の階層守護者を撃破した！帰還の門と商人が解放された。`,
       sound: "item",
       milestoneVictory: state.floor
     });

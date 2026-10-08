@@ -132,8 +132,8 @@ console.log("[PASS] role defeats exclude fled and split enemies");
 const depth5 = FEAT_BY_ID.get("depth_5");
 assert.deepEqual(getFeatProgress(depth5, { bestDepth: 3 }), { current: 3, target: 5, ratio: 0.6, done: false });
 assert.deepEqual(getFeatProgress(depth5, { bestDepth: 9 }), { current: 5, target: 5, ratio: 1, done: true });
-assert.equal(formatFeatProgress(depth5, { current: 3, target: 5 }), "B3F / B5F");
-assert.equal(formatFeatProgress(depth5, { current: 0, target: 5 }), "未到達 / B5F");
+assert.equal(formatFeatProgress(depth5, { current: 3, target: 5 }), "B3F / 坑道 B5F");
+assert.equal(formatFeatProgress(depth5, { current: 0, target: 5 }), "未到達 / 坑道 B5F");
 assert.equal(formatFeatProgress(FEAT_BY_ID.get("elite_5"), { current: 2, target: 5 }), "2 / 5");
 assert.equal(formatFeatReward(depth5), "鉄片×4");
 const kits = FEAT_BY_ID.get("kits_4");
@@ -176,8 +176,12 @@ assert.deepEqual(settled.result.rewards, { "鉄片": 8, "呪布": 4 }, "rewards 
 assert.deepEqual(settled.feats.completed.depth_5, { runNumber: 7 });
 assert.equal(settled.result.progress.length, 3);
 assert.equal(settled.result.progress.every(entry => !settled.result.completed.includes(entry.id)), true);
-const depth10Progress = settled.result.progress.find(entry => entry.id === "depth_10");
-assert.deepEqual(depth10Progress, { id: "depth_10", before: 0, after: 6, target: 10 });
+// The run stepped onto the first floor of the next dungeon: one floor of five
+// toward its bottom (#2060), which no longer puts it among the three closest.
+assert.deepEqual(getFeatProgress(FEAT_BY_ID.get("depth_10"), settled.feats.counters),
+  { current: 6, target: 10, ratio: 0.2, done: false });
+assert.deepEqual(getFeatProgress(FEAT_BY_ID.get("depth_10"), { bestDepth: 5 }),
+  { current: 0, target: 10, ratio: 0, done: false });
 assert.equal(isNormalizedRunFeatResult(settled.result), true);
 assert.equal(isNormalizedFeatsState(settled.feats), true);
 assert.deepEqual(fresh.completed, {}, "settlement does not mutate the previous state");

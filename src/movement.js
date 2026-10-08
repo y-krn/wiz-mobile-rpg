@@ -58,6 +58,7 @@ import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 import { createRunRoundTrip } from "./state/run_round_trip.js";
 import { canChooseRoundTrip, isRoundTripRun } from "./rules/round_trip.js";
+import { getDungeonFloor, isDungeonBottomFloor, isDungeonEntryFloor } from "./rules/dungeons.js";
 import { arriveOnFloor, getHunterName, isHunted, tickHunter, wakeDungeon } from "./systems/round_trip.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
@@ -514,6 +515,8 @@ export function findCellCoordsByType(grid, type) {
 }
 
 export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false, onLanding = null) {
+  // Nothing lies below a dungeon's fifth floor (#2060).
+  if (isDungeonBottomFloor(state.floor) && nextFloor > state.floor) return;
   state.transitioning = true;
 
   if (!isPitfall) {
@@ -543,7 +546,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
       }
     }
   } else {
-    addLog(`階段を下ります。地下${nextFloor}階へ...`);
+    addLog(`階段を下ります。地下${getDungeonFloor(nextFloor)}階へ...`);
     playSound("move");
   }
 
@@ -567,7 +570,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     const theme = getFloorTheme(nextFloor);
     const firstVisit = revealFloor(state, nextFloor);
     if (isPitfall) {
-      addLog(`ドスン！地下${nextFloor}階の冷たい床に叩きつけられた！`);
+      addLog(`ドスン！地下${getDungeonFloor(nextFloor)}階の冷たい床に叩きつけられた！`);
     } else {
       addLog(`${theme.name}：${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
     }
@@ -596,7 +599,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
 export function ascendToFloor(prevFloor) {
   if (!isRoundTripRun(state.currentRun) || prevFloor < 1 || !state.maps?.[prevFloor - 1]) return false;
   state.transitioning = true;
-  addLog(`階段を上ります。地下${prevFloor}階へ...`);
+  addLog(`階段を上ります。地下${getDungeonFloor(prevFloor)}階へ...`);
   playSound("move");
 
   setTimeout(() => {
@@ -828,7 +831,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // The round-trip prototype (#2066) is the exception: the way home is up.
   if (cell.type === "stairs-up") {
     if (isRoundTripRun(state.currentRun)) {
-      openGuardedSubmenu("stairs_up", state.floor > 1
+      openGuardedSubmenu("stairs_up", !isDungeonEntryFloor(state.floor)
         ? `${getFloorLabel(state, state.floor - 1)}への上り階段`
         : "地上への上り階段");
       return;
@@ -840,11 +843,12 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Stairs Down (ask before descending so corridors stay walkable)
   if (cell.type === "stairs-down") {
-    if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
-      // balance-impact: none — milestone stairs presentation gate only; movement costs and facility rules remain unchanged
-      addLog("階層守護者を倒すまで下り階段は封じられている。");
+    // A dungeon ends on its fifth floor (#2060): these stairs never open.
+    // The menu still lists what the floor holds and lets the walls be searched.
+    if (isDungeonBottomFloor(state.floor)) {
+      addLog("下り階段は固く封じられている。この迷宮はここまでだ。");
       playSound("bump");
-      openGuardedSubmenu("stairs_down", `${getFloorLabel(state, state.floor + 1)}への下り階段`);
+      openGuardedSubmenu("stairs_down", "封じられた下り階段");
       return;
     }
     openGuardedSubmenu("stairs_down", `${getFloorLabel(state, state.floor + 1)}への下り階段`);
@@ -880,7 +884,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     }
     state.transitioning = true;
     if (!milestoneBoss) addLog("竜の鍵を使って頑丈な扉を開けた！");
-    addLog(`警告：B${state.floor}Fの階層守護者が立ちふさがる！戦闘準備！`);
+    addLog(`警告：B${getDungeonFloor(state.floor)}Fの階層守護者が立ちふさがる！戦闘準備！`);
     playSound("chest_trap");
     setTimeout(() => {
       state.transitioning = false;
@@ -961,7 +965,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       addLog("帰還の門は階層守護者の力で封じられている。");
       return;
     }
-    openGuardedSubmenu("milestone_portal", `B${state.floor}F 帰還の門`);
+    openGuardedSubmenu("milestone_portal", `B${getDungeonFloor(state.floor)}F 帰還の門`);
     return;
   }
 
@@ -1140,7 +1144,9 @@ export function executeEnterDungeon(floor, { departureCraft = [], roundTrip = fa
   state.currentRun.floorSteps = {};
   resetRunFloors(state);
   ensureRunFloor(state, floor);
-  if (floor > 1) {
+  // A run starts on the first floor of a dungeon (#2060). A start on a
+  // guardian's floor is the old start-floor choice: that guardian is gone.
+  if (!isDungeonEntryFloor(floor)) {
     state.currentRun.defeatedMilestones = [floor];
     let removedBoss = false;
     state.maps[floor - 1].flat().forEach(cell => {

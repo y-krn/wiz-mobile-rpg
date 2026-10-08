@@ -1,5 +1,6 @@
 import { MONSTERS } from "../data/monsters.js";
 import { getMilestoneBossStatRule } from "./boss_rules.js";
+import { getDungeonFloor, getEnemyStrength } from "./dungeons.js";
 
 const clampBaseline = value => Math.max(0, Math.min(5, Math.floor(Number(value) || 0)));
 
@@ -8,11 +9,13 @@ export function isProgressionTrial(stateLike) {
   return Boolean(stateLike?.currentRun);
 }
 
+// The baseline counts guardians beaten inside the dungeon, so a run that
+// enters any dungeon starts at zero and gains one step at its bottom (#2060).
 export function resolvePhase4cV1Baseline(currentRun) {
-  const selectedStart = clampBaseline((Number(currentRun?.startFloor) || 1) / 5);
+  const selectedStart = clampBaseline(getDungeonFloor(currentRun?.startFloor) / 5);
   const defeated = (Array.isArray(currentRun?.defeatedMilestones) ? currentRun.defeatedMilestones : [])
     .reduce((highest, floor) => Number.isInteger(floor) && floor > 0
-      ? Math.max(highest, clampBaseline(floor / 5))
+      ? Math.max(highest, clampBaseline(getDungeonFloor(floor) / 5))
       : highest, 0);
   return Math.max(selectedStart, defeated);
 }
@@ -34,8 +37,9 @@ export function applyPhase4cV1PlayerBaseline(stateLike, { refill = false } = {})
   return { applied: true, baseline, hpBonusDelta };
 }
 
+/** `floor` is the running floor number; the band follows the dungeon floor. */
 export function phase4cV1EnemyBand(floor) {
-  return clampBaseline(Math.floor((Number(floor) || 1) / 5));
+  return clampBaseline(Math.floor(getDungeonFloor(floor) / 5));
 }
 
 function templateName(name) {
@@ -50,12 +54,16 @@ function templateName(name) {
 // own rule.
 export const PHASE4C_V1_GUARDIAN_SOLO_SCALE = Object.freeze({ hp: 0.38, atk: 0.45 });
 
-function applyPhase4cV1GuardianBaseline(monster, template, band) {
-  const hp = Math.max(1, Math.round(template.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * (1 + 0.20 * band)));
+function applyPhase4cV1GuardianBaseline(monster, template, band, strength) {
+  const hp = Math.max(1, Math.round(
+    template.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * (1 + 0.20 * band) * strength.hp
+  ));
   monster.maxHp = hp;
   monster.hp = hp;
-  monster.atk = Math.max(1, Math.round(template.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * (1 + 0.10 * band)));
-  monster.def = Math.max(0, Math.round(template.def));
+  monster.atk = Math.max(1, Math.round(
+    template.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * (1 + 0.10 * band) * strength.atk
+  ));
+  monster.def = Math.max(0, Math.round(template.def * strength.def));
   // A summoning guardian keeps at most one add alive at a time.
   if (monster.traits?.includes("summonAlly")) {
     monster.summon = { ...(monster.summon || {}), maxAllies: 2 };
@@ -68,7 +76,7 @@ export function applyPhase4cV1EnemyBaseline(monsters, floor) {
     if (monster.isBoss === true) {
       const template = MONSTERS.find(entry => entry.name === templateName(monster.name));
       if (template && !getMilestoneBossStatRule(floor, template.name, { isBoss: true })) {
-        applyPhase4cV1GuardianBaseline(monster, template, band);
+        applyPhase4cV1GuardianBaseline(monster, template, band, getEnemyStrength(floor, template.name, { boss: true }));
       }
       continue;
     }
@@ -77,11 +85,12 @@ export function applyPhase4cV1EnemyBaseline(monsters, floor) {
     if (monster.isMimic === true || monster.isBroodKeeper === true) continue;
     const template = MONSTERS.find(entry => entry.name === templateName(monster.name));
     if (!template) throw new Error(`Phase 4c v1 missing generic enemy template: ${monster.name}`);
-    const hp = Math.max(1, Math.round(template.hp * (1 + 0.20 * band)));
+    const strength = getEnemyStrength(floor, template.name);
+    const hp = Math.max(1, Math.round(template.hp * (1 + 0.20 * band) * strength.hp));
     monster.maxHp = hp;
     monster.hp = hp;
-    monster.atk = Math.max(1, Math.round(template.atk * (1 + 0.10 * band)));
-    monster.def = Math.max(0, Math.round(template.def));
+    monster.atk = Math.max(1, Math.round(template.atk * (1 + 0.10 * band) * strength.atk));
+    monster.def = Math.max(0, Math.round(template.def * strength.def));
   }
   return band;
 }

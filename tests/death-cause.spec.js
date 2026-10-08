@@ -165,7 +165,7 @@ for (const viewport of [
     await expect(page.locator('.death-unclassified-note')).toContainText('1件');
     const countermeasure = page.locator('.death-countermeasure');
     await expect(countermeasure).toContainText('準備を見直す');
-    await expect(countermeasure).toContainText('開始キット・持ち込む道具・開始階を選び直す。');
+    await expect(countermeasure).toContainText('開始キット・持ち込む道具・行き先を選び直す。');
     await expect(countermeasure).not.toContainText('クラス');
     await expect(countermeasure).toContainText('工房を見る');
     for (const specificSolution of ['罠外しキット', '罠喰いの記憶', '解毒薬', '目薬', '守りの薬', '生命鍛錬']) {

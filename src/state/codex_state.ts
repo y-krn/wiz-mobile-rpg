@@ -87,6 +87,7 @@ export {
   getFloorTrapCodexId
 } from "./codex_trap_ids.js";
 import { CODEX_TRAP_IDS } from "./codex_trap_ids.js";
+import { formatDungeonFloor } from "../rules/dungeons.js";
 
 export type CodexTrapId = typeof CODEX_TRAP_IDS[number];
 
@@ -663,7 +664,7 @@ export function recordEquipmentDiscovery(equipKey: unknown, stateLike: CodexStat
       affixesSeen: [],
       foundFloors: {},
       tagObservations: {},
-      firstFoundAt: `B${stateLike.floor}F`,
+      firstFoundAt: formatDungeonFloor(stateLike.floor),
       lastFoundSeed: typeof stateLike.seed === "string" ? stateLike.seed : ""
     };
   }

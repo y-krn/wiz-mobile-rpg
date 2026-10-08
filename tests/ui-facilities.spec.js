@@ -342,7 +342,7 @@ test('The guild shows each rebuild with its feat condition before it can be boug
 
   const outpost = page.locator('[data-facility-node-id="miner_outpost"]');
   await expect(outpost).toBeDisabled();
-  await expect(outpost).toContainText('先に偉業「坑道を抜ける」を達成する（B5Fに到達する）');
+  await expect(outpost).toContainText('先に偉業「坑道を抜ける」を達成する（崩れた坑道のB5Fに到達する）');
   await expect(outpost).toContainText('傷薬・解毒薬・罠外しキットのどれか1つ');
   const blast = page.locator('[data-facility-node-id="miner_blast"]');
   await expect(blast).toBeDisabled();

@@ -1,6 +1,7 @@
 import { BIOMES } from "../data/biomes.js";
 import { ENCOUNTER_SIZE_WEIGHTS } from "../data/encounters.js";
 import { MONSTERS } from "../data/monsters.js";
+import { getDungeonFloor } from "./dungeons.js";
 
 const SPECIAL_UNITS = Object.freeze({ rare: 1.75, elite: 2, midboss: 2, boss: 3 });
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -61,7 +62,9 @@ export function allocatePhase4jBExp(totalAward, monsters) {
 }
 
 export function calculatePhase4jBExpAward({ floor, kind, monsters }) {
-  const bandReward = 1 + 0.04 * clamp(Math.floor((floor - 1) / 5), 0, 5);
+  // Every dungeon is entered by a fresh adventurer, so the award follows the
+  // floor inside the dungeon and no longer grows from dungeon to dungeon.
+  const bandReward = 1 + 0.04 * clamp(Math.floor((getDungeonFloor(floor) - 1) / 5), 0, 5);
   let totalAward;
   if (kind === "ordinary") {
     if (!Array.isArray(monsters) || !monsters.length) throw new Error("ordinary Phase 4j-B award requires initial roster");

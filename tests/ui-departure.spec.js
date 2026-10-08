@@ -55,8 +55,8 @@ for (const width of [320, 360, 390, 430]) {
 }
 
 for (const vp of VIEWPORTS) {
-  test(`Milestone start, merchant, and portal stay thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
-    // One test walks start shortcut, three merchant purchases, and the portal.
+  test(`Dungeon choice, merchant, and portal stay thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
+    // One test walks the dungeon choice, three merchant purchases, and the portal.
     // CI runs took 15-27s and the 430x932 case hit the 30s budget at varying
     // steps while Playwright reported the buttons as stable.
     test.slow();
@@ -69,16 +69,19 @@ for (const vp of VIEWPORTS) {
     await page.locator('#btn-town-dungeon').click();
     await page.getByRole('button', { name: /鋼の前線キット/ }).first().click();
     await page.locator('#btn-kit-confirm').click();
-    const shortcut = page.getByRole('button', { name: /B5Fから開始/ });
-    await expect(shortcut).toContainText('手に入る素材は6割');
-    expect((await shortcut.boundingBox()).height).toBeGreaterThanOrEqual(44);
-    await shortcut.click();
+    // The second dungeon is open once the first is cleared (#2060). It is
+    // entered at its own first floor, with no reduced-material penalty.
+    const catacomb = page.getByRole('button', { name: /忘れられた地下墓地/ });
+    await expect(catacomb).toContainText('まだ踏破していない');
+    await expect(page.locator('#submenu-options')).not.toContainText('手に入る素材は');
+    expect((await catacomb.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await catacomb.click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     const started = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return { floor: state.floor, startFloor: state.currentRun.startFloor, count: state.party.length };
     });
-    expect(started).toEqual({ floor: 5, startFloor: 5, count: 1 });
+    expect(started).toEqual({ floor: 6, startFloor: 6, count: 1 });
 
     await page.evaluate(async () => {
       const { createDefaultCurrentRun, createStartingKitCharacter, state } = await import('/src/state.js');
@@ -226,10 +229,11 @@ for (const vp of VIEWPORTS) {
     expect(confirmBox.y + confirmBox.height, `Confirm must fit in the viewport on ${vp.name}`).toBeLessThanOrEqual(vp.height);
     expect(confirmBox.height, `Confirm must stay tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
 
-    // Floor choices share the one scrolling surface; bring them back into view.
+    // Dungeon choices share the one scrolling surface; bring them back into view.
+    // Two dungeons can be entered today (#2060), however many have been cleared.
     await page.locator('#submenu-options').evaluate((options) => { options.scrollTop = 0; });
     const starts = page.locator('.solo-start-floor-option');
-    await expect(starts).toHaveCount(3);
+    await expect(starts).toHaveCount(2);
     for (let index = 0; index < await starts.count(); index++) {
       const start = starts.nth(index);
       const box = await start.boundingBox();
@@ -270,7 +274,7 @@ for (const vp of VIEWPORTS) {
 
   test(`Departure kit reselection clears start buttons on ${vp.name}`, async ({ page }) => {
     await openDeparturePreparation(page, vp);
-    await expect(page.getByRole('button', { name: /B1Fから開始/ })).toBeVisible();
+    await expect(page.locator('.solo-start-floor-option[data-start-floor="1"]')).toBeVisible();
     await page.getByRole('button', { name: '開始キットを選び直す' }).click();
     await expect(page.locator('.solo-starting-kit-option').first()).toBeVisible();
     await expect(page.locator('.solo-start-floor-option')).toHaveCount(0);
@@ -514,13 +518,13 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(summary).not.toContainText('バッグ外');
   await expect(summary).not.toContainText('Medium');
   await expect(summary).not.toContainText('active Rune');
-  await expect(summary.locator('.solo-preparation-feat')).toContainText('坑道を抜ける（B4F / B5F）');
+  await expect(summary.locator('.solo-preparation-feat')).toContainText('坑道を抜ける（B4F / 坑道 B5F）');
   await expect(summary).not.toContainText('依頼');
   await expect(summary.locator('.solo-preparation-slot')).toHaveCount(20);
   await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(20);
   await expect(summary).toContainText('持ち込み 0/20');
   await expect(summary).toContainText('迷宮で拾う品のために残る');
-  await expect(summary).toContainText('開始階まだ選んでいない');
+  await expect(summary).toContainText('行き先まだ選んでいない');
   await expect(page.getByRole('button', { name: '迷宮へ向かう' })).toBeDisabled();
 
   const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
@@ -528,17 +532,18 @@ test('Preparation keeps run conditions and all 20 bag slots visible', async ({ p
   await expect(summary).toContainText('持ち込み 1/20');
   await expect(summary.locator('.solo-preparation-slot.is-filled')).toHaveCount(1);
   await expect(summary.locator('.solo-preparation-slot.is-open')).toHaveCount(19);
-  await expect(page.getByRole('button', { name: /B5Fから開始/ })).toContainText('手に入る素材は6割');
-
-  const milestoneStart = page.getByRole('button', { name: /B5Fから開始/ });
-  await milestoneStart.click();
-  await expect(summary).toContainText('開始階B5F・中層');
-  await expect(milestoneStart).toHaveAttribute('aria-pressed', 'true');
+  // The second dungeon (#2060): no reduced-material penalty is attached to it.
+  const catacomb = page.locator('.solo-start-floor-option[data-start-floor="6"]');
+  await expect(catacomb).toContainText('忘れられた地下墓地');
+  await expect(page.locator('#submenu-options')).not.toContainText('手に入る素材は');
+  await catacomb.click();
+  await expect(summary).toContainText('行き先忘れられた地下墓地（地下5階まで）');
+  await expect(page.locator('.solo-start-floor-option[data-start-floor="6"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: '迷宮へ向かう' })).toBeEnabled();
   await expect(page.locator('#explore-controls')).toBeHidden();
 });
 
-test('A single start floor is selected up front and several floors keep the explicit choice', async ({ page }) => {
+test('A single open dungeon is selected up front and several dungeons keep the explicit choice', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const openPreparation = async milestones => {
@@ -558,14 +563,14 @@ test('A single start floor is selected up front and several floors keep the expl
   await openPreparation([5]);
   await expect(page.locator('.solo-start-floor-option')).toHaveCount(2);
   await expect(page.locator('.solo-start-floor-option[aria-pressed="true"]')).toHaveCount(0);
-  await expect(page.locator('.solo-preparation-summary')).toContainText('開始階まだ選んでいない');
+  await expect(page.locator('.solo-preparation-summary')).toContainText('行き先まだ選んでいない');
   await expect(page.locator('#btn-departure-start')).toBeDisabled();
 
   await openPreparation([]);
   const onlyFloor = page.locator('[data-start-floor="1"]');
   await expect(page.locator('.solo-start-floor-option')).toHaveCount(1);
   await expect(onlyFloor).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.solo-preparation-summary')).toContainText('開始階B1F・浅層');
+  await expect(page.locator('.solo-preparation-summary')).toContainText('行き先崩れた坑道（地下5階まで）');
   const start = page.locator('#btn-departure-start');
   await expect(start).toBeEnabled();
   await start.click();
@@ -745,7 +750,7 @@ for (const vp of VIEWPORTS) {
     await page.getByRole('button', { name: /鋼の前線キット/ }).click();
     await page.locator('#btn-kit-confirm').click();
     await page.locator('[data-recipe-id="HEAL_POTION"]').click();
-    await page.getByRole('button', { name: /B1Fから開始/ }).click();
+    await page.locator('.solo-start-floor-option[data-start-floor="1"]').click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#explore-controls')).toBeVisible();
 
@@ -795,7 +800,7 @@ for (const vp of VIEWPORTS) {
     // The second preparation opens pre-filled with the first one (#2002).
     await expect(page.locator('.solo-preparation-summary')).toContainText('鋼の前線キット');
     await expect(page.locator('[data-recipe-id="HEAL_POTION"]')).toContainText('1個');
-    await page.getByRole('button', { name: /B5Fから開始/ }).click();
+    await page.locator('.solo-start-floor-option[data-start-floor="6"]').click();
     await page.getByRole('button', { name: '迷宮へ向かう' }).click();
     await expect(page.locator('#explore-controls')).toBeVisible();
     await page.waitForFunction(() => window.__dungeonRenderer.renderCount > window.__secondDepartureRenderBaseline);
@@ -809,7 +814,7 @@ for (const vp of VIEWPORTS) {
         renderCount: visibility.showTownBackground ? -1 : window.__dungeonRenderer.renderCount,
       };
     });
-    expect(secondDeparture.state).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
+    expect(secondDeparture.state).toEqual({ gameState: 'explore', hasMap: true, floor: 6 });
     expect(secondDeparture.visibility.showTownBackground).toBe(false);
     expect(secondDeparture.renderCount).toBeGreaterThan(0);
 
@@ -833,7 +838,7 @@ for (const vp of VIEWPORTS) {
         floor: state.floor,
       };
     });
-    expect(reloadState).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
+    expect(reloadState).toEqual({ gameState: 'explore', hasMap: true, floor: 6 });
     await page.evaluate(() => {
       localStorage.removeItem('__issue744PauseAfterReload');
       window.__resumeGameAnimation();
@@ -850,7 +855,7 @@ for (const vp of VIEWPORTS) {
         renderCount: window.__dungeonRenderer.renderCount,
       };
     });
-    expect(resumedSave.state).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
+    expect(resumedSave.state).toEqual({ gameState: 'explore', hasMap: true, floor: 6 });
     expect(resumedSave.visibility.showTownBackground).toBe(false);
     expect(resumedSave.renderCount).toBeGreaterThan(0);
     expect(pageErrors).toEqual([]);

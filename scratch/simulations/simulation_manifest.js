@@ -286,6 +286,11 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // Round-trip prototype rule (#2066): the hunter is a roaming threat on opt-in runs.
     { pattern: "src/rules/round_trip.js", domains: ["combat", "maps"] },
     { pattern: "src/systems/round_trip.js", domains: ["combat", "maps"] },
+    // Dungeons (#2060): the floor inside the dungeon sets strength and reward,
+    // and each dungeon has its own enemy multipliers.
+    { pattern: "src/data/dungeons.js", domains: ["combat", "maps", "progression"] },
+    { pattern: "src/rules/dungeons.js", domains: ["combat", "maps", "progression", "equipment", "chests", "drops", "traps"] },
+    { pattern: "src/systems/dungeon_progress.js", domains: ["progression"] },
     { pattern: "src/systems/elite_perception.js", domains: ["combat", "maps"] },
     { pattern: "src/systems/elite_perception.ts", domains: ["combat", "maps"] },
     // Build vNext (#1801): weapon techniques and trial supply/seed offer.
@@ -317,6 +322,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/state/last_preparation.ts", "src/systems/departure_preparation.js",
     // Round-trip prototype (#2066): normalized run state only.
     "src/state/run_round_trip.ts",
+    // Floor names and labels (#2060): what a floor is called on screen.
+    "src/data/floor_themes.js",
     "src/state/feats_state.ts", "src/state/facilities_state.ts",
     "src/state/guidebook_state.ts", "src/data/guidebook.js", "src/systems/guidebook.js"
   ]),

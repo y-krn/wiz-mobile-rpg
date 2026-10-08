@@ -20,6 +20,7 @@ import {
 import { showSoloHudHit } from "../ui/solo_hud.js";
 import { showVictoryToast } from "../ui/victory_toast.js";
 import { recordRoundEnemyAction, resetRoundEnemyActions } from "./round_enemy_actions.js";
+import { formatFloorCode, isDungeonBottomFloor } from "../rules/dungeons.js";
 
 function cleanupCombatState() {
   clearEventObservations({ scopePrefix: "combat:" });
@@ -61,7 +62,10 @@ function applyOutcomeRewards() {
 function openBossExitSubmenu() {
   const cell = state.map?.[state.y]?.[state.x];
   if (cell?.type !== "stairs-down" || cell.event) return;
-  openGuardedSubmenu("stairs_down", `B${state.floor + 1}Fへの下り階段`);
+  // The menu retitles itself; a dungeon's fifth floor has nothing below (#2060).
+  openGuardedSubmenu("stairs_down", isDungeonBottomFloor(state.floor)
+    ? "封じられた下り階段"
+    : `${formatFloorCode(state.floor + 1)}への下り階段`);
 }
 
 export function playBattleLogs(queue, index) {

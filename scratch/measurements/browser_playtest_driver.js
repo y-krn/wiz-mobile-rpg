@@ -49,7 +49,12 @@ const st = () => S.state;
 const W = window;
 const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
-const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'off', turnBack: 0.3 };
+const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'off', turnBack: 0.3, dungeon: 'mine' };
+// A dungeon is five floors (#2060); a run is named by the running number of its first floor.
+const DUNGEON_ENTRY = { mine: 1, catacomb: 6 };
+const entryFloorOf = dungeon => DUNGEON_ENTRY[dungeon] || Math.max(1, Math.floor(Number(dungeon)) || 1);
+const localFloor = floor => ((Math.max(1, Number(floor) || 1) - 1) % 5) + 1;
+const atDungeonBottom = () => localFloor(st().floor) === 5;
 W.__policy = { ...POLICY_DEFAULTS };
 const hasCore = id => W.__policy.cores !== 'off' && Boolean(DATA.getCharCoreParams?.(P(), id));
 const guardianDown = () => Boolean(st().currentRun?.defeatedMilestones?.includes(st().floor));
@@ -382,14 +387,14 @@ W.__merchant = async () => {
   W.__merchantDone[s.floor] = true;
   await W.__click('戻る'); for (let w = 0; w < 20 && s.gameState === 'submenu'; w++) await sl(100);
 };
-// Return gate: only the rescue policy walks out, and only with someone to bring home.
+// Return gate: the way home from the bottom of a dungeon (#2060).
 W.__portal = async buttons => {
   const s = st(); const floor = s.floor;
-  if (W.__policy.rooms === 'rescue' && companionNames()) {
+  if (atDungeonBottom() || (W.__policy.rooms === 'rescue' && companionNames())) {
     if (buttons.some(t => t.includes('素材と持ち込み品を持って帰還'))) { await W.__click('素材と持ち込み品を持って帰還'); await sl(300); }
     if (await W.__click('ここで帰還する') === 'ok') {
       for (let w = 0; w < 40 && s.gameState !== 'result'; w++) await sl(100);
-      if (s.gameState === 'result') W.__journal.push(`portal F${floor}: returned with ${companionNames() || 'the rescued'}`);
+      if (s.gameState === 'result') W.__journal.push(`portal F${floor}: returned${companionNames() ? ` with ${companionNames()}` : ''}`);
     }
     return;
   }
@@ -623,6 +628,8 @@ const postGuardianErrand = () => {
   if (!W.__merchantDone[s.floor] && (W.__merchantTries[s.floor] || 0) < 2 && potionCount() < POTION_TARGET
     && (s.currentRun?.materials?.['獣の牙'] || 0) > 0 && W.__bfs(goals.merchant)) return 'merchant';
   if (W.__policy.rooms === 'rescue' && companionNames() && (W.__portalTries[s.floor] || 0) < 2 && W.__bfs(goals.portal)) return 'portal';
+  // The dungeon ends on its fifth floor (#2060): without the round-trip rule the gate is the way home.
+  if (atDungeonBottom() && !roundTrip() && (W.__portalTries[s.floor] || 0) < 8 && W.__bfs(goals.portal)) return 'portal';
   return null;
 };
 W.__auto = async (policy = W.__policy, maxIter = 600) => {
@@ -774,13 +781,17 @@ W.__auto = async (policy = W.__policy, maxIter = 600) => {
 // ---------- run start (seedable) ----------
 const KIT_NAMES = { vanguard: '鋼の前線キット', scout: '軽装探索キット', devotion: '祈りの旅装キット', arcana: '術式の旅装キット' };
 // There is a single run rule set (#1815); there is no mode picker.
-W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false } = {}) => {
+W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false, dungeon = 'mine' } = {}) => {
   if (W.__btns().some(t => t.includes('街へ戻る'))) { await W.__click('街へ戻る'); await sl(1000); }
+  // Measurement shortcut: a later dungeon is opened directly instead of being
+  // earned, so it can be measured with a fresh adventurer from a new save.
+  const entry = entryFloorOf(dungeon);
+  if (entry > 1) st().unlockedMilestones = [...new Set([...(st().unlockedMilestones || []), entry - 1])].sort((a, b) => a - b);
   for (let t = 0; t < 4 && !document.querySelector('button.solo-start-floor-option'); t++) {
     await W.__tap('準備を整える'); await sl(300); await W.__tap(KIT_NAMES[kit] || kit); await sl(300); await W.__tap('このキットで準備へ'); await sl(500);
   }
   if (!document.querySelector('button.solo-start-floor-option')) return { ok: false, reason: 'no start floor options; gs=' + st().gameState };
-  const fb = [...document.querySelectorAll('button.solo-start-floor-option')].find(b => b.textContent.includes('B1F')); if (!fb) return { ok: false, reason: 'no B1 option' };
+  const fb = document.querySelector(`button.solo-start-floor-option[data-start-floor="${entry}"]`); if (!fb) return { ok: false, reason: `dungeon ${dungeon} is not open` };
   fb.click(); await sl(300);
   if (roundTrip) { const rule = document.querySelector('.solo-start-rule-option'); if (rule && rule.getAttribute('aria-pressed') !== 'true') { rule.click(); await sl(300); } }
   // Fix the map seed: runSeed = `${state.seed}:run:${Date.now()}` at entry.
@@ -792,9 +803,9 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false } = {})
   resetPolicyState();
   W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null;
   const run = st().currentRun;
-  // Fingerprint of the B1 layout so before/after runs can prove they share maps.
+  // Fingerprint of the first floor's layout so before/after runs can prove they share maps.
   let h = 2166136261; for (const row of st().map) for (const c of row) for (const w of c.walls) { h ^= w ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
-  return { ok: st().floor === 1, runSeed: run?.runSeed, mapFingerprint: h.toString(16), maxHp: DATA.getCharMaxHp(P()), mp: P().mp, maxMp: DATA.getCharMaxMp(P()) };
+  return { ok: st().floor === entry, entry, runSeed: run?.runSeed, mapFingerprint: h.toString(16), maxHp: DATA.getCharMaxHp(P()), mp: P().mp, maxMp: DATA.getCharMaxMp(P()) };
 };
 
 // One complete run; returns a plain JSON summary.
@@ -803,7 +814,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
   // Unset options keep their defaults (the runner passes null for "not given").
   W.__policy = { ...POLICY_DEFAULTS, ...Object.fromEntries(Object.entries(policyOptions).filter(([, v]) => v !== null && v !== undefined)) };
   const { explore, maxFloor } = W.__policy;
-  const start = await W.__startRun({ kit, seed, roundTrip: W.__policy.roundTrip === 'on' });
+  const start = await W.__startRun({ kit, seed, roundTrip: W.__policy.roundTrip === 'on', dungeon: W.__policy.dungeon });
   if (!start.ok) return { start, error: 'start failed' };
   let end = '';
   for (let i = 0; i < 8 && st().gameState !== 'result'; i++) { end = await W.__auto(W.__policy); if (end !== 'maxIter') break; }
@@ -811,6 +822,9 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
   return {
     seed, kit, explore, equip, policy: { ...W.__policy }, start, end,
     deepest: s.currentRun?.deepestFloor ?? s.floor,
+    // The floor inside the dungeon (1-5), and whether the run beat the guardian and came home.
+    depth: localFloor(s.currentRun?.deepestFloor ?? s.floor),
+    cleared: s.gameState === 'result' && (P()?.hp ?? 0) > 0 && (s.currentRun?.defeatedMilestones || []).some(f => localFloor(f) === 5),
     guardian: W.__journal.filter(j => j.startsWith('BOSS')),
     level: P()?.level, died: s.gameState === 'result' && (P()?.hp ?? 0) <= 0,
     returned: s.gameState === 'result' && (P()?.hp ?? 0) > 0,

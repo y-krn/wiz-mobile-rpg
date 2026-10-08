@@ -50,11 +50,13 @@ const maxOrdinary = calculateCandidateAward({
 assert.equal(maxOrdinary.templateThreat, 1.25);
 assert.equal(maxOrdinary.sizePressure, 1.35);
 assert.equal(maxOrdinary.ordinaryWeight, 1.5);
-assert.equal(maxOrdinary.totalAward, 72);
+// The band is counted inside the dungeon (#2060), so no dungeon pays more
+// than another for the same fight: 40 x 1.5, without a band bonus.
+assert.equal(maxOrdinary.totalAward, 60);
 
 for (let band = 0; band <= 5; band++) {
   const floor = band * 5 + 1;
-  const bandReward = 1 + 0.04 * band;
+  const bandReward = 1;
   const rare = calculateCandidateAward({ floor, kind: "rare" });
   const elite = calculateCandidateAward({ floor, kind: "elite" });
   const midboss = calculateCandidateAward({ floor, kind: "midboss" });

@@ -28,6 +28,8 @@ needs a name, add a row here in the same change.
 | --- | --- | --- |
 | One trip into the dungeon | 冒険 (the person is 冒険者) | 潜行, 遠征 |
 | One of the places a run goes into | 迷宮 (named by its biome: 崩れた坑道) | — |
+| Which dungeon a run goes into | 行き先 (行き先を選ぶ) | 開始階 |
+| A dungeon whose guardian was beaten by a run that came home | 踏破 (踏破済み) | — |
 | What a dungeon's guardian holds | 至宝 | — |
 | The strong enemy that follows on the way back | 追跡者 | — |
 | Ending a run by climbing out | 歩いて地上へ帰還 (歩いて戻る) | — |

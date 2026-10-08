@@ -3,6 +3,7 @@ import { getNearestFeats, listFeats } from "../systems/feats.js";
 import { createFeatCard } from "./feat_card.js";
 import { getOpenFacilityOrder, listFacilityNodes, listTownFacilities } from "../systems/facilities.js";
 import { getNextGuidebookPage, listGuidebookPages } from "../systems/guidebook.js";
+import { formatDungeonFloor } from "../rules/dungeons.js";
 
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
@@ -19,7 +20,7 @@ function outcomeClass(run) {
 }
 
 function floorLabel(floor) {
-  return Number(floor) > 0 ? `B${Number(floor)}F` : "未記録";
+  return Number(floor) > 0 ? formatDungeonFloor(Number(floor)) : "未記録";
 }
 
 function fragmentNode() {

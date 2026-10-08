@@ -10,6 +10,7 @@ import { generateEncounter } from "../../src/combat_ui/encounter.js";
 import { MONSTERS } from "../../src/data/monsters.js";
 import { EXP_LEVELS } from "../../src/data/progression.js";
 import { getDepthScaling } from "../../src/rules/depth_scaling.js";
+import { getDungeonFloor } from "../../src/rules/dungeons.js";
 import { checkCharLevelUp } from "../../src/systems/leveling.ts";
 import { createRng } from "../../src/seed_rng.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
@@ -96,7 +97,8 @@ export function generateProductionExpAwardRow({ floor, runIndex, worldSeed, boss
   });
   const templateExpSum = monsters.reduce((sum, monster) => sum + monster.templateExp, 0);
   const scaledExpSum = monsters.reduce((sum, monster) => sum + monster.scaledExp, 0);
-  const rewardMultiplier = getDepthScaling(floor).reward * (boss ? 1.2 : 1);
+  // Production scales by the floor inside the dungeon (#2060).
+  const rewardMultiplier = getDepthScaling(getDungeonFloor(floor)).reward * (boss ? 1.2 : 1);
   const expectedScaledExp = monsters.reduce((sum, monster) => {
     const template = templateFor({ name: monster.name });
     return sum + Math.max(1, Math.round(template.exp * rewardMultiplier));

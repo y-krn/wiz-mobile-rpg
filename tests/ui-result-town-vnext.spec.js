@@ -177,7 +177,7 @@ test('Death result states how close the run was', async ({ page }) => {
   expect(facts.heading).toContain('あと少しだった点');
   expect(facts.items).toEqual([
     '階層守護者・デーモンガードを重傷まで追い込んでいた',
-    '自己最深 B7F まであと2階だった',
+    // The record (floor 7) is in another dungeon: it is no distance from here (#2060).
     '帰還の門は、この階の階層守護者の先にあった',
     '使わずに残っていた物：帰還の翼×1、傷薬×2'
   ]);
@@ -244,7 +244,7 @@ for (const reason of ['gameover', 'abandon', 'milestone_portal']) {
     const again = page.locator('#btn-result-again');
     await expect(again).toHaveAttribute('data-result-next', 'repeat');
     await expect(again).toContainText('同じ準備でもう一度');
-    await expect(again).toContainText('鋼の前線キット・B1Fから・道具2品（倉庫から1品・支払い：硬い皮1・獣の牙1）');
+    await expect(again).toContainText('鋼の前線キット・崩れた坑道・道具2品（倉庫から1品・支払い：硬い皮1・獣の牙1）');
     await expect(page.locator('#btn-result-castle')).toHaveText('街へ戻る');
 
     // A replayed activation must not start or charge a second departure.
@@ -323,13 +323,13 @@ test('Town preparation opens with the previous choices and still allows changing
     state.gameState = 'town';
     state.metaMaterials = { '硬い皮': 4, '獣の牙': 4 };
     state.unlockedMilestones = [5];
-    state.lastPreparation = { kitId: 'devotion', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 5 };
+    state.lastPreparation = { kitId: 'devotion', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 6, roundTrip: false };
     updateUI();
   });
   await page.locator('#btn-town-dungeon').click();
 
   await expect(page.locator('.solo-preparation-summary')).toContainText('祈りの旅装キット');
-  await expect(page.locator('[data-start-floor="5"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-start-floor="6"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-recipe-id="HEAL_POTION"]')).toContainText('1個');
   await expect(page.locator('.solo-preparation-dropped')).toHaveCount(0);
   await expect(page.locator('#btn-departure-start')).toBeEnabled();
@@ -341,11 +341,11 @@ test('Town preparation opens with the previous choices and still allows changing
   await expect(page.locator('.solo-preparation-summary')).toContainText('軽装探索キット');
   // Changing the kit keeps the tools and floor already chosen.
   await expect(page.locator('[data-recipe-id="HEAL_POTION"]')).toContainText('1個');
-  await expect(page.locator('[data-start-floor="5"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-start-floor="6"]')).toHaveAttribute('aria-pressed', 'true');
 
   await page.locator('#btn-departure-start').click();
   const remembered = await page.evaluate(async () => (await import('/src/state.js')).state.lastPreparation);
-  expect(remembered).toEqual({ kitId: 'scout', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 5, roundTrip: false });
+  expect(remembered).toEqual({ kitId: 'scout', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 6, roundTrip: false });
 });
 
 test('Town shows the three closest feats and opens the full list', async ({ page }) => {
@@ -372,8 +372,9 @@ test('Town shows the three closest feats and opens the full list', async ({ page
   await expect(cards.nth(0)).toContainText('強敵を累計5体倒す');
   await expect(cards.nth(0)).toContainText('報酬 黒角×3');
   await expect(cards.nth(1)).toHaveAttribute('data-feat-id', 'depth_10');
-  await expect(cards.nth(1)).toContainText('B7F / B10F');
-  await expect(cards.nth(2)).toHaveAttribute('data-feat-id', 'guardian_10');
+  await expect(cards.nth(1)).toContainText('B2F / 地下墓地 B5F');
+  // The guardian of the next dungeon is no nearer for having beaten this one (#2060).
+  await expect(cards.nth(2)).toHaveAttribute('data-feat-id', 'chest_30');
   await expect(page.locator('#btn-town-feats')).toContainText('達成 2 / 26');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
@@ -415,7 +416,7 @@ test('Result shows the feats achieved and how far the closest ones moved', async
   const rows = page.locator('[data-result-feats] .result-feat-row');
   await expect(rows.nth(0)).toHaveText('達成坑道を抜ける報酬 鉄片×4');
   await expect(page.locator('.result-feat-row[data-feat-id="elite_5"]')).toHaveText('進んだ強敵狩り3 / 5（今回 +2）');
-  await expect(page.locator('.result-feat-row[data-feat-id="depth_10"]')).toHaveText('進んだ地下墓地の底へB5F / B10F');
+  await expect(page.locator('.result-feat-row[data-feat-id="depth_10"]')).toHaveText('次は地下墓地の底へ未到達 / 地下墓地 B5F');
   await expect(page.locator('#result-overlay')).not.toContainText('今回の依頼');
 
   await page.reload();
@@ -487,7 +488,7 @@ test('Town home is organized as previous run, next descent, and accumulated know
   await expect(home.locator('.town-home-section').nth(2)).toContainText('街の施設');
   await expect(home.locator('.town-home-section').nth(3)).toContainText('これまでの蓄え');
   await expect(page.locator('#btn-town-dungeon')).toContainText('準備を整える');
-  await expect(page.locator('#btn-town-dungeon')).toContainText('開始キットと開始階を選ぶ');
+  await expect(page.locator('#btn-town-dungeon')).toContainText('開始キットと行き先を選ぶ');
   await expect(page.locator('#btn-town-dungeon')).not.toContainText('クラス');
   await expect(page.locator('#btn-town-quest-board')).toHaveCount(0);
   await expect(page.locator('#btn-town-feats')).toContainText('偉業の一覧を見る');
@@ -542,7 +543,7 @@ test('Castle presents death causes as facts with preparation choices', async ({ 
   await page.getByRole('button', { name: '全滅ログ確認' }).click();
   const countermeasure = page.locator('.death-countermeasure');
   await expect(countermeasure).toContainText('準備を見直す');
-  await expect(countermeasure).toContainText('開始キット・持ち込む道具・開始階を選び直す。');
+  await expect(countermeasure).toContainText('開始キット・持ち込む道具・行き先を選び直す。');
   await expect(countermeasure).not.toContainText('クラス');
   await expect(countermeasure).toContainText('工房を見る');
   for (const specificSolution of ['罠外しキット', '罠喰いの記憶', '解毒薬', '目薬', '守りの薬', '生命鍛錬']) {

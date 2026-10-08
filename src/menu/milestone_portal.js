@@ -10,10 +10,13 @@ import {
   getBandTrialForFloor,
   getStoredBandTrial
 } from "../rules/floor_trials.js";
+import { isDungeonBottomFloor } from "../rules/dungeons.js";
 
 let pendingPortalDecision = null;
 
 function createNextBandClue() {
+  // A dungeon ends on its fifth floor (#2060): there is no next band to hint at.
+  if (isDungeonBottomFloor(state.floor)) return null;
   const nextFloor = state.floor + 1;
   const runSeed = state.currentRun?.runSeed;
   if (!runSeed) return null;
@@ -89,11 +92,13 @@ function createPortalChoiceSurface() {
     "素材と未使用の持ち込み品を守って、今回の冒険を終える。",
     "素材と持ち込み品を持って帰還"
   ));
+  // The dungeon ends here (#2060): the other choice is to stay on this floor
+  // a little longer, with everything still at stake.
   section.appendChild(createPortalDecisionCard(
     "push",
-    "さらに深く進む",
-    "素材と未使用の持ち込み品を賭けたまま、さらに深く進む。",
-    "賭け金を持ってさらに進む"
+    "まだ帰らない",
+    "素材と未使用の持ち込み品を賭けたまま、この階に残る。",
+    "まだこの階に残る"
   ));
   return section;
 }
@@ -129,11 +134,11 @@ function createPortalConfirmation() {
   title.className = "milestone-portal-confirmation-title";
   title.textContent = pendingPortalDecision === "return"
     ? "ここで帰還しますか？"
-    : "さらに深く進みますか？";
+    : "まだこの階に残りますか？";
   const description = document.createElement("p");
   description.textContent = pendingPortalDecision === "return"
     ? "素材と未使用の持ち込み品を守って帰還します。"
-    : "素材と未使用の持ち込み品を賭けたまま、さらに深く進みます。";
+    : "素材と未使用の持ち込み品を賭けたまま、この階に残ります。";
   section.append(title, description);
   return section;
 }
@@ -147,7 +152,7 @@ function createPortalConfirmationActions() {
   confirm.className = "btn btn-block milestone-portal-choice";
   confirm.textContent = pendingPortalDecision === "return"
     ? "ここで帰還する"
-    : "さらに深く進む";
+    : "この階に残る";
   confirm.addEventListener("click", confirmPortalDecision);
   const change = document.createElement("button");
   change.id = "btn-portal-change";
@@ -181,6 +186,7 @@ function renderPortalSurface(optGrid) {
 }
 
 function getNextBandTrialIds() {
+  if (isDungeonBottomFloor(state.floor)) return {};
   const nextFloor = state.floor + 1;
   const runSeed = state.currentRun?.runSeed;
   if (!runSeed) return {};

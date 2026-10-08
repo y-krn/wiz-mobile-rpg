@@ -1,9 +1,10 @@
 import { DEATH_TYPE_LABELS, getStartingKit, summarizeDeathLogs } from "../state.js";
+import { formatDungeonFloor } from "../rules/dungeons.js";
 
 const ACHIEVEMENT_LABELS = {
-  first_b5_reached: "初めてB5Fへ到達",
-  first_b5_broken: "初めてB5Fを突破",
-  first_b10_reached: "初めてB10Fへ到達"
+  first_b5_reached: "初めて坑道のB5Fへ到達",
+  first_b5_broken: "初めて地下墓地に入った",
+  first_b10_reached: "初めて地下墓地のB5Fへ到達"
 };
 
 function escapeHtml(value) {
@@ -16,7 +17,7 @@ function escapeHtml(value) {
 }
 
 function floorText(floor) {
-  return Number(floor) > 0 ? `B${Number(floor)}F` : "未記録";
+  return Number(floor) > 0 ? formatDungeonFloor(Number(floor)) : "未記録";
 }
 
 function outcomeLabel(run) {
@@ -128,9 +129,9 @@ function getRetreatTrend(history) {
   const retreatAtB5 = runs => runs.filter(run => outcomeLabel(run).includes("帰還") && Number(run.deepestFloor) <= 5).length;
   const recentRate = retreatAtB5(recent) / recent.length;
   const previousRate = retreatAtB5(previous) / previous.length;
-  if (recentRate < previousRate) return "最近はB5Fでの帰還が減っています。";
-  if (recentRate > previousRate) return "最近はB5Fでの帰還が増えています。次の準備を見直せそうです。";
-  return "最近のB5Fでの帰還は、これまでと同じ傾向です。";
+  if (recentRate < previousRate) return "最近は坑道からの帰還が減っています。";
+  if (recentRate > previousRate) return "最近は坑道からの帰還が増えています。次の準備を見直せそうです。";
+  return "最近の坑道からの帰還は、これまでと同じ傾向です。";
 }
 
 function getTrendHtml(records, history) {
@@ -138,15 +139,15 @@ function getTrendHtml(records, history) {
   const total = Math.max(0, Number(records.totalRuns) || 0);
   const distribution = stats.floorDistribution || {};
   const buckets = [
-    ["B1–B4", distribution["B1-B4"]],
-    ["B5", distribution.B5],
-    ["B6–B9", distribution["B6-B9"]],
-    ["B10+", distribution["B10+"]]
+    ["坑道 B1–B4", distribution["B1-B4"]],
+    ["坑道 B5", distribution.B5],
+    ["地下墓地 B1–B4", distribution["B6-B9"]],
+    ["地下墓地 B5 以降", distribution["B10+"]]
   ];
   const max = Math.max(1, ...buckets.map(([, count]) => Number(count) || 0));
   return `
-    <p class="adventure-trend-lead">${total}回中${Number(stats.brokeB5) || 0}回、B5Fを越えています。</p>
-    <p class="adventure-trend-lead">${total}回中${Number(stats.reachedB10) || 0}回、B10Fまで到達しています。</p>
+    <p class="adventure-trend-lead">${total}回中${Number(stats.brokeB5) || 0}回、地下墓地に入っています。</p>
+    <p class="adventure-trend-lead">${total}回中${Number(stats.reachedB10) || 0}回、地下墓地のB5Fまで到達しています。</p>
     <p class="adventure-trend-note">${getRetreatTrend(history)}</p>
     <div class="adventure-distribution" aria-label="これまでの到達階分布">
       ${buckets.map(([label, count]) => {

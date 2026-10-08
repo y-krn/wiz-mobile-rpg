@@ -176,7 +176,7 @@ test('Stable DOM/CSS journey surfaces keep screenshot baselines separate from Du
   await expectStableSurfaceScreenshot(page, 'golden-town-390.png', '#town-controls');
 
   await openDeparturePreparation(page, { width: 390, height: 844 });
-  await expect(page.getByRole('button', { name: /B1Fから開始/ })).toBeVisible();
+  await expect(page.locator('.solo-start-floor-option[data-start-floor="1"]')).toBeVisible();
   await expectStableSurfaceScreenshot(page, 'golden-preparation-390.png', '#submenu-controls');
 
   await page.evaluate(async () => {
@@ -202,6 +202,6 @@ test('Critical short viewport controls remain reachable through the Golden Journ
   await expect(page.locator('#btn-town-dungeon')).toBeVisible();
   await assertNoHorizontalOverflow(page, 'Town at 320x568');
   await openDeparturePreparation(page, { width: 320, height: 568 });
-  await expect(page.getByRole('button', { name: /B1Fから開始/ })).toBeVisible();
+  await expect(page.locator('.solo-start-floor-option[data-start-floor="1"]')).toBeVisible();
   await assertNoHorizontalOverflow(page, 'Preparation at 320x568');
 });

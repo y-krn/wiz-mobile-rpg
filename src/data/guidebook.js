@@ -47,7 +47,7 @@ export const GUIDEBOOK_PAGES = Object.freeze([
     title: "強敵の現れ方",
     cost: 3,
     lines: [
-      `徘徊する強敵が現れるのは B${ELITE_MIN_FLOOR}F から。`,
+      `徘徊する強敵が現れるのは、どの迷宮でも B${ELITE_MIN_FLOOR}F から。`,
       "階に入った時にいなくても、その階で多くのことをするほど、後から現れやすくなる。",
       "いちばん呼びやすいのは宝箱を開けること。寄り道の部屋、戦い、階段の発見、新しい部屋への到達も数えられる。"
     ]

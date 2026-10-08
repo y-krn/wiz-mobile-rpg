@@ -11,6 +11,7 @@ import { getDepthScaling, scaleEnemyForDepth } from "../../../src/rules/depth_sc
 import { generateEncounter } from "../../../src/combat_ui/encounter.js";
 import { MONSTERS } from "../../../src/data/monsters.js";
 import { createRng } from "../../../src/seed_rng.js";
+import { getDungeonFloor } from "../../../src/rules/dungeons.js";
 import { MEASUREMENT_IDS, resolveRunnerInvocation } from "../../../scratch/measurements/run_balance_measurement.js";
 import {
   assertValidSimulationManifest,
@@ -70,7 +71,8 @@ for (const row of first.bossReferences) {
   const template = MONSTERS.find(monster => monster.name === row.monsterIdentities[0]);
   assert.ok(template);
   assert.equal(row.templateExpSum, template.exp);
-  assert.equal(row.productionRewardMultiplier, getDepthScaling(row.floor).reward * 1.2);
+  // Rewards scale with the floor inside the dungeon (#2060).
+  assert.equal(row.productionRewardMultiplier, getDepthScaling(getDungeonFloor(row.floor)).reward * 1.2);
   assert.equal(row.finalSoloCombatExpAward, scaleEnemyForDepth(template, row.floor, { boss: true }).exp);
   assert.equal(row.levelFunding.prefundedLevels,
     row.levelFunding.fundedThroughLevel - row.levelFunding.levelAfterOneProductionCheck);

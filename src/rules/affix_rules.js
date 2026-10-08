@@ -1,6 +1,7 @@
 import { getAffixDefinition } from "../data/affixes.js";
 import { getCharAffixSum } from "./item_rules.js";
 import { getMilestoneBossExposureMultiplier } from "./boss_rules.js";
+import { getDungeonFloor } from "./dungeons.js";
 import { applyStatusEffect, hasStatusEffectForDamage, STATUS_EFFECT_IDS } from "../combat_logic/status_effects.js";
 
 function getEquippedCoreEntries(char) {
@@ -144,7 +145,9 @@ export function getDamageAffixResult(
   if (target?.isBoss) {
     supportPercent += getCharAffixSum(char, "bossDamage");
   }
-  if (floor >= 3) supportPercent += getCharAffixSum(char, "deepAssault");
+  // `floor` is the running floor number; "deep" means the third floor of the
+  // dungeon or below (#2060).
+  if (getDungeonFloor(floor) >= 3) supportPercent += getCharAffixSum(char, "deepAssault");
   if (char.hp >= maxHp) supportPercent += getCharAffixSum(char, "fullHpDamage");
   if (target?.tags?.includes("beast")) supportPercent += getCharAffixSum(char, "antiBeast");
   if (target?.tags?.includes("spirit")) {

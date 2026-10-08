@@ -277,7 +277,7 @@ test('Portal and Result retain non-color decision cues, live result semantics, a
   const portalChoices = page.locator('.milestone-portal-choice');
   await expect(portalChoices).toHaveCount(2);
   expect(await portalChoices.allTextContents()).toEqual(expect.arrayContaining([
-    '素材と持ち込み品を持って帰還', '賭け金を持ってさらに進む',
+    '素材と持ち込み品を持って帰還', 'まだこの階に残る',
   ]));
   await portalChoices.first().click();
   await expect(page.locator('.milestone-portal-confirmation')).toContainText('ここで帰還しますか？');

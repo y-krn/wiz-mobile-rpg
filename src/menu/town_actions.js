@@ -7,6 +7,7 @@ import { openSubmenu, closeSubmenu } from "../navigation.js";
 import { getItemBaseId } from "../data.js";
 import { getAdventureRecordsHtml } from "../ui/adventure_history.js";
 import { requestConfirmation } from "../ui/confirm_dialog.js";
+import { formatDungeonFloor } from "../rules/dungeons.js";
 
 function isDebugMode() {
   return import.meta.env.DEV || new URLSearchParams(location.search).has("debug");
@@ -57,8 +58,8 @@ export function renderCastleMain(optGrid) {
     row.appendChild(value);
     summary.appendChild(row);
   };
-  addRecord("帰還最深", records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録");
-  addRecord("死亡最深", records.deepestDeath ? `B${records.deepestDeath}F` : "未記録");
+  addRecord("帰還最深", records.deepestRetreat ? formatDungeonFloor(records.deepestRetreat) : "未記録");
+  addRecord("死亡最深", records.deepestDeath ? formatDungeonFloor(records.deepestDeath) : "未記録");
   addRecord("冒険の数", `${records.totalRuns}回`);
   addRecord("断念", `${abandonCount}回`);
   optGrid.appendChild(summary);
@@ -128,7 +129,7 @@ export function renderCastleDeathLogs(optGrid) {
       const row = document.createElement("div");
       row.className = "death-cause-row";
       const title = document.createElement("strong");
-      title.textContent = `B${summary.floor}F ${formatDeathCause(summary)} ×${summary.count}`;
+      title.textContent = `${formatDungeonFloor(summary.floor)} ${formatDeathCause(summary)} ×${summary.count}`;
       const detail = document.createElement("span");
       detail.textContent = DEATH_TYPE_LABELS[summary.type] || "分類";
       row.appendChild(title);
@@ -154,7 +155,7 @@ export function renderCastleDeathLogs(optGrid) {
   logs.slice(0, 15).forEach(log => {
     const entry = document.createElement("div");
     entry.className = "death-history-entry";
-    entry.textContent = `B${log.floor}F / ${log.cause || "戦闘"}`;
+    entry.textContent = `${formatDungeonFloor(log.floor)} / ${log.cause || "戦闘"}`;
     optGrid.appendChild(entry);
   });
 }
@@ -175,12 +176,12 @@ function appendDeathCountermeasure(optGrid, summary) {
   panel.appendChild(heading);
   const note = document.createElement("p");
   note.className = "death-countermeasure-note";
-  note.textContent = `${formatDeathCause(summary)} / B${summary.floor}F / ${summary.count}件。次の冒険の前に、備えを見直せます。`;
+  note.textContent = `${formatDeathCause(summary)} / ${formatDungeonFloor(summary.floor)} / ${summary.count}件。次の冒険の前に、備えを見直せます。`;
   panel.appendChild(note);
 
   const actions = document.createElement("div");
   actions.className = "death-countermeasure-actions";
-  appendDeathReviewButton(actions, "準備を見直す", "開始キット・持ち込む道具・開始階を選び直す。", "solo_start", "冒険の準備");
+  appendDeathReviewButton(actions, "準備を見直す", "開始キット・持ち込む道具・行き先を選び直す。", "solo_start", "冒険の準備");
   appendDeathReviewButton(actions, "工房を見る", "次の冒険で選べるものを増やす。", "workshop_main", "工房");
   panel.appendChild(actions);
   optGrid.appendChild(panel);

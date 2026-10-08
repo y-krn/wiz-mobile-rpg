@@ -112,14 +112,16 @@ assert.equal(
 
 const ordinaryRolls = [0.5, 0.99, 0.99, 0.99];
 const ordinaryEncounter = rollChestEncounter({
-  floor: 6,
+  floor: 5,
   x: 3,
   y: 4,
   seed: "domain-test",
   customRng: () => ordinaryRolls.shift() ?? 1
 });
+// The fifth floor of a dungeon (#2060): the running floor number no longer
+// reaches a table beyond it.
 assert.deepEqual(ordinaryEncounter, {
-  trap: "teleporter",
+  trap: "poison needle",
   item: null,
   specialItem: null,
   accessoryItem: null,
@@ -130,7 +132,7 @@ assert.equal(ordinaryRolls.length, 0, "ordinary encounter preserves RNG call ord
 
 const dropRolls = [0.5, 0.99, 0.99];
 const dropEncounter = rollChestEncounter({
-  floor: 6,
+  floor: 5,
   x: 3,
   y: 4,
   fromDrop: true,
@@ -141,7 +143,7 @@ assert.equal(dropRolls.length, 0, "fromDrop encounter preserves omitted special 
 
 const forcedRolls = [];
 const forcedEncounter = rollChestEncounter({
-  floor: 6,
+  floor: 5,
   x: 3,
   y: 4,
   forcedTrap: "none",

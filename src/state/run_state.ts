@@ -283,6 +283,10 @@ interface MilestoneState {
   unlockedMilestones?: number[];
 }
 
+// Records the guardian as beaten in this run. `unlocked` says the dungeon has
+// not been cleared before. The saved list of cleared dungeons
+// (`unlockedMilestones`) is written only when the run comes home (#2060,
+// `settleDungeonClears`).
 export function recordMilestoneVictory(stateLike: MilestoneState, floor: number) {
   if (!Number.isInteger(floor) || floor < 5 || floor % 5 !== 0) {
     return { ok: false, unlocked: false };
@@ -293,11 +297,6 @@ export function recordMilestoneVictory(stateLike: MilestoneState, floor: number)
     stateLike.currentRun.defeatedMilestones.push(floor);
     stateLike.currentRun.defeatedMilestones.sort((a, b) => a - b);
   }
-  stateLike.unlockedMilestones ||= [];
-  const unlocked = !stateLike.unlockedMilestones.includes(floor);
-  if (unlocked) {
-    stateLike.unlockedMilestones.push(floor);
-    stateLike.unlockedMilestones.sort((a, b) => a - b);
-  }
+  const unlocked = !(stateLike.unlockedMilestones || []).includes(floor);
   return { ok: true, unlocked };
 }

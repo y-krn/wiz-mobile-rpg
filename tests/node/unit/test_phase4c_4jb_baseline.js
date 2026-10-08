@@ -18,6 +18,7 @@ import { applyCombatRewards } from "../../../src/combat_logic/rewards.js";
 import { processMonsterDefeat } from "../../../src/combat_logic/monster_traits.js";
 import { calculateCandidateAward } from "../../../scratch/measurements/progression_exp_award_paired_inventory.js";
 import { SPELL_EFFECTS } from "../../../src/systems/spell_effects.js";
+import { getDungeonStrength } from "../../../src/rules/dungeons.js";
 
 function test(name, body) {
   try {
@@ -61,9 +62,12 @@ function makeState(floor) {
   };
 }
 
-test("selected B1/B10/B20 Phase 4c baseline grants Level 1 HP entitlement", () => {
-  for (const [floor, baseline, maxHp] of [[1, 0, 20], [10, 2, 24], [20, 4, 28]]) {
+// A run enters any dungeon at baseline 0 (#2060); a guardian beaten inside
+// the dungeon is one step.
+test("every dungeon starts at baseline 0 and its guardian grants one step of Level 1 HP", () => {
+  for (const [floor, defeated, baseline, maxHp] of [[1, [], 0, 20], [6, [], 0, 20], [6, [10], 1, 22], [1, [5], 1, 22]]) {
     const state = makeState(floor);
+    state.currentRun.defeatedMilestones = defeated;
     assert.equal(resolvePhase4cV1Baseline(state.currentRun), baseline);
     assert.equal(applyPhase4cV1PlayerBaseline(state, { refill: true }).baseline, baseline);
     assert.equal(state.party[0].maxHp, maxHp);
@@ -75,7 +79,8 @@ test("selected B1/B10/B20 Phase 4c baseline grants Level 1 HP entitlement", () =
 
 test("Phase 4c independently multiplies attack spells and leaves healing spells unchanged", () => {
   const makeCaster = baseline => {
-    const state = makeState(baseline * 5 || 1);
+    const state = makeState(1);
+    if (baseline > 0) state.currentRun.defeatedMilestones = [5];
     const caster = state.party[0];
     caster.equipment.weapon = {
       baseId: "SHORT_SWORD",
@@ -87,18 +92,18 @@ test("Phase 4c independently multiplies attack spells and leaves healing spells 
   };
   const targetForHeal = () => ({ name: "対象", hp: 1, maxHp: 1000, status: "ok" });
   const baseCaster = makeCaster(0);
-  const scaledCaster = makeCaster(4);
+  const scaledCaster = makeCaster(1);
   assert.equal(getCharAffixSum(scaledCaster, "spellPower"), 20, "baseline stays out of equipment spellPower");
   const baseDamage = SPELL_EFFECTS.HALITO({ caster: baseCaster, target: { name: "敵", hp: 1000, magicResist: 0 }, rng: () => 0 }).damage;
   const scaledDamage = SPELL_EFFECTS.HALITO({ caster: scaledCaster, target: { name: "敵", hp: 1000, magicResist: 0 }, rng: () => 0 }).damage;
   assert.equal(baseDamage, 14);
-  assert.equal(scaledDamage, 24, "gear 1.20x stacks with independent baseline 1.64x");
+  assert.equal(scaledDamage, 17, "gear 1.20x stacks with independent baseline 1.16x");
 
   for (const spellName of ["DIOS", "MADIOS", "DIALMA", "MADI"]) {
     const options = spellName === "MADI" ? { healMin: 80, healMax: 80 } : {};
     const baselineZero = SPELL_EFFECTS[spellName]({ caster: baseCaster, target: targetForHeal(), rng: () => 0, ...options }).heal;
-    const baselineFour = SPELL_EFFECTS[spellName]({ caster: scaledCaster, target: targetForHeal(), rng: () => 0, ...options }).heal;
-    assert.equal(baselineFour, baselineZero, `${spellName} recovery ignores Phase 4c spell damage multiplier`);
+    const baselineOne = SPELL_EFFECTS[spellName]({ caster: scaledCaster, target: targetForHeal(), rng: () => 0, ...options }).heal;
+    assert.equal(baselineOne, baselineZero, `${spellName} recovery ignores Phase 4c spell damage multiplier`);
   }
 });
 
@@ -133,21 +138,32 @@ test("no active run stays unscaled and a defeated milestone advances the baselin
 });
 
 test("Phase 4c scales generic enemies, summons, and guardians by band, and split children inherit parent scale", () => {
-  const state = makeState(10);
+  // The band is counted inside the dungeon (#2060): its fifth floor is band 1.
+  const state = makeState(5);
   const template = MONSTERS.find(monster => !monster.isBoss && !monster.isMidboss && !monster.treasureRare);
   const generic = { ...template, name: `${template.name} A`, hp: 999, maxHp: 999, atk: 999, def: 999 };
-  const guardianTemplate = MONSTERS.find(monster => monster.name === "ストーンガード");
+  const guardianTemplate = MONSTERS.find(monster => monster.name === "デーモンガード");
   const boss = { ...guardianTemplate, isBoss: true, hp: 321, maxHp: 321, atk: 123, def: 45 };
-  const band = applyPhase4cV1EnemyBaseline([generic, boss], 10);
-  assert.equal(band, 2);
-  assert.equal(generic.hp, Math.round(template.hp * 1.4));
-  assert.equal(generic.atk, Math.round(template.atk * 1.2));
+  const band = applyPhase4cV1EnemyBaseline([generic, boss], 5);
+  assert.equal(band, 1);
+  assert.equal(generic.hp, Math.round(template.hp * 1.2));
+  assert.equal(generic.atk, Math.round(template.atk * 1.1));
   assert.equal(generic.def, Math.round(template.def));
-  const guardianHp = Math.round(guardianTemplate.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * 1.4);
+  const guardianHp = Math.round(guardianTemplate.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * 1.2);
   assert.deepEqual(
     [boss.hp, boss.maxHp, boss.atk, boss.def],
-    [guardianHp, guardianHp, Math.round(guardianTemplate.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * 1.2), guardianTemplate.def]
+    [guardianHp, guardianHp, Math.round(guardianTemplate.atk * PHASE4C_V1_GUARDIAN_SOLO_SCALE.atk * 1.1), guardianTemplate.def]
   );
+  // The first four floors of every dungeon are band 0, and a later dungeon
+  // applies its own multipliers on top.
+  assert.equal(applyPhase4cV1EnemyBaseline([{ ...template, hp: 1, maxHp: 1 }], 6), 0);
+  const catacombStrength = getDungeonStrength(10);
+  const stoneGuard = MONSTERS.find(monster => monster.name === "ストーンガード");
+  const catacombBoss = { ...stoneGuard, isBoss: true };
+  assert.equal(applyPhase4cV1EnemyBaseline([catacombBoss], 10), 1);
+  assert.equal(catacombBoss.maxHp,
+    Math.round(stoneGuard.hp * PHASE4C_V1_GUARDIAN_SOLO_SCALE.hp * 1.2 * catacombStrength.guardianHp));
+  assert.equal(catacombBoss.def, Math.round(stoneGuard.def * catacombStrength.guardianDef));
 
   const authoredB30 = MONSTERS.find(monster => monster.name === "いにしえの竜");
   const b30 = { ...authoredB30, isBoss: true, hp: 640, maxHp: 640, atk: 26, def: 20 };
@@ -155,8 +171,8 @@ test("Phase 4c scales generic enemies, summons, and guardians by band, and split
   assert.deepEqual([b30.hp, b30.atk, b30.def], [640, 26, 20], "B30 keeps its authored template-stat rule");
 
   const summon = preparePhase4cV1Summon(state, { ...template, hp: template.hp, maxHp: template.hp, exp: template.exp });
-  assert.equal(summon.maxHp, Math.round(template.hp * 1.4));
-  assert.equal(summon.atk, Math.round(template.atk * 1.2));
+  assert.equal(summon.maxHp, Math.round(template.hp * 1.2));
+  assert.equal(summon.atk, Math.round(template.atk * 1.1));
   assert.equal(summon.exp, 0);
 
   const splitTemplate = MONSTERS.find(monster => monster.traits?.includes("splitOnDeath") && !monster.isBoss);

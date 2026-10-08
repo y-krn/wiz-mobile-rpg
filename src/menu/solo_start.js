@@ -26,10 +26,12 @@ import { normalizeLastPreparation } from "../state/last_preparation.js";
 import { formatFeatProgress, getNearestFeats } from "../systems/feats.js";
 import { CRAFT_RECIPES } from "../craft.js";
 import { getSortedCraftRecipes } from "../rules/craft_rules.js";
-import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
+import { MATERIAL_TYPES } from "../data/materials.js";
 import { getEquipmentLoadPlayerCopy } from "../rules/equipment_load.js";
 import { createActionCard } from "./action_card.js";
-import { getFloorTheme } from "../data/floor_themes.js";
+import { DUNGEON_FLOOR_COUNT } from "../data/dungeons.js";
+import { getDungeonEntryFloor, getDungeonForFloor } from "../rules/dungeons.js";
+import { getDungeonOpener, listDungeons } from "../systems/dungeon_progress.js";
 import {
   getActiveRuneSpellKeys,
   getEquippedMedium,
@@ -207,12 +209,6 @@ function getCraftAvailability(recipe, selectedRecipeIds) {
   return `あと${Math.min(additional, DEPARTURE_ITEM_LIMITS[recipe.resultId] || additional)}個`;
 }
 
-function getFloorBand(floor) {
-  if (floor === 1) return "浅層";
-  if (floor >= 15) return "深層";
-  return "中層";
-}
-
 function getShortItemName(itemId) {
   const name = ITEMS[itemId]?.name || itemId;
   return name.replace(/\s*[（(].*?[）)]/g, "").replace("帰還の翼", "翼");
@@ -329,10 +325,10 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
       "solo-preparation-feat"
     );
   }
-  const startFloorLabel = selectedStartFloor === null
+  const destinationLabel = selectedStartFloor === null
     ? "まだ選んでいない"
-    : `B${selectedStartFloor}F・${getFloorBand(selectedStartFloor)}（${getFloorTheme(selectedStartFloor).name}）`;
-  appendPreparationRow(conditions, "開始階", startFloorLabel, "solo-preparation-floor");
+    : `${getDungeonForFloor(selectedStartFloor).name}（地下${DUNGEON_FLOOR_COUNT}階まで）`;
+  appendPreparationRow(conditions, "行き先", destinationLabel, "solo-preparation-floor");
   if (selectedRoundTrip && canChooseRoundTrip(selectedStartFloor)) {
     appendPreparationRow(conditions, "ルール", "往復の試作（地下5階まで・歩いて帰る）", "solo-preparation-round-trip");
   }
@@ -485,43 +481,46 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
     optGrid.appendChild(dropped);
   }
 
-  // Floor choices live in the single scrolling surface; only the confirm
-  // action stays pinned in the footer so it is always reachable.
+  // The dungeon choice (#2060) lives in the single scrolling surface; only
+  // the confirm action stays pinned in the footer so it is always reachable.
+  // A dungeon is kept as the running number of its first floor.
   const floorSection = document.createElement("section");
   floorSection.className = "solo-start-floor-section";
-  floorSection.setAttribute("aria-label", "開始階選択");
+  floorSection.setAttribute("aria-label", "行き先選択");
   const floorHeading = document.createElement("div");
   floorHeading.className = "solo-start-floor-heading";
   const floorTitle = document.createElement("strong");
-  floorTitle.textContent = "開始階を選ぶ";
+  floorTitle.textContent = "行き先を選ぶ";
   floorHeading.append(floorTitle);
   floorSection.appendChild(floorHeading);
 
-  const floors = [1, ...(state.unlockedMilestones || [])];
-  // The trade-off only matters once there is a deeper floor to pick.
-  if (floors.length > 1) {
+  const dungeons = listDungeons(state);
+  const openDungeons = dungeons.filter(dungeon => dungeon.open);
+  // What the dungeons have in common only matters once there is a choice.
+  if (openDungeons.length > 1) {
     const floorHint = document.createElement("span");
-    floorHint.textContent = "深い階から始めると、手に入る素材は少なくなる。";
+    floorHint.textContent = `どの迷宮も地下${DUNGEON_FLOOR_COUNT}階まで。どこへ行っても、冒険はLv1から。`;
     floorHeading.append(floorHint);
   }
   // With a single candidate there is nothing to choose: start with it
   // selected so the confirm button is ready. Several candidates keep the
   // explicit choice.
-  if (floors.length === 1 && selectedStartFloor === null) selectedStartFloor = floors[0];
-  floors.forEach(floor => {
-    const multiplier = floor === 1 ? 1 : MATERIAL_DROP_BALANCE.milestoneStartMultiplier;
-    const theme = getFloorTheme(floor);
+  if (openDungeons.length === 1 && selectedStartFloor === null) {
+    selectedStartFloor = getDungeonEntryFloor(openDungeons[0].index);
+  }
+  openDungeons.forEach(dungeon => {
+    const floor = getDungeonEntryFloor(dungeon.index);
     const button = document.createElement("button");
     button.type = "button";
     button.className = `btn btn-neon btn-block solo-start-floor-option${selectedStartFloor === floor ? " is-selected" : ""}`;
-    const floorName = document.createElement("strong");
-    floorName.textContent = `B${floor}Fから開始 · ${getFloorBand(floor)}`;
-    const floorDetail = document.createElement("span");
-    floorDetail.textContent = multiplier < 1
-      ? `${theme.name} / 手に入る素材は${Math.round(multiplier * 10)}割`
-      : theme.name;
-    button.append(floorName, floorDetail);
+    const dungeonName = document.createElement("strong");
+    dungeonName.textContent = dungeon.name;
+    const dungeonDetail = document.createElement("span");
+    // Cleared: its guardian was beaten by a run that came home.
+    dungeonDetail.textContent = dungeon.cleared ? "踏破済み" : "まだ踏破していない";
+    button.append(dungeonName, dungeonDetail);
     button.dataset.startFloor = String(floor);
+    button.dataset.dungeon = dungeon.id;
     button.setAttribute("aria-pressed", String(selectedStartFloor === floor));
     button.addEventListener("click", () => {
       selectedStartFloor = floor;
@@ -534,6 +533,27 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
     });
     floorSection.appendChild(button);
   });
+  // A closed dungeon shows its name and what opens it, nothing else.
+  const closedDungeons = dungeons.filter(dungeon => !dungeon.open);
+  if (closedDungeons.length > 0) {
+    const closedList = document.createElement("ul");
+    closedList.className = "solo-start-dungeon-closed";
+    closedList.setAttribute("aria-label", "まだ入れない迷宮");
+    closedDungeons.forEach(dungeon => {
+      const opener = getDungeonOpener(dungeon.index);
+      const item = document.createElement("li");
+      item.dataset.dungeon = dungeon.id;
+      const name = document.createElement("strong");
+      name.textContent = dungeon.name;
+      const condition = document.createElement("span");
+      condition.textContent = dungeon.built && opener
+        ? `${opener.name}の守護者を倒して生還すると開く`
+        : "まだ道が開いていない";
+      item.append(name, condition);
+      closedList.appendChild(item);
+    });
+    floorSection.appendChild(closedList);
+  }
   optGrid.appendChild(floorSection);
 
   // Round-trip prototype (#2066): an opt-in rule for a run from the top.

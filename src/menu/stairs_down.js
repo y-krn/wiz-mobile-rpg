@@ -13,6 +13,7 @@ import { trackExplorationDecision } from "../telemetry.js";
 import { getExplorationRecoveryOutlook } from "../systems/exploration_recovery.js";
 import { handleExploreAction, hasHiddenSecretDoorHere } from "./explore_actions.js";
 import { isRoundTripBottom } from "../systems/round_trip.js";
+import { isDungeonBottomFloor } from "../rules/dungeons.js";
 
 function findMilestoneEvent(eventType) {
   for (let y = 0; y < state.map?.length; y++) {
@@ -106,8 +107,12 @@ export function renderStairsDown(optGrid) {
   const guardianDefeated = state.currentRun?.defeatedMilestones?.includes(state.floor) === true;
   // The caller titles the menu with the stored floor label; a floor not
   // reached yet is named by its number only.
+  // A dungeon ends on its fifth floor (#2060): nothing lies below it.
+  const dungeonEnd = isDungeonBottomFloor(state.floor);
   const menuTitle = document.getElementById("submenu-title");
-  if (menuTitle) menuTitle.textContent = `${describeFloor(state, nextFloor)}への下り階段`;
+  if (menuTitle) {
+    menuTitle.textContent = dungeonEnd ? "封じられた下り階段" : `${describeFloor(state, nextFloor)}への下り階段`;
+  }
 
   if (isMilestoneFloor(state.floor)) {
     optGrid.appendChild(createMilestoneDisclosure(guardianDefeated));
@@ -117,23 +122,17 @@ export function renderStairsDown(optGrid) {
   descend.type = "button";
   descend.className = "btn btn-neon btn-block";
   descend.textContent = `${describeFloor(state, nextFloor)}へ降りる`;
-  if (isMilestoneFloor(state.floor) && !guardianDefeated) {
-    descend.disabled = true;
-    descend.className = "btn btn-block disabled";
-    descend.textContent = "守護者を倒すまで降りられない";
-  }
-  // Round-trip prototype (#2066): the dungeon ends on this floor. With the
-  // guardian down there is nothing below; the way on is back up.
-  const roundTripEnd = isRoundTripBottom(state) && guardianDefeated;
-  if (roundTripEnd) {
+  if (dungeonEnd) {
     descend.disabled = true;
     descend.className = "btn btn-block disabled";
     descend.textContent = "この先の道はまだ開いていない";
   }
+  // Round-trip prototype (#2066): with the guardian down the way on is back up.
+  const roundTripEnd = isRoundTripBottom(state) && guardianDefeated;
   descend.addEventListener("click", () => {
     // The submenu closes with an animation; a second tap during it must not
     // start another descent.
-    if (state.transitioning || roundTripEnd) return;
+    if (state.transitioning || dungeonEnd) return;
     trackExplorationDecision("descend", { state, source: "stairs-down" });
     closeSubmenu();
     descendToFloor(nextFloor);
@@ -173,6 +172,14 @@ export function renderStairsDown(optGrid) {
     note.className = "submenu-info stairs-round-trip-note";
     if (note.dataset) note.dataset.testid = "stairs-round-trip-note";
     note.textContent = "至宝を手に入れた。帰還の門は無い。上り階段を歩いて地上へ戻る。";
+    roundTripNote.push(note);
+  } else if (dungeonEnd) {
+    const note = document.createElement("p");
+    note.className = "submenu-info stairs-dungeon-end-note";
+    if (note.dataset) note.dataset.testid = "stairs-dungeon-end-note";
+    note.textContent = guardianDefeated
+      ? "この迷宮はここまで。帰還の門から街へ帰る。"
+      : "この迷宮はここまで。守護者を倒すと、帰還の門が開く。";
     roundTripNote.push(note);
   }
   optGrid.append(createRunStakesSummary(), ...roundTripNote, ...(recoveryNote ? [recoveryNote] : []), descend, stay, ...searchWalls);

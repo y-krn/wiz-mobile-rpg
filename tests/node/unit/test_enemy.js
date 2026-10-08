@@ -337,7 +337,12 @@ import {
       assert.ok(dropsF3["黒角"] >= 1);
       const dropsF10 = determineMonsterDrop(puppy, 10, () => 0, { guaranteed: true });
       assert.ok(dropsF10["竜鱗"] >= 1);
-      assert.ok(dropsF10["獣の牙"] > dropsF3["獣の牙"]);
+      // Amounts grow with the floor inside the dungeon (#2060): the fifth
+      // floor pays more than the first, and the same in every dungeon.
+      const dropsF1 = determineMonsterDrop(puppy, 1, () => 0, { guaranteed: true });
+      const dropsF5 = determineMonsterDrop(puppy, 5, () => 0, { guaranteed: true });
+      assert.ok(dropsF5["獣の牙"] > dropsF1["獣の牙"]);
+      assert.equal(dropsF10["獣の牙"], dropsF5["獣の牙"]);
       console.log("[PASS] Test 2: classified depth-scaled drops verified.");
 
       // 3. Verify B1 Encounter Prevention

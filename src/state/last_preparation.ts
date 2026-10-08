@@ -1,8 +1,9 @@
 // balance-impact: none — remembered departure choices only (#2002).
 //
 // The last preparation is what the player chose for the previous departure:
-// kit, optional Workshop weapon, crafted tools, and start floor. It only
-// pre-fills the next preparation. It never grants or discounts anything.
+// kit, optional Workshop weapon, crafted tools, and the dungeon, kept as the
+// running number of its first floor (#2060). It only pre-fills the next
+// preparation. It never grants or discounts anything.
 
 import { isStartingKitId, type StartingKitId } from "./starting_kit.js";
 
@@ -24,9 +25,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+// A run starts on the first floor of a dungeon: 1, 6, 11, ... A start floor
+// saved by the old start-floor choice (5, 10, ...) is no longer a start and
+// loads as the first dungeon.
 function isStartFloor(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) &&
-    (value === 1 || (value > 1 && value % 5 === 0));
+    value >= 1 && (value - 1) % 5 === 0;
 }
 
 export function isNormalizedLastPreparation(value: unknown): value is NormalizedLastPreparation {

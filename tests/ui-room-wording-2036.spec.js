@@ -135,7 +135,7 @@ test('A facility cost line states the cost and the one thing in the way', async 
 
   const cost = id => page.locator(`[data-facility-node-id="${id}"]`);
   await expect(cost('miner_kit')).toContainText('獣の牙 6・鉄片 4／素材が足りない（獣の牙 あと1）');
-  await expect(cost('miner_outpost')).toContainText('硬い皮 6・獣の牙 4／先に偉業「坑道を抜ける」を達成する（B5Fに到達する）');
+  await expect(cost('miner_outpost')).toContainText('硬い皮 6・獣の牙 4／先に偉業「坑道を抜ける」を達成する（崩れた坑道のB5Fに到達する）');
   await expect(cost('miner_outpost')).toContainText('崩れた坑道の3階目に、坑夫の詰所ができる。');
   await expect(cost('miner_blast')).toContainText('先に偉業「坑道の主を倒す」を達成する');
   const text = await page.locator('#submenu-options').textContent();

@@ -2,6 +2,7 @@ import { FORCE_DAMAGE_MULTIPLIER } from "./trap_rules.js";
 import { getCharMaxHp, getCharMaxMp } from "./character_stats.js";
 import { ITEMS } from "../data/items.js";
 import { isSpecialOrQuestItem } from "./item_rules.js";
+import { getDungeonFloor } from "./dungeons.js";
 
 // Chest traps resolve at full strength only: a chest is either disarmed
 // automatically on opening, disarmed with a kit, or its trap fires.
@@ -242,7 +243,9 @@ export function resolveFloorTrapEffect({
     effect.damage = Math.max(1, Math.floor(rawDamage * powerMultiplier));
   } else if (trap?.type === "mpDrain" && alive && getCharMaxMp(character) > 0) {
     const baseMin = 1;
-    const baseMax = Math.max(2, Math.floor(floor * 1.2));
+    // `floor` is the running floor number; the drain follows the floor
+    // inside the dungeon (#2060).
+    const baseMax = Math.max(2, Math.floor(getDungeonFloor(floor) * 1.2));
     const range = baseMax - baseMin + 1;
     const rawDrain = Math.floor(rng() * range) + baseMin;
     effect.mpDrain = Math.max(1, Math.floor(rawDrain * powerMultiplier));

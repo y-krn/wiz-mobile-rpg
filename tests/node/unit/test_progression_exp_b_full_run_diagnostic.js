@@ -125,17 +125,19 @@ assert.deepEqual(precombatReproduction.validity.matchedArmMismatches, []);
 // #1801 made floor traps HP-relative, so the fixture pins a matched two-battle
 // death and its combat coverage accounting. #1962 floor layouts moved the
 // previous index (10) onto a pre-combat trap death, so index 1 is pinned.
+// #2060 scales enemies by the floor inside the dungeon, which gave this
+// matched run one more battle.
 assert.deepEqual(precombatReproduction.rows.map(row => [row.terminationReason, row.battles, row.battleObservationCount]), [
-  ["death", 2, 2],
-  ["death", 2, 2]
+  ["death", 3, 3],
+  ["death", 3, 3]
 ]);
 assert.equal(precombatReproduction.rows[0].combatCoverage.precombatTermination, false);
 assert.notEqual(precombatReproduction.rows[0].firstCombat, null);
 assert.deepEqual(precombatReproduction.validity.coverage.map(({ arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations }) => [
   arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations
 ]), [
-  ["production", 1, 1, 0, 2, 2],
-  ["phase4j-b", 1, 1, 0, 2, 2]
+  ["production", 1, 1, 0, 3, 3],
+  ["phase4j-b", 1, 1, 0, 3, 3]
 ]);
 
 const firstCombat = {

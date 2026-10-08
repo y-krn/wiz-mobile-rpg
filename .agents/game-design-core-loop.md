@@ -836,14 +836,13 @@ advantage, or exact drop information.
 
 This document states the structure decided in #2058. Source reaches it in
 steps, and until a step lands, source keeps the previous rule for that part:
-thirty floors in one line with a biome every five, a Portal and a merchant on
-every fifth floor, the choice to push on past a Portal, a choice of starting
-floor, and kinds of equipment gated by floor. Do not change behavior to match
-this document inside an unrelated change; use the Issue that owns the part.
+a Portal behind the guardian as the ordinary way home, and kinds of equipment
+gated by floor. Do not change behavior to match this document inside an
+unrelated change; use the Issue that owns the part.
 
 | Part of this canon | Lands with |
 | --- | --- |
-| Choosing a dungeon; floors numbered inside it; strength by dungeon and floor; the mine and the catacomb | #2060 |
+| Choosing a dungeon; floors numbered inside it; strength by dungeon and floor; the mine and the catacomb | #2060 (landed) |
 | No floor gate on kinds; three likely families; the redraw; the first-chest draw; fixing a family with a treasure | #2061 |
 | Every run a round trip; the treasure; a keeper and the Wing on the way back; a strong enemy never holding the only way | #2062 |
 | Each dungeon's rule, one dungeon at a time | #2063 |
@@ -852,7 +851,18 @@ this document inside an unrelated change; use the Issue that owns the part.
 
 Until #2062, the way back exists as a prototype: a rule chosen at departure
 from the first floor (#2066, #2069), in the mine only, where the treasure is
-only recorded and a Wing still rescues a keeper.
+only recorded and a Wing still rescues a keeper. A run without that rule
+leaves by the Portal behind the guardian, and a dungeon counts as cleared
+when its guardian is beaten by a run that comes home by any safe return.
+
+Since #2060 the running floor number survives only as a key: maps, seeds, and
+per-floor ledgers use it, floors 1-5 being the first dungeon and 6-10 the
+second. Rules read the dungeon and the floor inside it
+(`src/rules/dungeons.js`). Three things still read the running number and are
+decided with the Issue named: the floor template tier, which sets map size
+and trap count for the third dungeon onward (#2064); the kind of rare
+material a guardian drops (#2064); and the saved records, which still order
+runs by it (deepest floor, floor distribution).
 
 Two other documents still describe the previous structure and are rewritten
 with the part they own: `.agents/game-design-equipment-builds.md` (floor

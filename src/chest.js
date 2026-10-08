@@ -34,6 +34,7 @@ import {
   rollChestEncounter
 } from "./chest/chest_domain.js";
 import { createRng } from "./seed_rng.js";
+import { getDungeonFloor } from "./rules/dungeons.js";
 import { renderChestMenu } from "./chest/chest_view.js";
 import { recordEliteGreedAction } from "./systems/roaming_elites.js";
 import { getFeatAnnouncementLines } from "./systems/feats.js";
@@ -129,7 +130,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
     state.codex.events.facilities.chest.found++;
   }
 
-  if (!restored && state.floor === 1 && state.currentRun) {
+  if (!restored && getDungeonFloor(state.floor) === 1 && state.currentRun) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
   const encounter = restored
@@ -191,7 +192,7 @@ export function openChestMenu() {
     disarmChance: opener
       ? calculateChestDisarmChance({ trapBonus: getCharTrapBonus(opener), blind: opener.status === "blind" })
       : 0,
-    canUseTrapKit: canChestHaveTrap(state.floor) && state.inventory.includes("TRAP_KIT"),
+    canUseTrapKit: canChestHaveTrap(getDungeonFloor(state.floor)) && state.inventory.includes("TRAP_KIT"),
     onOpen: () => openChest(),
     onOpenWithKit: () => openChest(Math.random, { useKit: true }),
     onLeave: leaveChest
@@ -607,7 +608,7 @@ function resolveChestRewards(opener, rng = Math.random) {
         if (typeof item === "string") state.currentRun.itemsFound.push(item);
         else {
           state.currentRun.equipmentFound.push(item);
-          if (state.floor === 1) state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
+          if (getDungeonFloor(state.floor) === 1) state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
         }
       }
     });

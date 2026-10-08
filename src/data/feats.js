@@ -25,7 +25,7 @@ export const FEATS = Object.freeze([
     id: "depth_5",
     chain: "depth",
     name: "坑道を抜ける",
-    condition: "B5Fに到達する",
+    condition: "崩れた坑道のB5Fに到達する",
     metric: { kind: "counter", key: "bestDepth", target: 5, unit: "floor" },
     reward: { materials: { "鉄片": 4 } }
   }),
@@ -33,7 +33,7 @@ export const FEATS = Object.freeze([
     id: "depth_10",
     chain: "depth",
     name: "地下墓地の底へ",
-    condition: "B10Fに到達する",
+    condition: "忘れられた地下墓地のB5Fに到達する",
     metric: { kind: "counter", key: "bestDepth", target: 10, unit: "floor" },
     reward: { materials: { "骨片": 5 } }
   }),
@@ -41,7 +41,7 @@ export const FEATS = Object.freeze([
     id: "depth_15",
     chain: "depth",
     name: "大裂溝を渡る",
-    condition: "B15Fに到達する",
+    condition: "大裂溝の巣窟のB5Fに到達する",
     metric: { kind: "counter", key: "bestDepth", target: 15, unit: "floor" },
     reward: { materials: { "魔石片": 5 } }
   }),
@@ -49,7 +49,7 @@ export const FEATS = Object.freeze([
     id: "depth_20",
     chain: "depth",
     name: "沈んだ書庫を読む",
-    condition: "B20Fに到達する",
+    condition: "水没した魔導書庫のB5Fに到達する",
     metric: { kind: "counter", key: "bestDepth", target: 20, unit: "floor" },
     reward: { materials: { "黒角": 5 } }
   }),
@@ -57,7 +57,7 @@ export const FEATS = Object.freeze([
     id: "depth_25",
     chain: "depth",
     name: "竜火をくぐる",
-    condition: "B25Fに到達する",
+    condition: "竜火の鍛造殿のB5Fに到達する",
     metric: { kind: "counter", key: "bestDepth", target: 25, unit: "floor" },
     reward: { materials: { "黒角": 6 } }
   }),
@@ -65,7 +65,7 @@ export const FEATS = Object.freeze([
     id: "depth_30",
     chain: "depth",
     name: "深淵の玉座",
-    condition: "B30Fに到達する",
+    condition: "深淵の玉座のB5Fに到達する",
     metric: { kind: "counter", key: "bestDepth", target: 30, unit: "floor" },
     reward: { materials: { "竜鱗": 5 } }
   }),
@@ -124,7 +124,7 @@ export const FEATS = Object.freeze([
     id: "guardian_5",
     chain: "guardian",
     name: "坑道の主を倒す",
-    condition: "B5Fの階層守護者を倒す",
+    condition: "崩れた坑道の階層守護者を倒す",
     metric: { kind: "counter", key: "guardianDepth", target: 5, unit: "floor" },
     reward: { materials: { "鉄片": 4 } }
   }),
@@ -132,7 +132,7 @@ export const FEATS = Object.freeze([
     id: "guardian_10",
     chain: "guardian",
     name: "地下墓地の主を倒す",
-    condition: "B10Fの階層守護者を倒す",
+    condition: "忘れられた地下墓地の階層守護者を倒す",
     metric: { kind: "counter", key: "guardianDepth", target: 10, unit: "floor" },
     reward: { materials: { "霊粉": 5 } }
   }),
@@ -140,7 +140,7 @@ export const FEATS = Object.freeze([
     id: "guardian_15",
     chain: "guardian",
     name: "大裂溝の主を倒す",
-    condition: "B15Fの階層守護者を倒す",
+    condition: "大裂溝の巣窟の階層守護者を倒す",
     metric: { kind: "counter", key: "guardianDepth", target: 15, unit: "floor" },
     reward: { materials: { "毒腺": 5 } }
   }),
@@ -148,7 +148,7 @@ export const FEATS = Object.freeze([
     id: "guardian_20",
     chain: "guardian",
     name: "書庫の主を倒す",
-    condition: "B20Fの階層守護者を倒す",
+    condition: "水没した魔導書庫の階層守護者を倒す",
     metric: { kind: "counter", key: "guardianDepth", target: 20, unit: "floor" },
     reward: { materials: { "魔石片": 5 } }
   }),
@@ -156,7 +156,7 @@ export const FEATS = Object.freeze([
     id: "guardian_25",
     chain: "guardian",
     name: "鍛造殿の主を倒す",
-    condition: "B25Fの階層守護者を倒す",
+    condition: "竜火の鍛造殿の階層守護者を倒す",
     metric: { kind: "counter", key: "guardianDepth", target: 25, unit: "floor" },
     reward: { materials: { "竜鱗": 5 } }
   }),
@@ -164,7 +164,7 @@ export const FEATS = Object.freeze([
     id: "guardian_30",
     chain: "guardian",
     name: "玉座の主を倒す",
-    condition: "B30Fの階層守護者を倒す",
+    condition: "深淵の玉座の階層守護者を倒す",
     metric: { kind: "counter", key: "guardianDepth", target: 30, unit: "floor" },
     reward: { materials: { "竜鱗": 8 } }
   }),
@@ -221,7 +221,7 @@ export const FEATS = Object.freeze([
     id: "trapless_5",
     chain: "trapless",
     name: "傷なき踏破",
-    condition: "B1Fから罠を一度も受けずにB5Fへ到達する",
+    condition: "崩れた坑道で、罠を一度も受けずにB5Fへ到達する",
     metric: { kind: "counter", key: "traplessDepth", target: 5, unit: "floor" },
     reward: { materials: { "呪布": 4 } }
   }),
@@ -229,7 +229,7 @@ export const FEATS = Object.freeze([
     id: "kits_4",
     chain: "kits",
     name: "四つの道",
-    condition: "4種の開始キットそれぞれで、B1FからB3Fに到達する",
+    condition: "4種の開始キットそれぞれで、崩れた坑道のB3Fに到達する",
     metric: { kind: "kits", minDepth: 3, target: 4, unit: "kit" },
     reward: { materials: { "竜鱗": 2 } }
   })

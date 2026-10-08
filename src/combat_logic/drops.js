@@ -6,6 +6,7 @@ import {
   getMonsterSecondaryMaterialPool,
   rollDepthMaterialQuantity
 } from "../rules/material_rules.js";
+import { getDungeonFloor, isDungeonEntryFloor } from "../rules/dungeons.js";
 
 export { getMonsterGroup, getMonsterGroupClassification } from "../rules/material_rules.js";
 
@@ -46,8 +47,13 @@ export function determineMonsterDrop(
   const isRare = Boolean(monster.isRare);
   const isBoss = Boolean(monster.isBoss);
   const drops = {};
-  const quantity = rollDepthMaterialQuantity(floor, rng, { startFloor });
-  const dropChance = isBoss ? 1 : isRare ? 0.9 : getDepthMaterialDropChance(floor);
+  // `floor` is the running floor number. Amount and chance follow the floor
+  // inside the dungeon; entering a dungeon at its first floor is an ordinary
+  // start and carries no reduced-material penalty (#2060).
+  const depth = getDungeonFloor(floor);
+  const penaltyStart = isDungeonEntryFloor(Math.floor(Number(startFloor) || 1)) ? 1 : startFloor;
+  const quantity = rollDepthMaterialQuantity(depth, rng, { startFloor: penaltyStart });
+  const dropChance = isBoss ? 1 : isRare ? 0.9 : getDepthMaterialDropChance(depth);
 
   if (guaranteed || rng() < Math.min(1, dropChance + chanceBonus)) {
     drops[group.primary] = quantity

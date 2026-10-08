@@ -37,7 +37,8 @@ test('Archives keeps malformed run and death history values inert', async ({ pag
   const body = page.locator('#archives-overlay .archives-body');
   await page.getByRole('button', { name: '📜 記録' }).click();
   await expect(body).toContainText(hostile);
-  await expect(body).toContainText('B0F');
+  // A record without a floor is not shown as a floor (#2060).
+  await expect(body).toContainText('到達階: 未記録');
   await expect(body).toContainText('持帰素材: 0 個');
   await expect(body.locator('img')).toHaveCount(0);
   await expect(body.locator('b')).toHaveCount(0);
@@ -177,8 +178,9 @@ test('Archives keeps unknown monster knowledge and removes kill-count spoilers',
   await expect(detail).toContainText('耐性・弱点');
   await expect(detail).toContainText('確認した戦果');
   await expect(detail).toContainText('あなたの記録');
-  await expect(detail).toContainText('B7F');
-  await expect(detail).toContainText('B9F');
+  // A record names its dungeon and the floor inside it (#2060).
+  await expect(detail).toContainText('地下墓地 B2F');
+  await expect(detail).toContainText('地下墓地 B4F');
   await expect(detail).toContainText('獣の牙');
   await expect(detail).not.toContainText('HP:');
   await expect(detail).not.toContainText('攻略メモ');

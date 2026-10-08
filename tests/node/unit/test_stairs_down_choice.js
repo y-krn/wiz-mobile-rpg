@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { createDefaultCurrentRun, createStartingKitCharacter, state } from "../../../src/state.js";
 import { menuContext } from "../../../src/navigation.js";
-import { checkCellEvents } from "../../../src/movement.js";
+import { checkCellEvents, descendToFloor } from "../../../src/movement.js";
 import {
   MILESTONE_CLEARED_STRUCTURE_MESSAGE,
   MILESTONE_STRUCTURE_MESSAGE
@@ -56,18 +56,21 @@ check("下り階段に入ってもフロアは変わらず選択サブメニュ�
   });
 });
 
-check("守護者の階でボス未撃破なら下り操作を含む階段メニューを開く", () => {
+// A dungeon ends on its fifth floor (#2060): the stairs there stay sealed
+// whether or not the guardian is down, and the menu still opens.
+check("迷宮の5階では、守護者を倒す前も階段メニューが開き、下り階段は封じられている", () => {
   withDocumentStub(() => {
     setupStairsCell(5);
     state.currentRun.defeatedMilestones = [];
     checkCellEvents();
     assert.equal(state.gameState, "submenu");
+    assert.equal(menuContext.type, "stairs_down");
     assert.equal(state.floor, 5);
-    assert.match(state.logs.at(-1), /下り階段は封じられている/);
+    assert.match(state.logs.at(-1), /下り階段は固く封じられている/);
   });
 });
 
-check("守護者の階でもボス撃破済みなら選択サブメニューが開く", () => {
+check("迷宮の5階では、守護者を倒した後も下り階段は封じられたままで、降りられない", () => {
   withDocumentStub(() => {
     setupStairsCell(5);
     state.currentRun.defeatedMilestones = [5];
@@ -75,6 +78,21 @@ check("守護者の階でもボス撃破済みなら選択サブメニューが�
     assert.equal(state.gameState, "submenu");
     assert.equal(menuContext.type, "stairs_down");
     assert.equal(state.floor, 5);
+    assert.match(state.logs.at(-1), /下り階段は固く封じられている/);
+    descendToFloor(6);
+    assert.equal(state.floor, 5);
+    assert.notEqual(state.transitioning, true, "a refused descent starts no transition");
+  });
+});
+
+check("ほかの迷宮でも5階が底になる", () => {
+  withDocumentStub(() => {
+    setupStairsCell(10);
+    state.currentRun.defeatedMilestones = [10];
+    checkCellEvents();
+    assert.match(state.logs.at(-1), /下り階段は固く封じられている/);
+    descendToFloor(11);
+    assert.equal(state.floor, 10);
   });
 });
 
