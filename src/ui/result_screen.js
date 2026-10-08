@@ -9,11 +9,13 @@ import { clearPhase4cV1CharacterBaseline } from "../rules/phase4c_v1_trial.js";
 import { formatFeatProgress, formatFeatReward, getFeat } from "../systems/feats.js";
 import { FACILITY_BY_ID } from "../data/facilities.js";
 import { listRunCompanions } from "../systems/facilities.js";
+import { formatDungeonFloor, formatFloorCode, getDungeonFloor, getDungeonForFloor } from "../rules/dungeons.js";
+import { DUNGEONS } from "../data/dungeons.js";
 
 const ACHIEVEMENT_LABELS = {
-  first_b5_reached: "初めてB5Fへ到達",
-  first_b5_broken: "初めてB5Fを突破",
-  first_b10_reached: "初めてB10Fへ到達"
+  first_b5_reached: "初めて坑道のB5Fへ到達",
+  first_b5_broken: "初めて地下墓地に入った",
+  first_b10_reached: "初めて地下墓地のB5Fへ到達"
 };
 
 // Personal bests other than depth, as the result names them.
@@ -177,9 +179,17 @@ function createLootSection(run) {
   return section;
 }
 
+// Names of the dungeons a returning run opened; the saved value is an id list.
+function getOpenedDungeonNames(run) {
+  const ids = Array.isArray(run?.openedDungeons) ? run.openedDungeons : [];
+  return DUNGEONS.filter(dungeon => ids.includes(dungeon.id)).map(dungeon => dungeon.name);
+}
+
 function getRepresentativeFacts(run, outcome) {
   // The outcome sentence is already the header's lead; do not repeat it here.
   const facts = [`${getFloorLabel(state, run.deepestFloor)}まで到達`];
+  // A dungeon this run opened (#2060) is the first thing to know about it.
+  getOpenedDungeonNames(run).forEach(name => facts.push(`${name}への道が開いた`));
   const death = run.deathLogs?.at(-1);
   if (outcome.key === "death" && death) {
     facts.push(`死因: ${death.cause || death.source || "原因未記録"}`);
@@ -187,7 +197,7 @@ function getRepresentativeFacts(run, outcome) {
   const found = getFoundItems(run);
   if (found.length > 0) facts.push(`この冒険を象徴する品: ${getItemLabel(found[0])}`);
   if (run.defeatedMilestones?.length > 0) {
-    facts.push(`階層守護者を${run.defeatedMilestones.at(-1)}Fで撃破`);
+    facts.push(`階層守護者を${getDungeonFloor(run.defeatedMilestones.at(-1))}Fで撃破`);
   }
   if (run.codexDiscoveries?.length > 0) {
     facts.push(`書庫に新しい記録: ${run.codexDiscoveries.slice(0, 2).join(" / ")}`);
@@ -247,11 +257,11 @@ export function getNearMissFacts(nearMiss) {
   }
   if (nearMiss.bestDepth) {
     facts.push(nearMiss.bestDepth.gap > 0
-      ? `自己最深 B${nearMiss.bestDepth.best}F まであと${nearMiss.bestDepth.gap}階だった`
-      : `自己最深 B${nearMiss.bestDepth.best}F に並んでいた`);
+      ? `この迷宮での自己最深 ${formatFloorCode(nearMiss.bestDepth.best)} まであと${nearMiss.bestDepth.gap}階だった`
+      : `この迷宮での自己最深 ${formatFloorCode(nearMiss.bestDepth.best)} に並んでいた`);
   }
   if (nearMiss.portal?.kind === "ahead") {
-    facts.push(`次の帰還の門（B${nearMiss.portal.floor}F）まであと${nearMiss.portal.gap}階だった`);
+    facts.push(`帰還の門（${formatFloorCode(nearMiss.portal.floor)}）まであと${nearMiss.portal.gap}階だった`);
   } else if (nearMiss.portal?.kind === "guardian_ahead") {
     facts.push("帰還の門は、この階の階層守護者の先にあった");
   } else if (nearMiss.portal?.kind === "guardian_defeated") {
@@ -286,7 +296,8 @@ function createNearMissSection(run, outcome) {
 function createDiscoverySection(run) {
   const codex = run.codexInsights?.length ? [] : run.codexDiscoveries || [];
   const workshop = run.workshopUnlocks?.length ? [] : run.workshopDiscoveries || [];
-  if (!codex.length && !workshop.length) return null;
+  const dungeons = getOpenedDungeonNames(run);
+  if (!codex.length && !workshop.length && !dungeons.length) return null;
   const section = textElement("section", "result-discovery-section");
   setAttributeSafe(section, "aria-label", "新しく増えた記録と可能性");
   setAttributeSafe(section, "data-result-discoveries", "");
@@ -301,6 +312,7 @@ function createDiscoverySection(run) {
   };
   appendColumn("新しく分かったこと", codex, name => `${name}を書庫に記録`);
   appendColumn("広がった可能性", workshop, name => `工房で${name}を選べるようになった`);
+  appendColumn("開いた迷宮", dungeons, name => `${name}へ入れるようになった`);
   return section;
 }
 
@@ -330,7 +342,7 @@ function createRecordSection(run) {
   setAttributeSafe(record, "role", "status");
   setAttributeSafe(record, "aria-live", "polite");
   record.appendChild(textElement("span", "result-record-kicker", kicker));
-  record.appendChild(textElement("strong", null, `B${result.depth}F`));
+  record.appendChild(textElement("strong", null, formatDungeonFloor(result.depth)));
   if (details.length > 0) record.appendChild(textElement("small", null, details.join(" / ")));
   return record;
 }
@@ -499,7 +511,7 @@ function createReturnProcessingSection(run) {
       const row = document.createElement("div");
       row.appendChild(textElement("span", null, item.name));
       const detail = document.createElement("span");
-      detail.textContent = `B${item.depth}F `;
+      detail.textContent = `${formatFloorCode(item.depth)} `;
       const button = textElement("button", "result-return-representative-button", "この冒険を象徴する品にする");
       button.type = "button";
       setAttributeSafe(button, "data-return-history-index", String(index));
@@ -571,7 +583,7 @@ export function renderResultScreen() {
   setAttributeSafe(header, "data-result-outcome", outcome.key);
   header.appendChild(textElement("span", "result-outcome", getReasonText(run.returnReason)));
   const resultTitle = textElement("h1", "result-title", "今回の深度 ");
-  resultTitle.appendChild(textElement("strong", null, `B${run.deepestFloor}F`));
+  resultTitle.appendChild(textElement("strong", null, formatDungeonFloor(run.deepestFloor)));
   header.appendChild(resultTitle);
   header.appendChild(textElement("p", "result-outcome-detail", outcome.detail));
 
@@ -660,7 +672,7 @@ export function renderResultScreen() {
       againButton.appendChild(textElement(
         "span",
         "result-again-detail",
-        `${kitName}・B${plan.startFloor}Fから${plan.roundTrip ? "・往復の試作" : ""}・${departureActions.formatCost(plan)}`
+        `${kitName}・${getDungeonForFloor(plan.startFloor).name}${plan.roundTrip ? "・往復の試作" : ""}・${departureActions.formatCost(plan)}`
       ));
       againButton.addEventListener("click", () => {
         if (settleResult({ announce: false })) departureActions.repeat();

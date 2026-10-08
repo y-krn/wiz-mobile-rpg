@@ -32,10 +32,14 @@ function assertClose(actual, expected, label) {
 console.log("\n[1] Universal disarm rate:");
 assertEqual(calculateDisarmRate({ level: 1, floor: 1 }), 85, "universal caller B1");
 assertEqual(calculateDisarmRate({ level: 99, floor: 1 }), 85, "level-independent caller B1");
-assertEqual(calculateDisarmRate({ level: 1, floor: 10 }), 37, "universal caller B10");
-assertEqual(calculateDisarmRate({ level: 20, floor: 20 }), 5, "universal caller B20");
+// The fallback difficulty follows the floor inside the dungeon (#2060): the
+// tenth and twentieth running floors are both a fifth floor.
+assertEqual(calculateDisarmRate({ level: 1, floor: 5 }), 64, "universal caller B5");
+assertEqual(calculateDisarmRate({ level: 1, floor: 10 }), 64, "fifth floor of the second dungeon");
+assertEqual(calculateDisarmRate({ level: 20, floor: 20 }), 64, "fifth floor of the fourth dungeon");
+assertEqual(calculateDisarmRate({ level: 1, floor: 6 }), 85, "first floor of the second dungeon");
 assertEqual(calculateDisarmRate({ level: 30, floor: 1, difficulty: 0 }), 95, "universal upper clamp");
-assertEqual(calculateDisarmRate({ level: 1, floor: 60 }), 5, "universal lower clamp");
+assertEqual(calculateDisarmRate({ level: 1, floor: 1, difficulty: 400 }), 5, "universal lower clamp");
 
 console.log("\n[2] Build bonus and chest chance:");
 assertEqual(

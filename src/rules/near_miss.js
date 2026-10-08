@@ -46,10 +46,13 @@ function collectEnemies(combat) {
   return { enemies, defeatedInBattle: alive.length > 0 ? defeatedInBattle : 0 };
 }
 
+// The record is compared only inside the dungeon the run died in (#2060): a
+// floor of one dungeon is no distance from a floor of another.
 function getBestDepthFact(deepestFloor, previousBestFloor) {
   const best = Math.floor(Number(previousBestFloor) || 0);
   const reached = Math.floor(Number(deepestFloor) || 0);
   if (best < 1 || reached < 1 || reached > best) return null;
+  if (Math.floor((best - 1) / MILESTONE_INTERVAL) !== Math.floor((reached - 1) / MILESTONE_INTERVAL)) return null;
   return { best, gap: best - reached };
 }
 

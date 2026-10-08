@@ -25,12 +25,14 @@ test('New runs always use the unified rules without a mode selector @smoke', asy
   expect(await page.evaluate(() => localStorage.getItem('mobile_wiz_rpg_vnext_trial_autosave'))).toBeNull();
 });
 
-test('Unified runs start and restore B1/B10/B20 runs @smoke', async ({ page }) => {
+// A run starts on the first floor of a dungeon (#2060): 1 is the mine, 6 the
+// catacomb. Either way the adventurer is fresh.
+test('Unified runs start and restore in the mine and the catacomb @smoke', async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
-  const expectedHp = { 1: 45, 10: 49, 20: 53 };
+  const expectedHp = { 1: 45, 6: 45 };
 
-  for (const startFloor of [1, 10, 20]) {
+  for (const startFloor of [1, 6]) {
     await page.goto('/');
     await waitForPixiReady(page);
     await page.evaluate(async () => {
@@ -40,7 +42,7 @@ test('Unified runs start and restore B1/B10/B20 runs @smoke', async ({ page }) =
       state.party = [];
       state.gameState = 'town';
       state.floor = 1;
-      state.unlockedMilestones = [5, 10, 15, 20];
+      state.unlockedMilestones = [5];
       updateUI();
     });
 
@@ -70,7 +72,7 @@ test('Unified runs start and restore B1/B10/B20 runs @smoke', async ({ page }) =
     expect(started.startFloor).toBe(startFloor);
     expect(started.maxHp).toBe(expectedHp[startFloor]);
     expect(started.hp).toBe(expectedHp[startFloor]);
-    expect(started.baseline).toBe(Math.floor(startFloor / 5));
+    expect(started.baseline).toBe(0);
 
     await expect.poll(() => page.evaluate(() => {
       const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave') || 'null');
@@ -90,7 +92,7 @@ test('Unified runs start and restore B1/B10/B20 runs @smoke', async ({ page }) =
     expect(restored.gameState).toBe('explore');
     expect(restored.startFloor).toBe(startFloor);
     expect(restored.maxHp).toBe(expectedHp[startFloor]);
-    expect(restored.baseline).toBe(Math.floor(startFloor / 5));
+    expect(restored.baseline).toBe(0);
   }
 });
 

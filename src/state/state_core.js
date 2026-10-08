@@ -11,6 +11,7 @@ import {
   stripLogMarkers
 } from "../combat_log_semantics.js";
 import { CODEX_TRAP_IDS } from "./codex_trap_ids.js";
+import { formatDungeonFloor } from "../rules/dungeons.js";
 
 // Main State Object
 export const state = {
@@ -272,7 +273,7 @@ export function recordCharDeath(stateObj, char, cause, details = null) {
 export function formatCharDeathLog(deathLog) {
   if (!deathLog) return "";
   const turnText = deathLog.turn != null ? ` (ターン ${deathLog.turn})` : "";
-  return `☠️ ${deathLog.charName}は B${deathLog.floor}F で${deathLog.cause}により倒れた。${turnText}`;
+  return `☠️ ${deathLog.charName}は ${formatDungeonFloor(deathLog.floor)} で${deathLog.cause}により倒れた。${turnText}`;
 }
 
 export function queueCharDeathLog(logQueue, deathLog) {

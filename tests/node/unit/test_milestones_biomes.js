@@ -9,6 +9,7 @@ import { revealEquipmentOnEquip } from "../../../src/systems/identification.js";
 import { getMilestoneMerchantStock, purchaseMilestoneStock, purchaseMilestoneUncurse } from "../../../src/systems/milestone_merchant.js";
 import { getAdditionalPurchaseCount } from "../../../src/menu/milestone_merchant.js";
 import { recordMilestoneVictory } from "../../../src/state/run_state.js";
+import { settleDungeonClears } from "../../../src/systems/dungeon_progress.js";
 
 const failures = [];
 function check(label, fn) {
@@ -56,10 +57,12 @@ check("深層開始は既存0.6定数を参照し素材期待値を減額する"
   }
 });
 
-check("階層守護者撃破は開始地点を恒久アンロックする", () => {
+check("階層守護者撃破はこの冒険の記録に残り、迷宮の踏破は生還した時に保存される", () => {
   const state = { currentRun: { defeatedMilestones: [] }, unlockedMilestones: [5] };
   assert.deepEqual(recordMilestoneVictory(state, 10), { ok: true, unlocked: true });
   assert.deepEqual(state.currentRun.defeatedMilestones, [10]);
+  assert.deepEqual(state.unlockedMilestones, [5], "生還するまで保存しない (#2060)");
+  assert.deepEqual(settleDungeonClears(state, state.currentRun), []);
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(recordMilestoneVictory(state, 10), { ok: true, unlocked: false });
   assert.deepEqual(recordMilestoneVictory(state, 9), { ok: false, unlocked: false });

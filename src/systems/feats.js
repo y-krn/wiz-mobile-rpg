@@ -12,6 +12,7 @@ import {
 import { STARTING_KIT_IDS } from "../state/starting_kit.js";
 import { normalizeCompanions } from "../state/facilities_state.js";
 import { COMPANIONS } from "../data/facilities.js";
+import { formatDungeonFloor, formatFloorCode, getDungeonEntryFloor, getDungeonIndexForFloor } from "../rules/dungeons.js";
 
 const count = value => Math.max(0, Math.floor(Number(value) || 0));
 
@@ -82,7 +83,7 @@ export function getFeatProgress(feat, counters) {
 }
 
 /**
- * "B3F / B5F" for depths, "3 / 5" for counts. A rescue reads as a state; pass
+ * "B3F / 坑道 B5F" for depths, "3 / 5" for counts. A rescue reads as a state; pass
  * the running run to show that the person is being led out right now.
  */
 export function formatFeatProgress(feat, progress, run = null) {
@@ -93,7 +94,9 @@ export function formatFeatProgress(feat, progress, run = null) {
       : "未救出";
   }
   if (feat.metric.unit === "floor") {
-    return `${progress.current > 0 ? `B${progress.current}F` : "未到達"} / B${progress.target}F`;
+    // The target names its dungeon; progress counts only inside that dungeon.
+    const reached = progress.current >= getDungeonEntryFloor(getDungeonIndexForFloor(progress.target));
+    return `${reached ? formatFloorCode(progress.current) : "未到達"} / ${formatDungeonFloor(progress.target)}`;
   }
   return `${progress.current} / ${progress.target}`;
 }

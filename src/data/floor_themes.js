@@ -1,4 +1,5 @@
 import { BIOMES, getBiomeForFloor, getDepthCorruption } from "./biomes.js";
+import { getDungeonFloor } from "../rules/dungeons.js";
 
 export const FLOOR_THEMES = Object.freeze(Object.fromEntries(
   BIOMES.map((biome, index) => [index + 1, Object.freeze({
@@ -47,5 +48,5 @@ export function getFloorDisplayName(stateInstance, floor) {
 }
 
 export function getFloorLabel(stateInstance, floor) {
-  return `${getFloorDisplayName(stateInstance, floor)}（地下${floor}階）`;
+  return `${getFloorDisplayName(stateInstance, floor)}（地下${getDungeonFloor(floor)}階）`;
 }

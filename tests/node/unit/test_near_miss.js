@@ -191,7 +191,7 @@ assert.deepEqual(getNearMissFacts({
     { name: "かみつき蟲", kind: "normal", state: "健在" }
   ],
   defeatedInBattle: 2,
-  bestDepth: { best: 7, gap: 2 },
+  bestDepth: { best: 5, gap: 2 },
   portal: { kind: "ahead", floor: 5, gap: 2 },
   unused: [{ itemId: "TOWN_PORTAL", count: 1 }, { itemId: "HEAL_POTION", count: 2 }]
 }), [
@@ -199,8 +199,8 @@ assert.deepEqual(getNearMissFacts({
   "強敵・フラックに傷を負わせていた",
   "かみつき蟲は健在だった",
   "この戦闘で2体を倒していた",
-  "自己最深 B7F まであと2階だった",
-  "次の帰還の門（B5F）まであと2階だった",
+  "この迷宮での自己最深 B5F まであと2階だった",
+  "帰還の門（B5F）まであと2階だった",
   "使わずに残っていた物：帰還の翼×1、傷薬×2"
 ]);
 assert.deepEqual(getNearMissFacts(null), []);

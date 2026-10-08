@@ -43,8 +43,11 @@ for (const input of [0, 42, "primitive", true, false]) assertChance(input, 0.35,
 
 assertChance({ floor: 1, arcaneSense: 0 }, 0.35, "B1 base");
 assertChance({ floor: 5, arcaneSense: 0 }, 0.15, "B5 depth penalty");
-assertChance({ floor: 10, arcaneSense: 0 }, 0.10, "deep floor min");
-assertChance({ floor: 50, arcaneSense: 0 }, 0.10, "deep floor remains min");
+// The penalty follows the floor inside the dungeon (#2060): the sixth running
+// floor is the first floor of the next dungeon, the tenth is its fifth.
+assertChance({ floor: 6, arcaneSense: 0 }, 0.35, "first floor of the next dungeon");
+assertChance({ floor: 10, arcaneSense: 0 }, 0.15, "fifth floor of the next dungeon");
+assertChance({ floor: 50, arcaneSense: 0 }, 0.15, "a far dungeon's fifth floor");
 assertChance({ floor: 1, arcaneSense: 3 }, 0.38, "sense +3");
 assertChance({ floor: 1, arcaneSense: 500 }, 0.95, "high sense max");
 

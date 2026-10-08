@@ -89,7 +89,9 @@ check("generation retries have a hard upper bound", () => {
   assert.throws(
     () => generateRunFloor({
       runSeed: "RUN-BOUNDED",
-      floor: 11,
+      // The second floor of a dungeon: its entry is the stairs from above.
+      // A dungeon's first floor chooses its own entrance (#2060).
+      floor: 12,
       parentStairsCoord: { x: -1, y: -1 },
       maxAttempts: 2
     }),

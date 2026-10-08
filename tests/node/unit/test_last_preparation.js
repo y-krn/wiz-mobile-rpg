@@ -57,9 +57,18 @@ assert.deepEqual(
   "invalid tools are removed and an impossible floor falls back to B1F"
 );
 assert.equal(isNormalizedLastPreparation(null), true);
-assert.equal(isNormalizedLastPreparation(normalizeLastPreparation({
-  kitId: "arcana", startingGear: "SAGE_STAFF", recipeIds: ["HEAL_POTION"], startFloor: 5
-})), true);
+// A dungeon is remembered as the running number of its first floor (#2060).
+const catacomb = normalizeLastPreparation({
+  kitId: "arcana", startingGear: "SAGE_STAFF", recipeIds: ["HEAL_POTION"], startFloor: 6
+});
+assert.equal(catacomb.startFloor, 6);
+assert.equal(isNormalizedLastPreparation(catacomb), true);
+// A start on a guardian's floor, saved by the old start-floor choice, loads
+// as the first dungeon.
+assert.equal(normalizeLastPreparation({
+  kitId: "arcana", startingGear: null, recipeIds: [], startFloor: 5
+}).startFloor, 1);
+assert.equal(isNormalizedLastPreparation({ kitId: "arcana", startingGear: null, recipeIds: [], startFloor: 5, roundTrip: false }), false);
 assert.equal(isNormalizedLastPreparation({ kitId: "arcana", startingGear: null, recipeIds: [], startFloor: 3 }), false);
 console.log("[PASS] last preparation normalizes to a known kit, tools, and start floor");
 
@@ -107,25 +116,27 @@ assert.deepEqual(short.dropped, [{ kind: "item", itemId: "HEAL_POTION", reason: 
 assert.deepEqual(describeDroppedPreparation(short.dropped), ["傷薬×1（素材不足）"]);
 console.log("[PASS] tools that cannot be afforded are dropped and reported");
 
-const deepStart = { kitId: "vanguard", startingGear: null, recipeIds: [], startFloor: 5 };
+const deepStart = { kitId: "vanguard", startingGear: null, recipeIds: [], startFloor: 6 };
 const lockedFloor = resolveLastPreparation(deepStart, {
   workshop: noWorkshop, metaMaterials: {}, storage: [], unlockedMilestones: []
 });
 assert.equal(lockedFloor.canRepeat, false);
 assert.equal(lockedFloor.startFloor, 1, "the only remaining floor is pre-selected");
-assert.deepEqual(describeDroppedPreparation(lockedFloor.dropped), ["B5Fからの開始（未解放）"]);
+assert.deepEqual(describeDroppedPreparation(lockedFloor.dropped), ["行き先「忘れられた地下墓地」（今は入れない）"]);
 const unlockedFloor = resolveLastPreparation(deepStart, {
   workshop: noWorkshop, metaMaterials: {}, storage: [], unlockedMilestones: [5]
 });
 assert.equal(unlockedFloor.canRepeat, true);
-assert.equal(unlockedFloor.startFloor, 5);
+assert.equal(unlockedFloor.startFloor, 6);
+// The third dungeon cannot be entered yet; with two dungeons open the choice
+// is left to the player.
 const lockedAmongSeveral = resolveLastPreparation(
-  { kitId: "vanguard", startingGear: null, recipeIds: [], startFloor: 10 },
-  { workshop: noWorkshop, metaMaterials: {}, storage: [], unlockedMilestones: [5] }
+  { kitId: "vanguard", startingGear: null, recipeIds: [], startFloor: 11 },
+  { workshop: noWorkshop, metaMaterials: {}, storage: [], unlockedMilestones: [5, 10] }
 );
-assert.equal(lockedAmongSeveral.startFloor, null, "several floors keep the explicit choice");
+assert.equal(lockedAmongSeveral.startFloor, null, "several dungeons keep the explicit choice");
 assert.equal(lockedAmongSeveral.canRepeat, false);
-console.log("[PASS] a start floor that is not unlocked is dropped and reported");
+console.log("[PASS] a dungeon that is not open is dropped and reported");
 
 const saber = { kitId: "scout", startingGear: "FIGHTER_SABER", recipeIds: [], startFloor: 1 };
 const gearLocked = resolveLastPreparation(saber, {

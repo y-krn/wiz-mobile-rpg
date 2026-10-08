@@ -10,13 +10,14 @@ const viewModel = createRecordsStripViewModel({
 });
 
 assert.deepEqual(viewModel.records, [
-  { key: "retreat", label: "帰還最深", value: "B12F" },
-  { key: "death", label: "死亡最深", value: "B9F" },
+  // A record names its dungeon and the floor inside it (#2060).
+  { key: "retreat", label: "帰還最深", value: "大裂溝 B2F" },
+  { key: "death", label: "死亡最深", value: "地下墓地 B4F" },
   { key: "runs", label: "冒険の数", value: "7" },
 ]);
 assert.equal(
   renderToStaticMarkup(createElement(RecordsStrip, { viewModel })),
-  "<span><small>帰還最深</small><strong>B12F</strong></span><span><small>死亡最深</small><strong>B9F</strong></span><span><small>冒険の数</small><strong>7</strong></span>",
+  "<span><small>帰還最深</small><strong>大裂溝 B2F</strong></span><span><small>死亡最深</small><strong>地下墓地 B4F</strong></span><span><small>冒険の数</small><strong>7</strong></span>",
 );
 
 const emptyModel = createRecordsStripViewModel({ deepestRetreat: -1 });

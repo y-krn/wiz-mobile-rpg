@@ -10,6 +10,7 @@ import {
   rollChestTrap
 } from "../rules/chest_rules.js";
 import { getChestMaterialPool } from "../rules/material_rules.js";
+import { getDungeonFloor } from "../rules/dungeons.js";
 import { createRng } from "../seed_rng.js";
 
 // Chest formulas remain owned by the existing chest/rule balance mapping;
@@ -352,7 +353,10 @@ export function rollChestEncounter({
 }: ChestEncounterInput = {}): ChestEncounterResult {
   const chestSeed = `${seed}:chest:B${floor}:${x},${y}`;
   const rng: ChestRng = customRng || (seed ? createRng(chestSeed) : Math.random);
-  const rolledTrap: string = forcedTrap !== null ? forcedTrap : rollChestTrap(floor, rng);
+  // The seed keeps the running floor number; what a chest holds follows the
+  // floor inside the dungeon (#2060).
+  const depth: number = getDungeonFloor(floor);
+  const rolledTrap: string = forcedTrap !== null ? forcedTrap : rollChestTrap(depth, rng);
   // A monster's dropped chest is never itself a monster.
   const trap: string = fromDrop && rolledTrap === "mimic" ? "none" : rolledTrap;
   const rewardParty: ChestRewardParty = character ? [character] : [];
@@ -361,12 +365,12 @@ export function rollChestEncounter({
   if (forcedItem !== null) {
     item = forcedItem;
   } else {
-    const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
+    const candidateFloor = depth;
     const dropCandidates: readonly string[] | null = fromDrop
       ? (CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP as Record<number, readonly string[]>)[candidateFloor]
       : null;
     const reward: ChestRewardRollResult = rollChestRewardAtBoundary({
-      floor,
+      floor: depth,
       rng,
       party: rewardParty,
       currentRun,
@@ -374,16 +378,16 @@ export function rollChestEncounter({
       firstChestGuaranteed,
       includeRunes: !fromDrop,
       itemCandidates: dropCandidates,
-      itemWeights: getChestItemWeightsBySource(floor, { fromDrop })
+      itemWeights: getChestItemWeightsBySource(depth, { fromDrop })
     });
     item = reward.item;
     consumedFirstChestGuarantee = reward.consumedFirstChestGuarantee;
   }
   const specialItem: ChestLootItem | null = forcedItem === null && !fromDrop
-    ? rollChestSpecialReward(floor, rng)
+    ? rollChestSpecialReward(depth, rng)
     : null;
   const accessoryItem: ChestLootItem | null = forcedItem === null
-    ? rollChestAccessory(floor, rng, rewardParty)
+    ? rollChestAccessory(depth, rng, rewardParty)
     : null;
   return {
     trap,
@@ -403,7 +407,7 @@ export function generateChestMaterials(
 ): Record<string, number> {
   const mats: Record<string, number> = {};
   const qty = Math.floor(rng() * 3) + 1 + bonus;
-  const pool: readonly string[] = getChestMaterialPoolAtBoundary(floor, { profile: materialPoolProfile });
+  const pool: readonly string[] = getChestMaterialPoolAtBoundary(getDungeonFloor(floor), { profile: materialPoolProfile });
   for (let i = 0; i < qty; i++) {
     const mat = pool[Math.floor(rng() * pool.length)];
     mats[mat] = (mats[mat] || 0) + 1;

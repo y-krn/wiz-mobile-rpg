@@ -2,8 +2,10 @@ import { state, createDefaultCodex, getStartingKit } from "../state.js";
 import { getMonsterResistanceStatus, getAffixDefinition, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
 import { lockShellScroll, unlockShellScroll } from "./shell_scroll_lock.js";
-import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
+import { getFloorDisplayName } from "../data/floor_themes.js";
 import { CODEX_INSIGHT_DEFINITIONS } from "../state/codex_state.js";
+import { formatDungeonFloor, getDungeonEntryFloor } from "../rules/dungeons.js";
+import { DUNGEONS } from "../data/dungeons.js";
 
 const RARITY_NAMES = Object.freeze({ common: "通常", magic: "魔法", rare: "希少", epic: "逸品", legendary: "伝説" });
 
@@ -89,7 +91,7 @@ export function getMonsterCodexDetailHtml(m, record) {
       </div>
     `).join("");
   const floorRows = floorHistory.length > 0
-    ? floorHistory.map(([floor, count]) => `<li>B${floor}F <span>${count}回</span></li>`).join("")
+    ? floorHistory.map(([floor, count]) => `<li>${formatDungeonFloor(Number(floor))} <span>${count}回</span></li>`).join("")
     : `<li class="codex-muted">階層履歴は旧記録のため残っていません</li>`;
 
   let html = `<div class="codex-detail">`;
@@ -102,7 +104,7 @@ export function getMonsterCodexDetailHtml(m, record) {
       <section class="codex-info-section">
         <div class="codex-subtitle">生態</div>
         <p><strong>分類:</strong> ${roleLabels[m.role] || "未分類"}${m.isRare ? " / 希少な遭遇" : ""}</p>
-        <p><strong>初遭遇:</strong> ${firstFloor ? `B${firstFloor}F` : "未記録"}</p>
+        <p><strong>初遭遇:</strong> ${firstFloor ? formatDungeonFloor(firstFloor) : "未記録"}</p>
         <div class="codex-floor-history"><strong>遭遇した階層</strong><ul>${floorRows}</ul></div>
       </section>
       <section class="codex-info-section">
@@ -121,7 +123,7 @@ export function getMonsterCodexDetailHtml(m, record) {
       <section class="codex-info-section codex-personal-record">
         <div class="codex-subtitle">あなたの記録</div>
         <p>遭遇: ${enc}回 / 撃破: ${kil}回</p>
-        <p>最後に遭遇: ${lastFloor ? `B${lastFloor}F` : "未記録"}</p>
+        <p>最後に遭遇: ${lastFloor ? formatDungeonFloor(lastFloor) : "未記録"}</p>
       </section>
   `;
   html += `</div></div>`;
@@ -267,7 +269,7 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
       <div class="codex-info-section">
         <div class="codex-subtitle">発見記録</div>
         ${foundFloors.length > 0
-          ? foundFloors.map(([floor, count]) => `<div class="codex-floor-record"><span>B${floor}F</span><span class="codex-dots">${"●".repeat(Math.min(12, count))}</span><span>${count}回</span></div>`).join("")
+          ? foundFloors.map(([floor, count]) => `<div class="codex-floor-record"><span>${formatDungeonFloor(Number(floor))}</span><span class="codex-dots">${"●".repeat(Math.min(12, count))}</span><span>${count}回</span></div>`).join("")
           : `<p class="codex-muted">階層別の記録はありません。</p>`}
       </div>
       <div class="codex-info-section codex-personal-record">
@@ -297,9 +299,10 @@ export function getEventsCodexHtml() {
   
   let html = `<div style="display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 11px;">`;
   html += `<div><div class="archives-section-title">🗺️ 場所の記録</div>`;
-  Object.keys(FLOOR_THEMES).forEach(floor => {
-    const name = getFloorDisplayName(state, Number(floor));
-    html += `<div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; margin-bottom: 4px;"><strong>${name}</strong> <span style="color: var(--text-muted);">地下${floor}階</span></div>`;
+  // One row per dungeon; its name shows once its first floor has been seen.
+  DUNGEONS.forEach(dungeon => {
+    const name = getFloorDisplayName(state, getDungeonEntryFloor(dungeon.index));
+    html += `<div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; margin-bottom: 4px;"><strong>${name}</strong> <span style="color: var(--text-muted);">${dungeon.index + 1}つ目の迷宮</span></div>`;
   });
   html += `</div>`;
   
@@ -309,7 +312,7 @@ export function getEventsCodexHtml() {
   trapKeys.forEach(k => {
     const record = ev.traps[k];
     const hasRecord = record.disarmed > 0 || record.triggered > 0;
-    const firstFloorLabel = record.firstFloor > 0 ? `B${record.firstFloor}F` : (hasRecord ? "記録なし" : "未発見");
+    const firstFloorLabel = record.firstFloor > 0 ? formatDungeonFloor(record.firstFloor) : (hasRecord ? "記録なし" : "未発見");
     const nameJp = TRAP_CODEX_LABELS[k] || k;
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between;">
@@ -364,8 +367,8 @@ export function getEventsCodexHtml() {
     <div style="background-color: #14141a; border: 1px solid var(--neon-cyan); border-radius: 4px; padding: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
       <div>冒険の数: <strong style="color: var(--neon-cyan);">${records.totalRuns}</strong> 回</div>
       <div>全滅死亡: <strong style="color: var(--neon-red);">${stats.totalDeaths}</strong> 回</div>
-      <div>帰還最深: <strong style="color: var(--neon-green);">${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
-      <div>死亡最深: <strong style="color: var(--neon-red);">${records.deepestDeath ? `B${records.deepestDeath}F` : "未記録"}</strong></div>
+      <div>帰還最深: <strong style="color: var(--neon-green);">${records.deepestRetreat ? formatDungeonFloor(records.deepestRetreat) : "未記録"}</strong></div>
+      <div>死亡最深: <strong style="color: var(--neon-red);">${records.deepestDeath ? formatDungeonFloor(records.deepestDeath) : "未記録"}</strong></div>
       <div>累計撃破: <strong style="color: var(--neon-green);">${stats.totalKills}</strong> 匹</div>
       <div style="grid-column: span 2;">宝箱開封: <strong style="color: var(--neon-yellow);">${stats.totalChests}</strong> 個</div>
     </div>
@@ -404,7 +407,7 @@ export function getRunHistoryHtml() {
           <span style="color: ${resColor}; font-weight: bold;">${escapeHtml(resText)} (Rank: ${dangerRank})</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; color: #ddd; font-size: 10px;">
-          <div>到達階: B${deepestFloor}F</div>
+          <div>到達階: ${formatDungeonFloor(deepestFloor)}</div>
           <div>撃破数: ${kills} 匹</div>
           <div>宝箱開封: ${chestsOpened} 個</div>
           <div>出発: ${escapeHtml(startingKit || "開始時情報なし")}</div>
@@ -437,7 +440,7 @@ export function getDeathLogsHtml() {
       <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 2px; margin-bottom: 4px; color: var(--neon-red);">
           <strong>☠️ 死亡記録 #${state.deathLogs.length - i}</strong>
-          <span>B${floor}F (${x}, ${y})</span>
+          <span>${formatDungeonFloor(floor)} (${x}, ${y})</span>
         </div>
         <div style="color: #ddd; font-size: 10px; display: flex; flex-direction: column; gap: 2px;">
           <div><strong>日時:</strong> ${escapeHtml(dateStr)}</div>

@@ -353,6 +353,30 @@
   font-size: var(--fs-xs);
 }
 
+/* Dungeons that cannot be entered yet (#2060): a name and what opens it. */
+.solo-start-dungeon-closed {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--sp-xxs);
+  margin: 0;
+  padding: var(--sp-xs) var(--sp-xxs);
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+
+.solo-start-dungeon-closed li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--sp-sm);
+}
+
+.solo-start-dungeon-closed strong {
+  font-weight: normal;
+  color: var(--text-main);
+}
+
 .solo-start-change,
 .solo-start-floor-option,
 .solo-start-rule-option,

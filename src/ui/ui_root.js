@@ -19,6 +19,7 @@ import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
 import { getDepthCorruption, getFloorDisplayName, getFloorTheme } from "../data/floor_themes.js";
 import { describeFloor } from "./floor_label.js";
+import { formatFloorCode, getDungeonFloor, isDungeonBottomFloor, isDungeonEntryFloor } from "../rules/dungeons.js";
 import { formatFeatProgress, getFeat, getLiveFeatCounters, getNearestFeats } from "../systems/feats.js";
 import { getEscortNames } from "../systems/facilities.js";
 import { updateRecordsStrip } from "./records_view.js";
@@ -124,7 +125,7 @@ export function showFloorEntryStinger(floor, firstVisit) {
   stinger.replaceChildren();
   const depth = document.createElement("span");
   depth.className = "floor-entry-depth";
-  depth.textContent = `地下${floor}階`;
+  depth.textContent = `地下${getDungeonFloor(floor)}階`;
   const name = document.createElement("strong");
   name.className = "floor-entry-name";
   name.textContent = theme.name;
@@ -272,14 +273,17 @@ export function getCurrentGoal() {
   const roundTrip = state.currentRun?.roundTrip;
   if (roundTrip?.awake) {
     const lead = roundTrip.treasure ? "至宝を持って" : "上り階段から";
-    return state.floor > 1
+    return !isDungeonEntryFloor(state.floor)
       ? `${lead}${describeFloor(state, state.floor - 1)}へ戻る`
       : `${lead}地上へ出る`;
   }
 
   // The header already names the floor the player is on.
-  if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
-    return "この階の守護者を倒す";
+  if (isDungeonBottomFloor(state.floor)) {
+    // The dungeon ends here (#2060): past the guardian the way on is home.
+    return state.currentRun?.defeatedMilestones?.includes(state.floor)
+      ? "帰還の門から街へ帰る"
+      : "この階の守護者を倒す";
   }
   return `階段を探して${describeFloor(state, state.floor + 1)}へ`;
 }
@@ -513,7 +517,7 @@ export function updateUI() {
     const lightLabel = state.lightPower === "lomilwa" ? "大灯り" : "灯り";
     const lightText = state.lightTurns > 0 ? ` (${lightLabel}:${state.lightTurns})` : "";
     const repelText = state.repelTurns > 0 ? ` (魔物よけ:${state.repelTurns})` : "";
-    locLabel.textContent = `B${state.floor}F${themeLabel}${lightText}${repelText}`;
+    locLabel.textContent = `${formatFloorCode(state.floor)}${themeLabel}${lightText}${repelText}`;
   } else if (isCombatContext) {
     if (!wasCombatContext) {
       clearTimeout(combatEntryCueTimer);

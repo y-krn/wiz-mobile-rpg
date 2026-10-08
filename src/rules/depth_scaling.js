@@ -1,4 +1,5 @@
 import { createCombatMonsterInstance, isMonsterTemplate } from "../state/monster.js";
+import { getDungeonFloor, getDungeonStrength } from "./dungeons.js";
 
 export function getDepthScaling(floor) {
   const depth = Math.max(1, Math.floor(Number(floor) || 1));
@@ -13,13 +14,19 @@ export function getDepthScaling(floor) {
   });
 }
 
+// `floor` is the running floor number. Strength follows the floor inside the
+// dungeon and that dungeon's own multipliers, so a fresh adventurer meets the
+// same pressure on the same floor of every dungeon (#2060).
 export function scaleEnemyForDepth(monster, floor, { boss = false } = {}) {
   if (!isMonsterTemplate(monster)) throw new TypeError("Invalid MonsterTemplate");
-  const scaling = getDepthScaling(floor);
+  const scaling = getDepthScaling(getDungeonFloor(floor));
+  const strength = getDungeonStrength(floor);
   const bossMultiplier = boss ? 1.12 : 1;
-  const hpMultiplier = scaling.enemy * bossMultiplier;
-  const attackMultiplier = 1 + (scaling.enemy - 1) * 0.58 + (boss ? 0.08 : 0);
-  const defenseMultiplier = 1 + (scaling.enemy - 1) * 0.34;
+  const hpMultiplier = scaling.enemy * bossMultiplier * (boss ? strength.guardianHp : strength.enemyHp);
+  const attackMultiplier = (1 + (scaling.enemy - 1) * 0.58 + (boss ? 0.08 : 0)) *
+    (boss ? strength.guardianAtk : strength.enemyAtk);
+  const defenseMultiplier = (1 + (scaling.enemy - 1) * 0.34) *
+    (boss ? strength.guardianDef : strength.enemyDef);
   const rewardMultiplier = scaling.reward * (boss ? 1.2 : 1);
   const hp = Math.max(1, Math.round(monster.hp * hpMultiplier));
   return createCombatMonsterInstance(monster, {

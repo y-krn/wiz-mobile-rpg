@@ -1,5 +1,6 @@
 import * as React from "react";
 import { isNormalizedRecords, type NormalizedRecordsBase } from "../state/records_state.js";
+import { formatDungeonFloor } from "../rules/dungeons.js";
 
 export interface RecordsStripViewModel {
   readonly records: readonly {
@@ -16,7 +17,7 @@ const EMPTY_RECORDS: NormalizedRecordsBase = {
 };
 
 function floorText(value: number): string {
-  return value > 0 ? `B${value}F` : "未記録";
+  return value > 0 ? formatDungeonFloor(value) : "未記録";
 }
 
 export function createRecordsStripViewModel(records: unknown): RecordsStripViewModel {

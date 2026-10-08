@@ -23,6 +23,7 @@ import {
   isVNextTrialSupport
 } from "../rules/equipment_vnext_trial.js";
 import { BUILD_VNEXT_SUPPLY, applyBuildVNextSupply } from "../rules/build_vnext_supply.js";
+import { getDungeonFloor } from "../rules/dungeons.js";
 
 // Supports that pay out in materials/quests/identification rather than in a
 // fight. The Build vNext trial keeps them possible but rare so early finds
@@ -209,10 +210,14 @@ export function buildUnidentifiedMeta(
   };
 }
 
-export function generateRandomEquipment(floor, options) {
+// `runFloor` is the running floor number; supply reads the floor inside the
+// dungeon, so every dungeon hands out the same kinds on the same floor (#2060).
+export function generateRandomEquipment(runFloor, options) {
   const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null } =
     requireGenerationOptions(options, "generateRandomEquipment");
-  recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor });
+  recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor: runFloor });
+  // An invalid floor stays invalid and is rejected below, as before.
+  const floor = Number.isInteger(runFloor) && runFloor >= 1 ? getDungeonFloor(runFloor) : runFloor;
   const gambleProfile = getIdentificationGambleProfile(floor);
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[candidateFloor]
@@ -467,10 +472,11 @@ export function generateRandomEquipment(floor, options) {
   return requireGeneratedEquipment(generated);
 }
 
-export function generateRandomAccessory(floor, options) {
+export function generateRandomAccessory(runFloor, options) {
   const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null } =
     requireGenerationOptions(options, "generateRandomAccessory");
-  recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "accessory", floor });
+  recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "accessory", floor: runFloor });
+  const floor = Number.isInteger(runFloor) && runFloor >= 1 ? getDungeonFloor(runFloor) : runFloor;
   const gambleProfile = getIdentificationGambleProfile(floor);
   const candidateFloor = Math.max(1, Math.min(30, Math.floor(Number(floor)) || 1));
   let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[candidateFloor]

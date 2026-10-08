@@ -90,7 +90,9 @@ function standardEncounterSize(floor) {
 
 export function calculateCandidateAward({ floor, kind, monsters = [], encounterSize = monsters.length } = {}) {
   if (!Number.isInteger(floor) || floor < 1 || floor > 30) throw new Error(`floor outside current biome range: ${floor}`);
-  const band = clamp(Math.floor((floor - 1) / 5), 0, 5);
+  // Production counts the band inside the dungeon (#2060), so it is always 0
+  // for the five floors a run can reach.
+  const band = clamp(Math.floor((((floor - 1) % 5)) / 5), 0, 5);
   const bandReward = 1 + 0.04 * band;
   let biomeMedianExp = null;
   let standardSize = null;

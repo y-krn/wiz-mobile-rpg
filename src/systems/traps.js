@@ -19,6 +19,7 @@ import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "../rules/trap_ef
 import { ensureRunFloor } from "../state/run_floor_state.js";
 import { collectNaturallyReachableKeys } from "../rules/traversal_gimmicks.js";
 import { trackTrapResolution } from "../telemetry.js";
+import { getDungeonFloor } from "../rules/dungeons.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "corrosion", "teleporter"];
 
@@ -107,7 +108,7 @@ export function getExpectedEffectText(trap) {
     case "alarm":
       return "警報";
     case "pitfall":
-      return `地下${state.floor + 1}階へ落下`;
+      return `地下${getDungeonFloor(state.floor + 1)}階へ落下`;
     default:
       return "不明な効果";
   }
@@ -124,7 +125,7 @@ export function getTrapConsequenceText(trap) {
     case "alarm":
       return "警報が鳴り、魔物が集まって手強くなる";
     case "pitfall":
-      return `地下${state.floor + 1}階へ落ちる`;
+      return `地下${getDungeonFloor(state.floor + 1)}階へ落ちる`;
     default:
       return "何が起こるか分からない";
   }

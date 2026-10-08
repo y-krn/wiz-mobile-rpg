@@ -294,7 +294,7 @@ const noNodes = createDefaultFacilitiesState();
 const rescuedOnly = withFeats(["foreman_rescue"]);
 assert.match(
   getFacilityNodeBlockReason("miner_outpost", { feats: rescuedOnly, facilities: noNodes, metaMaterials: plenty }),
-  /^先に偉業「坑道を抜ける」を達成する（B5Fに到達する）$/,
+  /^先に偉業「坑道を抜ける」を達成する（崩れた坑道のB5Fに到達する）$/,
   "the outpost names the feat it needs, with its progress"
 );
 const reached = withFeats(["foreman_rescue", "depth_5"]);
@@ -305,7 +305,7 @@ assert.equal(outpost.metaMaterials["獣の牙"], 16);
 
 assert.equal(
   getFacilityNodeBlockReason("miner_blast", { feats: reached, facilities: outpost.facilities, metaMaterials: plenty }),
-  "先に偉業「坑道の主を倒す」を達成する（B5Fの階層守護者を倒す）"
+  "先に偉業「坑道の主を倒す」を達成する（崩れた坑道の階層守護者を倒す）"
 );
 const guardianDown = withFeats(["foreman_rescue", "depth_5", "guardian_5"]);
 assert.equal(

@@ -348,8 +348,9 @@ if (grid[0][1].trap.state !== "discovered") {
   console.error("FAIL: adjacent trap should be discovered without a class permission.");
   process.exit(1);
 }
-if (calculateSuccessRate({ type: "damage" }) !== 52) {
-  console.error("FAIL: trapBonus should add 15 points to the B10 universal disarm rate.");
+// The tenth running floor is the fifth floor of its dungeon (#2060): 64 + 15.
+if (calculateSuccessRate({ type: "damage" }) !== 79) {
+  console.error("FAIL: trapBonus should add 15 points to the fifth-floor universal disarm rate.");
   process.exit(1);
 }
 console.log("- trapBonus investment raises disarm rate without detection coupling");

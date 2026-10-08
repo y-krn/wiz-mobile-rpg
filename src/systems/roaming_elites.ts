@@ -4,6 +4,7 @@ import { isTraversalObstacleBlocking } from "../rules/traversal_gimmicks.js";
 import { createRng } from "../seed_rng.js";
 import { ELITE_PERCEPTIONS } from "./elite_perception.js";
 import { getBandTrialForFloor, getFloorRole } from "../rules/floor_trials.js";
+import { getDungeonFloor } from "../rules/dungeons.js";
 import type { ElitePerception } from "./elite_perception.ts";
 
 type EliteCombatTrait = "berserk" | "armored" | "spell_eater" | "regenerator" | "executioner";
@@ -123,7 +124,7 @@ const DY = [-1, 0, 1, 0];
 const OPPOSITE_DIR = [2, 3, 0, 1];
 
 export function shouldSpawnElite(floor: number, runSeed: string): boolean {
-  if (!Number.isInteger(floor) || floor < ELITE_MIN_FLOOR || typeof runSeed !== "string" || !runSeed) {
+  if (!Number.isInteger(floor) || getDungeonFloor(floor) < ELITE_MIN_FLOOR || typeof runSeed !== "string" || !runSeed) {
     return false;
   }
   return createRng(`${runSeed}:elite-entry:B${floor}`)() < ELITE_ENTRY_SPAWN_CHANCE;
@@ -190,7 +191,7 @@ export function shouldSpawnEliteAfterExploration({ floor, runSeed, greedScore, c
   greedScore: unknown;
   checkIndex: unknown;
 }): boolean {
-  if (!Number.isInteger(floor) || floor < ELITE_MIN_FLOOR || typeof runSeed !== "string" || !runSeed) return false;
+  if (!Number.isInteger(floor) || getDungeonFloor(floor) < ELITE_MIN_FLOOR || typeof runSeed !== "string" || !runSeed) return false;
   const score = Math.max(0, Math.floor(Number(greedScore) || 0));
   const index = Math.max(1, Math.floor(Number(checkIndex) || 1));
   if (score < index * ELITE_PROLONGED_CHECK_SCORE) return false;
@@ -228,7 +229,7 @@ export function markEliteEntryRollResolved(stateLike: EliteStateLike & { current
 export function recordEliteGreedAction(stateLike: EliteStateLike, action: string, amount: unknown = 1, actionKey: string | null = null): boolean {
   const floor = stateLike?.floor;
   const currentRun = stateLike?.currentRun;
-  if (!Number.isInteger(floor) || floor < ELITE_MIN_FLOOR || !currentRun) return false;
+  if (!Number.isInteger(floor) || getDungeonFloor(floor) < ELITE_MIN_FLOOR || !currentRun) return false;
   const weight = ELITE_GREED_ACTION_WEIGHTS[action as keyof typeof ELITE_GREED_ACTION_WEIGHTS];
   if (!weight) return false;
   const floorState = getEliteFloorState(currentRun, floor);
@@ -289,7 +290,7 @@ export function createFloorElite({ runSeed, floor, mapData, spawnReason = "entry
   spawnOrigin?: ElitePosition | null;
   storedTrial?: EliteStoredTrial | null;
 }): EliteMonsterLike | null {
-  if (!Number.isInteger(floor) || floor < ELITE_MIN_FLOOR || !runSeed || !mapData?.grid) return null;
+  if (!Number.isInteger(floor) || getDungeonFloor(floor) < ELITE_MIN_FLOOR || !runSeed || !mapData?.grid) return null;
   if (spawnReason === "entry" && !shouldSpawnElite(floor, runSeed)) return null;
   if (spawnReason !== "entry" && spawnReason !== "prolonged") return null;
   const grid = mapData.grid;
@@ -327,7 +328,7 @@ export function progressEliteThreat(stateLike: EliteStateLike): { omens: string[
   const floor = stateLike?.floor;
   const currentRun = stateLike?.currentRun;
   const runSeed = currentRun?.runSeed;
-  if (!Number.isInteger(floor) || floor < ELITE_MIN_FLOOR || !runSeed) return { omens: [], spawned: null };
+  if (!Number.isInteger(floor) || getDungeonFloor(floor) < ELITE_MIN_FLOOR || !runSeed) return { omens: [], spawned: null };
   // Round-trip prototype (#2066): once the dungeon is awake the hunter is the
   // floor's threat, so lingering does not call a second one.
   if ((currentRun as { roundTrip?: { awake?: boolean } | null }).roundTrip?.awake) return { omens: [], spawned: null };

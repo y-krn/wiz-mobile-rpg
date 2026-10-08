@@ -17,17 +17,18 @@ const logs = applyPendingOutcomeRewards(stateLike, {
   floor: 5
 });
 
+// The next dungeon opens when the run comes home, so the line says so (#2060).
 // The forge seal has nothing behind it in the workshop yet, so the line
 // promises nothing there.
 assert.deepEqual(logs, [
-  "B5Fから冒険を始められるようになった。",
+  "生きて帰れば、忘れられた地下墓地への道が開く。",
   "鍛造殿の印を手に入れた。"
 ]);
 assert.equal(stateLike.map[0][0].event, null);
 assert.equal(stateLike.map[0][0].type, "stairs-down");
 assert.equal(stateLike.map[0][0].message, "階層守護者を倒した。階段への短絡路が開いた。");
 assert.deepEqual(stateLike.currentRun.defeatedMilestones, [5]);
-assert.deepEqual(stateLike.unlockedMilestones, [5]);
+assert.deepEqual(stateLike.unlockedMilestones, [], "the dungeon is cleared only when the run comes home");
 assert.deepEqual(stateLike.keyItems, ["FORGE_SEAL"]);
 assert.equal(stateLike.mapRevision, 1);
 
@@ -42,8 +43,8 @@ const deepState = {
   keyItems: ["FORGE_SEAL"],
   mapRevision: 0
 };
+// The dungeon after the catacomb is not open to anyone yet, so nothing is promised.
 assert.deepEqual(applyPendingOutcomeRewards(deepState, { kind: "milestoneVictory", floor: 10 }), [
-  "B10Fから冒険を始められるようになった。",
   "深淵の印を手に入れた。工房に「深淵の型」が並ぶようになった。"
 ]);
 

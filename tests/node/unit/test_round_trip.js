@@ -435,7 +435,8 @@ check("the last preparation remembers the rule, only for a start at the top", ()
   assert.equal(normalizeLastPreparation({ ...base, startFloor: 1, roundTrip: true }).roundTrip, true);
   const context = { workshop: { ranks: {} }, metaMaterials: {}, storage: {}, unlockedMilestones: [5], facilities: {} };
   assert.equal(resolveLastPreparation({ ...base, startFloor: 1, roundTrip: true }, context).roundTrip, true);
-  assert.equal(resolveLastPreparation({ ...base, startFloor: 5, roundTrip: true }, context).roundTrip, false);
+  // The prototype exists in the first dungeon only (#2060 keeps it there).
+  assert.equal(resolveLastPreparation({ ...base, startFloor: 6, roundTrip: true }, context).roundTrip, false);
 });
 
 if (failures > 0) {

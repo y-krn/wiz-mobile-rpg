@@ -1,3 +1,5 @@
+import { getDungeonFloor } from "./dungeons.js";
+
 export const FLOOR_DISARM_CALIBRATION = Object.freeze({
   // Exploration verbs are universal. Difficulty is supplied by the trap (or
   // by the floor fallback below); Build support is the only run-local bonus.
@@ -121,8 +123,10 @@ export function calculateChestOpenActionEv({
   };
 }
 
+// `floor` is the running floor number; difficulty follows the floor inside
+// the dungeon (#2060).
 function getDefaultFloorDifficulty(floor = 1) {
-  const depth = Math.max(1, Math.floor(Number(floor) || 1));
+  const depth = getDungeonFloor(floor);
   return FLOOR_DISARM_CALIBRATION.defaultDifficultyPerFloor +
     depth * FLOOR_DISARM_CALIBRATION.defaultDifficultyFloorScale;
 }

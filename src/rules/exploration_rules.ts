@@ -2,6 +2,8 @@
 // production-backed simulation. Build modifiers are supplied explicitly so
 // class, level, and raw character stats cannot become hidden permissions.
 
+import { getDungeonFloor } from "./dungeons.js";
+
 type SecretDoorSearchInput = {
   floor?: unknown;
   arcaneSense?: unknown;
@@ -32,7 +34,9 @@ function normalizeArcaneSense(arcaneSense: unknown): number {
  */
 export function calculateSecretDoorSearchChance(input: unknown = {}): number {
   const { floor = 1, arcaneSense = 0 } = input as SecretDoorSearchInput;
-  const depth = normalizeFloor(floor);
+  // `floor` is the running floor number; the penalty follows the floor
+  // inside the dungeon (#2060).
+  const depth = getDungeonFloor(normalizeFloor(floor));
   const senseModifier = normalizeArcaneSense(arcaneSense) / 100;
   const rawChance = SECRET_DOOR_SEARCH_CALIBRATION.universalBaseChance
     + senseModifier

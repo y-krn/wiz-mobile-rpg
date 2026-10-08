@@ -20,6 +20,7 @@ import { getCampRestStatus, restAtCamp } from "../../../src/systems/camp_rest.js
 import { generateRunFloor } from "../../../src/run_map_generator.js";
 import { scaleEnemyForDepth } from "../../../src/rules/depth_scaling.js";
 import { getBandTrialForFloor } from "../../../src/rules/floor_trials.js";
+import { getDungeonFloor } from "../../../src/rules/dungeons.js";
 import { generateEncounter } from "../../../src/combat_ui/encounter.js";
 
 const FAST = process.env.FAST === "1";
@@ -160,6 +161,11 @@ check("the elite matches the biome roster and exists in the monster table", () =
   for (let floor = ELITE_MIN_FLOOR; floor <= 32; floor++) {
     const generated = generateRunFloor({ runSeed: "ELITE-BIOME", floor });
     const elite = createFloorElite({ runSeed: "ELITE-BIOME", floor, mapData: generated, spawnReason: "prolonged" });
+    // Strong enemies roam from the third floor of every dungeon (#2060).
+    if (getDungeonFloor(floor) < ELITE_MIN_FLOOR) {
+      assert.equal(elite, null, `floor ${floor} is above the third floor of its dungeon`);
+      continue;
+    }
     const biome = getBiomeForFloor(floor);
     assert.equal(elite.name, biome.eliteName, `B${floor}F elite must come from its biome`);
     assert.ok(MONSTERS.some(monster => monster.name === elite.name),
@@ -167,9 +173,15 @@ check("the elite matches the biome roster and exists in the monster table", () =
   }
 });
 
-check("roaming elite effective HP and ATK rise without biome-boundary spikes", () => {
+// Each dungeon is entered by a fresh adventurer (#2060), so strength restarts
+// with the dungeon and is compared only inside it.
+check("roaming elite effective HP and ATK rise smoothly inside each dungeon", () => {
   let previous = null;
   for (let floor = ELITE_MIN_FLOOR; floor <= 30; floor++) {
+    if (getDungeonFloor(floor) < ELITE_MIN_FLOOR) {
+      previous = null;
+      continue;
+    }
     const eliteName = getBiomeForFloor(floor).eliteName;
     const template = MONSTERS.find(monster => monster.name === eliteName);
     const scaled = scaleEnemyForDepth(template, floor);

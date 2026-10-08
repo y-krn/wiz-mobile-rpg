@@ -44,7 +44,9 @@ function run() {
       assert.equal(encounterBoss.atk, template.atk);
       assert.deepEqual(
         { hp: encounterBoss.hp, maxHp: encounterBoss.maxHp, atk: encounterBoss.atk, def: encounterBoss.def },
-        { hp: 640, maxHp: 640, atk: 26, def: 25 }
+        // DEF follows the fifth floor of its dungeon, not the thirtieth
+        // floor of one long descent (#2060).
+        { hp: 640, maxHp: 640, atk: 26, def: 17 }
       );
     } else {
       for (const stat of ["hp", "maxHp", "atk"]) {

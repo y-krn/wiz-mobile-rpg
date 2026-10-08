@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { FullMapOverlayView } from "./full_map_overlay_view.js";
+import { formatFloorCode } from "../rules/dungeons.js";
 
 // Full-screen floor map opened from the explore minimap (#1833).
 // Pinch/drag/wheel and the +/- buttons change a CSS transform on one
@@ -179,7 +180,7 @@ function renderMap() {
   drawFullMap(ctx, model, { cellSize: CELL_SIZE, padding: PADDING });
 
   renderOverlay(isOpen, {
-    title: `B${renderInput.floor}F 全体地図`,
+    title: `${formatFloorCode(renderInput.floor)} 全体地図`,
     markerKinds: [...new Set(model.markers.map((marker) => marker.kind))].sort(),
   });
   view = initial.view;

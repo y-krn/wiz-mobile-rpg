@@ -16386,7 +16386,12 @@ function finishRun(state, outcome, metrics, terminationReason = null, terminatio
       total + character.exp - (metrics.initialCharacterExp[index] ?? character.exp), 0),
     workshopEffects: state.workshopEffects,
     keyItems: [...state.keyItems],
-    unlockedMilestones: [...state.unlockedMilestones],
+    // Production saves a cleared dungeon when the run comes home (#2060), so
+    // the guardians this run beat are read from the run itself.
+    unlockedMilestones: [...new Set([
+      ...state.unlockedMilestones,
+      ...(state.currentRun?.defeatedMilestones || [])
+    ])].sort((a, b) => a - b),
     elitePolicy: metrics.elitePolicy,
     elitePolicyValidation: metrics.elitePolicyValidation,
     eliteOpportunities: metrics.eliteOpportunities,

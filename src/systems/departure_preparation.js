@@ -24,6 +24,7 @@ import { isMedium, syncMediumState } from "../rules/magic_rules.js";
 import { getVNextTrialBaseId } from "../rules/equipment_vnext_trial.js";
 import { INVENTORY_CAPACITY } from "../rules/item_inventory.js";
 import { normalizeLastPreparation } from "../state/last_preparation.js";
+import { getDungeonForFloor, getOpenEntryFloors } from "../rules/dungeons.js";
 import { getUnlockedStartingKitIds } from "./facilities.js";
 
 export const DEPARTURE_BAG_CAPACITY = INVENTORY_CAPACITY;
@@ -173,10 +174,11 @@ export function resolveLastPreparation(lastPreparation, {
     }
   }
 
-  const floors = [1, ...(Array.isArray(unlockedMilestones) ? unlockedMilestones : [])];
+  // The dungeons open right now, as the running number of their first floor.
+  const floors = getOpenEntryFloors(unlockedMilestones);
   let startFloor = last.startFloor;
   if (!floors.includes(startFloor)) {
-    dropped.push({ kind: "floor", floor: last.startFloor, reason: "未解放" });
+    dropped.push({ kind: "floor", floor: last.startFloor, reason: "今は入れない" });
     startFloor = floors.length === 1 ? floors[0] : null;
   }
 
@@ -215,7 +217,7 @@ export function describeDroppedPreparation(dropped) {
     if (entry.kind === "gear") {
       lines.push(`開始武器の差し替え「${getStartingGearName(entry.itemId)}」（${entry.reason}）`);
     } else if (entry.kind === "floor") {
-      lines.push(`B${entry.floor}Fからの開始（${entry.reason}）`);
+      lines.push(`行き先「${getDungeonForFloor(entry.floor).name}」（${entry.reason}）`);
     } else if (entry.kind === "item") {
       const key = `${entry.itemId}\u0000${entry.reason}`;
       itemGroups.set(key, (itemGroups.get(key) || 0) + 1);

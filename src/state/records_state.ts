@@ -389,9 +389,9 @@ export function finalizeRunRecords(
   if (depth >= 10) stats.reachedB10++;
   stats.floorDistribution[getFloorBucket(depth)]++;
 
-  if (depth >= 5) addFirstAchievement(next, "first_b5_reached", "初めてB5Fへ到達", runNumber, depth, updates, milestones);
-  if (depth > 5) addFirstAchievement(next, "first_b5_broken", "初めてB5Fを突破", runNumber, depth, updates, milestones);
-  if (depth >= 10) addFirstAchievement(next, "first_b10_reached", "初めてB10Fへ到達", runNumber, depth, updates, milestones);
+  if (depth >= 5) addFirstAchievement(next, "first_b5_reached", "初めて坑道のB5Fへ到達", runNumber, depth, updates, milestones);
+  if (depth > 5) addFirstAchievement(next, "first_b5_broken", "初めて地下墓地に入った", runNumber, depth, updates, milestones);
+  if (depth >= 10) addFirstAchievement(next, "first_b10_reached", "初めて地下墓地のB5Fへ到達", runNumber, depth, updates, milestones);
   updateDeathCause(next, run);
 
   next.totalRuns = runNumber;

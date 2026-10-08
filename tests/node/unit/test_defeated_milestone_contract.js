@@ -79,6 +79,11 @@ const recordState = { currentRun: { defeatedMilestones: [] }, unlockedMilestones
 assert.deepEqual(recordMilestoneVictory(recordState, 10), { ok: true, unlocked: true });
 assert.deepEqual(recordState.currentRun.defeatedMilestones, [10],
   "recordMilestoneVictory keeps canonical runtime behavior");
+// The saved list is written when the run comes home (#2060), so a second
+// victory in the same run still reports a dungeon that is not cleared yet.
+assert.deepEqual(recordMilestoneVictory(recordState, 10), { ok: true, unlocked: true });
+assert.deepEqual(recordState.unlockedMilestones, []);
+recordState.unlockedMilestones = [10];
 assert.deepEqual(recordMilestoneVictory(recordState, 10), { ok: true, unlocked: false });
 
 console.log("[PASS] #1486 canonical defeated-milestone type, guard, normalization, migration, and gameplay preservation verified.");
