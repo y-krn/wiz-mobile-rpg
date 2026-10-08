@@ -181,12 +181,12 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
   await page.locator('#btn-submenu-back').click();
   await expectSingleDock('explore-controls');
 
-  // Prepare a reachable B5F portal target; the portal and every subsequent gate
-  // are still opened and confirmed through the rendered UI.
+  // Walk out (#2062): stand next to the first floor's up stairs, step onto
+  // them, and leave through the rendered menu. There is no Portal.
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
-    const map = structuredClone(state.maps[0]);
+    const map = state.map;
     const directions = [
       { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 },
     ];
@@ -197,50 +197,38 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
           const { dx, dy } = directions[dir];
           const cell = map[y][x];
           const target = map[y + dy]?.[x + dx];
-          if (cell.type === 'empty' && target?.type === 'empty' &&
-              !cell.walls[dir] && !target.blockEnter[(dir + 2) % 4]) {
-            source = { x, y, dir, targetX: x + dx, targetY: y + dy };
+          if (cell.type === 'empty' && !cell.event && target?.type === 'stairs-up' &&
+              !cell.walls[dir] && !target.blockEnter?.[(dir + 2) % 4]) {
+            source = { x, y, dir };
             break;
           }
         }
       }
     }
-    if (!source) throw new Error('No passable portal direction in the generated map');
-    map[source.targetY][source.targetX] = {
-      ...map[source.targetY][source.targetX],
-      event: 'return_portal',
-      milestoneFloor: 5,
-      trap: null,
-    };
-    map[source.y][source.x] = { ...map[source.y][source.x], event: null, trap: null };
-    state.maps[4] = map;
-    state.visitedMaps[4] = map.map(row => row.map(() => false));
-    state.floor = 5;
+    if (!source) throw new Error('No cell next to the up stairs in the generated map');
+    map[source.y][source.x] = { ...map[source.y][source.x], trap: null };
     state.x = source.x;
     state.y = source.y;
     state.dir = source.dir;
-    state.currentRun.deepestFloor = 5;
-    state.currentRun.defeatedMilestones = [5];
+    state.repelTurns = 999;
     state.currentRun.unbankedObjectLoot ||= [];
     updateUI();
   });
   await exploreMove(page, 'forward');
   await expect(page.locator('#submenu-controls')).toBeVisible();
-  await expect(page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button')).toBeVisible();
+  await expect(page.locator('[data-stairs-up="surface"]')).toBeVisible();
   await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { isControlsGuarded } = await import('/src/controls_guard.js');
     return !state.transitioning && !isControlsGuarded();
   })).toBe(true);
-  expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'milestone_portal' });
+  expect(await screen()).toMatchObject({ gameState: 'submenu', menu: 'stairs_up' });
   expect((await screen()).visibleDocks).toEqual(['submenu-controls']);
 
-  // Portal Return -> Result -> Town -> Preparation remains one UI-operated chain.
-  await page.locator('.milestone-portal-choice-card[data-portal-decision="return"] button').click();
-  await expect(page.locator('.milestone-portal-confirmation')).toBeVisible();
-  await page.locator('#btn-portal-confirm').click();
+  // Walk out -> Result -> Town -> Preparation remains one UI-operated chain.
+  await page.locator('[data-stairs-up="surface"]').click();
   await expect(page.locator('#result-overlay')).toBeVisible();
-  expect(await screen()).toMatchObject({ gameState: 'result', returnReason: 'milestone_portal' });
+  expect(await screen()).toMatchObject({ gameState: 'result', returnReason: 'surface' });
   await page.locator('#btn-result-castle').click();
   await expectSingleDock('town-controls');
   expect(await screen()).toMatchObject({ gameState: 'town' });
