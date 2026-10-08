@@ -335,6 +335,10 @@ const roomChoice = buttons => {
   if (supply) return supply;
   const rest = find(/休む/); if (rest && share < 0.8) return rest;
   const grave = safe.find(t => /墓標に祈る/.test(t) && !/何も残っていない/.test(t)); if (grave) return grave;
+  // The catacomb's altar can lift one known curse (#2063): worn pieces are
+  // listed first, and lifting one keeps the better grade without its price.
+  const uncurse = find(/の呪いを解く（素材(\d+)個）/);
+  if (uncurse && materialCount() >= Number(/素材(\d+)個/.exec(uncurse)?.[1] || 0)) return uncurse;
   if (p.status && p.status !== 'ok') { const cleanse = find(/浄めを願う/); if (cleanse) return cleanse; }
   const improve = find(/鍛え直す|繕う/);
   if (improve) { const cost = Number(/素材(\d+)個/.exec(improve)?.[1] || 0); if (materialCount() >= cost * 2) return improve; }
@@ -467,13 +471,16 @@ const weighRows = (rows, char) => {
 };
 // A fighter does not trade the sword for a wand, nor a caster the wand for a
 // sword: the swap changes what the adventurer can do, which the numbers miss.
+const CURSE_LOCK_PENALTY = 4;
 const changesFightingStyle = (char, it) => itemType(it) === 'weapon' && Boolean(char?.equipment?.weapon) && isMedium(it) !== isCaster(char);
 const scoreEquip = (char, it) => {
   // A shield cannot go on next to a two-handed weapon (the loadout refuses it),
   // so it is no upgrade until the weapon changes.
   if (itemType(it) === 'shield' && HANDS.getEquipmentHands(char.equipment?.weapon) === 2) return null;
-  // A known curse locks the slot; a player does not put it on for stats.
-  if (it && typeof it === 'object' && it.identified && it.curseEffectId) return null;
+  // A known curse locks the slot, so it goes on only when clearly better: its
+  // stats (the preview counts the curse's good and bad part) must beat the
+  // slot by a margin that stands for being stuck with it (#2063).
+  const knownCurse = Boolean(it && typeof it === 'object' && it.identified && it.curseEffectId);
   if (changesFightingStyle(char, it)) return null;
   const preview = PREVIEW.getEquipmentPreview(char, it, null, { floor: st().floor });
   if (!preview) return null;
@@ -492,6 +499,7 @@ const scoreEquip = (char, it) => {
   // Relative to what the slot holds now, so two Core items do not flip-flop.
   const current = preview.slot ? char.equipment?.[preview.slot] : null;
   score += extras(it) - extras(current);
+  if (knownCurse) score -= CURSE_LOCK_PENALTY;
   return Math.round(score * 10) / 10;
 };
 // Policies: 'none' (never touch gear), 'greedy' (identify with powder when

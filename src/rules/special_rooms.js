@@ -14,6 +14,7 @@
 // permanent stat.
 
 import { DX, DY } from "../constants/directions.js";
+import { isCurseLocked } from "./identification_rules.js";
 
 export const SPECIAL_ROOM_EVENT = "special_room";
 
@@ -95,6 +96,21 @@ export const COPY_TURNS = 3;
 export const COPY_FRAGMENTS = 1;
 // Altar: a cleanse costs materials; the blood blessing converts HP into MP.
 export const ALTAR_CLEANSE_MATERIAL_COST = 2;
+// The catacomb's rule (#2063): the altar can also lift one curse, from a piece
+// worn or carried that is known to be cursed. It is one of the altar's single
+// answers, so the chances to cleanse stay few.
+export const ALTAR_UNCURSE_MATERIAL_COST = 4;
+
+/** Known-cursed pieces the altar can cleanse: worn ones first, then the bag. */
+export function getAltarCursedItems(hero, inventory = []) {
+  const worn = Object.entries(hero?.equipment || {})
+    .filter(([, item]) => isCurseLocked(item))
+    .map(([slot, item]) => ({ slot, item }));
+  const carried = (Array.isArray(inventory) ? inventory : [])
+    .map((item, index) => ({ index, item }))
+    .filter(({ item }) => isCurseLocked(item));
+  return [...worn, ...carried];
+}
 export const ALTAR_BLOOD_HP_RATE = 0.25;
 // Reading room: studying the floor plan takes a couple of turns.
 export const READING_TURNS = 2;

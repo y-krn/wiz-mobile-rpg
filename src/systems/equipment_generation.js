@@ -23,7 +23,7 @@ import {
   isVNextTrialSupport
 } from "../rules/equipment_vnext_trial.js";
 import { BUILD_VNEXT_SUPPLY, applyBuildVNextSupply } from "../rules/build_vnext_supply.js";
-import { getDungeonFloor } from "../rules/dungeons.js";
+import { getDungeonCurseRule, getDungeonFloor } from "../rules/dungeons.js";
 import { getCoreIdsForFamilies } from "../rules/core_families.js";
 
 // Supports that pay out in materials/quests/identification rather than in a
@@ -239,6 +239,18 @@ export function buildUnidentifiedMeta(
   };
 }
 
+const RARITY_STEP_UP = Object.freeze({ magic: "rare", rare: "epic", epic: "epic" });
+
+// The catacomb's curse rule (#2063): the curse is decided as soon as the grade
+// is, so a cursed find can be one grade better. Elsewhere the curse is still
+// rolled after the affixes, as before.
+function rollRuleCurse(runFloor, rarity, forceRarity, rng) {
+  const rule = getDungeonCurseRule(runFloor);
+  if (!rule) return { rule: null, cursed: false, rarity };
+  const cursed = rng() < rule.curseChance;
+  return { rule, cursed, rarity: cursed && !forceRarity ? RARITY_STEP_UP[rarity] || rarity : rarity };
+}
+
 // `runFloor` is the running floor number; supply reads the floor inside the
 // dungeon, so every dungeon hands out the same kinds on the same floor (#2060).
 export function generateRandomEquipment(runFloor, options) {
@@ -278,6 +290,8 @@ export function generateRandomEquipment(runFloor, options) {
     else if (roll < rareChance) rarity = "rare";
     else rarity = "magic";
   }
+  const ruleCurse = rollRuleCurse(runFloor, rarity, forceRarity, rng);
+  rarity = ruleCurse.rarity;
 
   // Every Support can appear from the first floor (#2061); the floor raises
   // grade and the affix budget, never which kinds exist.
@@ -438,7 +452,7 @@ export function generateRandomEquipment(runFloor, options) {
     IDENTIFICATION_BALANCE.maxCurseChance,
     gambleProfile.curseChance + (hasCoreAffix ? IDENTIFICATION_BALANCE.coreCurseBonus : 0)
   );
-  if (isKatanaOrSealed || rollCurse < curseChance) {
+  if (isKatanaOrSealed || (ruleCurse.rule ? ruleCurse.cursed : rollCurse < curseChance)) {
     curseEffectId = pickCurseEffectId(rng, gambleProfile.heavyCurseShare);
     if (!tags.includes("curse")) tags.push("curse");
     CURSE_EFFECTS[curseEffectId].tags.forEach(t => {
@@ -530,6 +544,8 @@ export function generateRandomAccessory(runFloor, options) {
     if (roll < epicChance) rarity = "epic";
     else if (roll < rareChance) rarity = "rare";
   }
+  const ruleCurse = rollRuleCurse(runFloor, rarity, forceRarity, rng);
+  rarity = ruleCurse.rarity;
 
   const accessoryAffixPool = [
     { type: "hp", getVal: () => getSupportValueByRarity("hp", rarity), weight: 4 },
@@ -599,7 +615,8 @@ export function generateRandomAccessory(runFloor, options) {
     IDENTIFICATION_BALANCE.maxCurseChance,
     gambleProfile.curseChance + (hasCoreAffix ? IDENTIFICATION_BALANCE.coreCurseBonus : 0)
   );
-  if (rng() < curseChance) {
+  const accessoryCurseRoll = rng();
+  if (ruleCurse.rule ? ruleCurse.cursed : accessoryCurseRoll < curseChance) {
     curseEffectId = pickCurseEffectId(rng, gambleProfile.heavyCurseShare);
     if (!tags.includes("curse")) tags.push("curse");
     CURSE_EFFECTS[curseEffectId].tags.forEach(tag => {

@@ -21,8 +21,10 @@ import { CHAPEL_OFFERING_LIMIT, KEEPER_ROOM_FACILITY } from "../data/facilities.
 import { isFacilityNodeBought } from "../systems/facilities.js";
 import { normalizeCompanions, normalizeFacilitiesState } from "../state/facilities_state.js";
 import { ITEMS } from "../data/items.js";
+import { purifyEquipmentCurse } from "../systems/identification.js";
 import {
   ALTAR_CLEANSE_MATERIAL_COST,
+  ALTAR_UNCURSE_MATERIAL_COST,
   COPY_FRAGMENTS,
   COPY_TURNS,
   HAMMOCK_REST_TURNS,
@@ -48,6 +50,7 @@ import {
   clearFloorRubble,
   describeDirection,
   getAltarBloodCost,
+  getAltarCursedItems,
   getArmorMendAmount,
   getHammockRestAmount,
   getForgeTemperAmount,
@@ -181,6 +184,19 @@ function addAltarOptions(optGrid, cell) {
     finishRoom(cell);
     closeSubmenu();
   }, { disabled: !hero || statuses.length === 0 || materials < ALTAR_CLEANSE_MATERIAL_COST });
+  // The catacomb's rule (#2063): the altar can lift one known curse instead.
+  getAltarCursedItems(hero, state.inventory).forEach(({ item }) => {
+    const name = getItemData(item).name;
+    addButton(optGrid, `${name}の呪いを解く（素材${ALTAR_UNCURSE_MATERIAL_COST}個）`, () => {
+      const paid = payRunMaterials(ALTAR_UNCURSE_MATERIAL_COST);
+      if (!paid) return;
+      purifyEquipmentCurse(item);
+      playSound("heal");
+      addLog(`祭壇に${paid}を捧げた。${name}から呪いが抜けた。`);
+      finishRoom(cell);
+      closeSubmenu();
+    }, { disabled: materials < ALTAR_UNCURSE_MATERIAL_COST });
+  });
   addButton(optGrid, `血の祝福を受ける（HP${bloodCost}）`, () => {
     hero.hp -= bloodCost;
     hero.mp = maxMp;
@@ -193,7 +209,7 @@ function addAltarOptions(optGrid, cell) {
 }
 
 function renderAltar(optGrid, cell) {
-  addDescription(optGrid, "浄めは体を蝕むものを消し、血の祝福はMPを満たす。祭壇が応えるのは一度きり。");
+  addDescription(optGrid, "浄めは体を蝕むものを消し、血の祝福はMPを満たす。呪いと分かった装備なら、その呪いも解ける。祭壇が応えるのは一度きり。");
   addAltarOptions(optGrid, cell);
 }
 
