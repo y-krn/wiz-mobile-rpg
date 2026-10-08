@@ -75,7 +75,8 @@ const {
 const { SPELL_EFFECTS } = await import("../../src/systems/spell_effects.js");
 const {
   generateRunFloor: generateRunFloorSource,
-  floorHasCampEvent
+  floorHasCampEvent,
+  placeLegacyMilestonePortal
 } = await import("../../src/run_map_generator.js");
 const { isMilestoneFloor } = await import("../../src/run_map_generator.js");
 const { createFloorElite } = await import("../../src/systems/roaming_elites.js");
@@ -123,7 +124,12 @@ function generateRunFloor({ runSeed, floor, ...options }) {
     mapGenerationStats.calls++;
     mapGenerationStats.keys.add(`${runSeed}:${floor}`);
   }
-  return generateRunFloorSource({ runSeed, floor, ...options });
+  const generated = generateRunFloorSource({ runSeed, floor, ...options });
+  // The game has no Portal since #2062. This simulator still models a run
+  // that keeps descending and leaves by the Portal behind a guardian, so it
+  // puts that Portal back where it used to be, until #2074 rebuilds it.
+  if (generated?.grid) placeLegacyMilestonePortal(generated.grid, floor);
+  return generated;
 }
 
 function cloneGeneratedFloorForSimulation(generated) {

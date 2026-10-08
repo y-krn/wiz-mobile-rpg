@@ -151,7 +151,7 @@ const victoryLog = winBroodFight(victoryCell);
 assert.deepEqual(state.currentRun.companions, ["weaver"]);
 assert.equal(victoryCell.specialRoom.used, true);
 assert.ok(victoryLog.some(line => line.includes("織り手が這い出してきた")));
-assert.ok(victoryLog.some(line => line === "織り手が同行する。帰還の門か帰還の翼で生還すれば、街に織り場が開く。"));
+assert.ok(victoryLog.some(line => line === "織り手が同行する。連れて歩いて地上へ出れば、街に織り場が開く。帰還の翼では連れて帰れない。"));
 assert.ok(victoryLog.includes("卵室の荷を検める。"), "the brood keeper's hoard is still paid");
 const ordinaryCell = makeGrid(SPECIAL_ROOMS.BROOD_CHAMBER)[0][1];
 ordinaryCell.specialRoom.used = true;

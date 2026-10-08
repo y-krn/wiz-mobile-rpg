@@ -12,8 +12,6 @@ export interface LastPreparation {
   startingGear: string | null;
   recipeIds: string[];
   startFloor: number;
-  /** The round-trip prototype rule was chosen (#2066). */
-  roundTrip: boolean;
 }
 
 export type NormalizedLastPreparation = LastPreparation | null;
@@ -41,8 +39,7 @@ export function isNormalizedLastPreparation(value: unknown): value is Normalized
     Array.isArray(value.recipeIds) &&
     value.recipeIds.length <= LAST_PREPARATION_RECIPE_LIMIT &&
     value.recipeIds.every(recipeId => typeof recipeId === "string" && recipeId.length > 0) &&
-    isStartFloor(value.startFloor) &&
-    typeof value.roundTrip === "boolean";
+    isStartFloor(value.startFloor);
 }
 
 /**
@@ -60,7 +57,6 @@ export function normalizeLastPreparation(value: unknown): NormalizedLastPreparat
       ? value.startingGear
       : null,
     recipeIds,
-    startFloor: isStartFloor(value.startFloor) ? value.startFloor : 1,
-    roundTrip: value.roundTrip === true
+    startFloor: isStartFloor(value.startFloor) ? value.startFloor : 1
   };
 }

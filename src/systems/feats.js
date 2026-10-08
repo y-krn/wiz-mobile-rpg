@@ -52,10 +52,15 @@ export function addRunToFeatCounters(counters, run, outcome = null) {
   next.chestsOpened += count(run.chestsOpened);
   if (outcome === "retreat") {
     next.safeReturns += 1;
-    // A companion is rescued only by walking out: the Portal or the Wing.
-    normalizeCompanions(run.companions).forEach(companionId => {
-      next[COMPANIONS[companionId].counterKey] = 1;
-    });
+    // A keeper is rescued only by walking out (#2062): the Wing carries one
+    // person, and the keeper waits in the dungeon for the next run. A run
+    // saved before every run became a round trip keeps the old rule.
+    const walkedOut = !run.roundTrip || run.returnReason === "surface";
+    if (walkedOut) {
+      normalizeCompanions(run.companions).forEach(companionId => {
+        next[COMPANIONS[companionId].counterKey] = 1;
+      });
+    }
   }
   // Starting from a milestone floor would hand these out for free, so only
   // descents from B1F count.

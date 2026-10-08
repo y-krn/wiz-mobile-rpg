@@ -1,22 +1,24 @@
 import { test, expect } from './fixtures/browser-health.js';
 
-// Round-trip prototype (#2066): an opt-in rule where the dungeon is five
-// floors, there is no Portal at the bottom, and the way home is back up the
-// stairs. Turning back wakes the dungeon and a hunter follows from below.
+// Every run is a round trip (#2066, #2062): the dungeon is five floors, there
+// is no Portal at the bottom, and the way home is back up the stairs.
+// Turning back wakes the dungeon and a hunter follows from below.
 
-async function startRun(page, { roundTrip }) {
+async function startRun(page, { dungeon = 'collapsed_mine', setup = null } = {}) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?renderer=pixi');
+  if (setup) await page.evaluate(setup);
   await page.locator('#btn-town-dungeon').click();
   await page.getByRole('button', { name: /鋼の前線キット/ }).first().click();
   await page.locator('#btn-kit-confirm').click();
-  const rule = page.locator('.solo-start-rule-option');
-  await expect(rule).toHaveAttribute('aria-pressed', 'false');
-  if (roundTrip) {
-    await rule.click();
-    await expect(page.locator('.solo-start-rule-option')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.solo-start-rule-option')).toContainText('往復の試作：使う');
-    await expect(page.locator('.solo-preparation-round-trip')).toContainText('往復の試作');
+  // There is no rule to choose.
+  await expect(page.locator('.solo-start-rule-option')).toHaveCount(0);
+  const destination = page.locator(`button.solo-start-floor-option[data-dungeon="${dungeon}"]`);
+  if ((await destination.getAttribute('aria-pressed')) !== 'true') {
+    await expect(async () => {
+      await page.locator(`button.solo-start-floor-option[data-dungeon="${dungeon}"]`).click({ timeout: 1000 });
+      await expect(page.locator(`button.solo-start-floor-option[data-dungeon="${dungeon}"]`)).toHaveAttribute('aria-pressed', 'true', { timeout: 1000 });
+    }).toPass();
   }
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
   await expect(page.locator('#explore-controls')).toBeVisible();
@@ -78,25 +80,18 @@ async function passActions(page, count) {
   }, count);
 }
 
-test('An ordinary run still has one-way stairs and no round-trip state', async ({ page }) => {
-  await startRun(page, { roundTrip: false });
+test('Every run is a round trip: the first floor\'s up stairs lead out', async ({ page }) => {
+  await startRun(page);
+  expect(await logText(page)).toContain('帰還の門は無い');
+  const roundTrip = await page.evaluate(async () => (await import('/src/state.js')).state.currentRun.roundTrip);
+  expect(roundTrip).toMatchObject({ treasure: false, awake: false });
   await standOn(page, 'stairs-up');
-  const result = await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    return {
-      roundTrip: state.currentRun.roundTrip,
-      gameState: state.gameState,
-      lastLog: state.logs.at(-1),
-    };
-  });
-  expect(result.roundTrip).toBeNull();
-  expect(result.gameState).toBe('explore');
-  expect(JSON.stringify(result.lastLog)).toContain('上り階段は崩れ');
+  await expect(page.locator('#submenu-title')).toHaveText('地上への上り階段');
+  await expect(page.locator('[data-stairs-up="surface"]')).toHaveText('地上へ出て冒険を終える');
 });
 
-test('A round-trip run climbs back to the floor it left, is hunted, and walks out at the top', async ({ page }) => {
-  await startRun(page, { roundTrip: true });
-  expect(await logText(page)).toContain('往復の試作');
+test('A run climbs back to the floor it left, is hunted, and walks out at the top', async ({ page }) => {
+  await startRun(page);
 
   // Leave a mark on the first floor, go down, and come back up.
   const before = await page.evaluate(async () => {
@@ -197,7 +192,7 @@ test('A round-trip run climbs back to the floor it left, is hunted, and walks ou
 });
 
 test('The way back shows how far behind the hunter is, from before it appears until it is right behind', async ({ page }) => {
-  await startRun(page, { roundTrip: true });
+  await startRun(page);
   await expect(page.locator('.hud-hunter')).toHaveCount(0);
   await goToFloor(page, 2, 'down');
   await goToFloor(page, 1, 'up');
@@ -250,16 +245,32 @@ test('The way back shows how far behind the hunter is, from before it appears un
   await expect(chip).toContainText('こちらへ来られない');
 });
 
-test('The bottom floor gives the treasure, closes the way down and silences the Portal', async ({ page }) => {
-  await startRun(page, { roundTrip: true });
+test('The bottom floor gives the treasure, closes the way down, and has no Portal', async ({ page }) => {
+  await startRun(page);
   await goToFloor(page, 5, 'down');
+  const bottom = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const events = state.map.flat().map(cell => cell.event).filter(Boolean);
+    return { portal: events.includes('return_portal'), boss: events.includes('boss'), merchant: events.includes('event_merchant') };
+  });
+  expect(bottom).toEqual({ portal: false, boss: true, merchant: true });
 
   const taken = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { applyPendingOutcomeRewards } = await import('/src/combat_ui/outcome_rewards.js');
+    const y = state.map.findIndex(row => row.some(cell => cell.event === 'boss'));
+    state.y = y;
+    state.x = state.map[y].findIndex(cell => cell.event === 'boss');
     const lines = applyPendingOutcomeRewards(state, { kind: 'milestoneVictory', floor: 5 });
-    return { lines, roundTrip: state.currentRun.roundTrip, defeated: state.currentRun.defeatedMilestones };
+    return {
+      lines,
+      roundTrip: state.currentRun.roundTrip,
+      defeated: state.currentRun.defeatedMilestones,
+      // Nothing lies below: the guardian's cell does not become a way down.
+      guardianCell: state.map[state.y][state.x].type
+    };
   });
+  expect(taken.guardianCell).not.toBe('stairs-down');
   expect(taken.lines.join(' ')).toContain('迷宮の至宝を手に入れた');
   expect(taken.roundTrip.treasure).toBe(true);
   expect(taken.roundTrip.awake).toBe(true);
@@ -274,18 +285,6 @@ test('The bottom floor gives the treasure, closes the way down and silences the 
     expect(await page.evaluate(async () => (await import('/src/state.js')).state.gameState)).toBe('explore');
   }).toPass();
 
-  const portal = await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { checkCellEvents } = await import('/src/movement.js');
-    const y = state.map.findIndex(row => row.some(cell => cell.event === 'return_portal'));
-    state.y = y;
-    state.x = state.map[y].findIndex(cell => cell.event === 'return_portal');
-    checkCellEvents();
-    return { gameState: state.gameState, lastLog: JSON.stringify(state.logs.at(-1)) };
-  });
-  expect(portal.gameState).toBe('explore');
-  expect(portal.lastLog).toContain('帰還の門は沈黙している');
-
   // This test jumped straight to the bottom; a real run has the floors above.
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -295,4 +294,53 @@ test('The bottom floor gives the treasure, closes the way down and silences the 
   expect(await logText(page)).not.toContain('undefined');
   const goal = await page.evaluate(async () => (await import('/src/ui/ui_root.js')).getCurrentGoal());
   expect(goal).toBe('至宝を持って地下3階へ戻る');
+});
+
+test('In the second dungeon the first floor\'s up stairs lead out too', async ({ page }) => {
+  await startRun(page, {
+    dungeon: 'forgotten_catacomb',
+    setup: async () => {
+      const { state } = await import('/src/state.js');
+      state.unlockedMilestones = [5];
+    }
+  });
+  expect(await page.evaluate(async () => (await import('/src/state.js')).state.floor)).toBe(6);
+  await standOn(page, 'stairs-up');
+  await expect(page.locator('#submenu-title')).toHaveText('地上への上り階段');
+  await expect(async () => {
+    await page.locator('[data-stairs-up="surface"]').click({ timeout: 1000 });
+    await expect(page.locator('#result-overlay')).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  expect(await page.evaluate(async () => (await import('/src/state.js')).state.runHistory[0].returnReason)).toBe('surface');
+});
+
+test('A Wing carries one person: the treasure and a keeper stay in the dungeon', async ({ page }) => {
+  await startRun(page);
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    state.currentRun.roundTrip.treasure = true;
+    state.currentRun.defeatedMilestones = [5];
+    state.currentRun.companions = ['foreman'];
+    state.inventory.push('TOWN_PORTAL');
+  });
+  const confirmation = page.evaluate(async () => {
+    const { confirmReturnWing } = await import('/src/ui/return_wing_confirmation.js');
+    return confirmReturnWing();
+  });
+  await expect(page.locator('.confirm-dialog-message')).toContainText('翼が運ぶのはひとりだけ');
+  await expect(page.locator('.confirm-dialog-message')).toContainText('至宝と');
+  await page.keyboard.press('Escape');
+  await confirmation.catch(() => null);
+  const after = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { triggerRunResult } = await import('/src/result.js');
+    triggerRunResult('escape_scroll');
+    return {
+      cleared: [...state.unlockedMilestones],
+      foreman: state.feats?.counters?.foremanRescued || 0,
+      treasure: state.currentRun?.roundTrip?.treasure ?? state.runHistory[0]?.roundTrip?.treasure ?? null
+    };
+  });
+  expect(after.cleared).toEqual([]);
+  expect(after.foreman).toBe(0);
 });

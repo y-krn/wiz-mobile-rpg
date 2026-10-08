@@ -1,12 +1,8 @@
-// balance-impact: combat, maps — round-trip prototype rule (#2066). Opt-in at departure; ordinary runs are untouched.
+// balance-impact: combat, maps — every run is a round trip (#2066, #2062).
 //
-// Round-trip prototype: the dungeon is five floors, there is no Portal at the
-// bottom, and the way home is back up the stairs the run came down. Once the
-// run turns back (or takes the treasure) the dungeon wakes and a hunter
-// follows from below.
-
-/** The prototype dungeon ends here; the guardian's floor holds the treasure. */
-export const ROUND_TRIP_BOTTOM_FLOOR = 5;
+// A dungeon is five floors, there is no Portal at the bottom, and the way
+// home is back up the stairs the run came down. Once the run turns back (or
+// takes the treasure) the dungeon wakes and a hunter follows from below.
 /** Player actions between arriving on a floor and the hunter stepping out of the stairs. */
 export const HUNTER_ENTRY_DELAY = 6;
 /**
@@ -27,13 +23,12 @@ export const HUNTER_ALERT_DISTANCES = Object.freeze([8, 3]);
 const DX = [0, 1, 0, -1];
 const DY = [-1, 0, 1, 0];
 
+/**
+ * Every run that starts on a dungeon's first floor is a round trip (#2062).
+ * A run saved before then, which has no round-trip state, keeps the old rule.
+ */
 export function isRoundTripRun(run) {
   return Boolean(run?.roundTrip);
-}
-
-/** The rule can only be chosen for a run that starts at the top. */
-export function canChooseRoundTrip(startFloor) {
-  return startFloor === 1;
 }
 
 /**

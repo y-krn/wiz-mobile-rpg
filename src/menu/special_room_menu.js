@@ -382,12 +382,12 @@ function renderMirrorHall(optGrid, cell) {
 const RESCUE_TERMS = "生きて街まで連れ帰れば、きっと力になってくれる。";
 
 // A waiting keeper (#2009, #2018): free them and they follow. They only count
-// as rescued once the run walks out by the Portal or the Wing.
+// as rescued once the run walks out of the dungeon with them (#2062).
 function addCompanion(facility) {
   const run = state.currentRun;
   if (run) run.companions = normalizeCompanions([...(run.companions || []), facility.companion.id]);
   playSound("item");
-  addLog(`${facility.companion.name}が同行する。帰還の門か帰還の翼で生還すれば、街に${facility.name}が開く。戦いには加わらない。`);
+  addLog(`${facility.companion.name}が同行する。連れて歩いて地上へ出れば、街に${facility.name}が開く。帰還の翼では連れて帰れない。戦いには加わらない。`);
 }
 
 // Digging costs turns and noise like a vein and can be interrupted; progress

@@ -264,10 +264,68 @@ function collectReachableKeys(grid: EliteGrid, start: ElitePosition): Set<string
   return seen;
 }
 
+// Walkable neighbours as `collectReachableKeys` walks them, with `blocked`
+// treated as a wall.
+function walkFrom(grid: EliteGrid, start: ElitePosition, blocked: string | null = null): Map<string, string | null> {
+  const parents = new Map<string, string | null>([[`${start.x},${start.y}`, null]]);
+  const queue = [start];
+  for (const pos of queue) {
+    const cell = grid[pos.y]?.[pos.x];
+    if (!cell) continue;
+    for (let dir = 0; dir < 4; dir++) {
+      if (cell!.walls![dir]) continue;
+      const nx = pos.x + DX[dir];
+      const ny = pos.y + DY[dir];
+      const next = grid[ny]?.[nx];
+      const key = `${nx},${ny}`;
+      if (!next || key === blocked || next.blockEnter?.[OPPOSITE_DIR[dir]] || isTraversalObstacleBlocking(next)) continue;
+      if (!parents.has(key)) {
+        parents.set(key, `${pos.x},${pos.y}`);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+  }
+  return parents;
+}
+
+/**
+ * Cells every walk from the up stairs to the guardian or the down stairs
+ * must cross (#2056). An elite whose patrol reaches one of them can hold the
+ * only way, and fleeing it leaves it standing there.
+ */
+export function findOnlyWayCells(grid: EliteGrid): Set<string> {
+  const required = new Set<string>();
+  const entrance = findMapCellByType(grid, "stairs-up");
+  if (!entrance) return required;
+  const goals: string[] = [];
+  grid.forEach((row, y) => row?.forEach((cell, x) => {
+    if (cell?.type === "stairs-down" || cell?.event === "boss") goals.push(`${x},${y}`);
+  }));
+  const parents = walkFrom(grid, entrance);
+  const entranceKey = `${entrance.x},${entrance.y}`;
+  for (const goal of goals) {
+    if (!parents.has(goal)) continue;
+    for (let key = parents.get(goal) ?? null; key && key !== entranceKey; key = parents.get(key) ?? null) {
+      if (required.has(key)) continue;
+      if (!walkFrom(grid, entrance, key).has(goal)) required.add(key);
+    }
+  }
+  return required;
+}
+
+// The cells an elite at `home` patrols: what it can walk to without going
+// farther than the patrol radius from home.
+function getPatrolKeys(grid: EliteGrid, home: ElitePosition): string[] {
+  return [...walkFrom(grid, home).keys()].filter(key => {
+    const [x, y] = key.split(",").map(Number);
+    return Math.abs(x! - home.x) + Math.abs(y! - home.y) <= ELITE_PATROL_RADIUS;
+  });
+}
+
 export function findEliteStart(grid: EliteGrid | null | undefined, start: ElitePosition | null | undefined, rng: () => number = Math.random): ElitePosition | null {
   if (!grid || !start) return null;
   const reachable = collectReachableKeys(grid, start);
-  const candidates = [];
+  const candidates: ElitePosition[] = [];
   for (let y = 1; y < grid.length - 1; y++) {
     for (let x = 1; x < grid[y]!.length - 1; x++) {
       const cell = grid[y]![x]!;
@@ -279,7 +337,15 @@ export function findEliteStart(grid: EliteGrid | null | undefined, start: EliteP
     }
   }
   if (candidates.length === 0) return null;
-  return candidates[Math.floor(rng() * candidates.length)];
+  // Keep the elite's patrol off the only way to the guardian and the down
+  // stairs (#2056). When every spot would touch it, any spot will do, so
+  // whether an elite appears never changes.
+  const onlyWay = findOnlyWayCells(grid);
+  const clear = onlyWay.size === 0
+    ? candidates
+    : candidates.filter(spot => !getPatrolKeys(grid, spot).some(key => onlyWay.has(key)));
+  const pool = clear.length > 0 ? clear : candidates;
+  return pool[Math.floor(rng() * pool.length)]!;
 }
 
 export function createFloorElite({ runSeed, floor, mapData, spawnReason = "entry", spawnOrigin = null, storedTrial = null }: {

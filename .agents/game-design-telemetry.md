@@ -16,7 +16,7 @@ or identifiers that are not needed for the observation.
 | `loot_lifecycle` | Object loot from discovery to settlement | lifecycle stage, category, source, floor, ownership, rarity band, coarse role, value proxy |
 | `loot_stake_snapshot` | Production-backed unconfirmed object-loot stake at decision boundaries | snapshot point, count, location/category composition, Rune supply-band composition, Core/Support, bag pressure |
 | `equipment_decision` / `build_shift` | Ordinary equipment changes versus meaningful direction changes | action, old/new category, decision kind, role transition |
-| `portal_decision` | Push or return choice | portal kind, decision, resource band, free slots, unconfirmed count |
+| `portal_decision` | Return choice at a Wing (and at a Portal on a floor saved before #2062) | portal kind, decision, resource band, free slots, unconfirmed count |
 | `elite_decision` | Approach, avoidance, contact, and result of optional threats | decision, contact mode, distance band, detection state, floor, unconfirmed count |
 | `chest_action` | The single chest decision | open/leave/kit, shown trap sign, actual trap, loot aura, kit availability, reward categories |
 | `trap_resolution` | Trap observation, response, and resource exchange | source kind, trap kind, outcome, action, success/risk, build capability band, tool/resource use |
@@ -53,8 +53,9 @@ resolved.
   ownership;
 - `tried`, `identified`, `adopted`, `left`, and `discarded` describe player
   decisions attached to that same sequence;
-- Portal and Wing settle objects as `banked`; Death/Abandon settle
-  unconfirmed objects as `lost`.
+- walking out (return reason `surface`, #2062) and the Wing settle objects
+  as `banked`; Death/Abandon settle unconfirmed objects as `lost`. A Portal
+  only exists on a floor saved before #2062 and settles the same way.
 
 An equipped object remains unconfirmed until the terminal route settles it.
 Full bags may therefore produce `found` followed by `rejected` without a
@@ -127,7 +128,8 @@ scenario, and schema version. A simulator must declare which terminal object
 ownership or player interaction behavior it does not model; an omitted value is
 `not_modeled`, not zero.
 
-Measurement may compare exploration before/after stairs, Portal/Wing choices,
+Measurement may compare exploration before/after stairs, turning back,
+walking out against the Wing,
 equipment decisions, trap outcomes, and optional elite contact. It is evidence
 about the loop, not a new rule and not a player-facing optimal-role selector.
 Forced calibration that makes an affix or event fire must be reported as such

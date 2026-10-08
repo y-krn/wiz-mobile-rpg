@@ -53,7 +53,7 @@ assert.deepEqual(
     startFloor: 7,
     extra: true
   }),
-  { kitId: "scout", startingGear: null, recipeIds: ["HEAL_POTION", "TRAP_KIT"], startFloor: 1, roundTrip: false },
+  { kitId: "scout", startingGear: null, recipeIds: ["HEAL_POTION", "TRAP_KIT"], startFloor: 1 },
   "invalid tools are removed and an impossible floor falls back to B1F"
 );
 assert.equal(isNormalizedLastPreparation(null), true);
@@ -68,7 +68,7 @@ assert.equal(isNormalizedLastPreparation(catacomb), true);
 assert.equal(normalizeLastPreparation({
   kitId: "arcana", startingGear: null, recipeIds: [], startFloor: 5
 }).startFloor, 1);
-assert.equal(isNormalizedLastPreparation({ kitId: "arcana", startingGear: null, recipeIds: [], startFloor: 5, roundTrip: false }), false);
+assert.equal(isNormalizedLastPreparation({ kitId: "arcana", startingGear: null, recipeIds: [], startFloor: 5 }), false);
 assert.equal(isNormalizedLastPreparation({ kitId: "arcana", startingGear: null, recipeIds: [], startFloor: 3 }), false);
 console.log("[PASS] last preparation normalizes to a known kit, tools, and start floor");
 

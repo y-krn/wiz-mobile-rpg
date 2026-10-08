@@ -1,5 +1,5 @@
-// Round-trip prototype rule (#2066): pursuit, waking the dungeon, the
-// treasure, and the saved state of a round-trip run.
+// The round trip (#2066, #2062): pursuit, waking the dungeon, the treasure,
+// and the saved state of a round-trip run. Every new run is a round trip.
 import { strict as assert } from "node:assert";
 import {
   HUNTER_COMBAT_SPEED,
@@ -7,8 +7,6 @@ import {
   HUNTER_FALL_BACK,
   HUNTER_MAX_CARRY,
   HUNTER_SPEED,
-  ROUND_TRIP_BOTTOM_FLOOR,
-  canChooseRoundTrip,
   findHunterStep,
   getHunterAlertLevel,
   isRoundTripRun,
@@ -133,15 +131,12 @@ check("alert levels follow the two announced distances", () => {
   assert.equal(getHunterAlertLevel(Infinity), 0);
 });
 
-check("the rule is offered only from the top, and only a round-trip run carries its state", () => {
-  assert.equal(canChooseRoundTrip(1), true);
-  assert.equal(canChooseRoundTrip(5), false);
+check("only a run with round-trip state is a round trip (a run saved before #2062 has none)", () => {
   assert.equal(isRoundTripRun(createDefaultCurrentRun()), false);
   assert.equal(isRoundTripRun({ roundTrip: createRunRoundTrip() }), true);
-  assert.equal(ROUND_TRIP_BOTTOM_FLOOR, 5);
 });
 
-check("an ordinary run is never hunted", () => {
+check("a run saved before #2062 is never hunted", () => {
   const stateLike = makeState([">....<"]);
   stateLike.currentRun.roundTrip = null;
   assert.equal(wakeDungeon(stateLike), false);
@@ -396,6 +391,9 @@ check("the treasure is taken once and wakes the dungeon; the bottom floor is the
   assert.equal(stateLike.currentRun.roundTrip.treasure, true);
   assert.equal(stateLike.currentRun.roundTrip.awake, true);
   assert.equal(isRoundTripBottom({ ...stateLike, floor: 4 }), false);
+  // Every dungeon's fifth floor is its bottom (#2062).
+  assert.equal(isRoundTripBottom({ ...stateLike, floor: 10 }), true);
+  assert.equal(isRoundTripBottom({ ...stateLike, floor: 6 }), false);
 });
 
 check("a woken dungeon does not call a second elite for lingering", () => {
@@ -429,14 +427,11 @@ check("round-trip state normalizes, and saves from before the rule load as ordin
   assert.equal(isNormalizedCurrentRun(run), false);
 });
 
-check("the last preparation remembers the rule, only for a start at the top", () => {
+check("the last preparation no longer carries a rule choice (#2062)", () => {
   const base = { kitId: "vanguard", startingGear: null, recipeIds: [] };
-  assert.equal(normalizeLastPreparation({ ...base, startFloor: 1 }).roundTrip, false);
-  assert.equal(normalizeLastPreparation({ ...base, startFloor: 1, roundTrip: true }).roundTrip, true);
+  assert.equal("roundTrip" in normalizeLastPreparation({ ...base, startFloor: 1, roundTrip: true }), false);
   const context = { workshop: { ranks: {} }, metaMaterials: {}, storage: {}, unlockedMilestones: [5], facilities: {} };
-  assert.equal(resolveLastPreparation({ ...base, startFloor: 1, roundTrip: true }, context).roundTrip, true);
-  // The prototype exists in the first dungeon only (#2060 keeps it there).
-  assert.equal(resolveLastPreparation({ ...base, startFloor: 6, roundTrip: true }, context).roundTrip, false);
+  assert.equal("roundTrip" in resolveLastPreparation({ ...base, startFloor: 6, roundTrip: true }, context), false);
 });
 
 if (failures > 0) {

@@ -18,7 +18,10 @@ export interface NormalizedNearMissBestDepth {
   gap: number;
 }
 
-export type NearMissPortalKind = "ahead" | "guardian_ahead" | "guardian_defeated";
+// "ahead", "guardian_ahead", "guardian_defeated": the Portal of a run saved
+// before every run became a round trip. "guardian" and "surface" (#2062):
+// the guardian ahead on the way down, and the surface on the way back.
+export type NearMissPortalKind = "ahead" | "guardian_ahead" | "guardian_defeated" | "guardian" | "surface";
 
 export interface NormalizedNearMissPortal {
   kind: NearMissPortalKind;
@@ -44,7 +47,7 @@ export const NEAR_MISS_UNUSED_LIMIT = 8;
 
 const ENEMY_KINDS: readonly NearMissEnemyKind[] = ["guardian", "elite", "normal"];
 const ENEMY_STATES: readonly NearMissEnemyState[] = ["健在", "負傷", "重傷", "状態不明"];
-const PORTAL_KINDS: readonly NearMissPortalKind[] = ["ahead", "guardian_ahead", "guardian_defeated"];
+const PORTAL_KINDS: readonly NearMissPortalKind[] = ["ahead", "guardian_ahead", "guardian_defeated", "guardian", "surface"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);

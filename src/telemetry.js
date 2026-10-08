@@ -149,6 +149,8 @@ const SAFE_RETURN_REASONS = new Set([
   "gameover",
   "abandon",
   "escape_scroll",
+  // Walking out of the dungeon (#2062), the ordinary way home.
+  "surface",
   ...EVENT_SUBMENU_TYPES.filter(type => type.endsWith("_portal"))
 ]);
 const SAFE_ENEMY_IDS = new Set(MONSTERS.map(monster => monster.name));

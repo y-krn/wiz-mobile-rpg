@@ -19,11 +19,11 @@
 //   'always' drops that 30% limit; 'off' leaves as soon as HP is under `explore`.
 // - rooms ('leave' | 'use' | 'rescue'): what to do in special rooms. 'use'
 //   takes what helps this run (a supply, a rest, a grave, a temper); 'rescue'
-//   also frees keepers and walks out through the return gate with them.
+//   also frees keepers and turns back to walk out with them.
 // - cores ('on' | 'off'): Core-specific combat habits (Riposte, Blood).
-// - roundTrip ('off' | 'on'): play the round-trip prototype rule (#2066). The bot
-//   picks the rule at departure, and once it holds the treasure or has decided
-//   to turn back it walks to the up stairs of each floor and out at the top.
+// - Every run is a round trip (#2062): once the bot holds the treasure or has
+//   decided to turn back it walks to the up stairs of each floor and out at
+//   the top. (`roundTrip` is kept in the policy for old command lines only.)
 // - turnBack: HP share under which a round-trip run with no potion and nothing
 //   left to heal with turns back (0 = never turn back on its own).
 
@@ -49,7 +49,7 @@ const st = () => S.state;
 const W = window;
 const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
-const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'off', turnBack: 0.3, dungeon: 'mine' };
+const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine' };
 // A dungeon is five floors (#2060); a run is named by the running number of its first floor.
 const DUNGEON_ENTRY = { mine: 1, catacomb: 6 };
 const entryFloorOf = dungeon => DUNGEON_ENTRY[dungeon] || Math.max(1, Math.floor(Number(dungeon)) || 1);
@@ -628,7 +628,7 @@ const postGuardianErrand = () => {
   if (!W.__merchantDone[s.floor] && (W.__merchantTries[s.floor] || 0) < 2 && potionCount() < POTION_TARGET
     && (s.currentRun?.materials?.['獣の牙'] || 0) > 0 && W.__bfs(goals.merchant)) return 'merchant';
   if (W.__policy.rooms === 'rescue' && companionNames() && (W.__portalTries[s.floor] || 0) < 2 && W.__bfs(goals.portal)) return 'portal';
-  // The dungeon ends on its fifth floor (#2060): without the round-trip rule the gate is the way home.
+  // A run saved before #2062 (no round trip) still leaves by the gate.
   if (atDungeonBottom() && !roundTrip() && (W.__portalTries[s.floor] || 0) < 8 && W.__bfs(goals.portal)) return 'portal';
   return null;
 };
@@ -756,6 +756,9 @@ W.__auto = async (policy = W.__policy, maxIter = 600) => {
       const k = await W.__walk('keeper', 250); W.__journal.push(`-> keeper room: ${k} ${W.__status()}`);
       continue;
     }
+    // Rescue policy: a keeper only counts when walked out, so turn back with them.
+    if (W.__policy.rooms === 'rescue' && roundTrip() && !goingHome() && companionNames()
+      && turnBackNow('a keeper follows')) continue;
     if (roundTrip() && !goingHome() && p.hp < DATA.getCharMaxHp(p) * W.__policy.turnBack && potionCount() === 0 && !worthWalking(policy, p)
       && turnBackNow('badly hurt, nothing left to heal with')) continue;
     const wantStairs = stopExploring(policy, p);

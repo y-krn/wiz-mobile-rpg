@@ -138,6 +138,31 @@ test("flee always succeeds against a boss, takes one parting hit, and retreats",
   }
 });
 
+test("fleeing the round-trip hunter costs its parting blow but never the last HP (#2062)", () => {
+  const hunterState = () => {
+    const state = createState({ charOverrides: { hp: 3 }, monsterOverrides: { atk: 40 } });
+    state.combatState.isRoamingFlack = true;
+    state.combatState.roamingMonsterId = "hunter:3";
+    state.roamingMonsters = [{ id: "hunter:3", floor: 3, x: 6, y: 5, homeX: 6, homeY: 5, hunter: true, kind: "elite" }];
+    state.maps = [];
+    return state;
+  };
+  const hunted = runCombatRoundCalculation(hunterState(), { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
+  assert.ok(hunted.logQueue.some(log => log.runEscape));
+  assert.equal(hunted.state.party[0].hp, 1);
+  assert.notEqual(hunted.state.party[0].status, "dead");
+  // Already at 1 HP, the blow takes nothing.
+  const atOne = hunterState();
+  atOne.party[0].hp = 1;
+  const last = runCombatRoundCalculation(atOne, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
+  assert.equal(last.state.party[0].hp, 1);
+  // Any other elite's parting blow can still finish the run.
+  const other = hunterState();
+  other.roamingMonsters[0].hunter = false;
+  const fled = runCombatRoundCalculation(other, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
+  assert.equal(fled.state.party[0].hp, 0);
+});
+
 test("flee succeeds in place when no retreat tile was captured", () => {
   const state = createState();
   {

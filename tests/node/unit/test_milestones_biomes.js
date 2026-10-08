@@ -38,12 +38,12 @@ check("B1-B30は5フロアごとに6バイオームへ切り替わる", () => {
   });
 });
 
-check("5の倍数だけボス・商人・帰還の門を各1件生成する", () => {
+check("5の倍数だけボス・商人を各1件生成し、帰還の門は置かない（#2062）", () => {
   for (let floor = 1; floor <= 30; floor++) {
     const generated = generateRunFloor({ runSeed: "MILESTONE-TEST", floor });
     const counts = getMilestoneEventCounts(generated.grid);
     const expected = floor % 5 === 0 ? 1 : 0;
-    assert.deepEqual(counts, { boss: expected, merchant: expected, portal: expected }, `B${floor}F`);
+    assert.deepEqual(counts, { boss: expected, merchant: expected, portal: 0 }, `B${floor}F`);
     assert.equal(generated.biomeId, getBiomeForFloor(floor).id);
   }
 });

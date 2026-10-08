@@ -1,7 +1,7 @@
 // balance-impact: none — death-result facts only (#2003).
 //
 // Collect what was true at the moment the run ended in death: how far the
-// enemies had been worn down, how close the record and the next Portal were,
+// enemies had been worn down, how close the record and the way out were,
 // and which rescue tools were still in the bag. These are facts for the
 // result screen. They never change a rule, a reward, or the next run.
 
@@ -9,6 +9,7 @@ import { getEnemyHpState } from "./enemy_hp_state.js";
 import { getItemBaseId } from "./item_rules.js";
 import { STATUS_TREATMENT_ROLE_LIST } from "../data/status_treatments.js";
 import { normalizeRunNearMiss } from "../state/run_near_miss.js";
+import { getDungeonBottomFloor, getDungeonFloor, getDungeonIndexForFloor } from "./dungeons.js";
 
 const MILESTONE_INTERVAL = 5;
 const RETURN_WING_ITEM_ID = "TOWN_PORTAL";
@@ -56,9 +57,18 @@ function getBestDepthFact(deepestFloor, previousBestFloor) {
   return { best, gap: best - reached };
 }
 
-function getPortalFact(floor, defeatedMilestones) {
+// In a round trip (#2062): how far the surface was on the way back, or the
+// guardian on the way down.
+function getRoundTripFact(current, roundTrip) {
+  if (roundTrip.awake) return { kind: "surface", floor: current, gap: getDungeonFloor(current) };
+  const bottom = getDungeonBottomFloor(getDungeonIndexForFloor(current));
+  return { kind: "guardian", floor: bottom, gap: bottom - current };
+}
+
+function getPortalFact(floor, defeatedMilestones, roundTrip = null) {
   const current = Math.floor(Number(floor) || 0);
   if (current < 1) return null;
+  if (roundTrip) return getRoundTripFact(current, roundTrip);
   if (current % MILESTONE_INTERVAL === 0) {
     const defeated = Array.isArray(defeatedMilestones) && defeatedMilestones.includes(current);
     return { kind: defeated ? "guardian_defeated" : "guardian_ahead", floor: current, gap: 0 };
@@ -106,14 +116,15 @@ export function buildDeathNearMiss({
   defeatedMilestones = [],
   deathLog = null,
   combat = null,
-  inventory = []
+  inventory = [],
+  roundTrip = null
 } = {}) {
   const { enemies, defeatedInBattle } = collectEnemies(combat);
   return normalizeRunNearMiss({
     enemies,
     defeatedInBattle,
     bestDepth: getBestDepthFact(deepestFloor, previousBestFloor),
-    portal: getPortalFact(floor, defeatedMilestones),
+    portal: getPortalFact(floor, defeatedMilestones, roundTrip),
     unused: collectUnusedItems(inventory, deathLog)
   });
 }
