@@ -310,6 +310,25 @@ policy that explores. If it does not, fix loot placement, the guardian's
 size, or recovery. Do not fix it with a turn limit on the way down, a level
 wall, or a key that must be found on every floor.
 
+What #1803 set, and why:
+
+- **Recovery per cell is low and the cap per floor is high** (see Run
+  structure). Before, two percent per cell up to half the bar meant a
+  straight walk of about thirty cells already took the whole cap, so walking
+  straight lost nothing and every extra fight of exploring was pure cost.
+- **No hazard charges walking itself.** The fifth floor's flame trap, a
+  five percent chance on every step for fixed damage, made each step of
+  exploring cost HP and was removed.
+- **A chest's needle takes a share of maximum HP** (a tenth), not a fixed 12
+  that was a fifth of a fresh adventurer's bar on every trapped chest. Chests
+  are where builds come from; their price must not outgrow their reward.
+- **The guardian is sized against a formed build:** twice its authored HP
+  and 1.6 times its attack in every dungeon (the baseline strength table).
+  A starting kit at level 3 and full HP wins about four fights in ten; a
+  build gathered on the floors above wins in a few rounds. Raising only its
+  attack did not do this: guarding against its telegraph breaks its armour
+  and gives free rounds, so a long fight against a small body was still won.
+
 ## Build meaning
 
 A dungeon's rule is a resource question, not merely a different skin: it asks
@@ -492,10 +511,12 @@ differences negligible.
   the player able to reconsider before going down, going up, or walking out.
 - The guardian of the fifth floor must be defeated to take the treasure and
   to reach the merchant behind it. Nothing lies below.
-- During exploration, each unvisited cell restores 2% of maximum HP and MP,
-  carrying fractional points forward and capping actual recovery at 50% of
-  each maximum per floor. HP recovery is subject to healing modifiers; MP
-  recovery is not. Poison suspends this recovery. Stairs and pitfall descents
+- During exploration, each unvisited cell restores 1.5% of maximum HP and 2%
+  of maximum MP, carrying fractional points forward. Actual recovery per
+  floor is capped at the whole HP bar and at half of maximum MP (#1803: a
+  straight walk to the stairs enters few new cells and takes little of it; a
+  floor explored end to end can pay for its fights). HP recovery is subject
+  to healing modifiers; MP recovery is not. Poison suspends this recovery. Stairs and pitfall descents
   do not restore HP or MP, and a floor walked again on the way back gives
   back only what its unvisited cells still hold. The explore screen shows
   what the floor can still give back (on the HP/MP bars, in the unfolded

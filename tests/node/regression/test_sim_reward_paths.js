@@ -45,22 +45,20 @@ if (detectRateCalls.length === 0) {
     failures.push(`${depthSimulationName}: retired trap affix identifiers must not remain in the canonical sim`);
   }
   if (!/calculateFloorTrapSuccessRate\s*\(/.test(depthSimulationSource)) {
-    failures.push(`${depthSimulationName}: flame trap success rate must use the src floor-trap helper`);
+    failures.push(`${depthSimulationName}: floor trap success rate must use the src floor-trap helper`);
   }
   if (!/resolveTrapAction\s*\(/.test(depthSimulationSource)) {
-    failures.push(`${depthSimulationName}: flame trap outcome must use the src trap roll helper`);
+    failures.push(`${depthSimulationName}: floor trap outcome must use the src trap roll helper`);
   }
   if (!/resolveFloorTrapEffect\s*\(/.test(depthSimulationSource)) {
-    failures.push(`${depthSimulationName}: flame trap damage must use the src floor-trap effect helper`);
+    failures.push(`${depthSimulationName}: floor trap damage must use the src floor-trap effect helper`);
   }
-  if (!/damageProfile:\s*FLAME_TRAP_MODEL\.damageProfile/.test(depthSimulationSource)) {
-    failures.push(`${depthSimulationName}: flame trap must pass the shared B5 damage profile`);
-  }
-  if (!/getFloorTrapDamageRange\s*\(/.test(depthSimulationSource)) {
-    failures.push(`${depthSimulationName}: flame trap metadata must use the src damage-range helper`);
+  // Production removed the B5 flame trap (#1803); the simulator must not roll one.
+  if (/resolveFlameTrapAtStep|FLAME_TRAP_MODEL/.test(depthSimulationSource)) {
+    failures.push(`${depthSimulationName}: the removed B5 flame trap must not be simulated`);
   }
   if (/damageMin:\s*6\s*\+|damageMax:\s*12\s*\+/.test(depthSimulationSource)) {
-    failures.push(`${depthSimulationName}: flame trap damage range must not be recalculated in the sim`);
+    failures.push(`${depthSimulationName}: floor trap damage range must not be recalculated in the sim`);
   }
   if (/FLAME_TRAP_(TRAP_GUARD_OVERRIDE|WARNING_AVOIDANCE_CHANCE|DAMAGE_MULTIPLIER)/.test(depthSimulationSource)) {
     failures.push(`${depthSimulationName}: removed flame-trap what-if overrides must not bypass src behavior`);
