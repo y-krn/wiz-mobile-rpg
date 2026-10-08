@@ -95,10 +95,10 @@ test('The priest is freed with blood on B8F and led home together with the forem
   expect(escort.used).toBe(true);
   expect(escort.hud[0]).toBe('同行：鉱夫頭・司祭生還で救出');
   expect(escort.stakes).toBe('同行：鉱夫頭・司祭。生還すれば街へ連れ帰る。死ねば・断念すれば連れ帰れない。');
-  await expect(page.locator('#log-content')).toContainText('司祭が同行する。帰還の門か帰還の翼で生還すれば、街に礼拝堂が開く。');
+  await expect(page.locator('#log-content')).toContainText('司祭が同行する。連れて歩いて地上へ出れば、街に礼拝堂が開く。');
 
   await page.evaluate(async () => {
-    (await import('/src/result.js')).triggerRunResult('milestone_portal');
+    (await import('/src/result.js')).triggerRunResult('surface');
   });
   await expect(page.locator('.result-feat-row[data-feat-id="foreman_rescue"]')).toHaveText('達成鉱夫頭を連れ帰る報酬 坑夫組合が開く');
   await expect(page.locator('.result-feat-row[data-feat-id="priest_rescue"]')).toHaveText('達成司祭を連れ帰る報酬 礼拝堂が開く');

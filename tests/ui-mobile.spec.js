@@ -559,7 +559,8 @@ for (const vp of VIEWPORTS) {
         return { locked, unlocked, clearedEntryNotice, lockedEntryNotice };
       });
 
-      expect(observed.locked.text).toContain('階層守護者・深層商人・帰還の門');
+      // A floor saved before #2062 may still hold a Portal; the intro names what every bottom floor has.
+      expect(observed.locked.text).toContain('階層守護者と深層商人がいる');
       expect(observed.locked.merchant).toContain('未訪問');
       expect(observed.locked.merchant).toContain('守護者を倒すと開く');
       expect(observed.locked.portal).toContain('訪問済み');
@@ -570,7 +571,7 @@ for (const vp of VIEWPORTS) {
       expect(observed.unlocked).toContain('利用可能');
       expect(observed.unlocked).not.toContain('守護者を倒すと開く');
       expect(observed.clearedEntryNotice).toContain('階層守護者は撃破済み');
-      expect(observed.lockedEntryNotice).toContain('階層守護者・深層商人・帰還の門');
+      expect(observed.lockedEntryNotice).toContain('階層守護者と深層商人がいる');
     });
 
     test('Run stake summary appears only at retreat decisions', async ({ page }) => {

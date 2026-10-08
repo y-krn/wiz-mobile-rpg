@@ -51,6 +51,14 @@ async function descendTo(page, floor) {
   await waitForFloor(page, floor);
 }
 
+async function ascendTo(page, floor) {
+  await page.evaluate(async (target) => {
+    const { ascendToFloor } = await import('/src/movement.js');
+    ascendToFloor(target);
+  }, floor);
+  await waitForFloor(page, floor);
+}
+
 // Stand on the first cell that matches and let the cell respond.
 async function standOn(page, match) {
   await page.evaluate(async ({ type, event }) => {
@@ -100,7 +108,7 @@ test('A new save can enter only the collapsed mine and sees what opens the other
   await expect(page.locator('#submenu-options')).not.toContainText('開始階');
 });
 
-test('The dungeon ends on its fifth floor, and coming home through the gate opens the catacomb', async ({ page }) => {
+test('The dungeon ends on its fifth floor, and walking home with the treasure opens the catacomb', async ({ page }) => {
   await page.goto('/?renderer=pixi');
   await openPreparation(page);
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
@@ -114,7 +122,7 @@ test('The dungeon ends on its fifth floor, and coming home through the gate open
   await standOn(page, { type: 'stairs-down' });
   await expect(page.locator('#submenu-title')).toHaveText('封じられた下り階段');
   await expect(page.getByRole('button', { name: 'この先の道はまだ開いていない' })).toBeDisabled();
-  await expect(page.getByTestId('stairs-dungeon-end-note')).toContainText('守護者を倒すと、帰還の門が開く');
+  await expect(page.getByTestId('stairs-dungeon-end-note')).toContainText('守護者を倒して至宝を取り、上り階段を歩いて地上へ戻る');
   await expect(async () => {
     await page.getByRole('button', { name: '降りずに進む' }).click({ timeout: 1000 });
     await expect(page.locator('#explore-controls')).toBeVisible({ timeout: 1000 });
@@ -137,25 +145,32 @@ test('The dungeon ends on its fifth floor, and coming home through the gate open
   expect(afterGuardian.floor).toBe(5);
   expect(afterGuardian.transitioning).toBe(false);
   await page.evaluate(async () => (await import('/src/ui.js')).updateUI());
-  await expect(page.locator('.goal-text')).toContainText('帰還の門から街へ帰る');
+  await expect(page.locator('.goal-text')).toContainText('至宝を持って');
+  await expect(page.locator('.goal-text')).toContainText('地下4階）へ戻る');
 
   await standOn(page, { type: 'stairs-down' });
   await expect(page.locator('#submenu-title')).toHaveText('封じられた下り階段');
-  await expect(page.getByTestId('stairs-dungeon-end-note')).toContainText('帰還の門から街へ帰る');
+  await expect(page.getByTestId('stairs-round-trip-note')).toContainText('上り階段を歩いて地上へ戻る');
   await expect(async () => {
     await page.getByRole('button', { name: '降りずに進む' }).click({ timeout: 1000 });
     await expect(page.locator('#explore-controls')).toBeVisible({ timeout: 1000 });
   }).toPass();
 
-  // The gate: go home, or stay on this floor a little longer. There is no deeper.
-  await standOn(page, { event: 'return_portal' });
-  await expect(page.locator('.milestone-portal-choices')).toContainText('まだ帰らない');
-  await expect(page.locator('#submenu-options')).not.toContainText('さらに深く');
+  // There is no gate (#2062): walk back up and out with the treasure.
+  expect(await page.evaluate(async () => (await import('/src/state.js')).state.map.flat().some(cell => cell.event === 'return_portal'))).toBe(false);
+  for (const floor of [4, 3, 2, 1]) await ascendTo(page, floor);
+  await quietRun(page);
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    state.roamingMonsters = state.roamingMonsters.filter(monster => !monster.hunter);
+    state.currentRun.roundTrip.hunterEntry = null;
+  });
+  await standOn(page, { type: 'stairs-up' });
+  await expect(page.locator('#submenu-title')).toHaveText('地上への上り階段');
   await expect(async () => {
-    await page.locator('button[data-portal-decision="return"]').click({ timeout: 1000 });
-    await expect(page.locator('#btn-portal-confirm')).toBeVisible({ timeout: 1000 });
+    await page.locator('[data-stairs-up="surface"]').click({ timeout: 1000 });
+    await expect(page.locator('#result-overlay')).toBeVisible({ timeout: 1000 });
   }).toPass();
-  await page.locator('#btn-portal-confirm').click();
 
   const result = page.locator('#result-overlay');
   await expect(result).toBeVisible();
@@ -179,7 +194,7 @@ test('The dungeon ends on its fifth floor, and coming home through the gate open
     await expect(page.locator('button.solo-start-floor-option').nth(1)).toHaveAttribute('aria-pressed', 'true', { timeout: 1000 });
   }).toPass();
   await expect(page.locator('.solo-preparation-floor')).toContainText('忘れられた地下墓地');
-  // The round-trip prototype stays in the first dungeon.
+  // There is no rule to choose: every run is a round trip (#2062).
   await expect(page.locator('.solo-start-rule-option')).toHaveCount(0);
   await page.getByRole('button', { name: '迷宮へ向かう' }).click();
   await expect(page.locator('#explore-controls')).toBeVisible();
@@ -218,7 +233,7 @@ test('An old save keeps the catacomb its beaten guardian opened, and its remembe
     const data = JSON.parse(localStorage.getItem(SAVE_KEYS.save));
     // What the old start-floor choice left behind: B5F unlocked and last used.
     data.unlockedMilestones = [5];
-    data.lastPreparation = { kitId: 'vanguard', startingGear: null, recipeIds: [], startFloor: 5, roundTrip: false };
+    data.lastPreparation = { kitId: 'vanguard', startingGear: null, recipeIds: [], startFloor: 5 };
     localStorage.setItem(SAVE_KEYS.save, JSON.stringify(data));
     state.transitioning = true;
   });

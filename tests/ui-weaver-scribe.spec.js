@@ -151,7 +151,7 @@ test('The weaver is cut out of her cocoon by winning the brood fight; fleeing le
   });
   expect(won.companions).toEqual(['weaver']);
   expect(won.used).toBe(true);
-  expect(won.log).toContain('織り手が同行する。帰還の門か帰還の翼で生還すれば、街に織り場が開く。');
+  expect(won.log).toContain('織り手が同行する。連れて歩いて地上へ出れば、街に織り場が開く。帰還の翼では連れて帰れない。');
   expect(won.log).toContain('卵室の荷を検める。');
   expect(won.hud[0]).toBe('同行：織り手生還で救出');
   expect(won.stakes).toBe('同行：織り手。生還すれば街へ連れ帰る。死ねば・断念すれば連れ帰れない。');
@@ -164,12 +164,12 @@ test('The scribe is freed by draining his room and both keepers open their facil
   expect(room.kind).toBe('stranded_scribe');
   await expect(page.locator('#submenu-title')).toContainText('水に沈んだ閲覧室');
   await pressUntilRoomSpent(page, /水門を回して水を抜く/);
-  await expect(page.locator('#log-content')).toContainText('写本師が同行する。帰還の門か帰還の翼で生還すれば、街に写本室が開く。');
+  await expect(page.locator('#log-content')).toContainText('写本師が同行する。連れて歩いて地上へ出れば、街に写本室が開く。');
 
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     state.currentRun.companions = ['weaver', 'scribe'];
-    (await import('/src/result.js')).triggerRunResult('milestone_portal');
+    (await import('/src/result.js')).triggerRunResult('surface');
   });
   await expect(page.locator('.result-feat-row[data-feat-id="weaver_rescue"]')).toHaveText('達成織り手を連れ帰る報酬 織り場が開く');
   await expect(page.locator('.result-feat-row[data-feat-id="scribe_rescue"]')).toHaveText('達成写本師を連れ帰る報酬 写本室が開く');

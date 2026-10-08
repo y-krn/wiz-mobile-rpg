@@ -778,7 +778,10 @@ level validation:
   guardian remains a destination fight. On the way back the hunter is that
   one threat;
 - an avoid-for-now threat leaves a way to avoid it: it does not hold the only
-  corridor to a cell the run must reach.
+  corridor to a cell the run must reach. A roaming elite is placed so that
+  its patrol stays off every cell that all routes from the up stairs to the
+  guardian and the down stairs must cross; only when no such place exists may
+  it stand anywhere, so whether it appears never depends on the map (#2056).
 
 ## Tactical consumables
 
@@ -835,24 +838,23 @@ advantage, or exact drop information.
 ## Migration to the dungeon structure (#2058)
 
 This document states the structure decided in #2058. Source reaches it in
-steps, and until a step lands, source keeps the previous rule for that part:
-a Portal behind the guardian as the ordinary way home. Do not change behavior to match this document inside an
-unrelated change; use the Issue that owns the part.
+steps, and until a step lands, source keeps the previous rule for that part.
+Do not change behavior to match this document inside an unrelated change;
+use the Issue that owns the part.
 
 | Part of this canon | Lands with |
 | --- | --- |
 | Choosing a dungeon; floors numbered inside it; strength by dungeon and floor; the mine and the catacomb | #2060 (landed) |
 | No floor gate on kinds; three likely families; the redraw; the first-chest draw; fixing a family with a treasure | #2061 (landed) |
-| Every run a round trip; the treasure; a keeper and the Wing on the way back; a strong enemy never holding the only way | #2062 |
+| Every run a round trip; the treasure; a keeper and the Wing on the way back; a strong enemy never holding the only way | #2062 (landed) |
 | Each dungeon's rule, one dungeon at a time | #2063 |
 | The rift nest, the library, the forge, and the throne opened and tuned | #2064 |
 | The endless dungeon | #2065 |
 
-Until #2062, the way back exists as a prototype: a rule chosen at departure
-from the first floor (#2066, #2069), in the mine only, where the treasure is
-only recorded and a Wing still rescues a keeper. A run without that rule
-leaves by the Portal behind the guardian, and a dungeon counts as cleared
-when its guardian is beaten by a run that comes home by any safe return.
+Since #2062 every run is a round trip and no new floor has a Portal. A run
+saved before then (it has no round-trip state) keeps its old rule to the end:
+one-way stairs and the Portal behind the guardian. A floor generated before
+then may still hold a Portal; in a round trip it stays silent.
 
 Since #2060 the running floor number survives only as a key: maps, seeds, and
 per-floor ledgers use it, floors 1-5 being the first dungeon and 6-10 the
@@ -863,15 +865,8 @@ and trap count for the third dungeon onward (#2064); the kind of rare
 material a guardian drops (#2064); and the saved records, which still order
 runs by it (deepest floor, floor distribution).
 
-Until #2062 a treasure is carried out by any run that beats the guardian and
-comes home, the same rule that clears a dungeon. Carried out the first time,
-it opens the next dungeon; carried out again, it fixes one likely family
-before the next departure (#2061).
-
-One other document still describes the previous structure and is rewritten
-with the part it owns: `.agents/game-design-telemetry.md` (Portal events) with
-#2062. Where they disagree with this document, this document
-holds. Remove this section when #2058 closes.
+Where another document disagrees with this one, this document holds. Remove
+this section when #2058 closes.
 
 ## Avoid
 

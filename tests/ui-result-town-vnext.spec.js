@@ -323,7 +323,7 @@ test('Town preparation opens with the previous choices and still allows changing
     state.gameState = 'town';
     state.metaMaterials = { '硬い皮': 4, '獣の牙': 4 };
     state.unlockedMilestones = [5];
-    state.lastPreparation = { kitId: 'devotion', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 6, roundTrip: false };
+    state.lastPreparation = { kitId: 'devotion', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 6 };
     updateUI();
   });
   await page.locator('#btn-town-dungeon').click();
@@ -345,7 +345,7 @@ test('Town preparation opens with the previous choices and still allows changing
 
   await page.locator('#btn-departure-start').click();
   const remembered = await page.evaluate(async () => (await import('/src/state.js')).state.lastPreparation);
-  expect(remembered).toEqual({ kitId: 'scout', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 6, roundTrip: false });
+  expect(remembered).toEqual({ kitId: 'scout', startingGear: null, recipeIds: ['HEAL_POTION'], startFloor: 6 });
 });
 
 test('Town shows the three closest feats and opens the full list', async ({ page }) => {

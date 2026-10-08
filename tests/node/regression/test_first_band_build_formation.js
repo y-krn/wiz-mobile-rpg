@@ -395,19 +395,22 @@ const qualifyingGuardianScenario = {
   // #2061: every kind can appear from B1, so the seeded finds change; seed 6
   // no longer reaches the guardian and seed 5 is the first that earns the
   // checkpoint with a qualifying flee.
-  hpBaseBonus: 150,
+  // #2062: a roaming elite no longer patrols the only way to the guardian,
+  // so the probe reaches it with more HP and wins without fleeing at +150;
+  // +100 keeps the qualifying flee, first on seed 1.
+  hpBaseBonus: 100,
   merchantPolicy: "supply-missing",
   b5GuardianRetryCheckpoint: true,
   b5GuardianRetryObservation: true
 };
 const qualifyingGuardian = runGuardianRetryProbe(
   qualifyingGuardianScenario,
-  5,
+  1,
   "issue1374-qualifying-flee"
 );
 const qualifyingRepeat = runGuardianRetryProbe(
   qualifyingGuardianScenario,
-  5,
+  1,
   "issue1374-qualifying-flee"
 );
 assert.deepEqual(qualifyingGuardian.b5GuardianRetry, qualifyingRepeat.b5GuardianRetry);

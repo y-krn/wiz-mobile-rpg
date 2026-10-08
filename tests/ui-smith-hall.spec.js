@@ -85,7 +85,7 @@ test('The smith is freed by feeding the cold furnace; without materials he canno
     };
   });
   expect(after).toEqual({ companions: ['smith'], iron: 1, used: true });
-  await expect(page.locator('#log-content')).toContainText('鍛冶師が同行する。帰還の門か帰還の翼で生還すれば、街に鍛冶場が開く。');
+  await expect(page.locator('#log-content')).toContainText('鍛冶師が同行する。連れて歩いて地上へ出れば、街に鍛冶場が開く。');
 });
 
 test('The chamberlain is freed by giving life to the mirror, and the last two facilities open', async ({ page }) => {
@@ -116,7 +116,7 @@ test('The chamberlain is freed by giving life to the mirror, and the last two fa
       scribe_rescue: { runNumber: 1 }
     };
     state.currentRun.companions = ['smith', 'chamberlain'];
-    (await import('/src/result.js')).triggerRunResult('milestone_portal');
+    (await import('/src/result.js')).triggerRunResult('surface');
   });
   await expect(page.locator('.result-feat-row[data-feat-id="smith_rescue"]')).toHaveText('達成鍛冶師を連れ帰る報酬 鍛冶場が開く');
   await expect(page.locator('.result-feat-row[data-feat-id="chamberlain_rescue"]')).toHaveText('達成侍従を連れ帰る報酬 謁見の間が開く');

@@ -97,8 +97,10 @@ check("ほかの迷宮でも5階が底になる", () => {
 });
 
 check("節目の階の構造メッセージは表示文言を固定する", () => {
-  assert.match(MILESTONE_STRUCTURE_MESSAGE, /階層守護者・深層商人・帰還の門/);
-  assert.match(MILESTONE_CLEARED_STRUCTURE_MESSAGE, /深層商人・帰還の門/);
+  // There is no Portal in a dungeon (#2062).
+  assert.match(MILESTONE_STRUCTURE_MESSAGE, /階層守護者と深層商人がいる/);
+  assert.match(MILESTONE_CLEARED_STRUCTURE_MESSAGE, /深層商人がいる/);
+  assert.doesNotMatch(MILESTONE_STRUCTURE_MESSAGE + MILESTONE_CLEARED_STRUCTURE_MESSAGE, /帰還の門/);
   assert.match(MILESTONE_CLEARED_STRUCTURE_MESSAGE, /撃破済み/);
 });
 

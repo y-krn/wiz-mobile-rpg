@@ -177,7 +177,7 @@ test('The foreman is dug out on B3F, shown as an escort, and rescued by a safe r
   expect(stakes).toBe('同行：鉱夫頭。生還すれば街へ連れ帰る。死ねば・断念すれば連れ帰れない。');
 
   await page.evaluate(async () => {
-    (await import('/src/result.js')).triggerRunResult('milestone_portal');
+    (await import('/src/result.js')).triggerRunResult('surface');
   });
   const row = page.locator('.result-feat-row[data-feat-id="foreman_rescue"]');
   await expect(row).toHaveText('達成鉱夫頭を連れ帰る報酬 坑夫組合が開く');
@@ -283,7 +283,7 @@ test('The miner outpost hands out one supply per run', async ({ page }) => {
 
   // The supply is dungeon loot: a safe return does not put it into storage.
   const storage = await page.evaluate(async () => {
-    (await import('/src/result.js')).triggerRunResult('milestone_portal');
+    (await import('/src/result.js')).triggerRunResult('surface');
     return (await import('/src/state.js')).state.storage.length;
   });
   expect(storage).toBe(0);
@@ -418,7 +418,7 @@ test('An order is paid in the guild, survives a death, and reaches storage on a 
   await page.locator('#btn-result-castle').click();
   await expect(slot).toContainText('仕込み中');
 
-  const afterReturn = await endRun('milestone_portal');
+  const afterReturn = await endRun('surface');
   expect(afterReturn).toEqual({ storage: ['TRAP_KIT', 'TRAP_KIT'], orders: {} });
   const delivered = page.locator('.result-feat-row[data-feat-id="facility_orders"]');
   await expect(delivered).toHaveText('仕上がり仕込みの品 罠外しキット×2倉庫に入った');
