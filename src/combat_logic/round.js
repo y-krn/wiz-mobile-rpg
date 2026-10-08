@@ -465,7 +465,7 @@ function applyFleePartingAttack(state, monsters, logQueue, rng = Math.random, me
   // (#2062): fleeing it costs its parting blow but never the last HP. In the
   // measurement before this, four of seven deaths on the way back were this
   // blow alone.
-  if (isFleeingHunter(state) && target.hp > 1) dmg = Math.min(dmg, target.hp - 1);
+  if (isFleeingHunter(state)) dmg = Math.min(dmg, Math.max(0, target.hp - 1));
   state.combatFormulaTelemetry?.physicalMonsterHits.push({
     floor: state.floor,
     finalAtk, finalDef, defResistance, formulaRaw, formulaDmg,

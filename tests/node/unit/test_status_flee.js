@@ -151,6 +151,11 @@ test("fleeing the round-trip hunter costs its parting blow but never the last HP
   assert.ok(hunted.logQueue.some(log => log.runEscape));
   assert.equal(hunted.state.party[0].hp, 1);
   assert.notEqual(hunted.state.party[0].status, "dead");
+  // Already at 1 HP, the blow takes nothing.
+  const atOne = hunterState();
+  atOne.party[0].hp = 1;
+  const last = runCombatRoundCalculation(atOne, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
+  assert.equal(last.state.party[0].hp, 1);
   // Any other elite's parting blow can still finish the run.
   const other = hunterState();
   other.roamingMonsters[0].hunter = false;
