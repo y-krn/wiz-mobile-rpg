@@ -8,13 +8,14 @@
 // authored for a character that had already cleared the ones before it.
 // The roaming strong enemy (`elite*`) has its own multipliers: every dungeon's
 // strong enemy was authored at about the mine's HP and attack, and only its
-// defense grew.
+// defense grew. `entry` eases ordinary monsters' HP and attack on the first
+// floor only, where the adventurer has nothing but the starting kit.
 import { BIOMES } from "./biomes.js";
 
 export const DUNGEON_FLOOR_COUNT = 5;
 
 const BASELINE = Object.freeze({
-  enemyHp: 1, enemyAtk: 1, enemyDef: 1,
+  enemyHp: 1, enemyAtk: 1, enemyDef: 1, entry: 1,
   eliteHp: 1, eliteAtk: 1, eliteDef: 1,
   guardianHp: 1, guardianAtk: 1, guardianDef: 1
 });
@@ -26,7 +27,7 @@ const DUNGEON_SETTINGS = Object.freeze({
     shortName: "地下墓地",
     built: true,
     strength: Object.freeze({
-      enemyHp: 0.65, enemyAtk: 0.7, enemyDef: 0.5,
+      enemyHp: 0.65, enemyAtk: 0.7, enemyDef: 0.5, entry: 0.85,
       eliteHp: 1, eliteAtk: 1, eliteDef: 0.3,
       guardianHp: 1, guardianAtk: 1, guardianDef: 0.5
     })

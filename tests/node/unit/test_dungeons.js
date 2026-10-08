@@ -173,7 +173,7 @@ check("the last preparation repeats a dungeon only while it is open", () => {
 
 check("the mine plays as before, and every dungeon starts at the same strength", () => {
   assert.deepEqual(getDungeonStrength(3), {
-    enemyHp: 1, enemyAtk: 1, enemyDef: 1,
+    enemyHp: 1, enemyAtk: 1, enemyDef: 1, entry: 1,
     eliteHp: 1, eliteAtk: 1, eliteDef: 1,
     guardianHp: 1, guardianAtk: 1, guardianDef: 1
   });
@@ -184,12 +184,18 @@ check("the mine plays as before, and every dungeon starts at the same strength",
   // floor times the catacomb's multipliers, not five floors stronger.
   const zombie = template("ゾンビ");
   const strength = getDungeonStrength(6);
+  // Its first floor is eased once more, for an adventurer with only a kit.
   const [atEntry] = [scaleEnemyForDepth(zombie, 6)];
   applyPhase4cV1EnemyBaseline([atEntry], 6);
-  assert.equal(atEntry.maxHp, Math.round(zombie.hp * strength.enemyHp));
-  assert.equal(atEntry.atk, Math.round(zombie.atk * strength.enemyAtk));
+  assert.equal(atEntry.maxHp, Math.round(zombie.hp * strength.enemyHp * strength.entry));
+  assert.equal(atEntry.atk, Math.round(zombie.atk * strength.enemyAtk * strength.entry));
   assert.equal(atEntry.def, Math.round(zombie.def * strength.enemyDef));
-  assert.ok(atEntry.maxHp < zombie.hp, "the catacomb is scaled down for a fresh adventurer");
+  const [onSecond] = [scaleEnemyForDepth(zombie, 7)];
+  applyPhase4cV1EnemyBaseline([onSecond], 7);
+  assert.equal(onSecond.maxHp, Math.round(zombie.hp * strength.enemyHp));
+  assert.equal(onSecond.atk, Math.round(zombie.atk * strength.enemyAtk));
+  assert.ok(atEntry.maxHp < onSecond.maxHp && onSecond.maxHp < zombie.hp,
+    "the catacomb is scaled down for a fresh adventurer, its first floor most");
 
   // The roaming strong enemy has its own multipliers: it keeps the HP and
   // attack it was authored with, whichever body wears them.
@@ -201,6 +207,8 @@ check("the mine plays as before, and every dungeon starts at the same strength",
   assert.equal(roaming.def, Math.round(keeper.def * strength.eliteDef));
   assert.deepEqual(getEnemyStrength(8, "墓守の巨躯"), { hp: strength.eliteHp, atk: strength.eliteAtk, def: strength.eliteDef });
   assert.deepEqual(getEnemyStrength(8, "ゾンビ"), { hp: strength.enemyHp, atk: strength.enemyAtk, def: strength.enemyDef });
+  assert.deepEqual(getEnemyStrength(6, "ゾンビ"),
+    { hp: strength.enemyHp * strength.entry, atk: strength.enemyAtk * strength.entry, def: strength.enemyDef });
   assert.deepEqual(getEnemyStrength(10, "ストーンガード", { boss: true }),
     { hp: strength.guardianHp, atk: strength.guardianAtk, def: strength.guardianDef });
 

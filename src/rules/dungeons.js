@@ -68,7 +68,8 @@ export function getEnemyStrength(floor, templateName, { boss = false } = {}) {
   if (templateName && templateName === dungeon.eliteName) {
     return { hp: strength.eliteHp, atk: strength.eliteAtk, def: strength.eliteDef };
   }
-  return { hp: strength.enemyHp, atk: strength.enemyAtk, def: strength.enemyDef };
+  const entry = getDungeonFloor(floor) === 1 ? strength.entry : 1;
+  return { hp: strength.enemyHp * entry, atk: strength.enemyAtk * entry, def: strength.enemyDef };
 }
 
 /**
