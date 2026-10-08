@@ -30,7 +30,14 @@ global.setTimeout = callback => { callback(); return 0; };
 const { state, createDefaultCurrentRun, createStartingKitCharacter } = await import("../../../src/state.js");
 const { getCharMaxHp, getCharMaxMp } = await import("../../../src/data.js");
 const { getHealMultiplier } = await import("../../../src/rules/item_rules.js");
-const { applyExplorationRecovery, getExplorationRecoveryOutlook, getExplorationRecoveryRemaining } = await import("../../../src/systems/exploration_recovery.js");
+const {
+  applyExplorationRecovery,
+  EXPLORATION_MP_RECOVERY_FLOOR_CAP,
+  EXPLORATION_RECOVERY_FLOOR_CAP,
+  EXPLORATION_RECOVERY_RATE,
+  getExplorationRecoveryOutlook,
+  getExplorationRecoveryRemaining
+} = await import("../../../src/systems/exploration_recovery.js");
 const { descendToFloor, executeEnterDungeon, handleMove } = await import("../../../src/movement.js");
 
 function freshRun(kit = "vanguard") {
@@ -63,7 +70,7 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   };
 }
 
-// 2% fractional recovery carries between newly visited cells.
+// Fractional recovery carries between newly visited cells.
 {
   const char = freshRun();
   const maxHp = getCharMaxHp(char);
@@ -72,7 +79,7 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   assert.equal(char.hp, maxHp - 5);
   assert.equal(first.hpRecovered, 0);
   assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, 0);
-  assert.ok(Math.abs(state.currentRun.explorationRecovery["1"].hpRemainder - maxHp * 0.02) < 1e-9);
+  assert.ok(Math.abs(state.currentRun.explorationRecovery["1"].hpRemainder - maxHp * EXPLORATION_RECOVERY_RATE) < 1e-9);
 
   applyExplorationRecovery(state);
   assert.equal(char.hp, maxHp - 4);
@@ -89,8 +96,8 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, 0);
   assert.equal(state.currentRun.explorationRecovery["1"].hpRemainder, 0);
   assert.deepEqual(getExplorationRecoveryRemaining(state), {
-    hp: Math.floor(maxHp * 0.5),
-    mp: Math.floor(getCharMaxMp(char) * 0.5)
+    hp: Math.floor(maxHp * EXPLORATION_RECOVERY_FLOOR_CAP),
+    mp: Math.floor(getCharMaxMp(char) * EXPLORATION_MP_RECOVERY_FLOOR_CAP)
   });
 }
 
@@ -127,13 +134,13 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
 
 // Healing modifiers scale HP recovery credit while MP recovery remains unmodified.
 {
-  const unmodified = recoverHpAcrossCells({ cells: 25 });
-  const cursed = recoverHpAcrossCells({ cells: 25, cursed: true });
-  assert.equal(unmodified.recovered, 50);
+  const unmodified = recoverHpAcrossCells({ cells: 40 });
+  const cursed = recoverHpAcrossCells({ cells: 40, cursed: true });
+  assert.equal(unmodified.recovered, Math.round(40 * 100 * EXPLORATION_RECOVERY_RATE));
   assert.equal(cursed.multiplier, 0.8);
   assert.equal(cursed.recovered / unmodified.recovered, 0.8);
 
-  const antiHealed = recoverHpAcrossCells({ cells: 25, antiHealTurns: 1 });
+  const antiHealed = recoverHpAcrossCells({ cells: 40, antiHealTurns: 1 });
   assert.equal(antiHealed.multiplier, 0.5);
   assert.equal(antiHealed.recovered / unmodified.recovered, 0.5);
 
@@ -143,19 +150,27 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   arcana.maxMp = 100;
   arcana.mp = 1;
   arcana.antiHealTurns = 1;
-  for (let index = 0; index < 25; index++) applyExplorationRecovery(state);
-  assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, 25);
-  assert.equal(state.currentRun.explorationRecovery["1"].mpRecovered, Math.floor(getCharMaxMp(arcana) * 0.5));
+  // Enough cells to fill the MP cap; anti-heal halves only the HP credit.
+  const cells = Math.ceil(EXPLORATION_RECOVERY_FLOOR_CAP / EXPLORATION_RECOVERY_RATE);
+  for (let index = 0; index < cells; index++) applyExplorationRecovery(state);
+  assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, Math.floor(cells * 100 * EXPLORATION_RECOVERY_RATE * 0.5 + 1e-9));
+  // MP started at 1, so it fills up to its maximum or the cap, whichever comes first.
+  const maxMp = getCharMaxMp(arcana);
+  assert.equal(state.currentRun.explorationRecovery["1"].mpRecovered, Math.min(maxMp - 1, Math.floor(maxMp * EXPLORATION_MP_RECOVERY_FLOOR_CAP)));
 }
 
-// Modified HP recovery spends the per-floor budget by actual points and still stops at 50%.
+// Modified HP recovery spends the per-floor budget by actual points and still stops at the cap.
 {
-  const cursed = recoverHpAcrossCells({ cells: 100, cursed: true });
-  assert.equal(cursed.recovered, 50);
+  const cap = Math.floor(100 * EXPLORATION_RECOVERY_FLOOR_CAP);
+  recoverHpAcrossCells({ cells: 200, cursed: true });
+  // Hurt again on the same floor: walking on refills only what the cap has left.
+  state.party[0].hp = 1;
+  for (let index = 0; index < 200; index++) applyExplorationRecovery(state);
+  assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, cap);
   assert.equal(state.currentRun.explorationRecovery["1"].hpRemainder, 0);
   assert.equal(getExplorationRecoveryRemaining(state).hp, 0);
   applyExplorationRecovery(state);
-  assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, 50);
+  assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, cap);
 }
 
 // Floating-point rounding never leaves a negative or whole-point remainder.
@@ -172,16 +187,21 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   }
 }
 
-// Recovery counts actual integer HP/MP, stops at half of each maximum, and starts a fresh floor budget.
+// Recovery counts actual integer HP/MP, stops at the per-floor cap, and starts a fresh floor budget.
 {
   const char = freshRun("arcana");
   const maxHp = getCharMaxHp(char);
   const maxMp = getCharMaxMp(char);
   char.hp = 1;
   char.mp = 0;
-  const hpCap = Math.floor(maxHp * 0.5);
-  const mpCap = Math.floor(maxMp * 0.5);
-  for (let index = 0; index < 200; index++) applyExplorationRecovery(state);
+  const hpCap = Math.floor(maxHp * EXPLORATION_RECOVERY_FLOOR_CAP);
+  const mpCap = Math.floor(maxMp * EXPLORATION_MP_RECOVERY_FLOOR_CAP);
+  // Keep the adventurer hurt so the per-floor cap, not a full bar, is what stops recovery.
+  for (let index = 0; index < 200; index++) {
+    if (state.currentRun.explorationRecovery?.["1"]?.hpRecovered < hpCap) char.hp = 1;
+    if (state.currentRun.explorationRecovery?.["1"]?.mpRecovered < mpCap) char.mp = 0;
+    applyExplorationRecovery(state);
+  }
   assert.equal(state.currentRun.explorationRecovery["1"].hpRecovered, hpCap);
   assert.equal(state.currentRun.explorationRecovery["1"].mpRecovered, mpCap);
   const hpAtCap = char.hp;
@@ -196,7 +216,7 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   char.hp = Math.max(1, getCharMaxHp(char) - 1);
   applyExplorationRecovery(state);
   assert.ok(Object.hasOwn(state.currentRun.explorationRecovery, "2"));
-  assert.ok(state.currentRun.explorationRecovery["2"].hpRecovered <= Math.floor(getCharMaxHp(char) * 0.5));
+  assert.ok(state.currentRun.explorationRecovery["2"].hpRecovered <= Math.floor(getCharMaxHp(char) * EXPLORATION_RECOVERY_FLOOR_CAP));
 }
 
 // Movement heals only on a newly visited cell; walking back and forth does not repeat it.
@@ -245,22 +265,23 @@ for (const isPitfall of [false, true]) {
   const char = freshRun("arcana");
   char.maxHp = 100;
   const maxMp = getCharMaxMp(char);
-  const mpCap = Math.floor(maxMp * 0.5);
+  const mpCap = Math.floor(maxMp * EXPLORATION_MP_RECOVERY_FLOOR_CAP);
+  const hpCap = Math.floor(100 * EXPLORATION_RECOVERY_FLOOR_CAP);
   char.hp = 97;
   char.mp = 0;
   assert.deepEqual(getExplorationRecoveryOutlook(state), {
     hp: 3,
     mp: mpCap,
-    allowance: { hp: 50, mp: mpCap },
+    allowance: { hp: hpCap, mp: mpCap },
     hasMpAllowance: true,
     suspended: false
   });
 
   char.hp = 10;
-  state.currentRun.explorationRecovery["1"] = { hpRecovered: 44, mpRecovered: mpCap, hpRemainder: 0, mpRemainder: 0 };
+  state.currentRun.explorationRecovery["1"] = { hpRecovered: hpCap - 6, mpRecovered: mpCap, hpRemainder: 0, mpRemainder: 0 };
   const spent = getExplorationRecoveryOutlook(state);
   assert.deepEqual([spent.hp, spent.mp, spent.allowance], [6, 0, { hp: 6, mp: 0 }]);
-  assert.equal(getExplorationRecoveryOutlook(state, 2).hp, 50, "another floor has its own allowance");
+  assert.equal(getExplorationRecoveryOutlook(state, 2).hp, Math.min(90, hpCap), "another floor has its own allowance");
 
   char.status = "poisoned";
   const poisoned = getExplorationRecoveryOutlook(state);

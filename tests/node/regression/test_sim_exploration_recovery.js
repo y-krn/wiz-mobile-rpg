@@ -24,10 +24,9 @@ function run(runIndex, scenario = {}) {
   });
 }
 
-const RATE = 0.02;
-const FLOOR_CAP = 0.5;
+const { EXPLORATION_RECOVERY_RATE: RATE, EXPLORATION_RECOVERY_FLOOR_CAP: FLOOR_CAP } =
+  await import("../../../src/systems/exploration_recovery.js");
 const results = [0, 1, 2, 3, 4, 5].map(index => run(index));
-let floorsAtCap = 0;
 let fullHpFloors = 0;
 
 for (const result of results) {
@@ -37,7 +36,7 @@ for (const result of results) {
   assert.equal(recovery.newCells, floors.reduce((sum, [, floor]) => sum + floor.newCells, 0));
   assert.equal(recovery.hp, floors.reduce((sum, [, floor]) => sum + floor.hp, 0));
   assert.equal(recovery.mp, floors.reduce((sum, [, floor]) => sum + floor.mp, 0));
-  // Each new cell is worth 2% of max HP. Max HP moves with levels and gear,
+  // Each new cell is worth RATE of max HP. Max HP moves with levels and gear,
   // so bound the rate by the largest max HP the run reports.
   const largestMaxHp = Math.max(result.finalMaxHp, ...result.floorTransitionRecovery.map(event => event.maxHp));
   for (const [floor, observed] of floors) {
@@ -52,18 +51,17 @@ for (const result of results) {
     assert.equal(event.requestedHp, 0);
     assert.equal(event.actualHealedHp, 0);
     assert.equal(event.hpAfter, event.hpBefore);
-    // The floor just left gave back at most half of max HP (the production cap).
+    // The floor just left gave back at most the production per-floor cap.
     const observed = recovery.byFloor[String(event.fromFloor)];
     const cap = Math.floor(event.maxHp * FLOOR_CAP);
     assert.ok(observed.hp <= cap, `B${event.fromFloor}: ${observed.hp} HP exceeds the floor cap ${cap}`);
-    floorsAtCap += Number(observed.hp === cap);
     // Walking at full HP recovers nothing.
     fullHpFloors += Number(observed.hp === 0 && observed.newCells > 0 && event.hpBefore === event.maxHp);
   }
 }
-// The seeded runs are fixtures: they must show the cap binding and a floor
-// walked at full HP, so both production branches are exercised here.
-assert.ok(floorsAtCap > 0, "a seeded run reaches the per-floor cap");
+// Since #1803 the per-floor cap is a whole HP bar, so the simulator's routes
+// rarely spend all of it; the unit test owns the cap branch, and here the cap
+// only bounds what a floor gave back. A floor walked at full HP still happens.
 assert.ok(fullHpFloors > 0, "a seeded run walks a floor at full HP");
 assert.deepEqual(run(0).explorationRecovery, results[0].explorationRecovery, "recovery is deterministic");
 

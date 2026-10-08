@@ -35,7 +35,15 @@ assert.deepEqual(
   }
 );
 
-const result = await runMeasurement({ runs: 1, seed: 2 });
+// The smoke needs a run that enters B5 and one arm whose route finds the
+// guardian without reaching it (it falls on B5 first). Which seed does that
+// moves with balance (seed 2 until #1803), so the first one from 2 is used.
+const { result } = await findSeed("B5 route without arrival", seedWindow(2, 10), seed => runMeasurement({ runs: 1, seed }), report =>
+  ARM_IDS.some(armId => report.arms[armId].overview.b5.entrantN > 0) &&
+  ARM_IDS.some(armId => {
+    const boss = report.arms[armId].overview.b5.boss;
+    return boss.routeBossDetected.total > boss.actualBossEventArrival.total;
+  }));
 assert.equal(result.configuration.measurementId, MEASUREMENT_ID);
 assert.deepEqual(result.configuration.startingKits, ["vanguard", "scout", "devotion", "arcana"]);
 assert.deepEqual(result.configuration.arms, ["P0B1", "P0B0", "P1B1", "P1B0"]);
@@ -93,7 +101,8 @@ for (const armId of ARM_IDS) {
 assert.equal(enemyActionRegressionObserved, true);
 const b5SmokeArm = ARM_IDS.find(armId => result.arms[armId].overview.b5.entrantN > 0);
 assert.ok(b5SmokeArm);
-assert.ok(result.arms[b5SmokeArm].overview.b5.flameTrap.eligibleSteps.total > 0);
+// The B5 flame trap was removed (#1803); its counters stay at zero.
+assert.equal(result.arms[b5SmokeArm].overview.b5.flameTrap.triggerCount.total, 0);
 assert.equal(result.arms[b5SmokeArm].overviewReconciliation.runs, true);
 const routeProbeArm = ARM_IDS.find(armId => {
   const boss = result.arms[armId].overview.b5.boss;
@@ -209,31 +218,6 @@ const runB5InterventionProbe = (scenario, seed, seriesId) => {
     collectEquipmentTelemetry: true
   });
 };
-
-const flameProbeBase = { ...focusedScenario };
-// The intervention needs a seed whose current run triggers the B5 flame trap (#2081).
-const { seed: flameSeed, result: flameCurrent } = await findSeed(
-  "B5 flame trap",
-  seedWindow(1, 10),
-  seed => runB5InterventionProbe(flameProbeBase, seed, "probe-b5-flame-current"),
-  probe => probe.b5Entrant === true && probe.flameTrapActivations > 0
-);
-const flameDisabled = runB5InterventionProbe(
-  { ...flameProbeBase, b5FlameTrapDisabled: true },
-  flameSeed,
-  "probe-b5-flame-disabled"
-);
-const flameDisabledBoth = runB5InterventionProbe(
-  { ...flameProbeBase, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true },
-  flameSeed,
-  "probe-b5-flame-disabled-both"
-);
-assert.equal(flameCurrent.b5Entrant, true);
-assert.ok(flameCurrent.flameTrapActivations > 0, "current B5 probe did not trigger flame trap");
-for (const [label, probe] of [["F", flameDisabled], ["FG", flameDisabledBoth]]) {
-  assert.equal(probe.b5Entrant, true, `${label} B5 probe did not enter B5`);
-  assert.equal(probe.flameTrapActivations, 0, `${label} B5 flame intervention failed`);
-}
 
 // #2028: with production exploration recovery the probe reaches the Guardian
 // above 80% HP and never drops below it, so a 0.8 threshold no longer makes it

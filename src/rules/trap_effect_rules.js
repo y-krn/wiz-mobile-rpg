@@ -11,8 +11,11 @@ import { getDungeonFloor } from "./dungeons.js";
 // (#1803).
 const CHEST_POISON_NEEDLE_MAX_HP_SHARE = 0.10;
 export function getChestPoisonNeedleDamage(character) {
-  const maxHp = getCharMaxHp(character);
-  return Math.max(1, Math.round((Number.isFinite(maxHp) && maxHp > 0 ? maxHp : 0) * CHEST_POISON_NEEDLE_MAX_HP_SHARE));
+  const computed = getCharMaxHp(character);
+  const maxHp = Number.isFinite(computed) && computed > 0
+    ? computed
+    : Math.max(0, Number(character?.maxHp) || Number(character?.hp) || 0);
+  return Math.max(1, Math.round(maxHp * CHEST_POISON_NEEDLE_MAX_HP_SHARE));
 }
 const CHEST_FLASH_BLIND_CHANCE = 0.60;
 // Corrosion never takes the retreat item or special/quest/progression items.
@@ -30,10 +33,6 @@ export function getCorrosionCandidateIndexes(inventory = []) {
   });
   return indexes;
 }
-export const B5_FLAME_TRAP_DAMAGE_PROFILE = "b5-flame";
-const FLOOR_TRAP_DAMAGE_PROFILES = Object.freeze({
-  [B5_FLAME_TRAP_DAMAGE_PROFILE]: Object.freeze({ min: 8, max: 16 })
-});
 
 function reduceTrapDamage(damage, trapGuard = 0) {
   const numericGuard = Number(trapGuard);
@@ -178,9 +177,6 @@ const FLOOR_TRAP_MAX_HP_SHARE = Object.freeze({
 });
 
 export function getFloorTrapDamageRange({ trap, floor, maxHp } = {}) {
-  const profile = FLOOR_TRAP_DAMAGE_PROFILES[trap?.damageProfile];
-  if (profile) return profile;
-
   const trapType = trap?.type;
   const share = FLOOR_TRAP_MAX_HP_SHARE[trapType];
   const hp = Number(maxHp);
