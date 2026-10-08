@@ -63,6 +63,7 @@ function strike(char, target, technique, { state, rng, multiplier, logQueue, mon
     floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue
   });
   dmg = Math.max(1, dmg);
+  const targetHpBeforeHit = target.hp;
   target.hp = Math.max(0, target.hp - dmg);
   let msg = `[味方] ${char.name}の${technique.name}！${target.name}に${dmg}のダメージ。`;
   if (wakeSleepingMonsterOnDamage(target, rng)) msg += `${target.name}は目を覚ました！`;
@@ -77,7 +78,8 @@ function strike(char, target, technique, { state, rng, multiplier, logQueue, mon
   });
 
   if (hasTrait(target, "reflectPhysical") && dmg > 0) {
-    const reflected = Math.max(1, Math.floor(dmg * (target.physicalReflect?.rate ?? 0.3)));
+    // Only the damage the shell took is thrown back, not the overkill (#2063).
+    const reflected = Math.max(1, Math.floor(Math.min(dmg, targetHpBeforeHit) * (target.physicalReflect?.rate ?? 0.3)));
     const before = char.hp;
     char.hp = Math.max(0, char.hp - reflected);
     recordReceivedDamage(state, char, target.name, reflected, reflected, before, { attackType: "reflect" });
