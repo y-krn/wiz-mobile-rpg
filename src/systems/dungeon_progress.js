@@ -46,10 +46,25 @@ export function getDungeonOpenedByClearing(stateLike, floor) {
  * A round-trip run clears a dungeon only by carrying its treasure out.
  * Returns the ids of the dungeons that opened because of it.
  */
-export function settleDungeonClears(stateLike, run) {
+// Bottom floors whose treasure this run carries out: the guardians it beat,
+// unless a round-trip run left the treasure behind.
+function getClearedByRun(run) {
   const defeated = Array.isArray(run?.defeatedMilestones) ? run.defeatedMilestones : [];
   const carriedOut = !run?.roundTrip || run.roundTrip.treasure === true;
-  const clearedNow = carriedOut ? defeated.filter(isDungeonBottomFloor) : [];
+  return carriedOut ? defeated.filter(isDungeonBottomFloor) : [];
+}
+
+/**
+ * Whether a run that came home carried out a treasure for the second time
+ * or later (#2061). Call before `settleDungeonClears` records this run.
+ */
+export function carriesOutRepeatedTreasure(stateLike, run) {
+  const cleared = getClearedFloors(stateLike);
+  return getClearedByRun(run).some(floor => cleared.includes(floor));
+}
+
+export function settleDungeonClears(stateLike, run) {
+  const clearedNow = getClearedByRun(run);
   if (clearedNow.length === 0) return [];
   const before = new Set(listDungeons(stateLike).filter(dungeon => dungeon.open).map(dungeon => dungeon.id));
   stateLike.unlockedMilestones = [...new Set([...getClearedFloors(stateLike), ...clearedNow])]

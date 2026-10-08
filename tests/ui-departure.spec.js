@@ -241,7 +241,8 @@ for (const vp of VIEWPORTS) {
       expect(box.y, `Start button must stay inside the viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
       expect(box.y + box.height, `Start button must fit in the viewport on ${vp.name}`).toBeLessThanOrEqual(vp.height);
       expect(box.height, `Start button must stay tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
-      for (const child of ['strong', 'span']) {
+      // Name, cleared or not, and the likely Cores (#2061).
+      for (const child of ['strong', 'span:not(.solo-start-dungeon-families)', '.solo-start-dungeon-families']) {
         const childBox = await start.locator(child).boundingBox();
         expect(childBox, `${child} must remain visible on ${vp.name}`).not.toBeNull();
         expect(childBox.y, `${child} must stay inside the viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);

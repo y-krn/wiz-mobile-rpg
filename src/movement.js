@@ -60,6 +60,7 @@ import { createRunRoundTrip } from "./state/run_round_trip.js";
 import { canChooseRoundTrip, isRoundTripRun } from "./rules/round_trip.js";
 import { getDungeonFloor, isDungeonBottomFloor, isDungeonEntryFloor } from "./rules/dungeons.js";
 import { arriveOnFloor, getHunterName, isHunted, tickHunter, wakeDungeon } from "./systems/round_trip.js";
+import { takeCoreFamiliesForRun } from "./systems/core_families.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -1137,6 +1138,8 @@ export function executeEnterDungeon(floor, { departureCraft = [], roundTrip = fa
   state.forcedEncounterSteps = 0;
   state.currentRun.startedAt = Date.now();
   state.currentRun.runSeed = `${state.seed}:run:${state.currentRun.startedAt}`;
+  // The run takes its dungeon's likely Core families with it (#2061).
+  if (state.party[0]) state.party[0].likelyCoreFamilies = takeCoreFamiliesForRun(state, floor);
   state.currentRun.startFloor = floor;
   state.currentRun.deepestFloor = floor;
   state.currentRun.startingKit = normalizeStartingKitId(state.party[0]?.startingKit);

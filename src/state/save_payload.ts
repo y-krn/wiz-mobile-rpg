@@ -10,6 +10,7 @@ import { normalizeCombatActions } from "../combat_logic/combat_action.js";
 import { assertNormalizedSavePayload } from "./save_contract.js";
 import { normalizeMaterialBalance } from "./material_balance.js";
 import { normalizeLastPreparation } from "./last_preparation.js";
+import { normalizeCoreFamilyState } from "./core_families_state.js";
 import { normalizeFeatsState } from "./feats_state.js";
 import { normalizeFacilitiesState } from "./facilities_state.js";
 import { normalizeGuidebookState } from "./guidebook_state.js";
@@ -74,6 +75,7 @@ interface SavePayloadRuntimeState {
   keyItems: unknown[];
   dungeonMemory: NormalizedSavePayload["dungeonMemory"];
   lastPreparation: unknown;
+  coreFamilies: unknown;
   feats: unknown;
   facilities: unknown;
   guidebook: unknown;
@@ -262,6 +264,7 @@ export function createSavePayload(): SavePayload {
     keyItems: state.keyItems,
     dungeonMemory: state.dungeonMemory,
     lastPreparation: normalizeLastPreparation(state.lastPreparation),
+    coreFamilies: normalizeCoreFamilyState(state.coreFamilies),
     feats: normalizeFeatsState(state.feats),
     facilities: normalizeFacilitiesState(state.facilities),
     guidebook: normalizeGuidebookState(state.guidebook),
@@ -347,6 +350,7 @@ export function applySavePayload(data: unknown): void {
   state.workshop = normalized.workshop;
   state.keyItems = normalized.keyItems ?? [];
   state.lastPreparation = normalized.lastPreparation;
+  state.coreFamilies = normalized.coreFamilies;
   state.feats = normalized.feats;
   state.facilities = normalized.facilities;
   state.guidebook = normalized.guidebook;

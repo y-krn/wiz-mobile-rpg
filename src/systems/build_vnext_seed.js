@@ -3,7 +3,13 @@
 // one. The offer is build-blind: it never reads the current loadout, kit or
 // shortage; each direction is drawn from a fixed authored table with the run
 // RNG, so every direction stays possible in every run.
-import { generateRandomAccessory, generateRandomEquipment } from "./equipment_generation.js";
+//
+// Since #2061 the three directions are Core families: two from the run's
+// likely families and one from outside them, so one offer is never what the
+// plan expected. A run saved before then keeps the weapon/defense/accessory
+// table below.
+import { generateRandomAccessory, generateRandomEquipment, getGeneratableCoreIds } from "./equipment_generation.js";
+import { getAvailableCoreFamilyIds, getCoreFamily, pickSeedFamilies } from "../rules/core_families.js";
 import { KNOWLEDGE_STAGES, setKnowledgeStage } from "../rules/identification_rules.js";
 import { CURSE_EFFECTS, ITEMS } from "../data/items.js";
 
@@ -56,10 +62,25 @@ function makeLegible(item) {
   return item;
 }
 
+// The (base, Core) pairs the seed offer would make, one per direction.
+function chooseSeedPairs(stateLike, rng) {
+  const character = stateLike?.party?.[0];
+  const likely = character?.likelyCoreFamilies;
+  if (!Array.isArray(likely) || likely.length === 0) {
+    return BUILD_SEED_DIRECTIONS.map(direction => direction.options[Math.floor(rng() * direction.options.length)]);
+  }
+  const generatable = new Set(getGeneratableCoreIds(character?.unlockedAffixIds ?? null));
+  const families = pickSeedFamilies(likely, getAvailableCoreFamilyIds([...generatable]), rng);
+  return families.map(familyId => {
+    const options = getCoreFamily(familyId).seedOptions.filter(option => generatable.has(option.coreId));
+    const choice = options[Math.floor(rng() * options.length)];
+    return choice ? { ...choice, familyId } : null;
+  }).filter(Boolean);
+}
+
 export function generateBuildSeedOffer(stateLike, rng = Math.random) {
   const floor = stateLike?.floor || 1;
-  return BUILD_SEED_DIRECTIONS.map(direction => {
-    const choice = direction.options[Math.floor(rng() * direction.options.length)];
+  return chooseSeedPairs(stateLike, rng).map(choice => {
     const options = {
       forceRarity: "magic",
       rng,

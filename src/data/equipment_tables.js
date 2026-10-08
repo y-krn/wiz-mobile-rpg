@@ -23,6 +23,14 @@ for (const floor of [4, 5]) {
   ])];
 }
 
+// No floor gate on kinds (#2061): every base that the first five floors
+// ever offered can appear from the first floor. The floor raises grade and
+// the affix budget instead. The lists above stay as the authored history of
+// where each base first appeared.
+for (let floor = 1; floor <= 4; floor += 1) {
+  EQUIPMENT_CANDIDATES_BY_FLOOR[floor] = [...EQUIPMENT_CANDIDATES_BY_FLOOR[5]];
+}
+
 // B5 was previously reused for every deeper floor. Keep earlier equipment in
 // the pool, then widen the authored base space in later bands. This is a
 // horizontal supply change: old gear remains eligible instead of being
@@ -48,6 +56,11 @@ export const ACCESSORY_CANDIDATES_BY_FLOOR = {
   4: ["AMULET_HP", "AMULET_MP", "RING_STR", "RING_AGI", "THIEF_EYE", "WARD_CHARM", "HOLY_BAND", "SWIFT_BAND"],
   5: ["AMULET_HP", "AMULET_MP", "RING_STR", "RING_AGI", "THIEF_EYE", "WARD_CHARM", "DRAGON_RING", "HOLY_BAND", "SWIFT_BAND"]
 };
+
+// Every accessory base can appear from the first floor too (#2061).
+for (let floor = 1; floor <= 4; floor += 1) {
+  ACCESSORY_CANDIDATES_BY_FLOOR[floor] = [...ACCESSORY_CANDIDATES_BY_FLOOR[5]];
+}
 
 // The accessory base set is already horizontal by B5. Deeper floors receive
 // their new possibilities through role supply and affix composition, while

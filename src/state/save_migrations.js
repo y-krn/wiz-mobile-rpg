@@ -73,6 +73,7 @@ import { createDefaultWorkshopState, normalizeWorkshopState } from "../systems/w
 
 import { decodeSaveMaps, decodeVisitedMaps } from "./map_codec.js";
 import { normalizeLastPreparation } from "./last_preparation.js";
+import { normalizeCoreFamilyState } from "./core_families_state.js";
 import { normalizeRunRoundTrip } from "./run_round_trip.js";
 export { SAVE_PAYLOAD_FIELDS, TRANSIENT_STATE_FIELDS } from "./save_contract.js";
 
@@ -928,6 +929,7 @@ export function normalizeSavePayload(data) {
   };
   normalized.keyItems = arrayOr(data.keyItems);
   normalized.lastPreparation = normalizeLastPreparation(data.lastPreparation);
+  normalized.coreFamilies = normalizeCoreFamilyState(data.coreFamilies);
   normalized.facilities = normalizeFacilitiesState(data.facilities);
   normalized.guidebook = normalizeGuidebookState(data.guidebook);
   // Saves from before feats seed the counters from the records they already

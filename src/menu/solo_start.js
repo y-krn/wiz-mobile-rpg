@@ -33,6 +33,13 @@ import { DUNGEON_FLOOR_COUNT } from "../data/dungeons.js";
 import { getDungeonEntryFloor, getDungeonForFloor } from "../rules/dungeons.js";
 import { getDungeonOpener, listDungeons } from "../systems/dungeon_progress.js";
 import {
+  canPinCoreFamily,
+  getDrawableCoreFamilyIds,
+  getLikelyCoreFamilies,
+  pinCoreFamilyForDungeon
+} from "../systems/core_families.js";
+import { formatCoreFamilies, getCoreFamily } from "../rules/core_families.js";
+import {
   getActiveRuneSpellKeys,
   getEquippedMedium,
   getRuneItemId
@@ -453,6 +460,45 @@ function renderDepartureCraftOptions(optGrid, startingKitId, startingGear) {
   });
 }
 
+// A treasure carried out again lets the player fix one likely Core family
+// of one open dungeon before the next departure (#2061). It is offered for
+// the chosen dungeon and is gone once the run departs.
+function appendTreasurePin(optGrid, startingKitId, startingGear) {
+  if (selectedStartFloor === null) return;
+  const dungeonId = getDungeonForFloor(selectedStartFloor).id;
+  if (!canPinCoreFamily(state, dungeonId)) return;
+  const likely = getLikelyCoreFamilies(state, dungeonId);
+  const section = document.createElement("section");
+  section.className = "solo-start-treasure-pin";
+  section.setAttribute("aria-label", "至宝の力");
+  const heading = document.createElement("div");
+  heading.className = "solo-start-rule-heading";
+  const title = document.createElement("strong");
+  title.textContent = "至宝の力";
+  const hint = document.createElement("span");
+  hint.textContent = `${getDungeonForFloor(selectedStartFloor).name}の出やすい Core を1つ、好きなものに決められる。使わずに出発すると消える。`;
+  heading.append(title, hint);
+  const choices = document.createElement("div");
+  choices.className = "solo-start-pin-choices";
+  getDrawableCoreFamilyIds(state).forEach(familyId => {
+    const family = getCoreFamily(familyId);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn solo-start-pin-option";
+    button.dataset.family = familyId;
+    const already = likely.includes(familyId);
+    button.disabled = already;
+    button.textContent = already ? `${family.name}（もう出やすい）` : family.name;
+    button.addEventListener("click", () => {
+      if (!pinCoreFamilyForDungeon(state, dungeonId, familyId)) return;
+      renderStartFloorChoices(optGrid, startingKitId, startingGear, `[data-start-floor="${selectedStartFloor}"]`);
+    });
+    choices.appendChild(button);
+  });
+  section.append(heading, choices);
+  optGrid.appendChild(section);
+}
+
 function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSelector = null) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-floor-grid";
@@ -518,7 +564,16 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
     const dungeonDetail = document.createElement("span");
     // Cleared: its guardian was beaten by a run that came home.
     dungeonDetail.textContent = dungeon.cleared ? "踏破済み" : "まだ踏破していない";
-    button.append(dungeonName, dungeonDetail);
+    // The three likely Core families of this draw (#2061): a coarse, true
+    // statement, never odds.
+    const likely = getLikelyCoreFamilies(state, dungeon.id);
+    const families = document.createElement("span");
+    families.className = "solo-start-dungeon-families";
+    families.dataset.families = likely.join(",");
+    const pinned = state.coreFamilies?.pinned;
+    const pinnedName = pinned?.dungeonId === dungeon.id ? getCoreFamily(pinned.familyId)?.name : null;
+    families.textContent = `出やすい Core：${formatCoreFamilies(likely)}${pinnedName ? `（「${pinnedName}」は至宝で決めた）` : ""}`;
+    button.append(dungeonName, dungeonDetail, families);
     button.dataset.startFloor = String(floor);
     button.dataset.dungeon = dungeon.id;
     button.setAttribute("aria-pressed", String(selectedStartFloor === floor));
@@ -555,6 +610,7 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
     floorSection.appendChild(closedList);
   }
   optGrid.appendChild(floorSection);
+  appendTreasurePin(optGrid, startingKitId, startingGear);
 
   // Round-trip prototype (#2066): an opt-in rule for a run from the top.
   if (canChooseRoundTrip(selectedStartFloor)) {

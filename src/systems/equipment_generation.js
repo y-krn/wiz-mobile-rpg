@@ -24,6 +24,7 @@ import {
 } from "../rules/equipment_vnext_trial.js";
 import { BUILD_VNEXT_SUPPLY, applyBuildVNextSupply } from "../rules/build_vnext_supply.js";
 import { getDungeonFloor } from "../rules/dungeons.js";
+import { getCoreIdsForFamilies } from "../rules/core_families.js";
 
 // Supports that pay out in materials/quests/identification rather than in a
 // fight. The Build vNext trial keeps them possible but rare so early finds
@@ -33,7 +34,24 @@ const BUILD_VNEXT_ECONOMY_SUPPORTS = new Set([
 ]);
 const BUILD_VNEXT_ECONOMY_WEIGHT = 0.25;
 
-function rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId = null, baseId = null) {
+// A Core that random generation can hand out: enabled, kept by the trial,
+// and not waiting for a Workshop unlock. With no unlock list (no party
+// context) every Workshop Core counts as unlocked, as generation does.
+function isGeneratableCore(affix, activeUnlocks) {
+  return affix.enabled
+    && (affix.trialOnly || isVNextTrialCore(affix.id))
+    && (affix.trialOnly || !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) || !activeUnlocks || activeUnlocks.has(affix.id));
+}
+
+/** Ids of the Cores random generation can hand out with these unlocks. */
+export function getGeneratableCoreIds(unlockedAffixIds = null) {
+  const activeUnlocks = Array.isArray(unlockedAffixIds) ? new Set(unlockedAffixIds) : null;
+  return [...CORE_AFFIXES, ...BUILD_VNEXT_CORE_AFFIXES]
+    .filter(affix => isGeneratableCore(affix, activeUnlocks))
+    .map(affix => affix.id);
+}
+
+function rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId = null, baseId = null, likelyCoreFamilies = null) {
   const budget = getAffixBudget(rarity, floor);
   const activeUnlocks = Array.isArray(unlockedAffixIds) ? new Set(unlockedAffixIds) : null;
   const eligibleSupports = supportPool.filter(affix => isVNextTrialSupport(affix.type, { slot, baseId }));
@@ -56,22 +74,33 @@ function rollBuildVNextAffixLoadout(supportPool, slot, rarity, floor, rng, lootR
     }
   }
   if (!allowCores || floor < BUILD_VNEXT_SUPPLY.coreMinFloor) return supports;
+  // The run's likely Core families (#2061) weight which Core is chosen and
+  // how often an item carries one. A run without them keeps the old roll.
+  const likelyCoreIds = getCoreIdsForFamilies(likelyCoreFamilies);
+  const likely = BUILD_VNEXT_SUPPLY.likelyFamily;
   const corePool = [...CORE_AFFIXES, ...BUILD_VNEXT_CORE_AFFIXES]
-    .filter(affix => affix.enabled
-      && (affix.trialOnly || isVNextTrialCore(affix.id))
+    .filter(affix => isGeneratableCore(affix, activeUnlocks)
       && affix.slot === slot
-      && isAllowedCoreForBase(affix.id)
-      && (affix.trialOnly || !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) || !activeUnlocks || activeUnlocks.has(affix.id)))
+      && isAllowedCoreForBase(affix.id))
     .map(affix => ({
       ...affix,
       type: affix.id,
       value: 1,
-      weight: BUILD_VNEXT_SUPPLY.corePoolWeights[affix.poolGroup] || 1
+      weight: (BUILD_VNEXT_SUPPLY.corePoolWeights[affix.poolGroup] || 1)
+        * (likelyCoreIds?.has(affix.id) ? likely.choiceWeight : 1)
     }));
   if (corePool.length === 0) return supports;
   const coreChance = rarity === "epic" ? 1 : (BUILD_VNEXT_SUPPLY.coreChanceByRarity[rarity] ?? 0);
-  if (rng() >= coreChance) return supports;
-  return [...rollAffixes(corePool, 1, rng, Infinity, lootRole), ...supports];
+  if (!likelyCoreIds) {
+    if (rng() >= coreChance) return supports;
+    return [...rollAffixes(corePool, 1, rng, Infinity, lootRole), ...supports];
+  }
+  const [core] = rollAffixes(corePool, 1, rng, Infinity, lootRole);
+  const chance = rarity === "epic"
+    ? 1
+    : Math.min(1, coreChance * (likelyCoreIds.has(core.id) ? likely.chanceUp : likely.chanceDown));
+  if (rng() >= chance) return supports;
+  return [core, ...supports];
 }
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
@@ -213,7 +242,7 @@ export function buildUnidentifiedMeta(
 // `runFloor` is the running floor number; supply reads the floor inside the
 // dungeon, so every dungeon hands out the same kinds on the same floor (#2060).
 export function generateRandomEquipment(runFloor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null } =
+  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null, likelyCoreFamilies = party?.[0]?.likelyCoreFamilies ?? null } =
     requireGenerationOptions(options, "generateRandomEquipment");
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor: runFloor });
   // An invalid floor stays invalid and is rejected below, as before.
@@ -250,9 +279,10 @@ export function generateRandomEquipment(runFloor, options) {
     else rarity = "magic";
   }
 
+  // Every Support can appear from the first floor (#2061); the floor raises
+  // grade and the affix budget, never which kinds exist.
   const possibleAffixes = [];
-  const addAffix = (minFloor, type, getVal, weight = 3) => {
-    if (floor < minFloor) return;
+  const addAffix = (type, getVal, weight = 3) => {
     if (!isVNextTrialSupport(type, {
       slot: baseItem.type === "weapon" ? "weapon" : baseItem.type,
       baseId
@@ -262,119 +292,119 @@ export function generateRandomEquipment(runFloor, options) {
   };
 
   if (baseItem.type === "weapon") {
-    addAffix(1, "atk", () => getSupportValueByRarity("atk", rarity));
+    addAffix("atk", () => getSupportValueByRarity("atk", rarity));
   }
   if (baseItem.type === "armor" || baseItem.type === "shield") {
-    addAffix(1, "def", () => getSupportValueByRarity("def", rarity));
+    addAffix("def", () => getSupportValueByRarity("def", rarity));
   }
-  addAffix(1, "hp", () => getSupportValueByRarity("hp", rarity));
+  addAffix("hp", () => getSupportValueByRarity("hp", rarity));
 
   const isMpEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "ROBE", "PRIEST_ROBE", "MAGE_CLOAK", "ARCANE_ROBE", "SORCERER_ROBE"].includes(baseId);
   if (isMpEligible) {
-    addAffix(1, "mp", () => getSupportValueByRarity("mp", rarity));
+    addAffix("mp", () => getSupportValueByRarity("mp", rarity));
   }
 
-  addAffix(2, "physicalAccuracy", () => getSupportValueByRarity("physicalAccuracy", rarity), 1);
-  addAffix(2, "escapeChance", () => getSupportValueByRarity("escapeChance", rarity), 1);
+  addAffix("physicalAccuracy", () => getSupportValueByRarity("physicalAccuracy", rarity), 1);
+  addAffix("escapeChance", () => getSupportValueByRarity("escapeChance", rarity), 1);
   
   const isTrapEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "LEATHER_ARMOR", "NINJA_SUIT", "EXPLORER_CLOAK", "BUCKLER"].includes(baseId);
   if (isTrapEligible) {
-    addAffix(1, "trapBonus", () => getSupportValueByRarity("trapBonus", rarity), 3);
+    addAffix("trapBonus", () => getSupportValueByRarity("trapBonus", rarity), 3);
   }
 
   if (baseItem.type === "armor" || baseItem.type === "shield") {
-    addAffix(1, "trapGuard", () => getSupportValueByRarity("trapGuard", rarity), 2);
+    addAffix("trapGuard", () => getSupportValueByRarity("trapGuard", rarity), 2);
   }
 
   const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "SHORT_SWORD", "RAPIER", "FLAME_SWORD", "BATTLE_GARB"].includes(baseId);
   if (isFollowUpEligible) {
-    addAffix(2, "followUp", () => Math.floor(rng() * 6) + 10, 2); // 10-15%
+    addAffix("followUp", () => Math.floor(rng() * 6) + 10, 2); // 10-15%
   }
   const isArcaneEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "HOLY_STAFF", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE", "MAGIC_SHIELD"].includes(baseId);
   if (isArcaneEligible) {
-    addAffix(2, "arcane", () => 15, 2); // +15%
+    addAffix("arcane", () => 15, 2); // +15%
   }
   const isSpellPowerEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "HOLY_STAFF", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE", "MAGIC_SHIELD"].includes(baseId);
   if (isSpellPowerEligible) {
-    addAffix(2, "spellPower", () => AFFIX_BALANCE.spellPowerByRarity[rarity], 2);
+    addAffix("spellPower", () => AFFIX_BALANCE.spellPowerByRarity[rarity], 2);
   }
   const isDevotionEligible = isVNextDevotionWeapon(baseId);
   if (isDevotionEligible) {
-    addAffix(2, "devotion", () => 15, 2); // +15%
+    addAffix("devotion", () => 15, 2); // +15%
   }
   const isGuardianEligible = ["SMALL_SHIELD", "LARGE_SHIELD", "KNIGHT_SHIELD", "LEGENDARY_SHIELD", "PLATE_MAIL", "CHAIN_MAIL", "SCALE_MAIL", "BUCKLER", "MAGIC_SHIELD", "DRAGON_SCALE"].includes(baseId);
   if (isGuardianEligible) {
-    addAffix(3, "guardian", () => 15, 2); // -15%
+    addAffix("guardian", () => 15, 2); // -15%
   }
   const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "SHORT_SWORD", "RAPIER", "BUCKLER", "EXPLORER_CLOAK"].includes(baseId);
   if (isTreasureSenseEligible) {
-    addAffix(3, "treasureSense", () => getSupportValueByRarity("treasureSense", rarity), 1);
+    addAffix("treasureSense", () => getSupportValueByRarity("treasureSense", rarity), 1);
   }
   const isHearEligible = ["EXPLORER_CLOAK", "NINJA_SUIT", "LEATHER_ARMOR", "BUCKLER"].includes(baseId);
   if (isHearEligible) {
-    addAffix(1, "hearRange", () => getSupportValueByRarity("hearRange", rarity), 1);
+    addAffix("hearRange", () => getSupportValueByRarity("hearRange", rarity), 1);
   }
   const isArcaneSenseEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "HOLY_STAFF", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE", "MAGIC_SHIELD"].includes(baseId);
   if (isArcaneSenseEligible) {
-    addAffix(1, "arcaneSense", () => getSupportValueByRarity("arcaneSense", rarity), 1);
+    addAffix("arcaneSense", () => getSupportValueByRarity("arcaneSense", rarity), 1);
   }
   const isTraceReadEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "EXPLORER_CLOAK", "NINJA_SUIT", "BUCKLER"].includes(baseId);
   if (isTraceReadEligible) {
-    addAffix(1, "traceRead", () => getSupportValueByRarity("traceRead", rarity), 1);
+    addAffix("traceRead", () => getSupportValueByRarity("traceRead", rarity), 1);
   }
   if (["SACRED_MACE", "MACE", "HOLY_STAFF"].includes(baseId)) {
-    addAffix(3, "antiUndead", () => getSupportValueByRarity("antiUndead", rarity), 1);
+    addAffix("antiUndead", () => getSupportValueByRarity("antiUndead", rarity), 1);
   }
   if (baseId === "DRAGON_SCALE") {
-    addAffix(4, "antiDragon", () => getSupportValueByRarity("antiDragon", rarity), 1);
+    addAffix("antiDragon", () => getSupportValueByRarity("antiDragon", rarity), 1);
   }
   if (["MAGIC_SHIELD", "ARCH_WAND", "ARCANE_ROBE", "SORCERER_ROBE", "DRAGON_SCALE"].includes(baseId)) {
-    addAffix(3, "spellGuard", () => getSupportValueByRarity("spellGuard", rarity), 1);
+    addAffix("spellGuard", () => getSupportValueByRarity("spellGuard", rarity), 1);
   }
   if (baseId === "EXPLORER_CLOAK") {
-    addAffix(2, "poisonWard", () => getSupportValueByRarity("poisonWard", rarity), 1);
+    addAffix("poisonWard", () => getSupportValueByRarity("poisonWard", rarity), 1);
   }
   if (["RAPIER", "NINJA_BLADE", "MOONSHADOW", "BATTLE_GARB"].includes(baseId)) {
-    addAffix(4, "firstStrike", () => getSupportValueByRarity("firstStrike", rarity), 1);
+    addAffix("firstStrike", () => getSupportValueByRarity("firstStrike", rarity), 1);
   }
-  addAffix(3, "deepAssault", () => getSupportValueByRarity("deepAssault", rarity), 2);
+  addAffix("deepAssault", () => getSupportValueByRarity("deepAssault", rarity), 2);
   if (baseItem.type === "armor" || baseItem.type === "shield") {
-    addAffix(1, "frontGuard", () => getSupportValueByRarity("frontGuard", rarity), 2);
-    addAffix(2, "rearEvasion", () => getSupportValueByRarity("rearEvasion", rarity), 2);
-    addAffix(2, "firstStrikeDefense", () => getSupportValueByRarity("firstStrikeDefense", rarity), 1);
+    addAffix("frontGuard", () => getSupportValueByRarity("frontGuard", rarity), 2);
+    addAffix("rearEvasion", () => getSupportValueByRarity("rearEvasion", rarity), 2);
+    addAffix("firstStrikeDefense", () => getSupportValueByRarity("firstStrikeDefense", rarity), 1);
   }
   if (baseItem.type === "weapon") {
-    addAffix(2, "fullHpDamage", () => getSupportValueByRarity("fullHpDamage", rarity), 2);
-    addAffix(2, "lowHpDamage", () => getSupportValueByRarity("lowHpDamage", rarity), 2);
-    addAffix(2, "highHpTargetDamage", () => getSupportValueByRarity("highHpTargetDamage", rarity), 1);
-    addAffix(2, "bossDamage", () => getSupportValueByRarity("bossDamage", rarity), 1);
-    addAffix(2, "physicalAccuracy", () => getSupportValueByRarity("physicalAccuracy", rarity), 1);
-    addAffix(1, "firstTurnAttack", () => getSupportValueByRarity("firstTurnAttack", rarity), 2);
-    addAffix(2, "antiBeast", () => getSupportValueByRarity("antiBeast", rarity), 1);
-    addAffix(2, "antiSpirit", () => getSupportValueByRarity("antiSpirit", rarity), 1);
+    addAffix("fullHpDamage", () => getSupportValueByRarity("fullHpDamage", rarity), 2);
+    addAffix("lowHpDamage", () => getSupportValueByRarity("lowHpDamage", rarity), 2);
+    addAffix("highHpTargetDamage", () => getSupportValueByRarity("highHpTargetDamage", rarity), 1);
+    addAffix("bossDamage", () => getSupportValueByRarity("bossDamage", rarity), 1);
+    addAffix("physicalAccuracy", () => getSupportValueByRarity("physicalAccuracy", rarity), 1);
+    addAffix("firstTurnAttack", () => getSupportValueByRarity("firstTurnAttack", rarity), 2);
+    addAffix("antiBeast", () => getSupportValueByRarity("antiBeast", rarity), 1);
+    addAffix("antiSpirit", () => getSupportValueByRarity("antiSpirit", rarity), 1);
     // #271実src N=8,000: B5装備2.0%、職内r=0.065 [0.027, 0.103]、event勝率4.9%→4.8%。
-    addAffix(2, "antiDemon", () => getSupportValueByRarity("antiDemon", rarity), 1);
+    addAffix("antiDemon", () => getSupportValueByRarity("antiDemon", rarity), 1);
     if (isVNextMediumWeapon(baseId)) {
-      addAffix(3, "spellAccuracy", () => getSupportValueByRarity("spellAccuracy", rarity), 1);
+      addAffix("spellAccuracy", () => getSupportValueByRarity("spellAccuracy", rarity), 1);
     }
-    addAffix(3, "killHeal", () => 2, 1);
-    addAffix(3, "followUpMp", () => 1, 1);
-    addAffix(3, "hitFlinch", () => getSupportValueByRarity("hitFlinch", rarity), 1);
+    addAffix("killHeal", () => 2, 1);
+    addAffix("followUpMp", () => 1, 1);
+    addAffix("hitFlinch", () => getSupportValueByRarity("hitFlinch", rarity), 1);
     // #313: 前衛が自力で状態異常を撒ける唯一の手段。執行人の前提でもある。
-    addAffix(3, "poisonAtk", () => getSupportValueByRarity("poisonAtk", rarity), 1);
+    addAffix("poisonAtk", () => getSupportValueByRarity("poisonAtk", rarity), 1);
     // #793: the single Phase 1 bleeding producer remains weapon-only and
     // follows the existing poison trigger pool without repurposing poisonAtk.
-    addAffix(3, "bleedingAtk", () => getSupportValueByRarity("bleedingAtk", rarity), 1);
+    addAffix("bleedingAtk", () => getSupportValueByRarity("bleedingAtk", rarity), 1);
   }
-  addAffix(2, "statusResistance", () => getSupportValueByRarity("statusResistance", rarity), 2);
-  addAffix(2, "victoryMaterial", () => 5, 1);
-  addAffix(1, "stairsHeal", () => getSupportValueByRarity("stairsHeal", rarity), 1);
-  addAffix(1, "identifyDiscount", () => 10, 2);
-  addAffix(1, "materialFind", () => 10, 2);
-  addAffix(1, "contractReward", () => 10, 2);
+  addAffix("statusResistance", () => getSupportValueByRarity("statusResistance", rarity), 2);
+  addAffix("victoryMaterial", () => 5, 1);
+  addAffix("stairsHeal", () => getSupportValueByRarity("stairsHeal", rarity), 1);
+  addAffix("identifyDiscount", () => 10, 2);
+  addAffix("materialFind", () => 10, 2);
+  addAffix("contractReward", () => 10, 2);
   
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollBuildVNextAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId, baseId);
+  const affixes = rollBuildVNextAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId, baseId, likelyCoreFamilies);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
 
@@ -473,7 +503,7 @@ export function generateRandomEquipment(runFloor, options) {
 }
 
 export function generateRandomAccessory(runFloor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null } =
+  const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null, likelyCoreFamilies = party?.[0]?.likelyCoreFamilies ?? null } =
     requireGenerationOptions(options, "generateRandomAccessory");
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "accessory", floor: runFloor });
   const floor = Number.isInteger(runFloor) && runFloor >= 1 ? getDungeonFloor(runFloor) : runFloor;
@@ -501,7 +531,6 @@ export function generateRandomAccessory(runFloor, options) {
     else if (roll < rareChance) rarity = "rare";
   }
 
-  const availableWeight = (minFloor, weight) => floor >= minFloor ? weight : 0;
   const accessoryAffixPool = [
     { type: "hp", getVal: () => getSupportValueByRarity("hp", rarity), weight: 4 },
     { type: "mp", getVal: () => getSupportValueByRarity("mp", rarity), weight: 3 },
@@ -510,26 +539,26 @@ export function generateRandomAccessory(runFloor, options) {
     { type: "trapBonus", getVal: () => getSupportValueByRarity("trapBonus", rarity), weight: 3 },
     { type: "trapGuard", getVal: () => getSupportValueByRarity("trapGuard", rarity), weight: 2 },
     { type: "spellGuard", getVal: () => getSupportValueByRarity("spellGuard", rarity), weight: 1 },
-    { type: "antiDragon", getVal: () => getSupportValueByRarity("antiDragon", rarity), weight: availableWeight(4, 1) },
-    { type: "antiUndead", getVal: () => getSupportValueByRarity("antiUndead", rarity), weight: availableWeight(3, 1) },
-    { type: "antiDemon", getVal: () => getSupportValueByRarity("antiDemon", rarity), weight: availableWeight(2, 1) },
+    { type: "antiDragon", getVal: () => getSupportValueByRarity("antiDragon", rarity), weight: 1 },
+    { type: "antiUndead", getVal: () => getSupportValueByRarity("antiUndead", rarity), weight: 1 },
+    { type: "antiDemon", getVal: () => getSupportValueByRarity("antiDemon", rarity), weight: 1 },
     { type: "poisonWard", getVal: () => getSupportValueByRarity("poisonWard", rarity), weight: 1 },
     { type: "treasureSense", getVal: () => getSupportValueByRarity("treasureSense", rarity), weight: 1 },
     { type: "hearRange", getVal: () => getSupportValueByRarity("hearRange", rarity), weight: 2 },
     { type: "arcaneSense", getVal: () => getSupportValueByRarity("arcaneSense", rarity), weight: 2 },
-    { type: "spellPower", getVal: () => AFFIX_BALANCE.spellPowerByRarity[rarity], weight: availableWeight(2, 2) },
+    { type: "spellPower", getVal: () => AFFIX_BALANCE.spellPowerByRarity[rarity], weight: 2 },
     { type: "traceRead", getVal: () => getSupportValueByRarity("traceRead", rarity), weight: 2 },
-    { type: "deepAssault", getVal: () => getSupportValueByRarity("deepAssault", rarity), weight: availableWeight(3, 2) },
-    { type: "fullHpDamage", getVal: () => getSupportValueByRarity("fullHpDamage", rarity), weight: availableWeight(2, 2) },
-    { type: "firstStrikeFollowUp", getVal: () => getSupportValueByRarity("firstStrikeFollowUp", rarity), weight: availableWeight(2, 2) },
-    { type: "antiBeast", getVal: () => getSupportValueByRarity("antiBeast", rarity), weight: availableWeight(2, 1) },
-    { type: "antiSpirit", getVal: () => getSupportValueByRarity("antiSpirit", rarity), weight: availableWeight(2, 1) },
-    { type: "statusResistance", getVal: () => getSupportValueByRarity("statusResistance", rarity), weight: availableWeight(2, 2) },
-    { type: "spellAccuracy", getVal: () => getSupportValueByRarity("spellAccuracy", rarity), weight: availableWeight(3, 1) },
-    { type: "killHeal", getVal: () => 2, weight: availableWeight(3, 1) },
-    { type: "followUpMp", getVal: () => 1, weight: availableWeight(3, 1) },
-    { type: "hitFlinch", getVal: () => getSupportValueByRarity("hitFlinch", rarity), weight: availableWeight(3, 1) },
-    { type: "victoryMaterial", getVal: () => 5, weight: availableWeight(2, 1) },
+    { type: "deepAssault", getVal: () => getSupportValueByRarity("deepAssault", rarity), weight: 2 },
+    { type: "fullHpDamage", getVal: () => getSupportValueByRarity("fullHpDamage", rarity), weight: 2 },
+    { type: "firstStrikeFollowUp", getVal: () => getSupportValueByRarity("firstStrikeFollowUp", rarity), weight: 2 },
+    { type: "antiBeast", getVal: () => getSupportValueByRarity("antiBeast", rarity), weight: 1 },
+    { type: "antiSpirit", getVal: () => getSupportValueByRarity("antiSpirit", rarity), weight: 1 },
+    { type: "statusResistance", getVal: () => getSupportValueByRarity("statusResistance", rarity), weight: 2 },
+    { type: "spellAccuracy", getVal: () => getSupportValueByRarity("spellAccuracy", rarity), weight: 1 },
+    { type: "killHeal", getVal: () => 2, weight: 1 },
+    { type: "followUpMp", getVal: () => 1, weight: 1 },
+    { type: "hitFlinch", getVal: () => getSupportValueByRarity("hitFlinch", rarity), weight: 1 },
+    { type: "victoryMaterial", getVal: () => 5, weight: 1 },
     { type: "stairsHeal", getVal: () => getSupportValueByRarity("stairsHeal", rarity), weight: 1 },
     { type: "identifyDiscount", getVal: () => 10, weight: 2 },
     { type: "materialFind", getVal: () => 10, weight: 2 },
@@ -539,7 +568,7 @@ export function generateRandomAccessory(runFloor, options) {
     .filter(Boolean);
 
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollBuildVNextAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId, baseId);
+  const affixes = rollBuildVNextAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, lootRole, allowCores, unlockedAffixIds, forceCoreId, baseId, likelyCoreFamilies);
   const buildRoles = [...new Set(affixes.map(affix => affix.buildRole).filter(Boolean))];
   const buildRole = getDominantBuildRole(affixes, lootRole);
   const tags = [...(baseItem.tags || [])];

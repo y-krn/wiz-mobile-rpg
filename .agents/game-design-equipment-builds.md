@@ -63,14 +63,16 @@ finding loot was not a choice. The contract is:
 4. **Finds are legible choices.** Ordinary trial finds arrive identified.
    Only the gamble tier (epic quality or a curse) stays unknown, so "unknown"
    means "strong or dangerous" rather than "every item". The first ordinary
-   chest of a run offers three identified directions (weapon, defense,
-   accessory), each with a rule-changing Core; the player keeps at most one.
-   The offer is build-blind: it is drawn from a fixed authored table and never
-   reads the loadout, kit, or shortage.
-5. **Combat Cores are reachable in the First Band.** Cores can appear from B1
-   in the trial, weighted toward combat over economy, and non-combat Supports
-   (identification discount, material find, contract reward, victory
-   material) stay possible but rare.
+   chest of a run offers three identified directions, each a base with a
+   rule-changing Core: two from the run's likely Core families and one from
+   outside them, so one offer is never what the plan expected. The player
+   keeps at most one. The offer is build-blind: it is drawn from a fixed
+   authored table per family and never reads the loadout, kit, or shortage.
+5. **Cores are reachable from the first floor.** Cores can appear from B1,
+   weighted toward combat over economy and toward the run's likely families
+   (see Likely Core families), and non-combat Supports (identification
+   discount, material find, contract reward, victory material) stay possible
+   but rare.
 
 The executable values live in `src/data/techniques.js`,
 `src/rules/technique_rules.js`, `src/rules/build_vnext_supply.js`,
@@ -140,9 +142,9 @@ readable reason and must not silently remove an existing shield.
 ## Support Affixes
 
 Support Affixes are bounded numeric, probability, conditional, trigger, or
-economy reinforcements. Rarity should communicate magnitude; depth should
-control when a possibility can enter the supply, not silently turn the same
-Support into a larger number. Support creates an opportunity cost in a slot,
+economy reinforcements. Rarity should communicate magnitude. Depth raises the
+grade and the affix budget; it neither decides which Supports exist nor
+silently turns the same Support into a larger number. Support creates an opportunity cost in a slot,
 rarity, bag decision, or competing resource.
 
 - basic: `atk`, `def`, `hp`, `mp`, `antiUndead`, `antiDragon`, `antiDemon`, `poisonWard`, `spellGuard`, `trapBonus`, `trapGuard`, `treasureSense`, `arcaneSense`, `hearRange`, `traceRead`, `followUp`, `spellPower`, `arcane`, `devotion`, `guardian`, `firstStrike`, `physicalAccuracy`, `escapeChance`
@@ -223,18 +225,61 @@ counterplay, not ordinary gear, so the identify-or-gamble hook remains attached
 to exploration.
 
 Rarity may change composition and budget, but exact composition and numeric
-parameters belong to the data source. Floor bands should establish and
-reinforce a build before offering more cost-conversion and direction-change
-possibilities. Earlier horizontal bases remain eligible as depth increases.
+parameters belong to the data source.
 
-The First Band has an explicit formation sequence: B1-B2 expose a build seed,
-B3-B4 begin to establish run identity, and B5 is the first compound test of
-that build. B1-B5 does not require a finished build, but it is not a build-free
-tutorial. B6+ should deepen transformation through cost conversion, direction
-change, and counterplay rather than only increasing base values.
-In the Build vNext trial, the enhancement grade of a find is the bounded
-run-local power source; it is capped, never carried to the next run, and does
-not replace direction changes as the reason to pick up an item.
+**No floor gate on kinds (#2061).** Every equipment base, Support, and Core
+that the rules hand out can appear from the first floor of every dungeon.
+What rises with the floor inside the dungeon is the grade, the rarity odds,
+and the affix budget. Exceptions, which never enter ordinary supply:
+
+- the high-end bases (`RESTRICTED_CHEST_BASES`): no base in play maps to
+  them;
+- the deep additions of the old running floors (the holy blade, the dragon
+  charm, the sealed sword): supply reads only floors 1-5 of a dungeon, so
+  they are not offered;
+- Cores waiting for a Workshop unlock: they enter supply once unlocked, from
+  the first floor;
+- retired Cores and Cores marked for change in the Build vNext audit.
+
+Runes are not equipment and keep their supply bands by floor
+(`src/data/magic.js`).
+
+Each dungeon's five floors keep the formation sequence of the core loop: B1
+shows the plan, B2-B3 assemble the build, B4 tests it, and B5 is the compound
+test. The enhancement grade of a find is the bounded run-local power source;
+it is capped, never carried to the next run, and does not replace direction
+changes as the reason to pick up an item.
+
+## Likely Core families
+
+Cores are grouped into families, each a way of playing that a player can
+name. A family is drawn only while at least one of its Cores can appear. The
+families and their Cores are data-owned (`src/data/core_families.js`):
+
+| Family | Shown as | Cores |
+| --- | --- | --- |
+| technique | 技 | 連環の型, 研ぎ澄まし |
+| guard | 構え | 返しの構え (反撃の棘 when it returns) |
+| blood | 血 | 血の型, 血杖 (and 薄氷の誓約 when it returns) |
+| curse | 呪い | 呪飼いの鎖 |
+| trap | 罠 | 罠喰い, 盗掘王 |
+| stealth | 忍び | 忍び足 (and 学者の眼 when it returns) |
+
+The player-facing words are "出やすい Core" and the family names; "系統"
+stays the equipment family with a three-piece effect.
+
+- Every dungeon holds three likely families, drawn from the save seed and the
+  number of redraws. The draw is build-blind and is shown where the dungeon is
+  chosen, as names only, never odds.
+- A run takes its dungeon's three at departure. A redraw while it is under
+  way does not change them.
+- A likely Core is chosen more often among the Cores its slot can hold, and
+  an item whose rolled Core is likely carries it more often; any other Core
+  less often. The overall number of Cores stays about the same. The
+  multipliers live in `BUILD_VNEXT_SUPPLY.likelyFamily`.
+- The redraw, the treasure's fixing of one family, and why the draw must not
+  carry the choice of dungeon alone are owned by
+  `.agents/game-design-core-loop.md`.
 
 Supply is build-blind. Candidate availability and weighting must not inspect the
 equipped loadout, starting choice, current shortage, or desired build. The Build

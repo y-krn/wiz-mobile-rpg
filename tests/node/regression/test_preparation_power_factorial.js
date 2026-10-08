@@ -151,6 +151,9 @@ for (const condition of result.conditions) {
   // heal: the W1R12 devotion run no longer returns by town portal and reaches
   // the cutoff, and the W1R0 vanguard run dies instead of returning. Cutoff
   // counts for W0R0, W1R0, and W0R12 are unchanged.
-  assert.equal(condition.outcome.b6Cutoff, { W0R0: 0, W1R0: 0, W0R12: 1, W1R12: 4 }[condition.id]);
+  // #2061 removes the floor gate on kinds, so B1-B2 finds differ on every
+  // seeded run: W1R0 and W0R12 now reach the cutoff more often (2 and 3) and
+  // W1R12 less often (2). W0R0 is unchanged.
+  assert.equal(condition.outcome.b6Cutoff, { W0R0: 0, W1R0: 2, W0R12: 3, W1R12: 2 }[condition.id]);
   assert.ok(condition.outcome.b6Cutoff + condition.outcome.voluntaryReturn <= condition.runs);
 }

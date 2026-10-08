@@ -11,6 +11,7 @@ import { createDefaultRecords } from "./records_state.js";
 import { createDefaultFeatsState } from "./feats_state.js";
 import { createDefaultFacilitiesState } from "./facilities_state.js";
 import { createDefaultGuidebookState } from "./guidebook_state.js";
+import { createDefaultCoreFamilyState } from "./core_families_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
 import { ensureRunFloor, isUsableFloorMap } from "./run_floor_state.js";
 
@@ -59,6 +60,7 @@ interface SaveStorageState extends Record<string, unknown> {
   workshop: { ranks: Record<string, number>; lateralUnlocks: unknown[] };
   keyItems: unknown[];
   lastPreparation: unknown;
+  coreFamilies: unknown;
   feats: unknown;
   facilities: unknown;
   guidebook: unknown;
@@ -174,6 +176,7 @@ export function initNewGame({ preserveSeed = false }: InitNewGameOptions = {}): 
   state.workshop = { ranks: {}, lateralUnlocks: [] };
   state.keyItems = [];
   state.lastPreparation = null;
+  state.coreFamilies = createDefaultCoreFamilyState();
   state.feats = createDefaultFeatsState();
   state.facilities = createDefaultFacilitiesState();
   state.guidebook = createDefaultGuidebookState();

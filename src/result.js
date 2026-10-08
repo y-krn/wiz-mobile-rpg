@@ -22,7 +22,8 @@ import { processRunReturn } from "./systems/run_return.js";
 import { buildDeathNearMiss } from "./rules/near_miss.js";
 import { normalizeRunRecordResult } from "./state/run_record_result.js";
 import { normalizeStartingKitId } from "./state/starting_kit.js";
-import { settleDungeonClears } from "./systems/dungeon_progress.js";
+import { carriesOutRepeatedTreasure, settleDungeonClears } from "./systems/dungeon_progress.js";
+import { settleCoreFamilyRedraw } from "./systems/core_families.js";
 import { normalizeDeathHistory, normalizeDeathHistoryEntry } from "./state/death_logs.js";
 import {
   normalizeRunFirstKillsBefore,
@@ -48,7 +49,11 @@ export function triggerRunResult(reason) {
   // Round-trip prototype (#2066): the treasure only leaves the dungeon on foot.
   if (run.roundTrip && reason !== "surface") run.roundTrip.treasure = false;
   // A run that comes home clears the dungeons whose guardian it beat (#2060).
+  const repeatedTreasure = isSuccess && carriesOutRepeatedTreasure(state, run);
   run.openedDungeons = isSuccess ? settleDungeonClears(state, run) : [];
+  // A run that reached the third floor redraws the likely Core families,
+  // whatever the outcome (#2061).
+  run.coreFamilyRedraw = settleCoreFamilyRedraw(state, run, { treasure: repeatedTreasure });
   const objectLootOutcome = reason === "escape_scroll"
     ? "wing"
     : isSuccess ? "retreat" : "loss";

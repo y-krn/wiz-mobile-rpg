@@ -7,7 +7,7 @@
 //    tier (epic quality or a curse) stays unidentified, so "unknown" means
 //    "strong or dangerous", not "every item".
 // 3. Rule-changing Cores appear from B1 and more often, with combat Cores
-//    weighted over economy Cores.
+//    weighted over economy Cores, and the run's likely families over the rest.
 import { KNOWLEDGE_STAGES, setKnowledgeStage } from "./identification_rules.js";
 
 export const BUILD_VNEXT_SUPPLY = Object.freeze({
@@ -16,7 +16,13 @@ export const BUILD_VNEXT_SUPPLY = Object.freeze({
   maxGrade: 5,
   coreChanceByRarity: Object.freeze({ magic: 0.25, rare: 0.45 }),
   corePoolWeights: Object.freeze({ combat: 3, economy: 1 }),
-  coreMinFloor: 1
+  coreMinFloor: 1,
+  // The run's three likely Core families (#2061). A likely Core is picked
+  // `choiceWeight` times as often among the Cores its slot can hold, and an
+  // item whose rolled Core is likely carries it `chanceUp` times as often;
+  // any other Core `chanceDown` times. With about half the families likely,
+  // the overall number of Cores stays near where it was.
+  likelyFamily: Object.freeze({ choiceWeight: 3, chanceUp: 1.4, chanceDown: 0.6 })
 });
 
 export function rollBuildVNextGrade(floor, rng = Math.random) {

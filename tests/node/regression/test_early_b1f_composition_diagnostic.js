@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 
 const diagnostic = await import("../../../scratch/measurements/early_b1f_composition_diagnostic.js");
 
+// Seed 1193 since #2061: with every kind available from B1 the loot rolls
+// shift the seeded encounters, and 1192 no longer meets a pair in its first
+// two encounters, which this wiring check needs.
 const report = await diagnostic.runEarlyB1FCompositionDiagnostic({
   runs: 2,
   fixedRuns: 1,
   selectionRuns: 2,
-  seed: 1192,
-  selectionSeed: 1192,
+  seed: 1193,
+  selectionSeed: 1193,
   fixedSeed: 1151,
   allowSmallRunCount: true
 });
@@ -104,8 +107,8 @@ const repeated = await diagnostic.runEarlyB1FCompositionDiagnostic({
   runs: 2,
   fixedRuns: 1,
   selectionRuns: 2,
-  seed: 1192,
-  selectionSeed: 1192,
+  seed: 1193,
+  selectionSeed: 1193,
   fixedSeed: 1151,
   allowSmallRunCount: true
 });
