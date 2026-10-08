@@ -109,7 +109,8 @@ const generatedPoisonAtk = findGeneratedAffix(generateRandomEquipment, 4, "poiso
 assert.ok(generatedPoisonAtk, "poisonAtk enters the equipment pool");
 assert.strictEqual(generatedPoisonAtk.affix.value, 12, "poisonAtk scales to 12% on B4");
 assert.strictEqual(ITEMS[generatedPoisonAtk.item.baseId].type, "weapon", "poisonAtk is limited to weapons");
-assert.strictEqual(findGeneratedAffix(generateRandomEquipment, 2, "poisonAtk"), null, "poisonAtk is unavailable before B3, matching the other trigger supports");
+// #2061: no floor gate on kinds; the trigger Supports appear from B1.
+assert.ok(findGeneratedAffix(generateRandomEquipment, 1, "poisonAtk", 5000), "poisonAtk can appear on B1");
 assert.strictEqual(
   findGeneratedAffix(generateRandomEquipment, 3, "poisonAtk", 5000, "magic")?.affix.value,
   8,
@@ -119,7 +120,7 @@ assert.strictEqual(findGeneratedAffix(generateRandomAccessory, 4, "poisonAtk"), 
 const generatedBleedingAtk = findGeneratedAffix(generateRandomEquipment, 4, "bleedingAtk");
 assert.ok(generatedBleedingAtk, "bleedingAtk enters the weapon pool");
 assert.strictEqual(generatedBleedingAtk.affix.value, 12, "bleedingAtk scales to 12% on B4");
-assert.equal(findGeneratedAffix(generateRandomEquipment, 2, "bleedingAtk"), null, "bleedingAtk is unavailable before B3");
+assert.ok(findGeneratedAffix(generateRandomEquipment, 1, "bleedingAtk", 5000), "bleedingAtk can appear on B1");
 assert.equal(findGeneratedAffix(generateRandomAccessory, 4, "bleedingAtk"), null, "bleedingAtk does not enter the accessory pool");
 const trapBonusValues = [
   [generateRandomEquipment, 1],

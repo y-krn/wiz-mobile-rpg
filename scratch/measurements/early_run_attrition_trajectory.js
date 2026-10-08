@@ -2110,7 +2110,11 @@ export function buildMatchedChestComparison(baselineRecords, candidateRecords) {
       compareEvent(event, candidateEvent, target);
       if (!isPreTreatment) {
         const identity = chestIdentity(event);
-        const identityMatches = identity ? candidateByIdentity.get(identity) || [] : [];
+        // Only the candidate's own post-treatment events: a chest opened again
+        // after the treatment point (left loot, a mimic's chest) also has a
+        // pre-treatment event at the same place, already compared by ordinal.
+        const identityMatches = (identity ? candidateByIdentity.get(identity) || [] : [])
+          .filter(identityEvent => identityEvent.ordinal > treatmentOrdinal);
         identityMatches.forEach(identityEvent => {
           endogenous.postTreatmentIdentityComparisons++;
           if (event.trap !== identityEvent.trap ||

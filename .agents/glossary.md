@@ -30,6 +30,7 @@ needs a name, add a row here in the same change.
 | One of the places a run goes into | 迷宮 (named by its biome: 崩れた坑道) | — |
 | Which dungeon a run goes into | 行き先 (行き先を選ぶ) | 開始階 |
 | A dungeon whose guardian was beaten by a run that came home | 踏破 (踏破済み) | — |
+| A dungeon's three likely Core families for the current draw | 出やすい Core（技・構え・血・呪い・罠・忍び） | 系統 (that word is the equipment family with a three-piece effect) |
 | What a dungeon's guardian holds | 至宝 | — |
 | The strong enemy that follows on the way back | 追跡者 | — |
 | Ending a run by climbing out | 歩いて地上へ帰還 (歩いて戻る) | — |

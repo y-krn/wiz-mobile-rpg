@@ -796,7 +796,9 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false, dungeo
   if (roundTrip) { const rule = document.querySelector('.solo-start-rule-option'); if (rule && rule.getAttribute('aria-pressed') !== 'true') { rule.click(); await sl(300); } }
   // Fix the map seed: runSeed = `${state.seed}:run:${Date.now()}` at entry.
   const realNow = Date.now;
-  if (seed !== null) { st().seed = `PT-${seed}`; Date.now = () => 1700000000000; }
+  // The likely Core families (#2061) follow the save seed: drop the draw made
+  // with the page's random seed so the run takes the one for this seed.
+  if (seed !== null) { st().seed = `PT-${seed}`; st().coreFamilies = null; Date.now = () => 1700000000000; }
   try { await W.__click('迷宮へ向かう'); for (let i = 0; i < 40 && st().gameState !== 'explore'; i++) await sl(100); }
   finally { Date.now = realNow; }
   W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
@@ -835,6 +837,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,
     techniqueUses: W.__techUses || 0, seedChoice: W.__seedChoice,
+    likelyCoreFamilies: P()?.likelyCoreFamilies || null,
     journal: W.__journal, loot: W.__lootLog, equipLog: W.__equipLog
   };
 };

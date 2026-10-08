@@ -836,14 +836,13 @@ advantage, or exact drop information.
 
 This document states the structure decided in #2058. Source reaches it in
 steps, and until a step lands, source keeps the previous rule for that part:
-a Portal behind the guardian as the ordinary way home, and kinds of equipment
-gated by floor. Do not change behavior to match this document inside an
+a Portal behind the guardian as the ordinary way home. Do not change behavior to match this document inside an
 unrelated change; use the Issue that owns the part.
 
 | Part of this canon | Lands with |
 | --- | --- |
 | Choosing a dungeon; floors numbered inside it; strength by dungeon and floor; the mine and the catacomb | #2060 (landed) |
-| No floor gate on kinds; three likely families; the redraw; the first-chest draw; fixing a family with a treasure | #2061 |
+| No floor gate on kinds; three likely families; the redraw; the first-chest draw; fixing a family with a treasure | #2061 (landed) |
 | Every run a round trip; the treasure; a keeper and the Wing on the way back; a strong enemy never holding the only way | #2062 |
 | Each dungeon's rule, one dungeon at a time | #2063 |
 | The rift nest, the library, the forge, and the throne opened and tuned | #2064 |
@@ -864,10 +863,14 @@ and trap count for the third dungeon onward (#2064); the kind of rare
 material a guardian drops (#2064); and the saved records, which still order
 runs by it (deepest floor, floor distribution).
 
-Two other documents still describe the previous structure and are rewritten
-with the part they own: `.agents/game-design-equipment-builds.md` (floor
-bands in supply) with #2061, and `.agents/game-design-telemetry.md` (Portal
-events) with #2062. Where they disagree with this document, this document
+Until #2062 a treasure is carried out by any run that beats the guardian and
+comes home, the same rule that clears a dungeon. Carried out the first time,
+it opens the next dungeon; carried out again, it fixes one likely family
+before the next departure (#2061).
+
+One other document still describes the previous structure and is rewritten
+with the part it owns: `.agents/game-design-telemetry.md` (Portal events) with
+#2062. Where they disagree with this document, this document
 holds. Remove this section when #2058 closes.
 
 ## Avoid

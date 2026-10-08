@@ -392,6 +392,9 @@ const qualifyingGuardianScenario = {
   // #2028: production exploration recovery scales with max HP, so at +600 the
   // probe reaches the guardian nearly full and wins without fleeing; +150
   // keeps the qualifying flee on seed 6.
+  // #2061: every kind can appear from B1, so the seeded finds change; seed 6
+  // no longer reaches the guardian and seed 5 is the first that earns the
+  // checkpoint with a qualifying flee.
   hpBaseBonus: 150,
   merchantPolicy: "supply-missing",
   b5GuardianRetryCheckpoint: true,
@@ -399,12 +402,12 @@ const qualifyingGuardianScenario = {
 };
 const qualifyingGuardian = runGuardianRetryProbe(
   qualifyingGuardianScenario,
-  6,
+  5,
   "issue1374-qualifying-flee"
 );
 const qualifyingRepeat = runGuardianRetryProbe(
   qualifyingGuardianScenario,
-  6,
+  5,
   "issue1374-qualifying-flee"
 );
 assert.deepEqual(qualifyingGuardian.b5GuardianRetry, qualifyingRepeat.b5GuardianRetry);

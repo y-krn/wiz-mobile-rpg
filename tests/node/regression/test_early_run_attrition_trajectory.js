@@ -458,11 +458,15 @@ assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributi
 // A descent no longer heals, so one of the eight runs arrives on B3 below the
 // town-portal threshold and returns at the floor transition, before it counts
 // as a B3 entrant. Reaching B4 and B3 deaths are unchanged.
-assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 7);
+// #2061 removes the floor gate on kinds: every base and Support can appear
+// from B1, so finds on B1-B2 are heavier and carry more Supports. All eight
+// seeded runs now enter B3 and go on to B4. The browser bot measures the
+// full runs for the PR.
+assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 8);
 assert.deepEqual(
   Object.fromEntries(Object.entries(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts)
     .map(([id, cohort]) => [id, cohort.count])),
-  { reachedNextFloor: 4, died: 1, voluntaryReturn: 2, otherTerminal: 0 }
+  { reachedNextFloor: 8, died: 0, voluntaryReturn: 0, otherTerminal: 0 }
 );
 assert.equal(canonicalOnlySmoke.cases[0].policies.t0, undefined);
 const canonicalOnlyReport = trajectory.buildReport(
@@ -581,8 +585,11 @@ assert.ok(
   `bounded report size must not track full run count: N16=${largerReportSize} -> N32=${largestReportSize}`
 );
 assert.ok(largerReportSize < 5_000_000, `synthetic heavy report unexpectedly large: ${largerReportSize}`);
+// #2061: with every kind available from B1 the equipment candidate audit
+// lists more distinct candidates per floor; the bound still holds against
+// run count (the N16/N32 ratio above).
 assert.ok(
-  largestReportSize < 3_000_000,
+  largestReportSize < 3_500_000,
   `synthetic heavy report unexpectedly large after bounded cohort aggregates: ${largestReportSize}`
 );
 assert.equal(largerReport.cases[0].policies.t0.runEvidenceSample.totalCount, 16);
