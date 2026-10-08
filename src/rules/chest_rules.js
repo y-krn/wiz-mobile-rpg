@@ -14,8 +14,10 @@ import { getRuneItemIdsByFloor } from "../data/magic.js";
 // 結果が変わり、以後の before/after 比較が成立しなくなる。
 
 // 宝箱の装身具は B2、本体装備は B3 から core を解禁する（#270）。
-export const CHEST_ACCESSORY_CORE_MIN_FLOOR = 2;
-export const CHEST_EQUIPMENT_CORE_MIN_FLOOR = 3;
+// Cores appear from the first floor (#2061). The knobs remain so measurement
+// scripts can override that floor.
+export const CHEST_ACCESSORY_CORE_MIN_FLOOR = 1;
+export const CHEST_EQUIPMENT_CORE_MIN_FLOOR = 1;
 // Telemetry reward categories for chest_action. Special, quest, and
 // progression rewards stay distinct from ordinary equipment and usables.
 export const CHEST_REWARD_CATEGORIES = Object.freeze([

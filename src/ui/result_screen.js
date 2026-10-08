@@ -293,11 +293,21 @@ function createNearMissSection(run, outcome) {
   return section;
 }
 
+// What the redraw of likely Core families did when this run ended (#2061).
+function getCoreFamilyLines(run) {
+  const redraw = run?.coreFamilyRedraw;
+  if (!redraw?.redrawn) return [];
+  const lines = ["どの迷宮も、出やすい Core が変わった"];
+  if (redraw.treasurePin) lines.push("至宝の力：次の出発の前に、ひとつの迷宮の出やすい Core を1つ決められる");
+  return lines;
+}
+
 function createDiscoverySection(run) {
   const codex = run.codexInsights?.length ? [] : run.codexDiscoveries || [];
   const workshop = run.workshopUnlocks?.length ? [] : run.workshopDiscoveries || [];
   const dungeons = getOpenedDungeonNames(run);
-  if (!codex.length && !workshop.length && !dungeons.length) return null;
+  const coreFamilies = getCoreFamilyLines(run);
+  if (!codex.length && !workshop.length && !dungeons.length && !coreFamilies.length) return null;
   const section = textElement("section", "result-discovery-section");
   setAttributeSafe(section, "aria-label", "新しく増えた記録と可能性");
   setAttributeSafe(section, "data-result-discoveries", "");
@@ -313,6 +323,7 @@ function createDiscoverySection(run) {
   appendColumn("新しく分かったこと", codex, name => `${name}を書庫に記録`);
   appendColumn("広がった可能性", workshop, name => `工房で${name}を選べるようになった`);
   appendColumn("開いた迷宮", dungeons, name => `${name}へ入れるようになった`);
+  appendColumn("出やすい Core", coreFamilies, line => line);
   return section;
 }
 

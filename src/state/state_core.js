@@ -85,6 +85,8 @@ export const state = {
   dungeonMemory: { mapFragments: {}, visitedFloors: [1] },
   // Choices of the previous departure; pre-fills the next preparation (#2002).
   lastPreparation: null,
+  // Likely Core families per dungeon (#2061), drawn on first use.
+  coreFamilies: { draws: 0, byDungeon: {}, treasurePin: false, pinned: null },
   // Long-term goals: counters across runs and the feats achieved (#2007).
   feats: createDefaultFeatsState(),
   // Town facility nodes bought with materials (#2009).

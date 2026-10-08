@@ -353,6 +353,35 @@
   font-size: var(--fs-xs);
 }
 
+/* The likely Core families of a dungeon (#2061) read as part of its card. */
+.solo-start-floor-option .solo-start-dungeon-families {
+  color: var(--text-main);
+}
+
+/* The treasure's one-time choice of a likely Core family (#2061). */
+.solo-start-treasure-pin {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--sp-xs);
+  padding: var(--sp-xs) var(--sp-sm);
+  border: 1px solid var(--neon-amber);
+  border-radius: var(--sp-sm);
+}
+
+.solo-start-treasure-pin .solo-start-rule-heading {
+  padding: 0;
+}
+
+.solo-start-pin-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-xs);
+}
+
+.solo-start-pin-option {
+  min-height: var(--tap-min);
+}
+
 /* Dungeons that cannot be entered yet (#2060): a name and what opens it. */
 .solo-start-dungeon-closed {
   display: grid;
