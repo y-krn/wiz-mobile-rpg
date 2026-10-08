@@ -264,7 +264,8 @@ covers one slot of one dungeon, and it lasts for one draw.
   lead on the way back. The floor's own roaming strong enemy stands down
   while the hunter is out, and lingering calls no second one.
 - **Being caught is a fight, not an ending.** Contact starts a strong-enemy
-  fight with the usual rules. Fleeing shakes the hunter off: it is driven
+  fight with the usual rules. Fleeing costs the hunter's parting blow but
+  never the last HP, and shakes the hunter off: it is driven
   back, away from the way out, and the run keeps its place. Only when the
   hunter has nowhere to go does the run fall back instead. A slain hunter
   does not return. The hunter's combat strength is that of the dungeon's

@@ -433,6 +433,11 @@ function recordQueuedPatternResponse(state, monsters, response, measurement = nu
   });
 }
 
+function isFleeingHunter(state) {
+  const id = state.combatState?.isRoamingFlack ? state.combatState.roamingMonsterId : null;
+  return Boolean(id && state.roamingMonsters?.some(monster => monster.id === id && monster.hunter));
+}
+
 function applyFleePartingAttack(state, monsters, logQueue, rng = Math.random, measurement = null) {
   const attacker = monsters.find(mon => mon.hp > 0);
   const target = state.party.find(char => char.status !== "dead");
@@ -456,6 +461,11 @@ function applyFleePartingAttack(state, monsters, logQueue, rng = Math.random, me
     telemetry: state.combatFormulaTelemetry
   });
   dmg = reduceIncomingDamage(target, dmg, { logQueue, state });
+  // Being caught by the hunter on the way back is a fight, not an ending
+  // (#2062): fleeing it costs its parting blow but never the last HP. In the
+  // measurement before this, four of seven deaths on the way back were this
+  // blow alone.
+  if (isFleeingHunter(state) && target.hp > 1) dmg = Math.min(dmg, target.hp - 1);
   state.combatFormulaTelemetry?.physicalMonsterHits.push({
     floor: state.floor,
     finalAtk, finalDef, defResistance, formulaRaw, formulaDmg,
