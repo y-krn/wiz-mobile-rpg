@@ -188,6 +188,9 @@ test('The dungeon ends on its fifth floor, and walking home with the treasure op
   await expect(open.nth(0)).toContainText('踏破済み');
   await expect(open.nth(1)).toContainText('まだ踏破していない');
   await expect(open.nth(1)).toContainText('忘れられた地下墓地');
+  // The catacomb's one rule shows on its card (#2063); the mine has none yet.
+  await expect(open.nth(1).locator('.solo-start-dungeon-rule')).toHaveText(/^呪い：/);
+  await expect(open.nth(0).locator('.solo-start-dungeon-rule')).toHaveCount(0);
   await expect(page.locator('.solo-start-dungeon-closed li')).toHaveCount(4);
   await expect(async () => {
     await open.nth(1).click({ timeout: 1000 });
