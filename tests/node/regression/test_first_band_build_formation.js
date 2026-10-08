@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { findSeed, seedWindow } from "../fixtures/seed_search.js";
 
 import {
   ARM_IDS,
@@ -168,23 +169,26 @@ const fleeScenario = {
   fleeHpThreshold: 0.9,
   milestonePortalPolicy: "continue"
 };
-// Seed 2 -> 3: the unified Build vNext rules (normal profile removed) change
-// the seeded B1-B5 route, and seed 2 no longer reaches the B5 guardian.
-resetSimulationRandom(3);
-const fleeBoss = simulateRun({
-  className: "Thief",
-  startFloor: 1,
-  targetDepth: 6,
-  runIndex: 0,
-  seriesId: "probe-threshold-0.9-2",
-  scenario: fleeScenario,
-  workshop: fleeScenario.workshop,
-  collectDiagnostics: true,
-  collectBuildSnapshots: true,
-  collectEquipmentTelemetry: true
-});
-const fleeTrace = fleeBoss.milestoneEventTrace.filter(event => event.floor === 5 && event.type === "boss");
-const fleeDiagnostic = normalizeBossTrace(fleeTrace);
+// The probe needs a run that reaches the B5 guardian, flees and comes back.
+// Which seed does that moves with the route (2 -> 3 under the unified Build
+// vNext rules), so the first seed from 3 that does is used (#2081).
+const { result: fleeDiagnostic } = await findSeed("B5 guardian flee and retry", seedWindow(3, 10), seed => {
+  resetSimulationRandom(seed);
+  const fleeBoss = simulateRun({
+    className: "Thief",
+    startFloor: 1,
+    targetDepth: 6,
+    runIndex: 0,
+    seriesId: "probe-threshold-0.9-2",
+    scenario: fleeScenario,
+    workshop: fleeScenario.workshop,
+    collectDiagnostics: true,
+    collectBuildSnapshots: true,
+    collectEquipmentTelemetry: true
+  });
+  return normalizeBossTrace(fleeBoss.milestoneEventTrace.filter(event => event.floor === 5 && event.type === "boss"));
+}, diagnostic => diagnostic.actualBossEventArrival && diagnostic.fleeEventCount > 0 &&
+  diagnostic.bossCombatResultEventCount >= 2 && diagnostic.retryRevisit === true);
 assert.ok(fleeDiagnostic.actualBossEventArrival);
 assert.ok(fleeDiagnostic.fleeEventCount > 0);
 assert.ok(fleeDiagnostic.bossCombatResultEventCount >= 2);
@@ -207,15 +211,21 @@ const runB5InterventionProbe = (scenario, seed, seriesId) => {
 };
 
 const flameProbeBase = { ...focusedScenario };
-const flameCurrent = runB5InterventionProbe(flameProbeBase, 1, "probe-b5-flame-current");
+// The intervention needs a seed whose current run triggers the B5 flame trap (#2081).
+const { seed: flameSeed, result: flameCurrent } = await findSeed(
+  "B5 flame trap",
+  seedWindow(1, 10),
+  seed => runB5InterventionProbe(flameProbeBase, seed, "probe-b5-flame-current"),
+  probe => probe.b5Entrant === true && probe.flameTrapActivations > 0
+);
 const flameDisabled = runB5InterventionProbe(
   { ...flameProbeBase, b5FlameTrapDisabled: true },
-  1,
+  flameSeed,
   "probe-b5-flame-disabled"
 );
 const flameDisabledBoth = runB5InterventionProbe(
   { ...flameProbeBase, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true },
-  1,
+  flameSeed,
   "probe-b5-flame-disabled-both"
 );
 assert.equal(flameCurrent.b5Entrant, true);
@@ -234,19 +244,25 @@ const guardianProbeScenario = {
   startingGreaterHeals: 3,
   fleeHpThreshold: 0.9
 };
-const guardianCurrent = runB5InterventionProbe(guardianProbeScenario, 0, "probe-b5-guardian-current");
+const b5BossTrace = result => result.milestoneEventTrace.filter(event => event.floor === 5 && event.type === "boss");
+const guardianFleeCount = result => normalizeBossTrace(b5BossTrace(result)).fleeEventCount;
+// The intervention needs a seed whose current run flees from the guardian (#2081).
+const { seed: guardianSeed, result: guardianCurrent } = await findSeed(
+  "B5 guardian flee",
+  seedWindow(0, 10),
+  seed => runB5InterventionProbe(guardianProbeScenario, seed, "probe-b5-guardian-current"),
+  probe => guardianFleeCount(probe) > 0
+);
 const guardianDisabled = runB5InterventionProbe(
   { ...guardianProbeScenario, b5GuardianFleeDisabled: true },
-  0,
+  guardianSeed,
   "probe-b5-guardian-disabled"
 );
 const guardianDisabledBoth = runB5InterventionProbe(
   { ...guardianProbeScenario, b5FlameTrapDisabled: true, b5GuardianFleeDisabled: true },
-  0,
+  guardianSeed,
   "probe-b5-guardian-disabled-both"
 );
-const b5BossTrace = result => result.milestoneEventTrace.filter(event => event.floor === 5 && event.type === "boss");
-const guardianFleeCount = result => normalizeBossTrace(b5BossTrace(result)).fleeEventCount;
 assert.ok(guardianFleeCount(guardianCurrent) > 0, "current B5 probe did not flee from Guardian");
 for (const [label, probe] of [["G", guardianDisabled], ["FG", guardianDisabledBoth]]) {
   const diagnostic = normalizeBossTrace(b5BossTrace(probe));
@@ -277,11 +293,17 @@ assert.match(result.primaryComparisons[2].label, /P1B1 - P0B1/);
 assert.match(result.primaryComparisons[3].label, /P1B0 - P0B0/);
 assert.ok(!JSON.stringify(result).includes("encounterIdentityLog"));
 
-// The seed is a fixture: the C arm must swap its wand away once, and the W and
-// R arms must change non-weapon gear by B2. #2028 production exploration
-// recovery shifts the seeded B1 fights, so seed 1277 no longer swaps the wand;
-// seed 6 does.
-const arcana = await runMeasurement({ runs: 1, seed: 6, mode: ARCANA_WEAPON_MODE });
+// The run must have the C arm swap its wand away once, and the W and R arms
+// change non-weapon gear by B2. Which seed does that moves with the B1 fights
+// (1277 -> 6 after #2028), so the first seed from 6 that does is used (#2081).
+const { result: arcana } = await findSeed(
+  "arcana wand swap",
+  seedWindow(6, 10),
+  seed => runMeasurement({ runs: 1, seed, mode: ARCANA_WEAPON_MODE }),
+  report => report.arms.C.overview.mediumAbandonment.mediumLossCount === 1 &&
+    report.arms.W.overview.buildCheckpoints[2].nonWeaponSwapCount.total > 0 &&
+    report.arms.R.overview.buildCheckpoints[2].nonWeaponSwapCount.total > 0
+);
 assert.deepEqual(arcana.configuration.arms, ["C", "W", "R"]);
 assert.deepEqual(arcana.configuration.startingKits, ["arcana"]);
 assert.match(arcana.configuration.comparisonSemantics, /^Cross-arm C\/W\/R treatment comparisons/);
@@ -387,30 +409,26 @@ const qualifyingGuardianScenario = {
   fleeHpThreshold: 0.8,
   milestonePortalPolicy: "continue",
   // #1801: guardian adds share one slot, so at +1000 HP the guardian dies
-  // before the 80% flee threshold is reached; +600 keeps the qualifying flee.
-  // Seed 6 is the first seed that earns the checkpoint under the unified rules.
-  // #2028: production exploration recovery scales with max HP, so at +600 the
-  // probe reaches the guardian nearly full and wins without fleeing; +150
-  // keeps the qualifying flee on seed 6.
-  // #2061: every kind can appear from B1, so the seeded finds change; seed 6
-  // no longer reaches the guardian and seed 5 is the first that earns the
-  // checkpoint with a qualifying flee.
-  // #2062: a roaming elite no longer patrols the only way to the guardian,
-  // so the probe reaches it with more HP and wins without fleeing at +150;
-  // +100 keeps the qualifying flee, first on seed 1.
+  // before the 80% flee threshold is reached. Exploration recovery (#2028)
+  // and the clear path to the guardian (#2062) each brought it in fuller, so
+  // the bonus came down to +100; the seed is searched below (#2081).
   hpBaseBonus: 100,
   merchantPolicy: "supply-missing",
   b5GuardianRetryCheckpoint: true,
   b5GuardianRetryObservation: true
 };
-const qualifyingGuardian = runGuardianRetryProbe(
-  qualifyingGuardianScenario,
-  1,
-  "issue1374-qualifying-flee"
+// The probe needs a run that earns the checkpoint with a qualifying flee. The
+// seed that does moved 6 -> 5 -> 1 across #2061 and #2062 (#2081).
+const { seed: qualifyingSeed, result: qualifyingGuardian } = await findSeed(
+  "B5 guardian qualifying flee",
+  seedWindow(1, 10),
+  seed => runGuardianRetryProbe(qualifyingGuardianScenario, seed, "issue1374-qualifying-flee"),
+  probe => probe.b5GuardianRetry.checkpointEarnedCount === 1 &&
+    probe.b5GuardianRetry.attempts.some(attempt => attempt.qualifyingFlee)
 );
 const qualifyingRepeat = runGuardianRetryProbe(
   qualifyingGuardianScenario,
-  1,
+  qualifyingSeed,
   "issue1374-qualifying-flee"
 );
 assert.deepEqual(qualifyingGuardian.b5GuardianRetry, qualifyingRepeat.b5GuardianRetry);

@@ -2,18 +2,34 @@ import assert from "node:assert/strict";
 
 const diagnostic = await import("../../../scratch/measurements/early_b1f_composition_diagnostic.js");
 
-// Seed 1193 since #2061: with every kind available from B1 the loot rolls
-// shift the seeded encounters, and 1192 no longer meets a pair in its first
-// two encounters, which this wiring check needs.
-const report = await diagnostic.runEarlyB1FCompositionDiagnostic({
+import { findSeed, seedWindow } from "../fixtures/seed_search.js";
+
+const run = seed => diagnostic.runEarlyB1FCompositionDiagnostic({
   runs: 2,
   fixedRuns: 1,
   selectionRuns: 2,
-  seed: 1193,
-  selectionSeed: 1193,
+  seed,
+  selectionSeed: seed,
   fixedSeed: 1151,
   allowSmallRunCount: true
 });
+// The wiring check needs a run that meets a pair in its first encounter, so
+// the redistribution and ordering cases have a target to act on. Which seed
+// does that moves with every loot or combat change (#2081).
+// The diagnostic refuses a seed whose baseline meets no pair at all.
+const runScenario = seed => run(seed).catch(error => {
+  if (/did not observe a pair/.test(error.message)) return null;
+  throw error;
+});
+const meetsOpeningPair = report => report !== null && Object.entries(report.cases).every(([caseId, result]) => {
+  const ordinal1 = result.metrics.byEncounterOrdinal["1"];
+  const actions = ordinal1.candidateActions || {};
+  const trials = Object.keys(ordinal1.replacementTrials || {}).length;
+  if (caseId === "composition-pool-redistribution") return (actions["redistribute-pool"] || 0) > 0 && trials > 0;
+  if (caseId.startsWith("ordering-defer")) return (actions["defer-opening-target"] || 0) > 0 && trials > 0;
+  return true;
+});
+const { seed, result: report } = await findSeed("early B1F opening pair", seedWindow(1192, 30), runScenario, meetsOpeningPair);
 
 assert.equal(report.configuration.startingKit, "vanguard");
 assert.equal(report.legalPairSurface.length, 43);
@@ -103,15 +119,7 @@ for (const [caseId, result] of Object.entries(report.cases)) {
 assert.equal(report.flee.selected, report.flee.executed + report.flee.selectedButNotExecuted);
 assert.equal(report.flee.executed, report.flee.survived + report.flee.partingAttackDeaths);
 
-const repeated = await diagnostic.runEarlyB1FCompositionDiagnostic({
-  runs: 2,
-  fixedRuns: 1,
-  selectionRuns: 2,
-  seed: 1193,
-  selectionSeed: 1193,
-  fixedSeed: 1151,
-  allowSmallRunCount: true
-});
+const repeated = await run(seed);
 assert.deepEqual(repeated, report);
 
 console.log("[PASS] early B1F legal-pair surface and matched C/P/O diagnostic wiring");

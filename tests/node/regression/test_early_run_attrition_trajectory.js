@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { findSeed, seedWindow } from "../fixtures/seed_search.js";
 
 const trajectory = await import("../../../scratch/measurements/early_run_attrition_trajectory.js");
 const { STARTING_KITS } = await import("../../../src/state/initial_state.js");
@@ -446,27 +447,19 @@ assert.equal(canonicalOnlySmoke.configuration.policyExecution.startsWith("canoni
 assert.equal(canonicalOnlySmoke.determinism.pass, true);
 assert.equal(Object.values(canonicalOnlySmoke.observationInvariance).every(value => value.pass), true);
 assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts.died.count >= 0, true);
-// #1801 solo HP budget: two of the eight seeded runs now return before B3 and
-// none of the B3 entrants die at B3. #1939 replaced the B3 gas bomb with
-// corrosion, so one more B3 entrant returns instead of descending. #1962 biome
-// layout archetypes and #1963 traversal gimmicks reshuffle the seeded floors;
-// 64-run comparisons for each kept B3-B5 entrants and deaths within noise.
-// Removing the normal run profile makes simulated runs use the unified Build
-// vNext rules: one more of the eight seeded runs now enters B3 and then
-// returns voluntarily; reaching B4 and deaths are unchanged.
-// #2028 production exploration recovery replaces the simulated 25% stairs heal.
-// A descent no longer heals, so one of the eight runs arrives on B3 below the
-// town-portal threshold and returns at the floor transition, before it counts
-// as a B3 entrant. Reaching B4 and B3 deaths are unchanged.
-// #2061 removes the floor gate on kinds: every base and Support can appear
-// from B1, so finds on B1-B2 are heavier and carry more Supports. All eight
-// seeded runs now enter B3 and go on to B4. The browser bot measures the
-// full runs for the PR.
-assert.equal(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].entrants, 8);
+// How many of the eight seeded runs enter B3, and how each leaves it, moved
+// with every balance change (#1801, #1939, #1962, #1963, #2028 and #2061 each
+// rewrote the pinned counts). This smoke checks the cohorts account for every
+// entrant; the counts themselves belong to a measurement (#2081).
+const canonicalB3 = canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3];
+assert.ok(canonicalB3.entrants >= 1 && canonicalB3.entrants <= 8, `B3 entrants ${canonicalB3.entrants} of 8`);
 assert.deepEqual(
-  Object.fromEntries(Object.entries(canonicalOnlySmoke.cases[0].policies.canonical.aggregate.distributions[3].outcomeCohorts)
-    .map(([id, cohort]) => [id, cohort.count])),
-  { reachedNextFloor: 8, died: 0, voluntaryReturn: 0, otherTerminal: 0 }
+  Object.keys(canonicalB3.outcomeCohorts).sort(),
+  ["died", "otherTerminal", "reachedNextFloor", "voluntaryReturn"]
+);
+assert.equal(
+  Object.values(canonicalB3.outcomeCohorts).reduce((sum, cohort) => sum + cohort.count, 0),
+  canonicalB3.entrants
 );
 assert.equal(canonicalOnlySmoke.cases[0].policies.t0, undefined);
 const canonicalOnlyReport = trajectory.buildReport(
@@ -548,20 +541,30 @@ assert.equal(
   smoke.cases[0].policies.t0.runEvidenceSample.droppedCount
 );
 
-// The seed is a fixture that must reach B1 strict-upgrade rejections; #1962
-// floor layouts and #1963 gimmicks moved them off the previous seed (1301).
-const largerSmoke = await trajectory.runMeasurement({
-  runs: 16,
-  seed: 1355,
-  startingKitIds: ["vanguard"],
-  scenarioIds: ["workshop-empty"],
-  collectEquipmentCandidateAudit: true,
-  allowSmallRunCount: true
-});
+// The run needs B1 strict-upgrade rejections of both reasons checked below.
+// Which seed has them moves with floor layouts and loot (1301 -> 1355 after
+// #1962/#1963), so the first seed from 1355 that has them is used (#2081).
+const strictUpgradeRejectionsByReason = (smokeResult, reason) => Object.values(
+  smokeResult.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor
+).reduce((sum, floor) => sum + (floor.byRejectionReason[reason]?.strictUpgrade?.rejectedCandidateCount || 0), 0);
+const { seed: largerSeed, result: largerSmoke } = await findSeed(
+  "B1 strict-upgrade rejections",
+  seedWindow(1355, 8),
+  seed => trajectory.runMeasurement({
+    runs: 16,
+    seed,
+    startingKitIds: ["vanguard"],
+    scenarioIds: ["workshop-empty"],
+    collectEquipmentCandidateAudit: true,
+    allowSmallRunCount: true
+  }),
+  smokeResult => ["combat-score-not-higher", "score-not-higher"]
+    .every(reason => strictUpgradeRejectionsByReason(smokeResult, reason) > 0)
+);
 const largerReport = trajectory.buildReport(
   largerSmoke,
   { sourceCommit: "a".repeat(40), measurementRunnerCommit: "b".repeat(40) },
-  { SIM_SEED: "1355" },
+  { SIM_SEED: String(largerSeed) },
   { measurementId: "build-progression-audit", purpose: "regression" }
 );
 const largestSmoke = await trajectory.runMeasurement({
@@ -600,15 +603,12 @@ assert.equal(largerReport.cases[0].returnContinuation.rows.length <= trajectory.
 // reasons (out-ranked-by-later-candidate, not-best-selection-score) in these
 // seeded runs, so the aggregate-retention check uses the strictUpgrade reasons
 // that do occur.
-const strictUpgradeRejectionsByReason = reason => Object.values(
-  largerSmoke.cases[0].policies.t0.aggregate.rejectedCandidates.crossTab.byFloor
-).reduce((sum, floor) => sum + (floor.byRejectionReason[reason]?.strictUpgrade?.rejectedCandidateCount || 0), 0);
 assert.ok(
-  strictUpgradeRejectionsByReason("combat-score-not-higher") > 0,
+  strictUpgradeRejectionsByReason(largerSmoke, "combat-score-not-higher") > 0,
   "aggregate must retain strictUpgrade combat-score-not-higher reasons"
 );
 assert.ok(
-  strictUpgradeRejectionsByReason("score-not-higher") > 0,
+  strictUpgradeRejectionsByReason(largerSmoke, "score-not-higher") > 0,
   "aggregate must retain strictUpgrade score-not-higher reasons"
 );
 
