@@ -42,6 +42,7 @@ const RECOVERY = await import('/src/systems/exploration_recovery.js');
 const FACILITIES = await import('/src/systems/facilities.js');
 const FACILITY_DATA = await import('/src/data/facilities.js');
 const DUNGEON_RULES = await import('/src/rules/dungeons.js');
+const EXPLORE = await import('/src/menu/explore_actions.js');
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 // Real (unscaled) sleep when the runner accelerates timers.
@@ -194,6 +195,14 @@ W.__walk = async (goalName = 'frontier', maxSteps = 200, stopWhen = null, { thro
     if (!path) return 'no path';
     const [nx, ny] = path[0]; const d = [0, 1, 2, 3].find(d => s.x + DX[d] === nx && s.y + DY[d] === ny); let g = 0;
     while (s.dir !== d && g++ < 4) { M.handleMove(((d - s.dir + 4) % 4) === 3 ? 'turn-left' : 'turn-right'); while (s.transitioning) await sl(20); await sl(10); }
+    // A heat vent burns on a visible cycle: wait (search, one turn) until it
+    // is cool on arrival, as a player would, at most a full cycle.
+    const vent = s.map?.[ny]?.[nx]?.hazard;
+    for (let w = 0; vent?.kind === 'heat' && w < GIMMICKS.HEAT_CYCLE_TURNS
+      && GIMMICKS.isHeatActive(vent, M.getCurrentFloorExplorationSteps() + 1); w++) {
+      EXPLORE.handleExploreAction('search'); while (s.transitioning) await sl(20); await sl(10);
+      if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' while waiting for a vent';
+    }
     const bx = s.x, by = s.y; M.handleMove('forward'); while (s.transitioning) await sl(20); await sl(20); steps++;
     if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' after ' + steps;
     if (s.x === bx && s.y === by) {
