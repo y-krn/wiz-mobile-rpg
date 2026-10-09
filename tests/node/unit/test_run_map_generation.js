@@ -36,10 +36,10 @@ function isolateCell(grid, target) {
 check("three depth templates are declared", () => {
   assert.equal(FLOOR_TEMPLATES.length, 3);
   assert.equal(getFloorTemplate(1).id, "shallow");
-  // The template is the dungeon's (#2064): the nest is as big as the first
-  // two dungeons, the library is the first middle one.
+  // The template is the dungeon's (#2064): the nest and the library are as
+  // big as the first two dungeons.
   assert.equal(getFloorTemplate(11).id, "shallow");
-  assert.equal(getFloorTemplate(16).id, "middle");
+  assert.equal(getFloorTemplate(16).id, "shallow");
   assert.equal(getFloorTemplate(21).id, "deep");
   assert.notDeepEqual(FLOOR_TEMPLATES[0].roomCountRange, FLOOR_TEMPLATES[2].roomCountRange);
   assert.notDeepEqual(FLOOR_TEMPLATES[0].gimmickDensity, FLOOR_TEMPLATES[2].gimmickDensity);
@@ -53,7 +53,10 @@ check("floor and attempt child seeds are deterministic", () => {
   assert.notEqual(deriveFloorAttemptSeed(first, 0), deriveFloorAttemptSeed(first, 1));
 });
 
-for (const template of FLOOR_TEMPLATES) {
+// Each template a dungeon uses (#2064); one no dungeon names is not built.
+const usedTemplates = FLOOR_TEMPLATES.filter(template =>
+  Array.from({ length: 30 }, (_, index) => index + 1).some(depth => getFloorTemplate(depth).id === template.id));
+for (const template of usedTemplates) {
   check(`${template.id} floor is reproducible and valid`, () => {
     // The first floor whose dungeon uses this template (#2064).
     const floor = Array.from({ length: 30 }, (_, index) => index + 1).find(depth => getFloorTemplate(depth).id === template.id);
