@@ -183,6 +183,27 @@ test('The smith forge tempers for five battles, or reforges the equipped weapon'
   expect(reforged.used).toBe(true);
 });
 
+test('The forge furnace reforges what is worn and stays open while materials last (#2063)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  // B22: the forge's second floor holds an ordinary furnace.
+  const room = await seedRoom(page, 22, { materials: { '鉄片': 8 } });
+  expect(room.kind).toBe('forge');
+  const weapon = page.locator('[data-rule-reforge="weapon"]');
+  await expect(weapon).toContainText('武器を打ち直す（素材4個・強化値+');
+  await expect(async () => {
+    await weapon.click({ timeout: 1000 });
+    await expect(page.locator('#log-content')).toContainText('武器を打ち直した', { timeout: 1000 });
+  }).toPass();
+  const after = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return { level: state.party[0].equipment.weapon.enhanceLevel, used: Boolean(state.map[state.y][state.x].specialRoom.used), iron: state.currentRun.materials['鉄片'] };
+  });
+  expect(after.level).toBeGreaterThanOrEqual(1);
+  expect(after.used).toBe(false);
+  expect(after.iron).toBe(4);
+});
+
 test('An oath heals fully and a death then leaves no materials in the town', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

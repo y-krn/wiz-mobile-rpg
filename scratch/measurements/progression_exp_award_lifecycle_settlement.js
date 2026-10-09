@@ -198,9 +198,10 @@ function fixture({ floor, name, kind, rare = false, targetSize = 1 }) {
 }
 
 export function runLifecycleSettlementFixtures() {
-  // Floor 25: the nest and the library (floors 11-20) ease their monsters for
-  // a fresh adventurer since #2064, so a Rare there falls before it can flee.
-  const flee = fixture({ floor: 25, name: "メタルパピー", kind: "flee", rare: true });
+  // Floor 30: the nest, the library, and the forge (floors 11-25) ease their
+  // monsters for a fresh adventurer since #2064, so a Rare there falls before
+  // it can flee.
+  const flee = fixture({ floor: 30, name: "メタルパピー", kind: "flee", rare: true });
   const split = fixture({ floor: 1, name: "分裂スライム", kind: "split" });
   const summon = fixture({ floor: 20, name: "召喚する悪魔", kind: "summon", targetSize: 2 });
   const multiBudgetAccounting = (() => {

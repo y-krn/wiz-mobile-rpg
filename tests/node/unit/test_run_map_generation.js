@@ -36,11 +36,12 @@ function isolateCell(grid, target) {
 check("three depth templates are declared", () => {
   assert.equal(FLOOR_TEMPLATES.length, 3);
   assert.equal(getFloorTemplate(1).id, "shallow");
-  // The template is the dungeon's (#2064): the nest and the library are as
-  // big as the first two dungeons.
+  // The template is the dungeon's (#2064): every dungeon opened so far is as
+  // big as the first; the throne still names the deep template.
   assert.equal(getFloorTemplate(11).id, "shallow");
   assert.equal(getFloorTemplate(16).id, "shallow");
-  assert.equal(getFloorTemplate(21).id, "deep");
+  assert.equal(getFloorTemplate(21).id, "shallow");
+  assert.equal(getFloorTemplate(26).id, "deep");
   assert.notDeepEqual(FLOOR_TEMPLATES[0].roomCountRange, FLOOR_TEMPLATES[2].roomCountRange);
   assert.notDeepEqual(FLOOR_TEMPLATES[0].gimmickDensity, FLOOR_TEMPLATES[2].gimmickDensity);
 });
