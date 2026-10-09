@@ -4,8 +4,6 @@ import { getDungeonForFloor } from "../rules/dungeons.js";
 export const FLOOR_TEMPLATES = Object.freeze([
   Object.freeze({
     id: "shallow",
-    minDepth: 1,
-    maxDepth: 10,
     size: Object.freeze({ width: 24, height: 24 }),
     roomCountRange: Object.freeze([2, 3]),
     mazeProfile: Object.freeze({
@@ -21,8 +19,6 @@ export const FLOOR_TEMPLATES = Object.freeze([
   }),
   Object.freeze({
     id: "middle",
-    minDepth: 11,
-    maxDepth: 20,
     size: Object.freeze({ width: 27, height: 27 }),
     roomCountRange: Object.freeze([3, 4]),
     mazeProfile: Object.freeze({
@@ -38,8 +34,6 @@ export const FLOOR_TEMPLATES = Object.freeze([
   }),
   Object.freeze({
     id: "deep",
-    minDepth: 21,
-    maxDepth: Infinity,
     size: Object.freeze({ width: MAP_WIDTH, height: MAP_HEIGHT }),
     roomCountRange: Object.freeze([4, 5]),
     mazeProfile: Object.freeze({

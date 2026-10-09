@@ -30,7 +30,8 @@ const BASELINE = Object.freeze({
 const TABLES = Object.freeze({
   collapsed_mine: Object.freeze({ mapTemplate: "shallow", rareMaterial: "黒角", guardianRareMaterial: "黒角" }),
   forgotten_catacomb: Object.freeze({ mapTemplate: "shallow", rareMaterial: "黒角", guardianRareMaterial: "竜鱗" }),
-  rift_nest: Object.freeze({ mapTemplate: "middle", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
+  // The nest is as big as the first two: its difficulty is its rule (#2064).
+  rift_nest: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
   sunken_library: Object.freeze({ mapTemplate: "middle", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
   dragon_forge: Object.freeze({ mapTemplate: "deep", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
   abyssal_throne: Object.freeze({ mapTemplate: "deep", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" })
