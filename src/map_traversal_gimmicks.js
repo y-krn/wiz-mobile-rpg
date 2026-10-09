@@ -239,10 +239,13 @@ function placeCrumble(grid, context, rng) {
     if (!Number.isFinite(critical) || critical < criticalPathRange[0] || critical > criticalPathRange[1]) return;
     // Once fallen, the player may stand on either side: both must still reach
     // the stairs and every facility on foot.
+    // The way back is walked too (#2062): either side must also reach both
+    // stairs, through one-way passages, with every placed ledge down.
     const sides = openDirs(cell).map(dir => ({ x: x + DX[dir], y: y + DY[dir] }));
+    const mustReach = [...required, key(start.x, start.y), key(stairs.x, stairs.y)];
     for (const side of sides) {
       const fromSide = distancesFrom(grid, side, { blocked });
-      if (!required.every(requiredKey => fromSide.has(requiredKey))) return;
+      if (!mustReach.every(requiredKey => fromSide.has(requiredKey))) return;
     }
     const [a, b] = sides;
     const detour = distancesFrom(grid, a, { blocked }).get(key(b.x, b.y));
