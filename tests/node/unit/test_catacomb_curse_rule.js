@@ -7,6 +7,7 @@ import { getDungeonCurseRule, getDungeonEntryFloor, getDungeonRule } from "../..
 import { generateRandomAccessory, generateRandomEquipment } from "../../../src/systems/equipment_generation.js";
 import { ALTAR_UNCURSE_MATERIAL_COST, getAltarCursedItems } from "../../../src/rules/special_rooms.js";
 import { purifyEquipmentCurse } from "../../../src/systems/identification.js";
+import { rollChestEncounter } from "../../../src/chest/chest_domain.ts";
 
 function seededRng(seed) {
   let a = seed >>> 0;
@@ -53,6 +54,29 @@ for (const generate of [generateRandomEquipment, generateRandomAccessory]) {
     generate(catacombFloor, { rng: seededRng(index + 1), forceRarity: "magic" }));
   assert.ok(forced.some(item => item.curseEffectId));
   assert.ok(forced.every(item => item.rarity === "magic"));
+}
+
+// Chests follow the rule too: they used to hand the generator only the floor
+// inside the dungeon, so a catacomb chest rolled the mine's curses.
+{
+  const cursedShare = floor => {
+    let equipment = 0;
+    let cursed = 0;
+    for (let index = 0; index < 400; index++) {
+      const chest = rollChestEncounter({
+        floor, x: index % 20, y: Math.floor(index / 20), seed: "CURSE-CHEST",
+        firstChestGuaranteed: true, currentRun: { b1ChestsOpened: 5, b1EquipFound: 1 }
+      });
+      for (const item of [chest.item, chest.accessoryItem]) {
+        if (item?.kind !== "equipment") continue;
+        equipment++;
+        if (item.curseEffectId) cursed++;
+      }
+    }
+    return cursed / equipment;
+  };
+  assert.ok(cursedShare(catacombFloor) > cursedShare(mineFloor) + 0.1,
+    `catacomb chests ${cursedShare(catacombFloor)} vs mine ${cursedShare(mineFloor)}`);
 }
 
 // The altar lists known curses, worn ones first, then carried ones; an
