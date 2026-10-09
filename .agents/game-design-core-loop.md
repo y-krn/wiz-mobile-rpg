@@ -193,6 +193,25 @@ Measured with the bot on seeds 1-10: a sword run that explores the catacomb
 put on a known-cursed piece 71 times (23 before) and lifted 20 curses at
 altars; in the mine it lifted none.
 
+### The rift nest: collapse (#2063, opened by #2064)
+
+The town shows it in one line on the nest's card.
+
+- Crumbling ledges, which elsewhere are a single one-use shortcut, are many
+  here: three on each of the first two floors and four below, where the floor
+  has room for them.
+- A ledge falls once crossed. Whatever falls, the floor still leads from its
+  up stairs to its down stairs (or the guardian) and back, through one-way
+  passages too: each ledge is placed only where both sides keep both stairs
+  with every ledge already placed down.
+- So the way back is not the way down. A ledge crossed on the way down is
+  gone on the way back, and one left standing is a short cut the hunter
+  cannot follow once it falls behind the run.
+
+The nest's monsters were written for deeper floors. Its strength table brings
+their averages to the mine's (HP 0.43, attack 0.57, defence 0.33, the first
+floor eased by 0.85 as in the catacomb) and its strong enemy to Flack's.
+
 ### Strength without a running floor number
 
 Every dungeon is winnable by a fresh adventurer with any starting kit and no

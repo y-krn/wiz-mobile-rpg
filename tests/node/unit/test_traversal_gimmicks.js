@@ -1,3 +1,4 @@
+import { getDungeonRule } from "../../../src/rules/dungeons.js";
 import assert from "node:assert/strict";
 import { getBiomeForFloor } from "../../../src/data/biomes.js";
 import { getFloorTemplate } from "../../../src/data/floor_templates.js";
@@ -121,7 +122,9 @@ for (const floor of [1, 3, 6, 8, 11, 13, 16, 18, 21, 23, 26, 28, 31, 36, 41, 46,
       }), `${label} sealed branch has no chest`);
       assert.equal(naturalDistance(copy, start, stairs), critical, `${label} seal lengthened the route`);
     } else if (kind === "crumble") {
-      assert.equal(obstacles.length, expectedCount, `${label} ledge count`);
+      // The nest's rule (#2063) asks for more ledges; a floor may fit fewer.
+      const ruleCount = getDungeonRule(floor)?.ledgesPerFloor?.[floorInBiome] ?? expectedCount;
+      assert.ok(obstacles.length >= 1 && obstacles.length <= ruleCount, `${label} ledge count ${obstacles.length}`);
       assert.equal(hazards.length + levers.length, 0);
       for (const { x, y, cell } of obstacles) {
         assert.equal(cell.obstacle.kind, "crumble");

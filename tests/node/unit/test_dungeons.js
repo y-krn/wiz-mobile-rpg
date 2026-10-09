@@ -91,16 +91,19 @@ check("floors are shown as the floor inside the dungeon", () => {
   assert.equal(getFloorLabel(visited, 8), "忘れられた地下墓地（地下3階）");
 });
 
-check("only the mine and the catacomb can be entered, and the catacomb opens with the mine", () => {
+check("the built dungeons open one after another, each with the one before", () => {
   assert.deepEqual(DUNGEONS.filter(dungeon => dungeon.built).map(dungeon => dungeon.id),
-    ["collapsed_mine", "forgotten_catacomb"]);
+    ["collapsed_mine", "forgotten_catacomb", "rift_nest"]);
   assert.equal(isDungeonOpen(0, []), true);
   assert.equal(isDungeonOpen(1, []), false);
   assert.equal(isDungeonOpen(1, [5]), true);
-  // A dungeon that is not built stays closed whatever has been cleared.
-  assert.equal(isDungeonOpen(2, [5, 10]), false);
+  // The nest (#2064) opens with the catacomb; a dungeon that is not built
+  // stays closed whatever has been cleared.
+  assert.equal(isDungeonOpen(2, [5]), false);
+  assert.equal(isDungeonOpen(2, [5, 10]), true);
+  assert.equal(isDungeonOpen(3, [5, 10, 15]), false);
   assert.deepEqual(getOpenEntryFloors([]), [1]);
-  assert.deepEqual(getOpenEntryFloors([5, 10]), [1, 6]);
+  assert.deepEqual(getOpenEntryFloors([5, 10]), [1, 6, 11]);
   assert.equal(getDungeonOpener(0), null);
   assert.equal(getDungeonOpener(1).id, "collapsed_mine");
 
@@ -127,11 +130,14 @@ check("beating the guardian does not open the next dungeon; coming home does", (
   assert.deepEqual(settleDungeonClears(state, state.currentRun), []);
   assert.equal(getDungeonOpenedByClearing(state, 5), null);
 
-  // The catacomb is recorded as cleared; the dungeon after it is not built.
+  // Clearing the catacomb opens the nest (#2064); the dungeon after the nest
+  // is not built yet, so clearing the nest opens nothing.
   const second = { unlockedMilestones: [5] };
-  assert.deepEqual(settleDungeonClears(second, { defeatedMilestones: [10] }), []);
+  assert.deepEqual(settleDungeonClears(second, { defeatedMilestones: [10] }), ["rift_nest"]);
   assert.deepEqual(second.unlockedMilestones, [5, 10]);
   assert.equal(getDungeonOpenedByClearing(second, 10), null);
+  assert.deepEqual(settleDungeonClears(second, { defeatedMilestones: [15] }), []);
+  assert.deepEqual(second.unlockedMilestones, [5, 10, 15]);
 });
 
 check("a run that did not beat the guardian, or left the treasure, clears nothing", () => {
@@ -149,9 +155,10 @@ check("a run that did not beat the guardian, or left the treasure, clears nothin
 });
 
 check("an old save keeps what it had: a guardian it beat is a dungeon it cleared", () => {
+  // A save that cleared the catacomb finds the nest open once it is built (#2064).
   const oldSave = { unlockedMilestones: [5, 10] };
   assert.deepEqual(listDungeons(oldSave).filter(dungeon => dungeon.open).map(dungeon => dungeon.id),
-    ["collapsed_mine", "forgotten_catacomb"]);
+    ["collapsed_mine", "forgotten_catacomb", "rift_nest"]);
   // A remembered start on a guardian's floor is no longer a start.
   const base = { kitId: "vanguard", startingGear: null, recipeIds: [], roundTrip: false };
   assert.equal(normalizeLastPreparation({ ...base, startFloor: 5 }).startFloor, 1);
