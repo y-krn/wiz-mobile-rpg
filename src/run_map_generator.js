@@ -6,7 +6,7 @@ import { placeSpecialRoom } from "./map_special_rooms.js";
 import { placeTraversalGimmicks } from "./map_traversal_gimmicks.js";
 import { isTraversalObstacleBlocking } from "./rules/traversal_gimmicks.js";
 import { createRng, deriveFloorAttemptSeed, deriveFloorSeed } from "./seed_rng.js";
-import { getDungeonFloor } from "./rules/dungeons.js";
+import { getDungeonFloor, getDungeonRule } from "./rules/dungeons.js";
 
 const DIRECTIONS = [
   { dx: 0, dy: -1, dir: 0 },
@@ -220,10 +220,13 @@ export function generateRunFloor({
         dungeonFloor: getDungeonFloor(floor)
       });
       const milestoneEvents = placeMilestoneEvents(generated.grid, floor);
+      const ledgeRule = getDungeonRule(floor);
       const traversalGimmicks = placeTraversalGimmicks(generated.grid, {
         kind: biome.gimmicks.traversal,
         floor,
         floorInBiome: (floor - 1) % 5,
+        // The nest's rule (#2063) sets how many ledges a floor holds.
+        count: ledgeRule?.id === "collapse" ? ledgeRule.ledgesPerFloor[getDungeonFloor(floor) - 1] : null,
         criticalPathRange: template.criticalPathRange,
         rng: createRng(`${generationSeed}:traversal`)
       });

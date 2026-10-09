@@ -69,7 +69,25 @@ const DUNGEON_SETTINGS = Object.freeze({
       curseChance: 0.5
     })
   }),
-  rift_nest: Object.freeze({ shortName: "大裂溝" }),
+  rift_nest: Object.freeze({
+    shortName: "大裂溝",
+    built: true,
+    // The nest's monsters were authored for deeper floors: scaled to the
+    // mine's averages (HP, attack, defence), its strong enemy to Flack's, so
+    // a fresh adventurer meets the same pressure (#2064).
+    strength: Object.freeze({
+      enemyHp: 0.43, enemyAtk: 0.57, enemyDef: 0.33, entry: 0.85,
+      eliteHp: 1, eliteAtk: 0.93, eliteDef: 0.5,
+      guardianHp: 2.5, guardianAtk: 1.5, guardianDef: 1
+    }),
+    // The nest's rule (#2063): crumbling ledges are many, and a ledge falls
+    // once crossed, so the way back is not the way down.
+    rule: Object.freeze({
+      id: "collapse",
+      line: "崩落：渡った足場は落ちる。帰り道は行きと同じではない。どこを渡るかを選ぶ。",
+      ledgesPerFloor: Object.freeze([3, 3, 4, 4, 4])
+    })
+  }),
   sunken_library: Object.freeze({ shortName: "書庫" }),
   dragon_forge: Object.freeze({ shortName: "鍛造殿" }),
   abyssal_throne: Object.freeze({ shortName: "玉座" })
