@@ -95,9 +95,15 @@ check("ambiguous kobold remains explicit fallback", () => {
   );
 });
 
-check("rare material gate remains unchanged by default", () => {
+check("the dungeon's table names its rare material (#2064)", () => {
+  // The mine leaves black horn; the catacomb's guardian dragon scale, its
+  // rare monsters black horn; later dungeons dragon scale.
+  assert.equal(getRareMaterialForFloor(3), "黒角");
+  assert.equal(getRareMaterialForFloor(5, { isBoss: true }), "黒角");
   assert.equal(getRareMaterialForFloor(9), "黒角");
-  assert.equal(getRareMaterialForFloor(10), "竜鱗");
+  assert.equal(getRareMaterialForFloor(10, { isBoss: true }), "竜鱗");
+  assert.equal(getRareMaterialForFloor(12), "竜鱗");
+  // A measurement's running-floor threshold still wins.
   assert.equal(getRareMaterialForFloor(3, { rareMaterialFloor: 3 }), "竜鱗");
 });
 

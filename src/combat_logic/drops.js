@@ -66,7 +66,7 @@ export function determineMonsterDrop(
   }
 
   if (isBoss || isRare) {
-    const rareMaterial = getRareMaterialForFloor(floor, { rareMaterialFloor });
+    const rareMaterial = getRareMaterialForFloor(floor, { rareMaterialFloor, isBoss });
     drops[rareMaterial] = (drops[rareMaterial] || 0) + (isBoss ? 2 : 1);
   }
 

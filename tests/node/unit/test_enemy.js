@@ -346,8 +346,12 @@ import {
       assert.ok(dropsF3["獣の牙"] >= 2);
       assert.ok(dropsF3["硬い皮"] >= 1);
       assert.ok(dropsF3["黒角"] >= 1);
+      // The rare material is the dungeon's (#2064): black horn in the mine
+      // and the catacomb, dragon scale from the third dungeon on.
       const dropsF10 = determineMonsterDrop(puppy, 10, () => 0, { guaranteed: true });
-      assert.ok(dropsF10["竜鱗"] >= 1);
+      assert.ok(dropsF10["黒角"] >= 1);
+      const dropsF12 = determineMonsterDrop(puppy, 12, () => 0, { guaranteed: true });
+      assert.ok(dropsF12["竜鱗"] >= 1);
       // Amounts grow with the floor inside the dungeon (#2060): the fifth
       // floor pays more than the first, and the same in every dungeon.
       const dropsF1 = determineMonsterDrop(puppy, 1, () => 0, { guaranteed: true });
