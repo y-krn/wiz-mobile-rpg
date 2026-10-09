@@ -216,7 +216,11 @@ permanent stat growth.
   different roles. It is not harder through a larger stat multiplier.
 - Damage that ignores who is hit breaks this: a fixed-value trap or enemy
   spell written for a deep floor would kill a fresh adventurer. Such damage
-  scales with the victim's maximum HP or the attacker's attack.
+  scales with the victim's maximum HP or the attacker's attack. Enemy flame
+  and ice storms and the catacomb guardian's crush strike scale with the
+  caster's attack (#2064), keeping the old rolls where the mine and the
+  catacomb meet them; a chest's needle takes a share of maximum HP (#1803).
+  The ancient dragon's own attacks are set when the throne is built.
 - Town progress widens what a run may start with or meet. It does not raise
   the baseline, and no dungeon gives a permanent reward for being repeated.
 

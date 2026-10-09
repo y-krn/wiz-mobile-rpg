@@ -8,6 +8,7 @@ global.localStorage = {
   removeItem: () => {}
 };
 
+import { ENEMY_SPELL_ATTACK_SCALE, rollAttackScaledDamage } from "../../../src/rules/enemy_spell_damage.js";
 import assert from "assert";
 import { checkCharLevelUp } from "../../../src/systems/leveling.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
@@ -809,6 +810,10 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       stateMabarrier.party[0].mabarrierTurns = 3;
       stateMabarrier.party[1].mabarrierTurns = 3;
       stateMabarrier.combatState.monsters[0].lahalitoQueued = true;
+      // #2064: the storm scales with the caster's attack; at attack 13 and rng
+      // 0.5 it is the 17 these checks were written for.
+      stateMabarrier.combatState.monsters[0].atk = 13;
+      assert.equal(rollAttackScaledDamage(13, ENEMY_SPELL_ATTACK_SCALE.LAHALITO, () => 0.5), 17);
       
       const resultDmg = runCombatRoundCalculation(stateMabarrier, {
         actions: [
@@ -833,6 +838,7 @@ import { resolvePlayerSpell } from "../../../src/combat_logic/spell_resolution.j
       const stateLimit = createTestState();
       stateLimit.party[0].mabarrierTurns = 3;
       stateLimit.combatState.monsters[0].lahalitoQueued = true;
+      stateLimit.combatState.monsters[0].atk = 13;
       stateLimit.party[0].equipment.armor = {
         id: "LEATHER_ARMOR",
         name: "魔導鎧",

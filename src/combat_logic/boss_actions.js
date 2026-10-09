@@ -12,6 +12,7 @@ import {
 } from "../rules/boss_rules.js";
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
+import { ENEMY_SPELL_ATTACK_SCALE, rollAttackScaledDamage } from "../rules/enemy_spell_damage.js";
 
 const ANCIENT_DRAGON_NAME = "いにしえの竜";
 
@@ -247,7 +248,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       state.party.forEach((c, charIdx) => {
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(rng() * 16) + 10; // 10-25 DMG
+          let dmg = rollAttackScaledDamage(mon.atk, ENEMY_SPELL_ATTACK_SCALE.LAHALITO, rng);
           dmg = resolveGuardMitigation(c, dmg, {
             isDefending,
             attackType: "spell",

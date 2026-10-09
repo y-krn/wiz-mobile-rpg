@@ -12,9 +12,8 @@ export const B5_MILESTONE_BOSS_RULE = Object.freeze({
 export const B10_CRUSH_STRIKE_RULE = Object.freeze({
   id: "B10_STONE_GUARD_CRUSH_STRIKE",
   floor: 10,
-  bossName: "ストーンガード",
-  damageMin: 18,
-  damageMax: 32
+  bossName: "ストーンガード"
+  // Its damage scales with its attack (rules/enemy_spell_damage.js, #2064).
 });
 
 export const B30_MILESTONE_BOSS_STAT_RULE = Object.freeze({

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ENEMY_SPELL_ATTACK_SCALE, getAttackScaledDamageRange } from "../../../src/rules/enemy_spell_damage.js";
 
 import {
   BOSS_FIXTURES,
@@ -91,7 +92,11 @@ for (const armName of ["unread", "read"]) {
   assert.equal(events[2].round, 3);
   assert.ok(resolved.every((event, index) => event.round > queued[index].round),
     `B10 ${armName} resolves after telegraph`);
-  assert.ok(resolved.every(event => event.rolledDamage >= 18 && event.rolledDamage <= 32));
+  // #2064: the crush strike scales with the guardian's attack, not a fixed 18-32.
+  assert.ok(queued.every(event => {
+    const range = getAttackScaledDamageRange(event.casterAttack, ENEMY_SPELL_ATTACK_SCALE.CRUSH_STRIKE);
+    return event.rolledDamage >= range.min && event.rolledDamage <= range.max;
+  }), `B10 ${armName} crush strike stays in its attack-scaled range`);
 }
 assert.ok(b10Candidate.arms.read.crushStrike.events.some((event, index, events) =>
   event.phase === "cooldown" && events[index + 1]?.phase === "queued" &&
@@ -130,8 +135,7 @@ assert.ok(b10Candidate.arms.read.crushStrike.events.some(event =>
 assert.ok(b10Candidate.arms.unread.crushStrike.events.some(event =>
   event.phase === "resolved" && !event.guarded &&
   event.tempDefDownAfter === Math.min(6, event.tempDefDownBefore + 2)));
-assert.equal(getMilestoneBossActionRule(10, "ストーンガード", { isBoss: true }).damageMin, 18);
-assert.equal(getMilestoneBossActionRule(10, "ストーンガード", { isBoss: true }).damageMax, 32);
+assert.equal(getMilestoneBossActionRule(10, "ストーンガード", { isBoss: true }).id, "B10_STONE_GUARD_CRUSH_STRIKE");
 assert.equal(getMilestoneBossActionRule(10, "ストーンガード", { isBoss: false }), null);
 for (const floor of [5, 15, 20, 25, 30]) {
   assert.equal(getMilestoneBossActionRule(floor, "ストーンガード", { isBoss: true }), null,
