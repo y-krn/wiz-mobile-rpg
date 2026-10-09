@@ -566,7 +566,16 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
     const pinned = state.coreFamilies?.pinned;
     const pinnedName = pinned?.dungeonId === dungeon.id ? getCoreFamily(pinned.familyId)?.name : null;
     families.textContent = `出やすい Core：${formatCoreFamilies(likely)}${pinnedName ? `（「${pinnedName}」は至宝で決めた）` : ""}`;
-    button.append(dungeonName, dungeonDetail, families);
+    button.append(dungeonName, dungeonDetail);
+    // The dungeon's one rule, in one line (#2063).
+    if (dungeon.rule?.line) {
+      const rule = document.createElement("span");
+      rule.className = "solo-start-dungeon-rule";
+      rule.dataset.rule = dungeon.rule.id;
+      rule.textContent = dungeon.rule.line;
+      button.append(rule);
+    }
+    button.append(families);
     button.dataset.startFloor = String(floor);
     button.dataset.dungeon = dungeon.id;
     button.setAttribute("aria-pressed", String(selectedStartFloor === floor));

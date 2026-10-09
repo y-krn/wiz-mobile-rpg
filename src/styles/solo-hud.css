@@ -353,6 +353,11 @@
   font-size: var(--fs-xs);
 }
 
+/* The dungeon's one rule (#2063) is the line that sets it apart. */
+.solo-start-floor-option .solo-start-dungeon-rule {
+  color: var(--neon-amber);
+}
+
 /* The likely Core families of a dungeon (#2061) read as part of its card. */
 .solo-start-floor-option .solo-start-dungeon-families {
   color: var(--text-main);

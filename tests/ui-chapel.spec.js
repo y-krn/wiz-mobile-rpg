@@ -230,6 +230,46 @@ test('An offering at the chapel altar reaches the town although the run dies', a
   expect(town).toEqual({ iron: 6, bone: 3, grave: {} });
 });
 
+test('The catacomb altar lifts a known curse and keeps the better piece (#2063)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await seedCatacombRoom(page, { completed: RESCUED, materials: { '骨片': 6 } });
+  // Wear a cursed find the adventurer already knows about, then step on the altar again.
+  const worn = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { generateRandomEquipment } = await import('/src/systems/equipment_generation.js');
+    const { closeSubmenu } = await import('/src/navigation.js');
+    const { checkCellEvents } = await import('/src/movement.js');
+    // Half the catacomb's finds are cursed; take the first cursed armour.
+    let piece = null;
+    for (let seed = 1; !piece?.curseEffectId; seed++) {
+      let a = seed;
+      const rng = () => { a = (a * 1103515245 + 12345) % 2147483648; return a / 2147483648; };
+      piece = generateRandomEquipment(8, { rng, forceBaseId: 'LEATHER_ARMOR' });
+    }
+    piece.identified = true;
+    state.party[0].equipment.armor = piece;
+    closeSubmenu();
+    checkCellEvents();
+    return { rarity: piece.rarity, curse: piece.curseEffectId };
+  });
+  expect(worn.curse).not.toBeNull();
+  expect(worn.rarity).not.toBe('magic');
+  const lift = page.getByRole('button', { name: /の呪いを解く（素材4個）/ });
+  await expect(lift).toBeVisible();
+  // A freshly opened menu ignores taps for a moment (controls guard), so retry.
+  await expect(async () => {
+    await lift.click({ timeout: 1000 });
+    await expect(page.locator('#log-content')).toContainText('から呪いが抜けた。', { timeout: 1000 });
+  }).toPass();
+  const after = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const armor = state.party[0].equipment.armor;
+    return { curse: armor.curseEffectId, rarity: armor.rarity, used: state.map[state.y][state.x].specialRoom.used, bone: state.currentRun.materials['骨片'] };
+  });
+  expect(after).toEqual({ curse: null, rarity: worn.rarity, used: true, bone: 2 });
+});
+
 test('The grave keeps part of a death and returns it at the chapel altar on the next run', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

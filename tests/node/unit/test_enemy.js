@@ -102,6 +102,17 @@ import {
       const result = runCombatRoundCalculation(state, selection);
       assert.ok(result.state.party[0].hp < 100, "Fighter should receive reflect damage when attacking Needle Beetle");
       console.log("[PASS] reflectPhysical verified.");
+
+      // #2063: only what the shell took is thrown back, not the overkill. A
+      // beetle at 1 HP returns at most 1, however hard it is hit.
+      const finishing = runCombatRoundCalculation({
+        party: [{ ...party[0], hp: 100 }],
+        combatState: { monsters: [{ ...monsters[0], hp: 1 }], round: 0 },
+        inventory: []
+      }, selection);
+      const reflectedLines = finishing.logQueue.map(entry => entry.msg).filter(msg => /反射ダメージ/.test(msg));
+      assert.deepEqual(reflectedLines.map(msg => Number(/(\d+)の反射ダメージ/.exec(msg)?.[1])), [1]);
+      console.log("[PASS] reflectPhysical returns no overkill.");
     };
 
     // 3. reflectMagic (魔法反射) のテスト

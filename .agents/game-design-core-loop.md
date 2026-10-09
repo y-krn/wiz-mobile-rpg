@@ -147,6 +147,33 @@ dungeon is built, under these limits:
 - A danger the player chooses (dig or walk round, wear the curse, put out the
   light) is preferred to one that only takes something away.
 
+### The catacomb: curses (#2063)
+
+The first rule built. The town shows it in one line on the catacomb's card.
+
+- Half of the catacomb's equipment finds are cursed, on every floor of it
+  (elsewhere the curse chance rises with the floor and stays well below).
+- A cursed find is one grade better for it: a magic find becomes rare, a rare
+  one epic. More affix slots make it a real build piece, and the curse still
+  carries its good and its bad part.
+- A curse is lifted in two places only: the catacomb's altar, one of whose
+  single answers is to lift one known curse from a piece worn or carried
+  (for materials), and the merchant behind the guardian. Lifting it keeps
+  the better grade.
+- A worn curse locks its slot until lifted, as everywhere.
+
+So the choice is the one the rule names: wear the curse for its strength and
+its price, or carry the piece to an altar and give up that answer (a status
+cleanse, the blood blessing) to have it clean. It answers more than one way of
+fighting: the curse-keeper Core gains from every worn curse, and the curses'
+own good parts favour different families (the blood curse's attack, the
+warding curses' defence, the spirit curse's MP). A build that wants none of it
+identifies before wearing, leaves the piece, or spends an altar on it.
+
+Measured with the bot on seeds 1-10: a sword run that explores the catacomb
+put on a known-cursed piece 71 times (23 before) and lifted 20 curses at
+altars; in the mine it lifted none.
+
 ### Strength without a running floor number
 
 Every dungeon is winnable by a fresh adventurer with any starting kit and no
@@ -577,7 +604,8 @@ differences negligible.
     floor and mark its down stairs, at the price of a loud, lingering noise.
     Supply and blast are exclusive, and the outpost appears nowhere else.
   - Forgotten catacomb — altar: a material-priced cleanse of status effects,
-    or a blood blessing that converts a share of max HP into full MP.
+    a material-priced lifting of one known curse (the catacomb's rule,
+    #2063), or a blood blessing that converts a share of max HP into full MP.
     On the dungeon's third floor the altar's cell holds the sealed priest until
     he has been brought home; the seal takes a share of max HP, never the
     last point. Once the chapel tends that altar it also takes an offering:

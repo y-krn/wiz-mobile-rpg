@@ -51,6 +51,18 @@ export function formatDungeonFloor(floor) {
   return `${getDungeonForFloor(floor).shortName} ${formatFloorCode(floor)}`;
 }
 
+/** The dungeon's one rule (#2063), or null while it has none. */
+export function getDungeonRule(floor) {
+  return getDungeonForFloor(floor).rule || null;
+}
+
+/** The catacomb's curse rule when `floor` lies in a dungeon that has it. */
+export function getDungeonCurseRule(floor) {
+  if (!Number.isInteger(floor) || floor < 1) return null;
+  const rule = getDungeonRule(floor);
+  return rule?.id === "curse" ? rule : null;
+}
+
 /** Per-dungeon multipliers on enemy stats; see `DUNGEONS[].strength`. */
 export function getDungeonStrength(floor) {
   return getDungeonForFloor(floor).strength;

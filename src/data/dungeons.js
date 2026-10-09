@@ -30,6 +30,14 @@ const DUNGEON_SETTINGS = Object.freeze({
       enemyHp: 0.65, enemyAtk: 0.7, enemyDef: 0.5, entry: 0.85,
       eliteHp: 1, eliteAtk: 1, eliteDef: 0.3,
       guardianHp: 2, guardianAtk: 1.6, guardianDef: 0.5
+    }),
+    // The catacomb's rule (#2063): finds are cursed more often, a cursed find
+    // is one grade better for it, and only the altar and the merchant behind
+    // the guardian lift a curse.
+    rule: Object.freeze({
+      id: "curse",
+      line: "呪い：見つかる装備は呪い付きが多く、そのぶん一段強い。祭壇で清めるか、呪いごと使うか。",
+      curseChance: 0.5
     })
   }),
   rift_nest: Object.freeze({ shortName: "大裂溝" }),
@@ -47,6 +55,7 @@ export const DUNGEONS = Object.freeze(BIOMES.map((biome, index) => {
     shortName: settings?.shortName || biome.name,
     eliteName: biome.eliteName,
     built: settings?.built === true,
-    strength: settings?.strength || BASELINE
+    strength: settings?.strength || BASELINE,
+    rule: settings?.rule || null
   });
 }));

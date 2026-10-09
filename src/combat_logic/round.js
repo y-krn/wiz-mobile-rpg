@@ -893,8 +893,10 @@ export function runCombatRoundCalculation(
             bleedingDamageContribution: bleedingDamage
           });
 
+          let targetHpBeforeHit = finalTarget.hp;
           if (isCritical) {
             dmg = finalPhysicalDmg;
+            targetHpBeforeHit = finalTarget.hp;
             finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
             tryApplyHitFlinch(char, finalTarget, logQueue, rng);
             msg = `[味方] 【🗡️急所攻撃！】${char.name}の必殺の一撃！${finalTarget.name}に${dmg}の大ダメージ！${bleedingDamage > 0 ? `（出血の追撃+${bleedingDamage}）` : ""}`;
@@ -904,6 +906,7 @@ export function runCombatRoundCalculation(
             shake = 15;
           } else {
             dmg = finalPhysicalDmg;
+            targetHpBeforeHit = finalTarget.hp;
             finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
             tryApplyHitFlinch(char, finalTarget, logQueue, rng);
             msg = `[味方] ${char.name}の攻撃！${finalTarget.name}に${dmg}のダメージ。${bleedingDamage > 0 ? `（出血の追撃+${bleedingDamage}）` : ""}`;
@@ -935,7 +938,8 @@ export function runCombatRoundCalculation(
           tryApplyBleeding(char, finalTarget, state, logQueue, rng, measurement);
 
           if (hasTrait(finalTarget, "reflectPhysical") && dmg > 0) {
-            const reflected = Math.max(1, Math.floor(dmg * (finalTarget.physicalReflect?.rate ?? 0.3)));
+            // Only the damage the shell took is thrown back, not the overkill (#2063).
+            const reflected = Math.max(1, Math.floor(Math.min(dmg, targetHpBeforeHit) * (finalTarget.physicalReflect?.rate ?? 0.3)));
             const playerHpBefore = char.hp;
             char.hp = Math.max(0, char.hp - reflected);
             recordReceivedDamage(state, char, finalTarget.name, reflected, reflected, playerHpBefore, {
