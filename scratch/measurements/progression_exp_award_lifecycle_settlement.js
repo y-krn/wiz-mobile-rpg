@@ -198,7 +198,9 @@ function fixture({ floor, name, kind, rare = false, targetSize = 1 }) {
 }
 
 export function runLifecycleSettlementFixtures() {
-  const flee = fixture({ floor: 15, name: "メタルパピー", kind: "flee", rare: true });
+  // Floor 20: the nest (floors 11-15) eases its monsters for a fresh adventurer
+  // since #2064, so a Rare there falls before it can flee.
+  const flee = fixture({ floor: 20, name: "メタルパピー", kind: "flee", rare: true });
   const split = fixture({ floor: 1, name: "分裂スライム", kind: "split" });
   const summon = fixture({ floor: 20, name: "召喚する悪魔", kind: "summon", targetSize: 2 });
   const multiBudgetAccounting = (() => {
@@ -209,7 +211,7 @@ export function runLifecycleSettlementFixtures() {
   return {
     evidence: "controlled-production-context-N=1",
     naturalRunEvidence: false,
-    bandFloors: [...new Set([flee.floor, split.floor, summon.floor].filter(floor => [1, 20].includes(floor)))],
+    bandFloors: [...new Set([flee.floor, split.floor, summon.floor].filter(floor => [1, 20].includes(floor)))].sort((a, b) => a - b),
     multiBudgetAccounting,
     fixtures: [flee, split, summon],
     coverageGaps: ["natural-encounter-distribution", "full-run-candidate-integration", "non-victory-settlement"]

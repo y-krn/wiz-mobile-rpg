@@ -222,7 +222,7 @@ function placeSeal(grid, context, rng) {
 }
 
 function placeCrumble(grid, context, rng) {
-  const { start, stairs, criticalPathRange } = context;
+  const { start, stairs, criticalPathRange, fallen = new Set() } = context;
   const walkable = collectWalkableKeys(grid);
   const required = requiredFacilityKeys(grid);
   const baseCritical = distancesFrom(grid, start).get(key(stairs.x, stairs.y));
@@ -230,18 +230,22 @@ function placeCrumble(grid, context, rng) {
   grid.forEach((row, y) => row.forEach((cell, x) => {
     if (!isQuietCorridorCell(grid, x, y, start)) return;
     const cellKey = key(x, y);
-    const blocked = new Set([cellKey]);
+    if (fallen.has(cellKey)) return;
+    const blocked = new Set([...fallen, cellKey]);
     const revealed = distancesFrom(grid, start, { blocked, reveal: true });
-    if (walkable.some(walkKey => walkKey !== cellKey && !revealed.has(walkKey))) return;
+    if (walkable.some(walkKey => !blocked.has(walkKey) && !revealed.has(walkKey))) return;
     const natural = distancesFrom(grid, start, { blocked });
     const critical = natural.get(key(stairs.x, stairs.y));
     if (!Number.isFinite(critical) || critical < criticalPathRange[0] || critical > criticalPathRange[1]) return;
     // Once fallen, the player may stand on either side: both must still reach
     // the stairs and every facility on foot.
+    // The way back is walked too (#2062): either side must also reach both
+    // stairs, through one-way passages, with every placed ledge down.
     const sides = openDirs(cell).map(dir => ({ x: x + DX[dir], y: y + DY[dir] }));
+    const mustReach = [...required, key(start.x, start.y), key(stairs.x, stairs.y)];
     for (const side of sides) {
       const fromSide = distancesFrom(grid, side, { blocked });
-      if (!required.every(requiredKey => fromSide.has(requiredKey))) return;
+      if (!mustReach.every(requiredKey => fromSide.has(requiredKey))) return;
     }
     const [a, b] = sides;
     const detour = distancesFrom(grid, a, { blocked }).get(key(b.x, b.y));
@@ -253,6 +257,7 @@ function placeCrumble(grid, context, rng) {
   const pool = onRoute.length > 0 ? onRoute : candidates;
   const chosen = pool[Math.floor(rng() * pool.length)];
   grid[chosen.y][chosen.x].obstacle = { kind: TRAVERSAL_GIMMICKS.CRUMBLE, state: "intact", discovered: false };
+  fallen.add(key(chosen.x, chosen.y));
   return { kind: TRAVERSAL_GIMMICKS.CRUMBLE, x: chosen.x, y: chosen.y, detour: chosen.detour, onRoute: chosen.onRoute };
 }
 
@@ -341,16 +346,18 @@ const PLACERS = Object.freeze({
  * Place the biome's traversal gimmick on a generated run floor. `floorInBiome`
  * is 0 on the biome's first floor; later floors may carry a second rubble.
  */
-export function placeTraversalGimmicks(grid, { kind, floor, floorInBiome = 0, criticalPathRange, rng }) {
+export function placeTraversalGimmicks(grid, { kind, floor, floorInBiome = 0, criticalPathRange, rng, count: countOverride = null }) {
   if (!kind) return [];
   const start = findCell(grid, cell => cell.type === "stairs-up");
   const stairs = findCell(grid, cell => cell.type === "stairs-down");
   if (!start || !stairs) return [];
-  const context = { start, stairs, floor, criticalPathRange: criticalPathRange || [0, Infinity] };
+  // `fallen` holds the ledges already placed: a later one is checked with
+  // all of them down, so the floor stays finishable however many fall.
+  const context = { start, stairs, floor, criticalPathRange: criticalPathRange || [0, Infinity], fallen: new Set() };
   const placed = [];
   if (PLACERS[kind]) {
     // The biome's first floor introduces one instance; later floors add another.
-    const count = floorInBiome >= 2 ? 2 : 1;
+    const count = Number.isInteger(countOverride) && countOverride > 0 ? countOverride : floorInBiome >= 2 ? 2 : 1;
     for (let index = 0; index < count; index++) {
       const result = PLACERS[kind](grid, context, rng);
       if (result) placed.push(result);

@@ -52,7 +52,7 @@ const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
 const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine' };
 // A dungeon is five floors (#2060); a run is named by the running number of its first floor.
-const DUNGEON_ENTRY = { mine: 1, catacomb: 6 };
+const DUNGEON_ENTRY = { mine: 1, catacomb: 6, nest: 11 };
 const entryFloorOf = dungeon => DUNGEON_ENTRY[dungeon] || Math.max(1, Math.floor(Number(dungeon)) || 1);
 const localFloor = floor => ((Math.max(1, Number(floor) || 1) - 1) % 5) + 1;
 const atDungeonBottom = () => localFloor(st().floor) === 5;
