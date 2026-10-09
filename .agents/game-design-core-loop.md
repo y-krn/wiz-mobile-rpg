@@ -147,6 +147,25 @@ dungeon is built, under these limits:
 - A danger the player chooses (dig or walk round, wear the curse, put out the
   light) is preferred to one that only takes something away.
 
+### The mine: noise (#2063)
+
+The town shows it in one line on the mine's card.
+
+- Noise has always drawn the roaming strong enemy. In the mine it also brings
+  ordinary monsters: while loud noise hangs on the floor, the chance of a
+  monster on each step rises to that of a floor's first steps (12%).
+- In the mine, noise from what the adventurer does (digging rubble or a vein,
+  an alarm, a blast, a fight that ran long) lingers for eight turns instead
+  of four, so it outlasts the quiet steps after a fight.
+- A fight that ran four rounds or more is itself loud. The noise of a fight
+  breaking out still only draws the strong enemy.
+
+So the choice is the one the rule names: go quietly (walk round the rubble,
+leave the vein, light or silence incense, the sneak Core) or finish fast (a
+build that ends fights in a few rounds makes no noise of its own). Both are
+answered by more than one family; a build that is neither quiet nor fast pays
+in extra fights and still has the incense and the long way round.
+
 ### The catacomb: curses (#2063)
 
 The first rule built. The town shows it in one line on the catacomb's card.

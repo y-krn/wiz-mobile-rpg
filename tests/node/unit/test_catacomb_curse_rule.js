@@ -28,7 +28,7 @@ const catacombFloor = getDungeonEntryFloor(catacomb.index) + 2;
 assert.equal(getDungeonRule(catacombFloor)?.id, "curse");
 assert.match(getDungeonRule(catacombFloor).line, /^呪い：/);
 assert.equal(getDungeonCurseRule(mineFloor), null);
-assert.equal(getDungeonRule(mineFloor), null);
+assert.equal(getDungeonRule(mineFloor)?.id, "noise");
 assert.equal(getDungeonCurseRule(0), null);
 
 function sample(generate, floor, count = 2000) {

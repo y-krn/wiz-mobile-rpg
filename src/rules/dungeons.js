@@ -56,6 +56,13 @@ export function getDungeonRule(floor) {
   return getDungeonForFloor(floor).rule || null;
 }
 
+/** The mine's noise rule when `floor` lies in a dungeon that has it. */
+export function getDungeonNoiseRule(floor) {
+  if (!Number.isInteger(floor) || floor < 1) return null;
+  const rule = getDungeonRule(floor);
+  return rule?.id === "noise" ? rule : null;
+}
+
 /** The catacomb's curse rule when `floor` lies in a dungeon that has it. */
 export function getDungeonCurseRule(floor) {
   if (!Number.isInteger(floor) || floor < 1) return null;

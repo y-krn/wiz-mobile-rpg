@@ -21,6 +21,12 @@ import { showSoloHudHit } from "../ui/solo_hud.js";
 import { showVictoryToast } from "../ui/victory_toast.js";
 import { recordRoundEnemyAction, resetRoundEnemyActions } from "./round_enemy_actions.js";
 import { formatFloorCode, isDungeonBottomFloor } from "../rules/dungeons.js";
+import { noteFightNoise } from "../systems/dungeon_noise.js";
+
+// The mine's rule (#2063): a fight that ran long is heard down the tunnels.
+function noteLongFight() {
+  if (noteFightNoise(state)) addLog("長引いた戦いの音が坑道に響いた…");
+}
 
 function cleanupCombatState() {
   clearEventObservations({ scopePrefix: "combat:" });
@@ -166,6 +172,7 @@ export function playBattleLogs(queue, index) {
         clearPendingOutcome();
         triggerGameOver();
       } else {
+        noteLongFight();
         if (state.combatState && state.combatState.isRoamingFlack) {
           state.x = state.prevX;
           state.y = state.prevY;
@@ -204,6 +211,7 @@ export function playBattleLogs(queue, index) {
     applyOutcomeRewards();
 
     setTimeout(() => {
+      noteLongFight();
       state.gameState = "explore";
       clearPendingOutcome();
       cleanupCombatState();
@@ -219,6 +227,7 @@ export function playBattleLogs(queue, index) {
     state.transitioning = true;
     const mimicChest = state.combatState?.mimicChest ?? null;
     setTimeout(() => {
+      noteLongFight();
       state.gameState = "chest";
       clearPendingOutcome();
       cleanupCombatState();
@@ -232,6 +241,7 @@ export function playBattleLogs(queue, index) {
   if (log.endCombat) {
     state.transitioning = true;
     setTimeout(() => {
+      noteLongFight();
       state.gameState = "explore";
       clearPendingOutcome();
       cleanupCombatState();
