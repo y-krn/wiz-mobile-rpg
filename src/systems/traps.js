@@ -20,6 +20,7 @@ import { ensureRunFloor } from "../state/run_floor_state.js";
 import { collectNaturallyReachableKeys } from "../rules/traversal_gimmicks.js";
 import { trackTrapResolution } from "../telemetry.js";
 import { getDungeonFloor } from "../rules/dungeons.js";
+import { addNoise } from "./dungeon_noise.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "corrosion", "teleporter"];
 
@@ -345,8 +346,7 @@ export function triggerTrap(trap, isPartialSuccess = false, action = "trigger") 
   } else if (trap.type === "alarm") {
     state.alarmActive = true;
     state.alarmWeakened = effect.alarmWeakened;
-    if (!state.noiseEvents) state.noiseEvents = [];
-    state.noiseEvents.push({ floor: state.floor, x: state.x, y: state.y, ttl: 4 });
+    addNoise(state, state.x, state.y, 4, { source: "alarm" });
     addLog("けたたましい警報音が響き渡った！");
   }
 

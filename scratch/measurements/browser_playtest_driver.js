@@ -41,6 +41,7 @@ const REWARDS = await import('/src/pending_rewards.js');
 const RECOVERY = await import('/src/systems/exploration_recovery.js');
 const FACILITIES = await import('/src/systems/facilities.js');
 const FACILITY_DATA = await import('/src/data/facilities.js');
+const DUNGEON_RULES = await import('/src/rules/dungeons.js');
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 // Real (unscaled) sleep when the runner accelerates timers.
@@ -288,6 +289,8 @@ const attackTarget = async (alive, preferHigh = false) => {
 };
 W.__fight = async () => {
   const s = st(); const hp0 = P().hp; const mons = W.__mons(); let r = 0; let note = '';
+  // The mine's rule (#2063): count fights that broke out while loud noise hung on the floor.
+  if ((s.noiseEvents || []).some(e => e.floor === s.floor && e.ttl > 0 && e.source !== 'encounter')) { W.__noiseFights = (W.__noiseFights || 0) + 1; note += ' [noise]'; }
   while (s.gameState === 'combat' && r++ < 40) {
     const alive = s.combatState.monsters.filter(m => m.hp > 0 && !m.fled);
     const enemyHp = alive.reduce((a, m) => a + m.hp, 0);
@@ -342,7 +345,9 @@ const roomChoice = buttons => {
   if (p.status && p.status !== 'ok') { const cleanse = find(/浄めを願う/); if (cleanse) return cleanse; }
   const improve = find(/鍛え直す|繕う/);
   if (improve) { const cost = Number(/素材(\d+)個/.exec(improve)?.[1] || 0); if (materialCount() >= cost * 2) return improve; }
-  if (share >= 0.6) { const vein = find(/鉱脈を掘る/); if (vein) return vein; }
+  // Digging is loud; where noise brings monsters (the mine's rule, #2063) dig only when healthy.
+  const veinShare = (W.__dungeonRule || '').startsWith('音：') ? 0.8 : 0.6;
+  if (share >= veinShare) { const vein = find(/鉱脈を掘る/); if (vein) return vein; }
   if (mode === 'rescue') {
     const rescue = find(/助け出す|水を抜く|火を入れる/);
     if (rescue) return rescue;
@@ -814,7 +819,8 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false, dungeo
   finally { Date.now = realNow; }
   W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   resetPolicyState();
-  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null;
+  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0;
+  W.__dungeonRule = DUNGEON_RULES.getDungeonRule(st().floor)?.line || '';
   trackHpLedger();
   const run = st().currentRun;
   // Fingerprint of the first floor's layout so before/after runs can prove they share maps.
@@ -899,7 +905,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     returned: s.gameState === 'result' && (P()?.hp ?? 0) > 0,
     companions: companionNames() || null,
     roomActions: W.__roomActions, purchases: W.__purchases,
-    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
+    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
     eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, riposteGuards: W.__riposteGuards || 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,

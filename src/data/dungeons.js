@@ -22,7 +22,21 @@ const BASELINE = Object.freeze({
 
 // `shortName` is the word a record uses in front of a floor: 坑道 B3F.
 const DUNGEON_SETTINGS = Object.freeze({
-  collapsed_mine: Object.freeze({ shortName: "坑道", built: true, strength: BASELINE }),
+  collapsed_mine: Object.freeze({
+    shortName: "坑道",
+    built: true,
+    strength: BASELINE,
+    // The mine's rule (#2063): digging and drawn-out fights make noise, noise
+    // lingers, and while it does ordinary monsters come as well as the strong
+    // enemy.
+    rule: Object.freeze({
+      id: "noise",
+      line: "音：掘る音と長引く戦いの音が、魔物を呼ぶ。静かに進むか、早く片づけるか。",
+      noiseTurns: 8,
+      noiseEncounterChance: 0.12,
+      longFightRounds: 4
+    })
+  }),
   forgotten_catacomb: Object.freeze({
     shortName: "地下墓地",
     built: true,

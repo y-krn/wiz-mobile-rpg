@@ -30,6 +30,7 @@ import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.j
 import { getFeatAnnouncementLines, getNearestFeats } from "./systems/feats.js";
 import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
+import { addNoise, applyNoiseToEncounterChance } from "./systems/dungeon_noise.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
 import {
@@ -108,9 +109,10 @@ export function getCurrentFloorExplorationSteps() {
   return state.currentRun.floorSteps?.[String(state.floor)] || 0;
 }
 
-export function calculateEncounterChance(floorStep, { lightPower, lightTurns, silenceTurns } = {}) {
+export function calculateEncounterChance(floorStep, { lightPower, lightTurns, silenceTurns, floor, noiseEvents } = {}) {
   const baseRate = floorStep <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE;
-  let rate = baseRate;
+  // The mine's rule (#2063): lingering noise brings ordinary monsters too.
+  let rate = applyNoiseToEncounterChance(baseRate, { floor, noiseEvents });
   if (lightPower === "lomilwa") {
     rate = Math.max(0, rate - LOMILWA_ENCOUNTER_REDUCTION);
   } else if (lightTurns > 0) {
@@ -979,7 +981,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     (!quietStep && (!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance)
   ) {
     state.transitioning = true;
-    createNoiseEvent(state.x, state.y);
+    createNoiseEvent(state.x, state.y, 4, { source: "encounter" });
     addLog(forcedEncounter ? "鳴らし玉に誘われ、通常の魔物が現れた！" : "魔物が暗闇から襲いかかってきた！");
     setTimeout(() => {
       state.transitioning = false;
@@ -1151,9 +1153,8 @@ function getLatestNoise() {
   return state.noiseEvents?.filter(event => event.floor === state.floor && event.ttl > 0).at(-1) ?? null;
 }
 
-export function createNoiseEvent(x, y, ttl = 4) {
-  if (!state.noiseEvents) state.noiseEvents = [];
-  state.noiseEvents.push({ floor: state.floor, x, y, ttl });
+export function createNoiseEvent(x, y, ttl = 4, options = {}) {
+  addNoise(state, x, y, ttl, options);
 }
 
 function getPassableNeighbors(monster, targetActive) {
