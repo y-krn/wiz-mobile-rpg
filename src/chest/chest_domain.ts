@@ -186,6 +186,7 @@ interface ChestRewardRollInput {
   readonly trap: string;
   readonly firstChestGuaranteed: boolean;
   readonly includeRunes: boolean;
+  readonly runFloor?: number;
   readonly itemCandidates: readonly string[] | null;
   readonly itemWeights: Readonly<Record<string, number>> | null;
 }
@@ -377,6 +378,7 @@ export function rollChestEncounter({
       trap,
       firstChestGuaranteed,
       includeRunes: !fromDrop,
+      runFloor: floor,
       itemCandidates: dropCandidates,
       itemWeights: getChestItemWeightsBySource(depth, { fromDrop })
     });
@@ -387,7 +389,7 @@ export function rollChestEncounter({
     ? rollChestSpecialReward(depth, rng)
     : null;
   const accessoryItem: ChestLootItem | null = forcedItem === null
-    ? rollChestAccessory(depth, rng, rewardParty)
+    ? rollChestAccessory(depth, rng, rewardParty, 1, floor)
     : null;
   return {
     trap,
