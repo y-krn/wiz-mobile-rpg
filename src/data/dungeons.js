@@ -95,7 +95,9 @@ const DUNGEON_SETTINGS = Object.freeze({
     // Scaled to the mine's averages, its strong enemy to Flack's (#2064).
     strength: Object.freeze({
       enemyHp: 0.29, enemyAtk: 0.43, enemyDef: 0.2, entry: 0.85,
-      eliteHp: 1, eliteAtk: 1, eliteDef: 0.33,
+      // Its strong enemy casts the flame storm, which scales with attack: at
+      // 0.8 it burns 8-18, where Flack's breath burns 10-23.
+      eliteHp: 1, eliteAtk: 0.8, eliteDef: 0.33,
       guardianHp: 2.5, guardianAtk: 1.3, guardianDef: 1
     }),
     // The library's rule (#2063): the water rises with the turns spent on a
