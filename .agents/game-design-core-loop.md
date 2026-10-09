@@ -227,7 +227,10 @@ The town shows it in one line on the library's card.
 
 Its strength table brings its monsters' averages to the mine's (HP 0.29,
 attack 0.43, defence 0.2, the first floor eased by 0.85) and its strong enemy
-to Flack's. Its maps are the size of the first two dungeons'.
+near Flack's (attack 0.8, since its flame storm scales with attack). Its
+guardian is the largest so far (HP 3.5, attack 2): rising water makes
+exploring cost time, so the build formed by exploring must be what wins.
+Its maps are the size of the first two dungeons'.
 
 ### Strength without a running floor number
 
