@@ -98,7 +98,7 @@ const DUNGEON_SETTINGS = Object.freeze({
       // Its strong enemy casts the flame storm, which scales with attack: at
       // 0.8 it burns 8-18, where Flack's breath burns 10-23.
       eliteHp: 1, eliteAtk: 0.8, eliteDef: 0.33,
-      guardianHp: 2.5, guardianAtk: 1.3, guardianDef: 1
+      guardianHp: 3.5, guardianAtk: 2, guardianDef: 1
     }),
     // The library's rule (#2063): the water rises with the turns spent on a
     // floor, so time is the resource (systems/rising_water.js).
