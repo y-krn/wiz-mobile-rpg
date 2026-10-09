@@ -252,7 +252,10 @@ check("equipment and chests are drawn from the table of the floor inside the dun
   const deep = generateRandomEquipment(8, { ...options, rng: createRng("gear") });
   const shallow = generateRandomEquipment(3, { ...options, rng: createRng("gear") });
   assert.equal(deep.level, 3);
-  assert.deepEqual(deep, shallow);
+  // The same table gives the same base; the catacomb's curse rule (#2063)
+  // then decides the curse, and with it the grade, by its own roll.
+  assert.equal(deep.baseId, shallow.baseId);
+  assert.equal(deep.level, shallow.level);
 
   // A first-floor chest has no trap in any dungeon.
   for (let i = 0; i < 20; i++) {
