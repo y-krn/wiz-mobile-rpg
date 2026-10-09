@@ -5,6 +5,7 @@ import { getVNextTrialChestCandidates } from "./equipment_vnext_trial.js";
 import { isSpecialOrQuestItem } from "./item_rules.js";
 import { recordRuntimeCall } from "../runtime_diagnostics.js";
 import { getRuneItemIdsByFloor } from "../data/magic.js";
+import { getDungeonRule } from "./dungeons.js";
 
 // 宝箱の抽選ルール。`src/chest.js` の UI/state 遷移とバランスsimの双方がここを叩く。
 // sim 側で写経すると src の変更に追随せず、深層のバランスを無音で誤って測るため
@@ -305,6 +306,8 @@ export function rollChestReward({
   // The running floor, so equipment follows the dungeon's own rule (#2063).
   runFloor = floor
 }) {
+  // The forge's rule (#2063): fewer finds; a guaranteed find stays guaranteed.
+  const equipmentChanceFactor = getDungeonRule(runFloor)?.equipmentChanceFactor ?? 1;
   recordRuntimeCall(runtimeDiagnostics, "chests.reward-roll", { floor });
   let isGuaranteed = false;
   if (floor === 1) {
@@ -326,7 +329,7 @@ export function rollChestReward({
     itemChance += (b1Opened - 1) * 0.15;
   }
 
-  if (!isGuaranteed && rng() >= itemChance) {
+  if (!isGuaranteed && rng() >= itemChance * equipmentChanceFactor) {
     return { item: null, consumedFirstChestGuarantee: false };
   }
 

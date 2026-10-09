@@ -22,6 +22,7 @@ import { isFacilityNodeBought } from "../systems/facilities.js";
 import { normalizeCompanions, normalizeFacilitiesState } from "../state/facilities_state.js";
 import { ITEMS } from "../data/items.js";
 import { purifyEquipmentCurse } from "../systems/identification.js";
+import { getDungeonRule } from "../rules/dungeons.js";
 import {
   ALTAR_CLEANSE_MATERIAL_COST,
   ALTAR_UNCURSE_MATERIAL_COST,
@@ -280,12 +281,45 @@ function renderReadingRoom(optGrid, cell) {
 }
 
 // Forge: feed materials to temper the weapon for the next few battles.
+// The forge's rule (#2063): its furnace reforges what is worn, one grade at a
+// time, as long as materials last. Reforging does not spend the room.
+const RULE_REFORGE_SLOTS = Object.freeze([["weapon", "武器"], ["armor", "防具"], ["shield", "盾"]]);
+function addRuleReforgeOptions(optGrid, cell, hero) {
+  if (getDungeonRule(state.floor)?.id !== "temper" || !hero) return;
+  const materials = runMaterialCount();
+  RULE_REFORGE_SLOTS.forEach(([slot, label]) => {
+    const worn = hero.equipment?.[slot];
+    if (!worn) return;
+    const next = getReforgedLevel(worn);
+    const button = addButton(optGrid, next === null
+      ? `${label}を打ち直す（これ以上は上がらない）`
+      : `${label}を打ち直す（素材${REFORGE_MATERIAL_COST}個・強化値+${next}へ）`, () => {
+      const paid = payRunMaterials(REFORGE_MATERIAL_COST);
+      if (!paid) return;
+      const reforged = convertToEquipObject(worn);
+      reforged.enhanceLevel = next;
+      replaceRunObjectLoot(state, worn, reforged);
+      hero.equipment[slot] = reforged;
+      if (slot === "weapon") syncMediumState(hero, { preserveRunes: true });
+      playSound("level_up");
+      addLog(`炉に${paid}をくべ、${label}を打ち直した。${getItemData(reforged)?.name || label}になった。`);
+      markMapChanged();
+      saveAutosave();
+      closeSubmenu();
+    }, { disabled: next === null || materials < REFORGE_MATERIAL_COST });
+    button.setAttribute?.("data-rule-reforge", slot);
+  });
+}
+
 function renderForge(optGrid, cell) {
   const hero = getHero();
   const weaponAtk = hero ? getCharWeaponAtk(hero) : 0;
   const bonus = getForgeTemperAmount(weaponAtk);
   const materials = runMaterialCount();
-  addDescription(optGrid, "鍛え直した武器は、しばらくのあいだ威力が増す。");
+  addDescription(optGrid, getDungeonRule(state.floor)?.id === "temper"
+    ? `鍛え直した武器は、しばらくのあいだ威力が増す。打ち直しは着ている物を一段強くする（+${REFORGE_MAX_LEVEL}まで）。打ち直しなら、炉は何度でも使える。`
+    : "鍛え直した武器は、しばらくのあいだ威力が増す。");
+  addRuleReforgeOptions(optGrid, cell, hero);
   addMaterialShortage(optGrid, "くべる素材が足りない", FORGE_MATERIAL_COST);
   addButton(optGrid, `武器を鍛え直す（素材${FORGE_MATERIAL_COST}個・${FORGE_TEMPER_BATTLES}戦のあいだ攻撃力+${bonus}）`, () => {
     const paid = payRunMaterials(FORGE_MATERIAL_COST);
