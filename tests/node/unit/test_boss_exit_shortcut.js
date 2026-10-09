@@ -43,8 +43,9 @@ const deepState = {
   keyItems: ["FORGE_SEAL"],
   mapRevision: 0
 };
-// The dungeon after the catacomb is not open to anyone yet, so nothing is promised.
+// Beating the catacomb's guardian promises the rift nest (#2064).
 assert.deepEqual(applyPendingOutcomeRewards(deepState, { kind: "milestoneVictory", floor: 10 }), [
+  "生きて帰れば、大裂溝の巣窟への道が開く。",
   "深淵の印を手に入れた。工房に「深淵の型」が並ぶようになった。"
 ]);
 

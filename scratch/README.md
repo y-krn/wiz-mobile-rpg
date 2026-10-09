@@ -56,7 +56,7 @@ enforces these directory and naming boundaries.
    |---|---|
    | `--seeds 1-10` / `--seeds 3,7` | 回すシード。同じシード・同じコードなら同じ結果になる |
    | `--kit vanguard\|scout\|devotion\|arcana` | 開始キット（剣・軽装・祈り・術式） |
-   | `--dungeon mine\|catacomb` | 行き先の迷宮（既定 `mine`＝崩れた坑道）。`catacomb`（忘れられた地下墓地）は、計測のために解放済みとして入る。迷宮は地下5階までで、守護者を倒したら帰還の門から帰る。結果の `depth` は迷宮の中の階（1〜5）、`cleared` は守護者を倒して生還したか |
+   | `--dungeon mine\|catacomb\|nest` | 行き先の迷宮（既定 `mine`＝崩れた坑道）。`catacomb`（忘れられた地下墓地）と `nest`（大裂溝の巣窟）は、計測のために解放済みとして入る。迷宮は地下5階までで、守護者を倒したら帰還の門から帰る。結果の `depth` は迷宮の中の階（1〜5）、`cleared` は守護者を倒して生還したか |
    | `--equip greedy\|none` | 装備方針。`greedy` は鑑定・装備・試着・ルーン装着を行う |
    | `--explore 0.6` | HP がこの割合を切るまで探索し、切ったら階段へ（`0` で階段直行） |
    | `--recovery on\|off\|always` | HP が `--explore` を切ったあとの動き。`on`（既定）は、その階の踏破回復が残っていて HP が3割以上なら未踏マスを歩き続ける。`always` は3割未満でも歩き続ける。`off` はすぐ階段へ向かう |

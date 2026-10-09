@@ -96,7 +96,10 @@ test('A new save can enter only the collapsed mine and sees what opens the other
   await expect(closed).toHaveCount(5);
   await expect(closed.nth(0)).toContainText('忘れられた地下墓地');
   await expect(closed.nth(0)).toContainText('崩れた坑道の守護者を倒して生還すると開く');
-  for (const [index, name] of [[1, '大裂溝の巣窟'], [2, '水没した魔導書庫'], [3, '竜火の鍛造殿'], [4, '深淵の玉座']]) {
+  // The nest is built (#2064) and says what opens it; the rest are not yet.
+  await expect(closed.nth(1)).toContainText('大裂溝の巣窟');
+  await expect(closed.nth(1)).toContainText('忘れられた地下墓地の守護者を倒して生還すると開く');
+  for (const [index, name] of [[2, '水没した魔導書庫'], [3, '竜火の鍛造殿'], [4, '深淵の玉座']]) {
     await expect(closed.nth(index)).toContainText(name);
     await expect(closed.nth(index)).toContainText('まだ道が開いていない');
   }

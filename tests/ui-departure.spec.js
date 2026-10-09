@@ -230,10 +230,10 @@ for (const vp of VIEWPORTS) {
     expect(confirmBox.height, `Confirm must stay tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
 
     // Dungeon choices share the one scrolling surface; bring them back into view.
-    // Two dungeons can be entered today (#2060), however many have been cleared.
+    // Clearing the mine and the catacomb opens three dungeons (#2064).
     await page.locator('#submenu-options').evaluate((options) => { options.scrollTop = 0; });
     const starts = page.locator('.solo-start-floor-option');
-    await expect(starts).toHaveCount(2);
+    await expect(starts).toHaveCount(3);
     for (let index = 0; index < await starts.count(); index++) {
       const start = starts.nth(index);
       const box = await start.boundingBox();

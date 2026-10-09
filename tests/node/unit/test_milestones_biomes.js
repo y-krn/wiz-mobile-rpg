@@ -62,7 +62,8 @@ check("階層守護者撃破はこの冒険の記録に残り、迷宮の踏破�
   assert.deepEqual(recordMilestoneVictory(state, 10), { ok: true, unlocked: true });
   assert.deepEqual(state.currentRun.defeatedMilestones, [10]);
   assert.deepEqual(state.unlockedMilestones, [5], "生還するまで保存しない (#2060)");
-  assert.deepEqual(settleDungeonClears(state, state.currentRun), []);
+  // 地下墓地を踏破すると大裂溝が開く (#2064)
+  assert.deepEqual(settleDungeonClears(state, state.currentRun), ["rift_nest"]);
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(recordMilestoneVictory(state, 10), { ok: true, unlocked: false });
   assert.deepEqual(recordMilestoneVictory(state, 9), { ok: false, unlocked: false });
