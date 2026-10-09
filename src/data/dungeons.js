@@ -32,7 +32,7 @@ const TABLES = Object.freeze({
   forgotten_catacomb: Object.freeze({ mapTemplate: "shallow", rareMaterial: "黒角", guardianRareMaterial: "竜鱗" }),
   // The nest is as big as the first two: its difficulty is its rule (#2064).
   rift_nest: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
-  sunken_library: Object.freeze({ mapTemplate: "middle", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
+  sunken_library: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
   dragon_forge: Object.freeze({ mapTemplate: "deep", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
   abyssal_throne: Object.freeze({ mapTemplate: "deep", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" })
 });
@@ -89,7 +89,24 @@ const DUNGEON_SETTINGS = Object.freeze({
       ledgesPerFloor: Object.freeze([3, 3, 4, 4, 4])
     })
   }),
-  sunken_library: Object.freeze({ shortName: "書庫" }),
+  sunken_library: Object.freeze({
+    shortName: "書庫",
+    built: true,
+    // Scaled to the mine's averages, its strong enemy to Flack's (#2064).
+    strength: Object.freeze({
+      enemyHp: 0.29, enemyAtk: 0.43, enemyDef: 0.2, entry: 0.85,
+      eliteHp: 1, eliteAtk: 1, eliteDef: 0.33,
+      guardianHp: 2.5, guardianAtk: 1.3, guardianDef: 1
+    }),
+    // The library's rule (#2063): the water rises with the turns spent on a
+    // floor, so time is the resource (systems/rising_water.js).
+    rule: Object.freeze({
+      id: "water",
+      line: "水位：長く留まるほど水が上がり、歩くのに手番がかかる。時間が資源。",
+      riseEvery: 20,
+      maxRises: 12
+    })
+  }),
   dragon_forge: Object.freeze({ shortName: "鍛造殿" }),
   abyssal_throne: Object.freeze({ shortName: "玉座" })
 });
