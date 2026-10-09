@@ -160,6 +160,7 @@ function resolveMeasurementBuffPhysicalDefMitigation(policy) {
 
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 import { buildCombatTurnQueue } from "./turn_order.js";
+import { ENEMY_SPELL_ATTACK_SCALE, rollAttackScaledDamage } from "../rules/enemy_spell_damage.js";
 
 const MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS = new Set([
   "buffAtk",
@@ -1544,7 +1545,7 @@ export function runCombatRoundCalculation(
               if (c.status !== "dead") {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 const attackType = mon.tags?.includes("dragon") ? "breath" : "spell";
-                let dmg = Math.floor(rng() * 15) + 10;
+                let dmg = rollAttackScaledDamage(mon.atk, ENEMY_SPELL_ATTACK_SCALE.LAHALITO, rng);
                 dmg = resolveGuardMitigation(c, dmg, {
                   isDefending,
                   attackType,
@@ -1598,7 +1599,7 @@ export function runCombatRoundCalculation(
               if (c.status !== "dead") {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 const attackType = "spell";
-                let dmg = Math.floor(rng() * 20) + 15;
+                let dmg = rollAttackScaledDamage(mon.atk, ENEMY_SPELL_ATTACK_SCALE.MADALTO, rng);
                 dmg = resolveGuardMitigation(c, dmg, {
                   isDefending,
                   attackType,
@@ -1937,14 +1938,15 @@ export function runCombatRoundCalculation(
         } else {
           const queuedTarget = state.party.findIndex(character => character.hp > 0 && character.status !== "dead");
           if (queuedTarget >= 0) {
-            const rolledDamage = Math.floor(rng() * (crushStrikeRule.damageMax - crushStrikeRule.damageMin + 1)) + crushStrikeRule.damageMin;
+            const rolledDamage = rollAttackScaledDamage(mon.atk, ENEMY_SPELL_ATTACK_SCALE.CRUSH_STRIKE, rng);
             mon.crushStrikeQueued = { targetIdx: queuedTarget, rolledDamage };
             if (measurement?.measurementCurrentEnemyAction) {
               measurement.measurementCurrentEnemyAction.measurementCrushStrike = {
                 phase: "queued",
                 round: roundNumber,
                 targetIdx: queuedTarget,
-                rolledDamage
+                rolledDamage,
+                casterAttack: mon.atk
               };
             }
             logQueue.push({ msg: `[警告] ${mon.name}は${state.party[queuedTarget].name}に砕岩打ちを構えた！次のターン、砕岩打ち！` });
