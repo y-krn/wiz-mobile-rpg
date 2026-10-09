@@ -2,6 +2,7 @@
 
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES, createEmptyMaterialBalance } from "../data/materials.js";
 import { normalizeMaterialBalance } from "../state/material_balance.js";
+import { getDungeonForFloor } from "./dungeons.js";
 
 export { normalizeMaterialBalance };
 
@@ -76,13 +77,13 @@ export function getMonsterGroup(monster) {
   return getMonsterGroupClassification(monster).group;
 }
 
-export function getRareMaterialForFloor(
-  floor,
-  { rareMaterialFloor = MATERIAL_DROP_BALANCE.rareMaterialFloor } = {}
-) {
-  return Math.max(1, Math.floor(Number(floor) || 1)) >= rareMaterialFloor
-    ? "竜鱗"
-    : "黒角";
+// The dungeon's table names its rare material (#2064). A measurement that
+// passes `rareMaterialFloor` keeps the old running-floor threshold.
+export function getRareMaterialForFloor(floor, { rareMaterialFloor, isBoss = false } = {}) {
+  const runFloor = Math.max(1, Math.floor(Number(floor) || 1));
+  if (Number.isFinite(rareMaterialFloor)) return runFloor >= rareMaterialFloor ? "竜鱗" : "黒角";
+  const tables = getDungeonForFloor(runFloor).tables;
+  return (isBoss ? tables?.guardianRareMaterial : tables?.rareMaterial) || "黒角";
 }
 
 const CHEST_MATERIAL_POOLS = Object.freeze({

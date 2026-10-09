@@ -21,6 +21,21 @@ const BASELINE = Object.freeze({
 });
 
 // `shortName` is the word a record uses in front of a floor: 坑道 B3F.
+// What each dungeon's floors are built from (#2064), read by the dungeon and
+// never by a floor number running across dungeons. `mapTemplate` names a
+// FLOOR_TEMPLATES entry (size, rooms, traps); `rareMaterial` is what a rare
+// monster leaves and `guardianRareMaterial` what the guardian leaves. The
+// values keep what the running floor gave before; each is revisited when its
+// dungeon is opened.
+const TABLES = Object.freeze({
+  collapsed_mine: Object.freeze({ mapTemplate: "shallow", rareMaterial: "黒角", guardianRareMaterial: "黒角" }),
+  forgotten_catacomb: Object.freeze({ mapTemplate: "shallow", rareMaterial: "黒角", guardianRareMaterial: "竜鱗" }),
+  rift_nest: Object.freeze({ mapTemplate: "middle", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
+  sunken_library: Object.freeze({ mapTemplate: "middle", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
+  dragon_forge: Object.freeze({ mapTemplate: "deep", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
+  abyssal_throne: Object.freeze({ mapTemplate: "deep", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" })
+});
+
 const DUNGEON_SETTINGS = Object.freeze({
   collapsed_mine: Object.freeze({
     shortName: "坑道",
@@ -70,6 +85,7 @@ export const DUNGEONS = Object.freeze(BIOMES.map((biome, index) => {
     eliteName: biome.eliteName,
     built: settings?.built === true,
     strength: settings?.strength || BASELINE,
-    rule: settings?.rule || null
+    rule: settings?.rule || null,
+    tables: TABLES[biome.id]
   });
 }));

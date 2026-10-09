@@ -201,6 +201,10 @@ permanent stat growth.
 - Enemy strength, chest contents, material amounts, hazards, and the
   guardian are set by **the dungeon and the floor within it**. One table per
   dungeon owns them; the values live in source.
+  The map's template (size, rooms, traps) and the rare material a rare
+  monster or the guardian leaves are read from that table (#2064); equipment
+  grade already follows the floor within the dungeon. Which Rune bands a
+  dungeon supplies is set when that dungeon is opened.
 - The first floor of every dungeon is sized for the starting kit: an ordinary
   fight costs a meaningful but not run-ending share of HP.
 - The adventurer grows inside the run through level, equipment grade, and

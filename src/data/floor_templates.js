@@ -1,4 +1,5 @@
 import { MAP_HEIGHT, MAP_WIDTH } from "../constants/map.js";
+import { getDungeonForFloor } from "../rules/dungeons.js";
 
 export const FLOOR_TEMPLATES = Object.freeze([
   Object.freeze({
@@ -54,12 +55,13 @@ export const FLOOR_TEMPLATES = Object.freeze([
   })
 ]);
 
+// `depth` is the running floor number; the template is the one its dungeon
+// names (#2064), not one picked by how deep the floor runs.
 export function getFloorTemplate(depth) {
   if (!Number.isInteger(depth) || depth < 1) {
     throw new TypeError(`depth must be a positive integer: ${depth}`);
   }
 
-  return FLOOR_TEMPLATES.find(template =>
-    depth >= template.minDepth && depth <= template.maxDepth
-  ) || FLOOR_TEMPLATES[FLOOR_TEMPLATES.length - 1];
+  const id = getDungeonForFloor(depth).tables?.mapTemplate;
+  return FLOOR_TEMPLATES.find(template => template.id === id) || FLOOR_TEMPLATES[0];
 }
