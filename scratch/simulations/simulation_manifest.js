@@ -135,6 +135,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/movement.js", domains: ["maps", "traps", "equipment"] },
     { pattern: "src/state/state_core.js", domains: ["maps"] },
     { pattern: "src/systems/dungeon_noise.js", domains: ["maps", "combat"] },
+    { pattern: "src/systems/rising_water.js", domains: ["maps"] },
     { pattern: "src/data/floor_templates.js", domains: ["maps", "traps"] },
     { pattern: "src/systems/exploration_items.js", domains: ["maps", "traps"] },
     { pattern: "src/systems/exploration_items.ts", domains: ["maps", "traps"] },

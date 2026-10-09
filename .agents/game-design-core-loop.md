@@ -212,6 +212,26 @@ The nest's monsters were written for deeper floors. Its strength table brings
 their averages to the mine's (HP 0.43, attack 0.57, defence 0.33, the first
 floor eased by 0.85 as in the catacomb) and its strong enemy to Flack's.
 
+### The sunken library: rising water (#2063, opened by #2064)
+
+The town shows it in one line on the library's card.
+
+- Flooded floor costs an extra turn to cross (#1963). Here the water rises
+  with the turns spent on a floor: every twenty turns it spreads one ring
+  from every flooded cell, up to twelve times. Stairs, rooms, chests, and the
+  guardian stay dry, and since water is walkable no way is ever cut off.
+- A floor keeps its water, and the turns spent on it on the way back count
+  on, so a floor explored long on the way down is slow to cross again with
+  the hunter behind.
+- So time is the resource: explore what pays, then move on.
+
+Its strength table brings its monsters' averages to the mine's (HP 0.29,
+attack 0.43, defence 0.2, the first floor eased by 0.85) and its strong enemy
+near Flack's (attack 0.8, since its flame storm scales with attack). Its
+guardian is the largest so far (HP 3.5, attack 2): rising water makes
+exploring cost time, so the build formed by exploring must be what wins.
+Its maps are the size of the first two dungeons'.
+
 ### Strength without a running floor number
 
 Every dungeon is winnable by a fresh adventurer with any starting kit and no

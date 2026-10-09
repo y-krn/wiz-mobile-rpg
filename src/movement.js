@@ -31,6 +31,7 @@ import { getFeatAnnouncementLines, getNearestFeats } from "./systems/feats.js";
 import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { addNoise, applyNoiseToEncounterChance } from "./systems/dungeon_noise.js";
+import { riseWater } from "./systems/rising_water.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
 import {
@@ -97,6 +98,11 @@ export function recordExplorationSteps(count = 1) {
   const key = String(state.floor);
   state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + count;
   if (refreshHeatHazards(state.map, state.currentRun.floorSteps[key])) markMapChanged();
+  // The library's rule (#2063): the water rises with the turns spent here.
+  if (riseWater(state) > 0) {
+    markMapChanged();
+    addLog("水位が上がった。床の水が広がっていく……");
+  }
   // Carrying gives the first observation early; later signs require a
   // meaningful low-frequency exploration pulse instead of every step.
   if (isCarriedObservationDue(previousSteps, state.currentRun.steps) && observeCarriedEquipment(state) > 0) {

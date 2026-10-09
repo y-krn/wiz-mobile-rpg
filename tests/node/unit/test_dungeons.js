@@ -93,7 +93,7 @@ check("floors are shown as the floor inside the dungeon", () => {
 
 check("the built dungeons open one after another, each with the one before", () => {
   assert.deepEqual(DUNGEONS.filter(dungeon => dungeon.built).map(dungeon => dungeon.id),
-    ["collapsed_mine", "forgotten_catacomb", "rift_nest"]);
+    ["collapsed_mine", "forgotten_catacomb", "rift_nest", "sunken_library"]);
   assert.equal(isDungeonOpen(0, []), true);
   assert.equal(isDungeonOpen(1, []), false);
   assert.equal(isDungeonOpen(1, [5]), true);
@@ -101,7 +101,9 @@ check("the built dungeons open one after another, each with the one before", () 
   // stays closed whatever has been cleared.
   assert.equal(isDungeonOpen(2, [5]), false);
   assert.equal(isDungeonOpen(2, [5, 10]), true);
-  assert.equal(isDungeonOpen(3, [5, 10, 15]), false);
+  assert.equal(isDungeonOpen(3, [5, 10]), false);
+  assert.equal(isDungeonOpen(3, [5, 10, 15]), true);
+  assert.equal(isDungeonOpen(4, [5, 10, 15, 20]), false);
   assert.deepEqual(getOpenEntryFloors([]), [1]);
   assert.deepEqual(getOpenEntryFloors([5, 10]), [1, 6, 11]);
   assert.equal(getDungeonOpener(0), null);
@@ -130,14 +132,15 @@ check("beating the guardian does not open the next dungeon; coming home does", (
   assert.deepEqual(settleDungeonClears(state, state.currentRun), []);
   assert.equal(getDungeonOpenedByClearing(state, 5), null);
 
-  // Clearing the catacomb opens the nest (#2064); the dungeon after the nest
-  // is not built yet, so clearing the nest opens nothing.
+  // Clearing the catacomb opens the nest and clearing the nest the library
+  // (#2064); the dungeon after the library is not built yet.
   const second = { unlockedMilestones: [5] };
   assert.deepEqual(settleDungeonClears(second, { defeatedMilestones: [10] }), ["rift_nest"]);
   assert.deepEqual(second.unlockedMilestones, [5, 10]);
   assert.equal(getDungeonOpenedByClearing(second, 10), null);
-  assert.deepEqual(settleDungeonClears(second, { defeatedMilestones: [15] }), []);
+  assert.deepEqual(settleDungeonClears(second, { defeatedMilestones: [15] }), ["sunken_library"]);
   assert.deepEqual(second.unlockedMilestones, [5, 10, 15]);
+  assert.deepEqual(settleDungeonClears(second, { defeatedMilestones: [20] }), []);
 });
 
 check("a run that did not beat the guardian, or left the treasure, clears nothing", () => {
