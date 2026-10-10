@@ -56,6 +56,9 @@ test('Castle presents the adventure chronicle before stats', async ({ page }) =>
   await expect(records.locator('.adventure-recent-history')).toContainText('素材0個を持ち帰った');
   await expect(records.locator('.adventure-recent-history')).toContainText('開始キット');
   await expect(records.locator('.adventure-recent-history')).toContainText('火炎の罠に倒れた');
+  const death = records.locator('.adventure-run-card.death .adventure-run-decision');
+  await expect(death).toContainText('失ったもの');
+  await expect(death).not.toContainText('持ち帰');
   await expect(records.locator('.adventure-record-section').nth(2)).toContainText('最多撃破');
   await expect(records.locator('.adventure-record-section').nth(3)).toContainText('地下墓地に入っています');
   await expect(records.locator('.adventure-record-section').nth(4)).toContainText('火炎の罠');

@@ -61,7 +61,7 @@ function decisionText(run) {
     const cause = run.deathCause?.label || run.deathCause?.source;
     const decision = outcome === "断念"
       ? `${floorText(run.deepestFloor)}で冒険を断念した。`
-      : `${floorText(run.deathCause?.floor || run.deepestFloor)}で倒れた。${cause ? `死因：${escapeHtml(cause)}。` : "死因は未記録。"}`;
+      : `${floorText(run.deathCause?.floor || run.deepestFloor)}で${cause ? `${escapeHtml(cause)}に倒れた。` : "倒れた。死因は未記録。"}`;
     return `${decision}<strong>失ったもの</strong>：${escapeHtml(loss.items.length ? loss.items.join("、") : "失った品の内訳は未記録")}。${escapeHtml(loss.materials)}`;
   }
   if (run.returnReason === "milestone_portal") return `${floorText(run.deepestFloor)}で帰還の門から帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
