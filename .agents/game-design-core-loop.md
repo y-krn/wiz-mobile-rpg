@@ -901,8 +901,11 @@ resource timing, and build counterplay.
   status or action problems, and amplifiers improve other enemies.
 - Status effects must not make one unlucky hit equal an unavoidable run loss.
   Short durations, readable counterplay, and meaningful cures preserve agency.
-- Fleeing is reliable but costly: the player pays position, time, resources, or
-  a parting hit rather than losing to an opaque escape roll.
+- Fleeing an ordinary fight is a shown chance (#2101): the flee command
+  displays its success rate, which falls with each extra enemy and rises with
+  escape support, within bounds. A failed flee spends the turn; a successful
+  one escapes clean. Fleeing a hunter, mid-boss, or boss is certain but pays
+  the parting hit, so escaping the dangerous fights stays reliable but costly.
 - Healing exists through consumables, safe transitions, and build effects, but
   in-combat healing must compete with the resources and actions needed to
   go on and to get home.

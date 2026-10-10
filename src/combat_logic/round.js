@@ -161,6 +161,7 @@ function resolveMeasurementBuffPhysicalDefMitigation(policy) {
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 import { buildCombatTurnQueue } from "./turn_order.js";
 import { ENEMY_SPELL_ATTACK_SCALE, rollAttackScaledDamage } from "../rules/enemy_spell_damage.js";
+import { getFleeChance, isFleeGuaranteed } from "../rules/flee_rules.js";
 import { GROUP_FOLLOWER_DAMAGE_SCALE } from "./turn_order.js";
 
 const MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS = new Set([
@@ -1095,6 +1096,25 @@ export function runCombatRoundCalculation(
         actionObservation.executed = true;
         actionObservation.hpBeforeExecution = char.hp;
         recordQueuedPatternResponse(state, monsters, "fleeBeforePayoff", measurement);
+        // An ordinary fight is fled by chance (#2101); a failed flee spends the turn.
+        if (!isFleeGuaranteed(state.combatState)) {
+          const chance = getFleeChance(char, state.combatState);
+          if (rng() >= chance) {
+            logQueue.push({ msg: "[味方] 逃げようとしたが、回り込まれた！", sound: "miss", fleeFailed: true });
+            return;
+          }
+          const retreatedClean = applyFleeRetreat(state);
+          logQueue.push({
+            msg: retreatedClean === "retreated"
+              ? "[味方] 戦闘から逃げ出し、1マス後退した！"
+              : "[味方] 戦闘から逃げ出した！後退先がないため、その場に留まった。",
+            sound: "miss",
+            runEscape: true,
+            fleeExecution: true
+          });
+          escaped = true;
+          return;
+        }
         applyFleePartingAttack(state, monsters, logQueue, rng, measurement);
         const retreated = applyFleeRetreat(state);
         logQueue.push({
