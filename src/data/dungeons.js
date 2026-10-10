@@ -137,7 +137,7 @@ const DUNGEON_SETTINGS = Object.freeze({
     strength: Object.freeze({
       enemyHp: 0.161, enemyAtk: 0.29, enemyDef: 0.163, entry: 0.85,
       eliteHp: 1, eliteAtk: 0.75, eliteDef: 0.27,
-      guardianHp: 0.5, guardianAtk: 0.5, guardianDef: 0.5
+      guardianHp: 0.35, guardianAtk: 0.4, guardianDef: 0.5
     }),
     // The throne's rule (#2063): the adventurer may put out their own light
     // (systems/darkness.js).
