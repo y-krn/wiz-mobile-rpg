@@ -33,7 +33,7 @@ const TABLES = Object.freeze({
   // The nest is as big as the first two: its difficulty is its rule (#2064).
   rift_nest: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
   sunken_library: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
-  dragon_forge: Object.freeze({ mapTemplate: "deep", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
+  dragon_forge: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
   abyssal_throne: Object.freeze({ mapTemplate: "deep", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" })
 });
 
@@ -109,7 +109,25 @@ const DUNGEON_SETTINGS = Object.freeze({
       maxRises: 12
     })
   }),
-  dragon_forge: Object.freeze({ shortName: "鍛造殿" }),
+  dragon_forge: Object.freeze({
+    shortName: "鍛造殿",
+    built: true,
+    // Scaled to the mine's averages (#2064). Its strong enemy and its guardian
+    // cast the ice storm, which scales with attack, so their attack stays low.
+    strength: Object.freeze({
+      enemyHp: 0.185, enemyAtk: 0.32, enemyDef: 0.157, entry: 0.85,
+      eliteHp: 1, eliteAtk: 0.75, eliteDef: 0.3,
+      guardianHp: 2.5, guardianAtk: 0.8, guardianDef: 1
+    }),
+    // The forge's rule (#2063): finds are few and materials many, and every
+    // floor's furnace reforges what is worn (systems/forge rooms).
+    rule: Object.freeze({
+      id: "temper",
+      line: "鍛える：装備は少なく、素材は多い。どの階の炉でも、着ている物を打ち直せる。",
+      equipmentChanceFactor: 0.5,
+      chestMaterialBonus: 2
+    })
+  }),
   abyssal_throne: Object.freeze({ shortName: "玉座" })
 });
 

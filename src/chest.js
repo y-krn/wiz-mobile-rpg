@@ -34,7 +34,7 @@ import {
   rollChestEncounter
 } from "./chest/chest_domain.js";
 import { createRng } from "./seed_rng.js";
-import { getDungeonFloor } from "./rules/dungeons.js";
+import { getDungeonFloor, getDungeonRule } from "./rules/dungeons.js";
 import { renderChestMenu } from "./chest/chest_view.js";
 import { recordEliteGreedAction } from "./systems/roaming_elites.js";
 import { getFeatAnnouncementLines } from "./systems/feats.js";
@@ -576,7 +576,9 @@ function resolveChestRewards(opener, rng = Math.random) {
 
     // 素材束の獲得
     const tombRaider = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
-    const mats = generateChestMaterials(state.floor, rng, tombRaider?.materialBonus || 0);
+    // The forge's rule (#2063): its chests hold more materials.
+    const ruleMaterials = getDungeonRule(state.floor)?.chestMaterialBonus || 0;
+    const mats = generateChestMaterials(state.floor, rng, (tombRaider?.materialBonus || 0) + ruleMaterials);
     if (Object.keys(mats).length > 0) {
       Object.entries(mats).forEach(([mat, qty]) => {
         if (state.currentRun) {

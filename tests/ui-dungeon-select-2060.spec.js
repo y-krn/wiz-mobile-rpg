@@ -102,7 +102,9 @@ test('A new save can enter only the collapsed mine and sees what opens the other
   await expect(closed.nth(1)).toContainText('忘れられた地下墓地の守護者を倒して生還すると開く');
   await expect(closed.nth(2)).toContainText('水没した魔導書庫');
   await expect(closed.nth(2)).toContainText('大裂溝の巣窟の守護者を倒して生還すると開く');
-  for (const [index, name] of [[3, '竜火の鍛造殿'], [4, '深淵の玉座']]) {
+  await expect(closed.nth(3)).toContainText('竜火の鍛造殿');
+  await expect(closed.nth(3)).toContainText('水没した魔導書庫の守護者を倒して生還すると開く');
+  for (const [index, name] of [[4, '深淵の玉座']]) {
     await expect(closed.nth(index)).toContainText(name);
     await expect(closed.nth(index)).toContainText('まだ道が開いていない');
   }

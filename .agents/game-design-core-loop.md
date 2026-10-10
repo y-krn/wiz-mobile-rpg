@@ -232,6 +232,24 @@ guardian is the largest so far (HP 3.5, attack 2): rising water makes
 exploring cost time, so the build formed by exploring must be what wins.
 Its maps are the size of the first two dungeons'.
 
+### The dragon forge: tempering (#2063, opened by #2064)
+
+The town shows it in one line on the forge's card.
+
+- Finds are few and materials many: a chest is half as likely to hold a piece
+  of equipment as elsewhere (a guaranteed first find stays), and its material
+  bundle is two larger.
+- Every floor's furnace (the forge's special room) also reforges what is
+  worn, a weapon, armour, or a shield, one grade up for four materials, to
+  +6. Reforging does not spend the room, so the furnace serves as long as
+  the materials last; its temper still spends it.
+- So the run grows what it wears instead of replacing it.
+
+Its strength table brings its monsters' averages to the mine's (HP 0.185,
+attack 0.32, defence 0.157, the first floor eased by 0.85). Its strong enemy
+and its guardian cast the ice storm, which scales with attack, so their
+attack stays low. Its maps are the size of the first dungeons'.
+
 ### Strength without a running floor number
 
 Every dungeon is winnable by a fresh adventurer with any starting kit and no

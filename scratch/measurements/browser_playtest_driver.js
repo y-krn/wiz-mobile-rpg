@@ -42,6 +42,7 @@ const RECOVERY = await import('/src/systems/exploration_recovery.js');
 const FACILITIES = await import('/src/systems/facilities.js');
 const FACILITY_DATA = await import('/src/data/facilities.js');
 const DUNGEON_RULES = await import('/src/rules/dungeons.js');
+const EXPLORE = await import('/src/menu/explore_actions.js');
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 // Real (unscaled) sleep when the runner accelerates timers.
@@ -52,7 +53,7 @@ const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
 const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine' };
 // A dungeon is five floors (#2060); a run is named by the running number of its first floor.
-const DUNGEON_ENTRY = { mine: 1, catacomb: 6, nest: 11, library: 16 };
+const DUNGEON_ENTRY = { mine: 1, catacomb: 6, nest: 11, library: 16, forge: 21 };
 const entryFloorOf = dungeon => DUNGEON_ENTRY[dungeon] || Math.max(1, Math.floor(Number(dungeon)) || 1);
 const localFloor = floor => ((Math.max(1, Number(floor) || 1) - 1) % 5) + 1;
 const atDungeonBottom = () => localFloor(st().floor) === 5;
@@ -194,6 +195,17 @@ W.__walk = async (goalName = 'frontier', maxSteps = 200, stopWhen = null, { thro
     if (!path) return 'no path';
     const [nx, ny] = path[0]; const d = [0, 1, 2, 3].find(d => s.x + DX[d] === nx && s.y + DY[d] === ny); let g = 0;
     while (s.dir !== d && g++ < 4) { M.handleMove(((d - s.dir + 4) % 4) === 3 ? 'turn-left' : 'turn-right'); while (s.transitioning) await sl(20); await sl(10); }
+    // A heat vent burns on a visible cycle: wait (search, one turn) until it
+    // is cool on arrival, as a player would, at most a full cycle.
+    // Searching on stairs or an event opens its menu, so wait only on a plain cell.
+    const here = s.map?.[s.y]?.[s.x];
+    const plainHere = here?.type === 'empty' && !here.event && !here.specialRoom;
+    const vent = s.map?.[ny]?.[nx]?.hazard;
+    for (let w = 0; plainHere && vent?.kind === 'heat' && w < GIMMICKS.HEAT_CYCLE_TURNS
+      && GIMMICKS.isHeatActive(vent, M.getCurrentFloorExplorationSteps() + 1); w++) {
+      EXPLORE.handleExploreAction('search'); while (s.transitioning) await sl(20); await sl(10);
+      if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' while waiting for a vent';
+    }
     const bx = s.x, by = s.y; M.handleMove('forward'); while (s.transitioning) await sl(20); await sl(20); steps++;
     if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' after ' + steps;
     if (s.x === bx && s.y === by) {
@@ -343,6 +355,10 @@ const roomChoice = buttons => {
   const uncurse = find(/の呪いを解く（素材(\d+)個）/);
   if (uncurse && materialCount() >= Number(/素材(\d+)個/.exec(uncurse)?.[1] || 0)) return uncurse;
   if (p.status && p.status !== 'ok') { const cleanse = find(/浄めを願う/); if (cleanse) return cleanse; }
+  // The forge's rule (#2063): reforge what is worn while materials last
+  // (weapon first); the furnace stays open for the next piece.
+  const reforge = find(/を打ち直す（素材(\d+)個/);
+  if (reforge && materialCount() >= Number(/素材(\d+)個/.exec(reforge)?.[1] || 0)) return reforge;
   const improve = find(/鍛え直す|繕う/);
   if (improve) { const cost = Number(/素材(\d+)個/.exec(improve)?.[1] || 0); if (materialCount() >= cost * 2) return improve; }
   // Digging is loud; where noise brings monsters (the mine's rule, #2063) dig only when healthy.
