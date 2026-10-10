@@ -341,6 +341,10 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
   if (options.logQueue && incomingPenalties.length > 0) {
     options.logQueue.push({ msg: `[味方] ${char.name}は${incomingPenalties.join("・")}の代償でダメージが増えた。` });
   }
+  // An ordinary group (#2100): every enemy acts, and each one after the
+  // first in the round strikes at the group's follower share.
+  const groupScale = Number(options.state?.combatState?.groupFollowerScale);
+  if (groupScale > 0 && groupScale < 1) next = Math.max(1, Math.round(next * groupScale));
   if (mitigationCall) {
     mitigationCall.after = next;
     mitigationCalls.push(mitigationCall);

@@ -42,6 +42,9 @@ function resolveTurnInitiative(state, actorType, character = null, rng = Math.ra
   };
 }
 
+// Damage share of each enemy after the first in an ordinary group (#2100).
+export const GROUP_FOLLOWER_DAMAGE_SCALE = 0.5;
+
 export function buildCombatTurnQueue(
   state,
   combatSelection,
@@ -114,34 +117,21 @@ export function buildCombatTurnQueue(
       state.combatState?.isMidboss === false &&
       state.combatState?.isRoamingFlack === false)
   );
-  // Exact shared ordinary-slot rule. Every living
-  // enemy still rolls initiative, but only the first ordinary enemy turn in
-  // the resolved order owns the shared slot for this round. Its explicit
-  // trait-generated extra action remains attached to that actor; it is not an
-  // additional ordinary slot or a banked turn for another actor.
+  // Ordinary groups (#2100): every living enemy acts in its own turn. The
+  // first ordinary enemy in the resolved order strikes at full strength; each
+  // later one is a group follower and strikes at GROUP_FOLLOWER_DAMAGE_SCALE
+  // (round.js sets it for that turn; damage.js applies it). This replaced the
+  // shared ordinary slot of #1216, where only the first enemy acted.
   if (ordinaryEncounter && !measurementDisableSharedNormalEnemyActionSlot &&
       (measurementSharedNormalEnemyActionSlot || productionSharedNormalEnemyActionSlot)) {
-    const slotOwner = turns.find(turn =>
+    const leader = turns.find(turn =>
       turn.type === "monster" && !turn.measurementExtraMultiAction
     )?.idx;
-    const ordinaryEnemyCount = new Set(turns
-      .filter(turn => turn.type === "monster" && !turn.measurementExtraMultiAction)
-      .map(turn => turn.idx)).size;
-    for (let index = 0; index < turns.length; index++) {
-      const turn = turns[index];
+    for (const turn of turns) {
       if (turn.type !== "monster") continue;
-      if (turn.idx !== slotOwner) {
-        turns[index] = null;
-        continue;
-      }
-      turn.measurementSharedNormalSlot = true;
-      // The round runner announces the shared slot at the owner's ordinary
-      // turn, so the log reads in the order the enemy side actually acts.
-      if (ordinaryEnemyCount > 1 && !turn.measurementExtraMultiAction) {
-        turn.sharedSlotAnnouncement = true;
-      }
+      if (turn.idx === leader) turn.measurementSharedNormalSlot = true;
+      else turn.groupFollower = true;
     }
-    turns.splice(0, turns.length, ...turns.filter(Boolean));
   }
   // Guardian fights: the guardian keeps its own turn(s), and any adds it
   // brings or summons share one ordinary slot, mirroring the ordinary

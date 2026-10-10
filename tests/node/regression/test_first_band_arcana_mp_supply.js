@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { findSeed, seedWindow } from "../fixtures/seed_search.js";
 import { createStartingKitCharacter } from "../../../src/state.js";
 import { ITEM_EFFECTS } from "../../../src/systems/item_effects.js";
 
@@ -18,7 +19,15 @@ assert.equal(normalizeTrackedConsumableSource("chest"), "chest");
 assert.equal(normalizeTrackedConsumableSource("secretRoom"), "chest");
 assert.equal(normalizeTrackedConsumableSource("special-reward"), "chest");
 
-const result = await runMeasurement({ runs: 1, seed: 1277, mode: ARCANA_MP_SUPPLY_MODE });
+// The smoke needs a run whose first floor offers spells and has the wand
+// arm cast one. Which seed does that moves with combat (every enemy of a group
+// acts since #2100), so the first one from 1277 that does is used.
+const { result } = await findSeed("arcana first-floor casting", seedWindow(1277, 12),
+  seed => runMeasurement({ runs: 1, seed, mode: ARCANA_MP_SUPPLY_MODE }),
+  report => {
+    const spell = report.arms.W0.overview.combat[1]?.spellTelemetry;
+    return spell?.eligibleSpellSelected.total > 0 && spell.halitoCasts.total > 0;
+  });
 
 const manaProbe = createStartingKitCharacter("arcana");
 manaProbe.mp = 0;
