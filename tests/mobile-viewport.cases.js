@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { waitForAppStart } from './ui-ux-helpers.js';
 
 const VIEWPORTS = [
   { width: 390, height: 844 },
@@ -27,7 +28,7 @@ async function activateControlsMode(page, mode) {
     const gameContainer = document.querySelector('#game-container');
     const submenuOptions = document.querySelector('#submenu-options');
 
-    gameContainer.classList.remove('result-mode', 'event-mode');
+    gameContainer.classList.remove('result-mode', 'event-mode', 'town-home-mode');
     controlsPanel.className = panelClass;
     document.querySelectorAll('.controls-group').forEach((group) => {
       group.classList.toggle('active', group.id === groupId);
@@ -57,6 +58,8 @@ test('canvas top and height stay stable across controls modes @visual', async ({
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await page.goto('/');
+    await waitForAppStart(page);
+    await activateControlsMode(page, MODES[0]);
     await expect(page.locator('#dungeon-canvas')).toBeVisible();
 
     const viewportKey = `${viewport.width}x${viewport.height}`;
@@ -174,6 +177,8 @@ test('result and event viewports preserve their flexible heights @visual', async
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await page.goto('/');
+    await waitForAppStart(page);
+    await activateControlsMode(page, MODES[0]);
     await expect(page.locator('#viewport-panel')).toBeVisible();
 
     const viewportKey = `${viewport.width}x${viewport.height}`;

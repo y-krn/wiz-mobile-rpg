@@ -16,7 +16,9 @@ const OVERLAYS = [
   {
     name: 'archives',
     selector: '#archives-overlay',
-    open: async (page) => page.getByRole('button', { name: /迷宮について分かったこと/ }).click(),
+    // The entrance now lives on the scene. Open the overlay at the measured
+    // offset; a locator click would first scroll that entrance into view.
+    open: async (page) => page.evaluate(async () => (await import('/src/ui.js')).openArchivesOverlay()),
     close: async (page) => page.locator('#archives-overlay').getByRole('button', { name: /閉じる/ }).click(),
   },
 ];

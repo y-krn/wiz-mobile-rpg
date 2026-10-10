@@ -2,8 +2,8 @@ import { test, expect } from './fixtures/browser-health.js';
 import { waitForAppStart } from './ui-ux-helpers.js';
 
 const TOWN_SUBMENUS = [
-  ['castle_main', 'おしろ - 記録'],
-  ['castle_death_logs', 'おしろ - 全滅ログ'],
+  ['castle_main', '城 - 記録'],
+  ['castle_death_logs', '城 - 全滅ログ'],
   ['workshop_main', '工房 - 広がった可能性'],
 ];
 

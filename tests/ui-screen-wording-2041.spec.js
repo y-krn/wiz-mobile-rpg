@@ -89,10 +89,10 @@ test('The workshop says what each shelf adds, without internal terms', async ({ 
 test('The town home names its sections in plain words', async ({ page }) => {
   await openTown(page);
   const home = page.locator('[data-town-home]');
-  await expect(home).toContainText('次の冒険');
+  await expect(home).toContainText('あと少しで届く偉業');
   await expect(home).toContainText('これまでの蓄え');
-  await expect(page.locator('#btn-town-workshop')).toHaveText('工房次の冒険で選べるものを増やす');
-  await expect(page.locator('#btn-town-archives')).toHaveText('迷宮について分かったこと書庫');
+  await expect(page.locator('#btn-town-workshop')).toHaveText('工房次の冒険の選択肢');
+  await expect(page.locator('#btn-town-archives')).toHaveText('書庫迷宮について分かったこと');
   await expect(page.locator('#records-strip')).toContainText('冒険の数');
   const text = await home.textContent();
   expect(text).not.toMatch(/潜行|Codex|Workshop|可能性/);

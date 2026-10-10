@@ -203,7 +203,7 @@ test('castle death summary remains usable with zero logs', async ({ page }) => {
     const { openSubmenu } = await import('/src/navigation.js');
     state.gameState = 'town';
     state.deathLogs = [];
-    openSubmenu('castle_death_logs', 'おしろ - 全滅ログ');
+    openSubmenu('castle_death_logs', '城 - 全滅ログ');
   });
 
   await expect(page.locator('.detail-placeholder')).toHaveText('全滅の記録はありません。');

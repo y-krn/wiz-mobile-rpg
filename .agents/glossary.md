@@ -42,7 +42,10 @@ needs a name, add a row here in the same change.
 | Time in combat | ターン | 手番 |
 | How many battles an effect lasts | 戦 (次の3戦) | — |
 | Things picked up in a run | 戦果 | 戦利品 |
-| Town records | 書庫 | Codex |
+| Town adventure records and settings | 城 | おしろ |
+| Town dungeon knowledge | 書庫 | Codex |
+| Long-term goals and one-time rewards | 偉業 | — |
+| Materials already held in town | これまでの蓄え（素材） | ゴールド, 課金通貨 |
 | Town crafting | 工房 | Workshop |
 | The town | 坑口の街 | — |
 | Basic healing potion | 傷薬 | — |

@@ -1,3 +1,4 @@
+import './ui-town-home.cases.js';
 import { test, expect } from './fixtures/browser-health.js';
 
 const HOSTILE_RESULT_TEXT = '<b>evil result</b><img src=x onerror="globalThis.__xss = 1">';
@@ -466,7 +467,7 @@ test('Explore shows the closest feats with live progress and announces a feat on
   expect(live.storedChests).toBe(29);
 });
 
-test('Town home is organized as previous run, next descent, and accumulated knowledge', async ({ page }) => {
+test('Town home connects the scene entrances to the run and progress summaries', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
@@ -477,23 +478,18 @@ test('Town home is organized as previous run, next descent, and accumulated know
     state.runHistory = [{ outcome: 'death', returnReason: 'gameover', startingKit: 'scout', deepestFloor: 7 }];
     updateUI();
   });
-
   const home = page.locator('[data-town-home]');
-  await expect(home).toBeVisible();
-  await expect(home.locator('.town-home-section').nth(0)).toContainText('前回の冒険');
-  await expect(home.locator('.town-home-section').nth(0)).toContainText('死亡');
-  await expect(home.locator('.town-home-section').nth(0)).toContainText('開始キット');
-  await expect(home.locator('.town-home-section').nth(1)).toContainText('次の冒険');
+  await expect(home.locator('.town-scene')).toBeVisible();
+  await expect(home.locator('.town-home-last-run')).toContainText('死亡');
+  await expect(home.locator('.town-home-last-run')).toContainText('開始キット');
   await expect(home.locator('#town-next-run-title')).toHaveText('あと少しで届く偉業');
-  await expect(home.locator('.town-home-section').nth(2)).toContainText('街の施設');
-  await expect(home.locator('.town-home-section').nth(3)).toContainText('これまでの蓄え');
+  await expect(home.locator('.town-home-facilities')).toContainText('街の施設');
+  await expect(home.locator('.town-home-materials')).toContainText('これまでの蓄え');
   await expect(page.locator('#btn-town-dungeon')).toContainText('準備を整える');
   await expect(page.locator('#btn-town-dungeon')).toContainText('開始キットと行き先を選ぶ');
-  await expect(page.locator('#btn-town-dungeon')).not.toContainText('クラス');
   await expect(page.locator('#btn-town-quest-board')).toHaveCount(0);
-  await expect(page.locator('#btn-town-feats')).toContainText('偉業の一覧を見る');
+  await expect(page.locator('#btn-town-archives')).toContainText('書庫');
   await expect(page.locator('#btn-town-archives')).toContainText('迷宮について分かったこと');
-  await expect(page.locator('#btn-town-workshop')).toContainText('工房');
 });
 
 test('Town home without a recorded run offers the castle as a records visit', async ({ page }) => {
@@ -508,16 +504,13 @@ test('Town home without a recorded run offers the castle as a records visit', as
     state.runHistory = [];
     updateUI();
   });
-
   const lastRun = page.locator('.town-home-last-run');
   await expect(lastRun).toHaveAttribute('data-empty', 'true');
   await expect(lastRun).toContainText('まだ冒険の記録はありません');
-  await expect(page.locator('#town-last-run-title')).toBeHidden();
-  await expect(page.locator('#btn-town-castle')).toContainText('おしろを訪ねる');
-  await expect(page.locator('#btn-town-castle')).not.toContainText('冒険記録を見る');
+  await expect(page.locator('#btn-town-castle')).toContainText('城');
+  await expect(page.locator('#btn-town-castle')).toContainText('通算記録と設定');
   await expect(page.locator('#character-panel')).toBeHidden();
   await expect(page.locator('#btn-town-dungeon')).toBeInViewport();
-
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');

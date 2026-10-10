@@ -283,11 +283,16 @@
   flex-shrink: 0;
 }
 
-#game-container.town-home-mode #viewport-panel {
-  flex: 0 0 auto;
-  aspect-ratio: auto;
-  height: clamp(132px, 26svh, 220px);
+/* The town has its own scene with DOM entrances; the dungeon viewport keeps
+   its original ownership in every other mode. */
+#game-container.town-home-mode #viewport-panel:not(:has(#renderer-safe-ui)) {
+  display: none;
 }
+
+#game-container.town-home-mode #controls-panel { order: 1; }
+#game-container.town-home-mode #goal-banner { order: 2; }
+#game-container.town-home-mode #log-panel { order: 3; }
+#game-container.town-home-mode #character-panel { order: 4; }
 
 /* Latest lines only; the expand button opens the full log. The panel still
    follows its tail programmatically, but never becomes a second scroll area. */

@@ -48,7 +48,7 @@ globalThis.localStorage = (() => {
   // [A] お城サブメニュー中に保存 → 再開で town へ畳まれる
   localStorage.clear();
   initNewGame(); // gameState="town", floor=1, x/y=START(地下1F登り階段)
-  openSubmenu("castle_main", "おしろ"); // gameState="submenu", prevGameState="town"
+  openSubmenu("castle_main", "城"); // gameState="submenu", prevGameState="town"
   assert.strictEqual(state.gameState, "submenu", "precondition: in submenu");
   saveAutosave();
   state.gameState = "explore"; // メモリを汚し、ロードで上書きされるか確認

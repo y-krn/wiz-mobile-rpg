@@ -89,7 +89,7 @@
   overflow: visible;
   justify-content: flex-start;
   padding-bottom: 0;
-  background: var(--bg-color);
+  background: #574836;
 }
 
 #town-controls.active {
@@ -273,39 +273,136 @@
 .town-home-section {
   display: grid;
   grid-column: 1 / -1;
-  gap: var(--sp-sm);
+  gap: 8px;
   min-width: 0;
-  padding: var(--sp-lg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-soft);
-}
-
-.town-home-section-heading {
-  display: grid;
-  gap: var(--sp-xxs);
-  min-width: 0;
-}
-
-.town-home-kicker {
-  justify-self: start;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--tint-amber);
-  color: var(--neon-amber);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  letter-spacing: 0.08em;
+  padding: 12px;
+  border: 2px solid #b09a73;
+  border-radius: var(--radius-sm);
+  background: #fff7e7;
+  box-shadow: 0 2px 0 #594c38;
 }
 
 .town-home-section h2 {
   margin: 0;
-  color: var(--text-main);
-  font-family: var(--font-sans);
-  font-size: var(--fs-xl);
-  font-weight: 800;
-  text-wrap: balance;
+  color: #3d342c;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* The mine remains the focal point; four independent DOM entrances sit at
+   the sides, never on the tunnel or the adventurer. */
+.town-scene {
+  position: relative;
+  grid-column: 1 / -1;
+  min-height: 360px;
+  height: clamp(360px, 50svh, 430px);
+  margin: 0 -8px 8px;
+  isolation: isolate;
+}
+
+.town-scene-image {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  image-rendering: pixelated;
+}
+
+#town-controls .town-scene .btn-town {
+  position: absolute;
+  width: 36%;
+  min-height: 60px;
+  border-color: #66543c;
+  border-radius: var(--radius-xs);
+  background: #fff2d6;
+  box-shadow: 0 3px 0 #403527;
+  color: #302b24;
+}
+
+#town-controls .town-scene .btn-town span {
+  color: #544739;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.town-scene-castle { top: 16px; left: 12px; }
+.town-scene-archives { top: 16px; right: 12px; }
+.town-scene-workshop { bottom: 16px; left: 12px; }
+.town-scene-feats { bottom: 16px; right: 12px; }
+
+/* Preserve the existing read-only records projection inside the information
+   layer instead of hiding it with the dungeon viewport. */
+#town-controls .records-strip {
+  position: static;
+  padding: 8px 0 0;
+  border: 0;
+  border-top: 1px solid #d2bd9a;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#town-controls .records-strip small { color: #544739; font-size: 12px; line-height: 18px; }
+#town-controls .records-strip strong { color: #256571; font-size: 12px; line-height: 18px; }
+
+.town-material-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.town-material-list > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: #473d32;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.town-material-list dd {
+  flex-shrink: 0;
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+.town-material-empty {
+  margin: 0;
+  color: #544739;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+#town-feat-summary {
+  gap: 8px;
+}
+
+#town-feat-summary .feat-card {
+  padding: 0 0 8px;
+  border: 0;
+  border-bottom: 1px solid #d2bd9a;
+  border-radius: 0;
+  background: transparent;
+}
+
+#town-feat-summary .feat-card:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+#town-feat-summary .feat-card-status { color: #256571; }
+#town-feat-summary .feat-card-condition,
+#town-feat-summary .feat-card-reward,
+#town-controls .town-feat-empty { color: #544739; font-size: 12px; }
+
+@media (width <= 350px) {
+  .town-material-list { grid-template-columns: 1fr; }
 }
 
 .town-home-actions {
@@ -413,11 +510,11 @@
 
 .town-last-run-status {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   gap: var(--sp-sm);
   min-width: 0;
   font-family: var(--font-mono);
-  font-size: var(--fs-sm);
+  font-size: 14px;
 }
 
 .town-last-run-status strong {
@@ -432,17 +529,22 @@
 .town-last-run-fact {
   min-width: 0;
   margin: 0;
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-  line-height: 1.45;
+  color: #544739;
+  font-size: 13px;
+  line-height: 20px;
   overflow-wrap: anywhere;
 }
 
-.town-last-run-status span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.town-last-run-loss {
+  display: grid;
+  gap: 2px;
 }
+
+.town-last-run-loss s { color: #6a6057; }
+.town-last-run-status.death strong { color: #a83128; }
+.town-last-run-status.abandon strong { color: #855011; }
+.town-last-run-status.returned strong { color: #287a4b; }
+.town-last-run-status.unknown strong { color: #544739; }
 
 #town-controls .btn-town {
   display: flex;
@@ -464,29 +566,10 @@
 }
 
 #town-controls .btn-town span {
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
+  color: #544739;
+  font-size: 12px;
+  line-height: 1.5;
   font-weight: 400;
-}
-
-.town-home-section:last-child .btn-town:last-child {
-  --btn-edge: rgba(47, 158, 98, 0.3);
-  border-color: rgba(47, 158, 98, 0.5);
-  color: var(--neon-green);
-  background: linear-gradient(180deg, #fffdf8, var(--tint-green));
-}
-
-/* Without a recorded run the previous-run card collapses to the empty note and
-   a compact castle entry. */
-.town-home-last-run[data-empty="true"] h2 {
-  display: none;
-}
-
-.town-home-last-run[data-empty="true"] #btn-town-castle {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: none;
 }
 
 .town-primary-dock {
@@ -496,19 +579,20 @@
   margin: 0 calc(-1 * var(--sp-md));
   padding: var(--sp-sm) var(--sp-md) max(var(--sp-sm), var(--safe-area-bottom));
   border-top: 1px solid var(--border-color);
-  background: rgba(250, 245, 237, 0.97);
+  background: #fff2d6;
 }
 
 /* The next-run preparation is the one primary action on the town home. */
 #town-controls #btn-town-dungeon {
   --btn-edge: #a85f0f;
   border-color: #a85f0f;
-  background: linear-gradient(180deg, #f2a74a, var(--neon-amber));
-  color: #fff;
+  background: #e7ad5c;
+  color: #302b24;
 }
 
 #town-controls #btn-town-dungeon span {
-  color: rgba(255, 255, 255, 0.88);
+  color: #493c2d;
+  font-size: 12px;
 }
 
 .workshop-grid {

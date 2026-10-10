@@ -19,7 +19,7 @@ function isAbandonRun(run) {
 
 export function handleTownOption(option) {
   if (option === "castle") {
-    openSubmenu("castle_main", "おしろ - 記録");
+    openSubmenu("castle_main", "城 - 記録");
   } else if (option === "feats") {
     openSubmenu("feats_main", "偉業 - 条件と進み具合");
   } else if (option === "guidebook") {
@@ -81,7 +81,7 @@ export function renderCastleMain(optGrid) {
   const deathLogs = document.createElement("button");
   deathLogs.className = "btn btn-neon btn-block";
   deathLogs.textContent = "全滅ログ確認";
-  deathLogs.addEventListener("click", () => openSubmenu("castle_death_logs", "おしろ - 全滅ログ"));
+  deathLogs.addEventListener("click", () => openSubmenu("castle_death_logs", "城 - 全滅ログ"));
   optGrid.appendChild(deathLogs);
 
   if (isDebugMode()) {
