@@ -102,6 +102,82 @@
   margin-bottom: 6px;
 }
 
+.archives-record-card {
+  padding: 6px 8px;
+  color: var(--text-primary);
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
+.archives-record-row,
+.archives-record-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.archives-record-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.archives-record-heading {
+  margin-bottom: 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.archives-record-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.archives-record-muted {
+  color: var(--text-secondary);
+}
+
+.archives-record-success,
+.archives-record-danger,
+.archives-record-accent {
+  font-weight: bold;
+}
+
+.archives-record-success {
+  color: #246b45;
+}
+
+.archives-record-danger {
+  color: #a52e27;
+}
+
+.archives-record-accent {
+  color: #755000;
+}
+
+.archives-record-wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.archives-record-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.archives-record-summary-wide {
+  grid-column: span 2;
+}
+
 .codex-grid {
   display: grid;
   grid-template-columns: 1fr;
