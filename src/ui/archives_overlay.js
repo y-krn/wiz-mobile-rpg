@@ -43,8 +43,10 @@ function getRunOutcomeLabel(run) {
   return "帰還";
 }
 
-function getRunOutcomeColor(run) {
-  return ["帰還", "翼で帰還"].includes(getRunOutcomeLabel(run)) ? "var(--neon-green)" : "var(--neon-red)";
+function getRunOutcomeClass(run) {
+  return ["帰還", "翼で帰還"].includes(getRunOutcomeLabel(run))
+    ? "archives-record-success"
+    : "archives-record-danger";
 }
 
 function trackArchivesListScroll(body) {
@@ -302,7 +304,7 @@ export function getEventsCodexHtml() {
   // One row per dungeon; its name shows once its first floor has been seen.
   DUNGEONS.forEach(dungeon => {
     const name = getFloorDisplayName(state, getDungeonEntryFloor(dungeon.index));
-    html += `<div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; margin-bottom: 4px;"><strong>${name}</strong> <span style="color: var(--text-muted);">${dungeon.index + 1}つ目の迷宮</span></div>`;
+    html += `<div class="archives-record-card archives-record-row" style="margin-bottom: 4px;"><strong>${name}</strong> <span class="archives-record-muted">${dungeon.index + 1}つ目の迷宮</span></div>`;
   });
   html += `</div>`;
   
@@ -315,7 +317,7 @@ export function getEventsCodexHtml() {
     const firstFloorLabel = record.firstFloor > 0 ? formatDungeonFloor(record.firstFloor) : (hasRecord ? "記録なし" : "未発見");
     const nameJp = TRAP_CODEX_LABELS[k] || k;
     html += `
-      <div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between;">
+      <div class="archives-record-card archives-record-row" style="margin-bottom: 4px;">
         <span><strong>${escapeHtml(nameJp)}</strong> (初発見: ${firstFloorLabel})</span>
         <span>解除: ${record.disarmed} 回 / 被弾: ${record.triggered} 回</span>
       </div>
@@ -333,16 +335,16 @@ export function getEventsCodexHtml() {
   const chest = fac.chest || { found: 0, opened: 0 };
   
   html += `
-    <div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px;">
-      <div style="display: flex; justify-content: space-between;">
+    <div class="archives-record-card archives-record-stack">
+      <div class="archives-record-row">
         <span>⛲ 神秘の泉</span>
         <span>発見: ${spring.found} 回 / 使用: ${spring.used} 回</span>
       </div>
-      <div style="display: flex; justify-content: space-between;">
+      <div class="archives-record-row">
         <span>👤 さまよう商人</span>
         <span>発見: ${merchant.found} 回 / 購入: ${merchant.purchased} 回</span>
       </div>
-      <div style="display: flex; justify-content: space-between;">
+      <div class="archives-record-row">
         <span>📦 宝箱</span>
         <span>発見: ${chest.found} 回 / 開封: ${chest.opened} 回</span>
       </div>
@@ -353,8 +355,8 @@ export function getEventsCodexHtml() {
   const insights = Array.isArray(state.codex?.insights) ? state.codex.insights : [];
   html += `<div><div class="archives-section-title">🧭 探索から得た気づき</div>`;
   html += insights.length > 0
-    ? `<div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px;">
-        ${insights.map(insight => `<div style="display: flex; justify-content: space-between; gap: 8px;"><span>${escapeHtml(CODEX_INSIGHT_DEFINITIONS[insight.id] || "新しい傾向")}</span><span style="color: var(--text-muted);">${Number(insight.count) || 1}回</span></div>`).join("")}
+    ? `<div class="archives-record-card archives-record-stack">
+        ${insights.map(insight => `<div class="archives-record-row"><span>${escapeHtml(CODEX_INSIGHT_DEFINITIONS[insight.id] || "新しい傾向")}</span><span class="archives-record-muted">${Number(insight.count) || 1}回</span></div>`).join("")}
       </div>`
     : `<div class="codex-muted">帰還時に観測した傾向が、ここへ少しずつ記録されます。</div>`;
   html += `</div>`;
@@ -364,13 +366,13 @@ export function getEventsCodexHtml() {
   const records = state.records || { deepestRetreat: 0, deepestDeath: 0, totalRuns: 0 };
   html += `<div><div class="archives-section-title">📊 これまでの累計</div>`;
   html += `
-    <div style="background-color: #14141a; border: 1px solid var(--neon-cyan); border-radius: 4px; padding: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
-      <div>冒険の数: <strong style="color: var(--neon-cyan);">${records.totalRuns}</strong> 回</div>
-      <div>全滅死亡: <strong style="color: var(--neon-red);">${stats.totalDeaths}</strong> 回</div>
-      <div>帰還最深: <strong style="color: var(--neon-green);">${records.deepestRetreat ? formatDungeonFloor(records.deepestRetreat) : "未記録"}</strong></div>
-      <div>死亡最深: <strong style="color: var(--neon-red);">${records.deepestDeath ? formatDungeonFloor(records.deepestDeath) : "未記録"}</strong></div>
-      <div>累計撃破: <strong style="color: var(--neon-green);">${stats.totalKills}</strong> 匹</div>
-      <div style="grid-column: span 2;">宝箱開封: <strong style="color: var(--neon-yellow);">${stats.totalChests}</strong> 個</div>
+    <div class="archives-record-card archives-record-summary">
+      <div>冒険の数: <strong>${records.totalRuns}</strong> 回</div>
+      <div>全滅死亡: <strong class="archives-record-danger">${stats.totalDeaths}</strong> 回</div>
+      <div>帰還最深: <strong class="archives-record-success">${records.deepestRetreat ? formatDungeonFloor(records.deepestRetreat) : "未記録"}</strong></div>
+      <div>死亡最深: <strong class="archives-record-danger">${records.deepestDeath ? formatDungeonFloor(records.deepestDeath) : "未記録"}</strong></div>
+      <div>累計撃破: <strong class="archives-record-success">${stats.totalKills}</strong> 匹</div>
+      <div class="archives-record-summary-wide">宝箱開封: <strong class="archives-record-accent">${stats.totalChests}</strong> 個</div>
     </div>
   `;
   html += `</div>`;
@@ -388,9 +390,7 @@ export function getRunHistoryHtml() {
   state.runHistory.forEach((h, i) => {
     const dateStr = new Date(h.endedAt).toLocaleDateString("ja-JP") + " " + new Date(h.endedAt).toLocaleTimeString("ja-JP", { hour: '2-digit', minute: '2-digit' });
     const resText = h.result === "returned" ? "成功" : "失敗";
-    const resColor = h.result === "returned" ? "var(--neon-green)" : "var(--neon-red)";
     const outcomeText = getRunOutcomeLabel(h);
-    const outcomeColor = getRunOutcomeColor(h);
     const representative = h.representativeItem;
     const startingKit = h.startingKit ? getStartingKit(h.startingKit)?.name : null;
     const deepestFloor = safeNonNegativeInteger(h.deepestFloor);
@@ -401,12 +401,12 @@ export function getRunHistoryHtml() {
       .reduce((sum, quantity) => sum + safeNonNegativeInteger(quantity), 0);
     
     html += `
-      <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
-        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 2px; margin-bottom: 4px;">
-          <strong>#${state.runHistory.length - i} [${escapeHtml(dateStr)}] <span style="color: ${outcomeColor};">${escapeHtml(outcomeText)}</span></strong>
-          <span style="color: ${resColor}; font-weight: bold;">${escapeHtml(resText)} (Rank: ${dangerRank})</span>
+      <div class="archives-record-card">
+        <div class="archives-record-heading">
+          <strong>#${state.runHistory.length - i} [${escapeHtml(dateStr)}] <span class="${getRunOutcomeClass(h)}">${escapeHtml(outcomeText)}</span></strong>
+          <span class="${h.result === "returned" ? "archives-record-success" : "archives-record-danger"}">${escapeHtml(resText)} (Rank: ${dangerRank})</span>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; color: #ddd; font-size: 10px;">
+        <div class="archives-record-details">
           <div>到達階: ${formatDungeonFloor(deepestFloor)}</div>
           <div>撃破数: ${kills} 匹</div>
           <div>宝箱開封: ${chestsOpened} 個</div>
@@ -437,16 +437,16 @@ export function getDeathLogsHtml() {
     const level = d.character ? safePositiveInteger(d.character.level) : null;
     
     html += `
-      <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
-        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 2px; margin-bottom: 4px; color: var(--neon-red);">
+      <div class="archives-record-card">
+        <div class="archives-record-heading archives-record-danger">
           <strong>☠️ 死亡記録 #${state.deathLogs.length - i}</strong>
           <span>${formatDungeonFloor(floor)} (${x}, ${y})</span>
         </div>
-        <div style="color: #ddd; font-size: 10px; display: flex; flex-direction: column; gap: 2px;">
+        <div class="archives-record-details archives-record-stack">
           <div><strong>日時:</strong> ${escapeHtml(dateStr)}</div>
           <div><strong>死因:</strong> ${escapeHtml(d.cause)}</div>
           <div><strong>Lv:</strong> ${level ?? "?"} | 撃破数: ${kills}</div>
-          <div style="color: var(--neon-yellow); white-space: normal; word-break: break-all;"><strong>失った戦果:</strong> ${escapeHtml(lostItemsText)}</div>
+          <div class="archives-record-accent archives-record-wrap"><strong>失った戦果:</strong> ${escapeHtml(lostItemsText)}</div>
         </div>
       </div>
     `;

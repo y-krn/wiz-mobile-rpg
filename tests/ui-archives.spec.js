@@ -1,5 +1,87 @@
 import { test, expect } from './fixtures/browser-health.js';
 
+test('Archives event, run and death records stay readable at mobile widths', async ({ page }) => {
+  for (const width of [360, 390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { openArchivesOverlay } = await import('/src/ui.js');
+      state.runHistory = [];
+      state.deathLogs = [];
+      openArchivesOverlay();
+    });
+    const body = page.locator('#archives-overlay .archives-body');
+    await page.getByRole('button', { name: '📜 記録' }).click();
+    await expect(body).toContainText('探索履歴はありません');
+    await page.getByRole('button', { name: '☠️ 死亡' }).click();
+    await expect(body).toContainText('死亡記録はありません');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { openArchivesOverlay } = await import('/src/ui.js');
+      state.codex.events.traps = {
+        'chest:poison needle': { disarmed: 2, triggered: 1, firstFloor: 2 },
+      };
+      state.codex.insights = [{ id: 'deepFloor', count: 3 }];
+      state.records.totalRuns = 2;
+      state.records.deepestRetreat = 4;
+      state.records.deepestDeath = 3;
+      state.codex.stats.totalDeaths = 1;
+      state.codex.stats.totalKills = 8;
+      state.codex.stats.totalChests = 2;
+      state.runHistory = [
+        { endedAt: Date.now(), result: 'returned', outcome: 'retreat', deepestFloor: 4, kills: 5, chestsOpened: 2, dangerRank: 1, bankedMaterials: {}, startingKit: 'scout' },
+        { endedAt: Date.now(), result: 'abandoned', outcome: 'abandon', deepestFloor: 2, kills: 1, chestsOpened: 0, dangerRank: 1, bankedMaterials: {}, startingKit: 'scout' },
+      ];
+      state.deathLogs = [{
+        endedAt: Date.now(), floor: 3, x: 4, y: 5, kills: 2, cause: '毒針',
+        character: { level: 3 }, lostItems: ['長い名前の戦利品'.repeat(5)],
+      }];
+      openArchivesOverlay();
+    });
+
+    for (const [tab, expected] of [
+      ['⚠️ 罠', '⚠️ 罠の遭遇記録'],
+      ['📜 記録', '到達階:'],
+      ['☠️ 死亡', '失った戦果:'],
+    ]) {
+      await page.getByRole('button', { name: tab }).click();
+      await expect(body).toContainText(expected);
+      await expect(body.locator('.archives-record-card').first()).toBeVisible();
+      const result = await body.evaluate(element => {
+        const contrast = (foreground, background) => {
+          const luminance = value => {
+            const channels = value.match(/[\d.]+/g).slice(0, 3).map(Number).map(channel => {
+              const normalized = channel / 255;
+              return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+            });
+            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+          };
+          const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+          return (values[0] + 0.05) / (values[1] + 0.05);
+        };
+        const card = element.querySelector('.archives-record-card');
+        const cardStyle = getComputedStyle(card);
+        const checks = [contrast(cardStyle.color, cardStyle.backgroundColor)];
+        for (const node of element.querySelectorAll('.archives-record-details, .archives-record-muted, .archives-record-success, .archives-record-danger, .archives-record-accent')) {
+          const style = getComputedStyle(node);
+          checks.push(contrast(style.color, cardStyle.backgroundColor));
+        }
+        return {
+          minContrast: Math.min(...checks),
+          bodyWidth: element.clientWidth,
+          bodyScrollWidth: element.scrollWidth,
+          pageWidth: document.documentElement.clientWidth,
+          pageScrollWidth: document.documentElement.scrollWidth,
+        };
+      });
+      expect(result.minContrast).toBeGreaterThanOrEqual(4.5);
+      expect(result.bodyScrollWidth).toBeLessThanOrEqual(result.bodyWidth);
+      expect(result.pageScrollWidth).toBeLessThanOrEqual(result.pageWidth);
+    }
+  }
+});
+
 test('Archives keeps malformed run and death history values inert', async ({ page }) => {
   const hostile = '<img src=x onerror="globalThis.__archives_xss = 1"><b>evil</b>';
   await page.setViewportSize({ width: 390, height: 844 });
