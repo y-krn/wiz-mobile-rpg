@@ -71,6 +71,7 @@ export interface CombatMonsterLayoutEntry {
   floorY: number;
   visualScale: number;
   hpY: number;
+  compactLabels: boolean;
   hitRegion: CombatMonsterHitRegion;
 }
 
@@ -426,6 +427,12 @@ export function getCombatMonsterLayout(monsters: unknown, profile: unknown = get
   const columns = alive.length >= 4 ? Math.ceil(alive.length / 2) : alive.length;
   const rows = alive.length >= 4 ? 2 : 1;
   const scale = alive.length >= 4 ? 0.52 : alive.length >= 2 ? 0.72 : 1;
+  const roleRows = viewport.orientation === "portrait" && rows === 2 && alive.some(({ monster }) => getEnemyPresentation(monster).combatRole);
+  // The portrait shell overlays the goal above and the action strip below.
+  // Mixed encounter rows occupy the clear space between those HUD surfaces.
+  const combatTop = Math.min(134, viewport.height * 0.25);
+  const combatBottom = viewport.height * 0.66;
+  const rowBoundary = (combatTop + combatBottom) / 2;
 
   return alive.map(({ monster, index }, layoutIndex) => {
     const row = Math.floor(layoutIndex / columns);
@@ -434,9 +441,10 @@ export function getCombatMonsterLayout(monsters: unknown, profile: unknown = get
     const slotWidth = viewport.width / rowCount;
     const column = layoutIndex - rowStart;
     const cx = slotWidth * (column + 0.5);
-    const cy = rows === 1
+    const legacyCy = rows === 1
       ? viewport.height * 0.56
       : row === 0 ? viewport.height * 0.38 : viewport.height * 0.72;
+    const cy = roleRows ? (row === 0 ? rowBoundary : combatBottom) - 30 * scale : legacyCy;
     const presentation = getEnemyPresentation(monster);
     const role = presentation.combatRole;
     // Solo guardians advance toward the camera; groups retain their slots.
@@ -448,10 +456,10 @@ export function getCombatMonsterLayout(monsters: unknown, profile: unknown = get
         viewport.width * (role === "guardian" ? 0.62 : 0.40) / presentation.maxWidth,
         viewport.height * (role === "guardian" ? 0.45 : 0.28) / presentation.maxHeight
       )) : scale * presentation.scale;
-    const rowTop = row === 0 ? 0 : viewport.height * 0.5;
+    const rowTop = roleRows ? (row === 0 ? combatTop : rowBoundary) : row === 0 ? 0 : viewport.height * 0.5;
     const visualScale = Math.min(
       soloScale,
-      role ? Math.max(1, floorY - rowTop - 54) * (role === "strong" ? 0.85 : 1) / presentation.maxHeight : (floorY * 0.94) / presentation.maxHeight,
+      role ? Math.max(1, floorY - rowTop - 54) * (role === "strong" ? 0.85 : 1) / presentation.maxHeight : ((legacyCy + 30 * scale) * 0.94) / presentation.maxHeight,
       slotWidth * (role === "guardian" ? 0.92 : role === "strong" ? 0.84 : 0.82) / presentation.maxWidth
     );
     const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
@@ -470,6 +478,7 @@ export function getCombatMonsterLayout(monsters: unknown, profile: unknown = get
       floorY,
       visualScale,
       hpY,
+      compactLabels: roleRows,
       hitRegion
     };
   });

@@ -107,10 +107,22 @@ async function readRoleScene(page) {
       const rect = child.getBounds().rectangle;
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
     };
-    const bodies = actors.filter(child => child.label?.startsWith('enemy-procedural-')).map(bounds);
+    const billboards = actors.filter(child => child.label?.startsWith('enemy-procedural-'));
+    const bodies = billboards.map(bounds);
+    const bars = actors.filter(child => child.label?.startsWith('enemy-hp-')).map(bounds);
     const labels = actors.filter(child => child.text).map(bounds);
     const badges = renderer.scene.layers['combat-fx'].children.filter(child => child.label?.startsWith('telegraph-')).map(bounds);
-    return { width: renderer.viewport.width, height: renderer.viewport.height, bodies, labels, badges,
+    const canvasRect = renderer.canvas.getBoundingClientRect();
+    const screenScale = Math.min(canvasRect.width / renderer.viewport.width, canvasRect.height / renderer.viewport.height);
+    const occluders = ['#game-header', '#goal-banner', '#combat-controls', '#character-panel', '#combat-prompt']
+      .flatMap(selector => {
+        const element = document.querySelector(selector);
+        if (!element || getComputedStyle(element).display === 'none') return [];
+        const rect = element.getBoundingClientRect();
+        return rect.width && rect.height ? [{ x: (rect.x - canvasRect.x) / screenScale, y: (rect.y - canvasRect.y) / screenScale,
+          width: rect.width / screenScale, height: rect.height / screenScale }] : [];
+      });
+    return { width: renderer.viewport.width, height: renderer.viewport.height, bodies, bars, labels, badges, occluders,
       layout: layout.map(({ cx, floorY, hpY, slotWidth, hitRegion }) => ({ cx, floorY, hpY, slotWidth, hitRegion })) };
   });
 }
@@ -152,6 +164,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }
       const scene = await readRoleScene(page);
       expect(scene.bodies).toHaveLength(names.length);
       expect(scene.badges).toHaveLength(names.length);
+      expect(scene.bars).toHaveLength(names.length);
       for (let index = 0; index < names.length; index += 1) {
         const body = scene.bodies[index];
         const label = scene.labels[index];
@@ -164,9 +177,13 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }
         expect(badge.y + badge.height).toBeLessThan(label.y);
         expect(label.x).toBeGreaterThanOrEqual(entry.cx - entry.slotWidth / 2);
         expect(label.x + label.width).toBeLessThanOrEqual(entry.cx + entry.slotWidth / 2);
+        for (const visible of [body, label, badge, scene.bars[index]]) for (const hud of scene.occluders) {
+          expect(visible.x + visible.width <= hud.x || hud.x + hud.width <= visible.x ||
+            visible.y + visible.height <= hud.y || hud.y + hud.height <= visible.y).toBe(true);
+        }
         for (let other = index + 1; other < names.length; other += 1) {
-          const all = [body, label, badge];
-          const others = [scene.bodies[other], scene.labels[other], scene.badges[other]];
+          const all = [body, label, badge, scene.bars[index]];
+          const others = [scene.bodies[other], scene.labels[other], scene.badges[other], scene.bars[other]];
           for (const first of all) for (const second of others) {
             expect(first.x + first.width <= second.x || second.x + second.width <= first.x ||
               first.y + first.height <= second.y || second.y + second.height <= first.y).toBe(true);

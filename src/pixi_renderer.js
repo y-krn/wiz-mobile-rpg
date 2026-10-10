@@ -1334,7 +1334,7 @@ export class PixiDungeonRenderer {
   }
 
   drawMonsters(renderInput) {
-    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, monsterIndex, cx, cy, scale, slotWidth, hitRegion, row, column, floorY, visualScale: layoutScale, hpY: layoutHpY }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, monsterIndex, cx, cy, scale, slotWidth, hitRegion, row, column, floorY, visualScale: layoutScale, hpY: layoutHpY, compactLabels }) => {
       const color = getMonsterColor(monster);
       const actors = this.layer("actors");
       const presentation = this.enemyPresentationMode === "production"
@@ -1345,18 +1345,22 @@ export class PixiDungeonRenderer {
         (floorY * 0.94) / presentation.maxHeight,
         (slotWidth * 0.82) / presentation.maxWidth
       );
-      const hpY = this.enemyPresentationMode === "production" ? layoutHpY : Math.max(18, floorY - presentation.height * visualScale - 5);
+      let hpY = this.enemyPresentationMode === "production" ? layoutHpY : Math.max(18, floorY - presentation.height * visualScale - 5);
       // Keep the last drawn position even after the enemy falls, so a killing
       // blow still shows its number where that enemy stood.
-      this.combatAnchors.set(monsterIndex, { x: cx, y: (hpY + floorY) / 2, scale });
       drawEllipse(actors, cx, floorY, Math.min(42, presentation.width * visualScale * 0.42), 5.5 * scale, "#2e2640", 0.28);
       if (this.enemyPresentationMode === "production") {
-        this.drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column);
+        const billboard = this.drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column);
+        // Archetype envelopes include generous recipe padding. In crowded
+        // encounter rows, labels follow the actual body without resizing it.
+        if (compactLabels && !presentation.combatRole) hpY = floorY + billboard.getLocalBounds().minY - 5;
       } else {
         this.drawEnemyPrototype(actors, monster, cx, floorY, visualScale, color, row, column, this.enemyPresentationMode);
       }
+      this.combatAnchors.set(monsterIndex, { x: cx, y: (hpY + floorY) / 2, scale });
       const hp = Math.max(0, Math.min(1, monster.hp / Math.max(1, monster.maxHp)));
-      drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#2e2640", 0.55, { color: "#2e2640", width: 1.5 });
+      const healthBar = drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#2e2640", 0.55, { color: "#2e2640", width: 1.5 });
+      healthBar.label = `enemy-hp-${monsterIndex}`;
       drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
       const enemyLabel = new Text({
         text: monster.name,
@@ -1419,6 +1423,7 @@ export class PixiDungeonRenderer {
     billboard.addChild(createProceduralEnemy(presentation.recipe, visualScale, parseColor(color)));
     actors.addChild(billboard);
     this.resourceStats.enemyPresentationCount += 1;
+    return billboard;
   }
 
   drawTargetMarker(hitRegion, cx, floorY, scale, color) {
