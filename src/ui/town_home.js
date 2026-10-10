@@ -5,6 +5,7 @@ import { getOpenFacilityOrder, listFacilityNodes, listTownFacilities } from "../
 import { getNextGuidebookPage, listGuidebookPages } from "../systems/guidebook.js";
 import { getDungeonForFloor, getDungeonFloor } from "../rules/dungeons.js";
 import { MATERIAL_TYPES } from "../data/materials.js";
+import { getRunLossCopy } from "./run_loss_copy.js";
 
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
@@ -79,13 +80,7 @@ function getLastRunSummary(run) {
   const safe = !lost && (run.outcome === "retreat" || run.result === "returned" ||
     ["surface", "escape_scroll", "milestone_portal"].includes(run.returnReason));
   if (lost) {
-    const losses = [];
-    if (Number.isInteger(run.lostSupplyCount) && run.lostSupplyCount > 0) {
-      losses.push(`未使用の持ち込み品 ${run.lostSupplyCount}個`);
-    }
-    if (Number.isInteger(run.lostUnidentifiedCount) && run.lostUnidentifiedCount > 0) {
-      losses.push(`迷宮で見つけた装備 ${run.lostUnidentifiedCount}個`);
-    }
+    const losses = getRunLossCopy(run).items;
     fact.classList?.add("town-last-run-loss");
     const label = document.createElement("strong");
     label.textContent = "失ったもの";
@@ -108,9 +103,7 @@ function getLastRunSummary(run) {
   if (lost) {
     const preserved = document.createElement("p");
     preserved.className = "town-last-run-fact";
-    preserved.textContent = materials
-      ? `街に残った素材（保全・回収分）：${materials}。冒険記録と偉業の進捗は残ります。`
-      : "冒険記録と偉業の進捗は残ります。保全・回収素材の内訳は未記録。";
+    preserved.textContent = `${getRunLossCopy(run).materials}冒険記録と偉業の進捗は残ります。`;
     fragment.appendChild(preserved);
   }
   return fragment;

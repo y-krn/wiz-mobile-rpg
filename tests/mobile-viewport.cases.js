@@ -190,9 +190,11 @@ test('result and event viewports preserve their flexible heights @visual', async
         const controlsPanel = document.querySelector('#controls-panel');
 
         gameContainer.className = `${containerMode}-mode`;
-        controlsPanel.className = 'town-mode';
+        // This isolates event/result viewport CSS. The scrollable town scene
+        // has its own layout contract and must not be used as event controls.
+        controlsPanel.className = 'explore-mode';
         document.querySelectorAll('.controls-group').forEach((group) => {
-          group.classList.toggle('active', group.id === 'town-controls');
+          group.classList.toggle('active', group.id === 'explore-controls');
         });
         await new Promise((resolve) => {
           requestAnimationFrame(() => requestAnimationFrame(resolve));

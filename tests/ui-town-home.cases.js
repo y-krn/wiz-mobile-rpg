@@ -33,7 +33,8 @@ for (const reason of ['gameover', 'abandon', 'surface', 'escape_scroll']) {
       await expect(summary).toContainText(reason === 'gameover' ? '死亡' : '断念');
       await expect(summary).toContainText('失ったもの');
       await expect(summary.locator('s')).toContainText('未使用の持ち込み品 2個');
-      await expect(summary).toContainText('街に残った素材（保全・回収分）');
+      await expect(summary).toContainText('街に残った素材：獣の牙 ×3');
+      await expect(summary).not.toContainText('保全・回収');
       await expect(summary).not.toContainText('持ち帰');
     } else {
       await expect(summary).toContainText(reason === 'surface' ? '歩いて地上へ帰還' : '帰還の翼で帰還');
@@ -43,11 +44,88 @@ for (const reason of ['gameover', 'abandon', 'surface', 'escape_scroll']) {
   });
 }
 
+for (const reason of ['gameover', 'abandon', 'surface', 'escape_scroll']) {
+  test(`Actual ${reason} settlement reaches town and castle with consistent loss wording @smoke`, async ({ page }) => {
+    await page.goto('/');
+    await waitForAppStart(page);
+    const settled = await page.evaluate(async reason => {
+      const { createDefaultCurrentRun, createStartingKitCharacter, initNewGame, state } = await import('/src/state.js');
+      const { triggerRunResult } = await import('/src/result.js');
+      initNewGame();
+      const found = { kind: 'equipment', baseId: 'SHORT_SWORD', instanceId: 'town_loss_loot', identified: false, unidentifiedName: '未鑑定の短剣' };
+      state.party = [createStartingKitCharacter('vanguard')];
+      state.inventory = ['TRAP_KIT', found];
+      const run = createDefaultCurrentRun();
+      Object.assign(run, {
+        startingKit: 'vanguard', characterClass: 'Fighter', deepestFloor: 2,
+        departureItems: ['TRAP_KIT'], departureCraftItems: ['TRAP_KIT'], townInventory: ['TRAP_KIT'],
+        equipmentFound: [found], unbankedObjectLoot: [{ id: found.instanceId, item: found }],
+        materials: { '獣の牙': 10 },
+      });
+      state.currentRun = run;
+      state.metaMaterials = { '獣の牙': 2 };
+      state.floor = 2;
+      state.gameState = 'explore';
+      triggerRunResult(reason);
+      return {
+        banked: state.runHistory[0].bankedMaterials['獣の牙'],
+        balance: state.metaMaterials['獣の牙'],
+        lostSupplies: state.runHistory[0].lostSupplyCount,
+        lostEquipment: state.runHistory[0].lostUnidentifiedCount,
+        facilities: state.facilities,
+      };
+    }, reason);
+    const lost = ['gameover', 'abandon'].includes(reason);
+    // Current settlement is 30% even without a facility; #2096 changes its
+    // presentation, not the economic rule. Safe returns bank the full amount.
+    expect(settled.banked).toBe(lost ? 3 : 10);
+    expect(settled.balance).toBe(lost ? 5 : 12);
+    expect(settled.lostSupplies).toBe(lost ? 1 : 0);
+    expect(settled.lostEquipment).toBe(lost ? 1 : 0);
+    expect(settled.facilities.nodes).toEqual([]);
+    await page.locator('#btn-result-castle').click();
+    await expect(page.locator('#town-controls')).toBeVisible();
+    await page.reload();
+    await expect(page.locator('#town-controls')).toBeVisible();
+    const summary = page.locator('#town-last-run-summary');
+    await expect(summary).toContainText(`獣の牙 ×${settled.banked}`);
+    if (lost) {
+      await expect(summary).toContainText('失ったもの');
+      await expect(summary).toContainText('未使用の持ち込み品 1個');
+      await expect(summary).toContainText('迷宮で見つけた装備 1個');
+      await expect(summary).toContainText('街に残った素材：獣の牙 ×3');
+      await expect(summary).not.toContainText('持ち帰');
+      await expect(summary).not.toContainText('保全・回収');
+    } else {
+      await expect(summary).toContainText('持ち帰ったもの');
+      await expect(summary).not.toContainText('失ったもの');
+    }
+    await page.locator('#btn-town-castle').click();
+    const history = page.locator('.adventure-run-decision').first();
+    if (lost) {
+      await expect(history).toContainText('失ったもの：未使用の持ち込み品 1個、迷宮で見つけた装備 1個');
+      await expect(history).toContainText('街に残った素材：獣の牙 ×3');
+      await expect(history).not.toContainText('持ち帰');
+      await expect(history).not.toContainText('保全・回収');
+    } else {
+      await expect(history).toContainText('素材10個を持ち帰った');
+      await expect(history).not.toContainText('失ったもの');
+    }
+  });
+}
+
 test('Town summaries use recorded quantities and leave missing breakdowns unknown @smoke', async ({ page }) => {
   await townFixture(page, { outcome: 'death', returnReason: 'gameover', deepestFloor: 3, lootCount: 99 });
   await expect(page.locator('#town-last-run-summary')).toContainText('失った品の内訳は未記録');
   await expect(page.locator('#town-last-run-summary')).not.toContainText('99');
   await expect(page.locator('#town-last-run-summary')).not.toContainText('持ち帰');
+  await page.locator('#btn-town-castle').click();
+  const history = page.locator('.adventure-run-decision').first();
+  await expect(history).toContainText('失った品の内訳は未記録');
+  await expect(history).toContainText('街に残った素材の内訳は未記録');
+  await expect(history).not.toContainText('99');
+  await expect(history).not.toContainText('持ち帰');
+  await page.locator('#btn-submenu-back').click();
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');

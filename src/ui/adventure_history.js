@@ -1,5 +1,6 @@
 import { DEATH_TYPE_LABELS, getStartingKit, summarizeDeathLogs } from "../state.js";
 import { formatDungeonFloor } from "../rules/dungeons.js";
+import { getRunLossCopy } from "./run_loss_copy.js";
 
 const ACHIEVEMENT_LABELS = {
   first_b5_reached: "初めて坑道のB5Fへ到達",
@@ -55,11 +56,14 @@ function returnedMaterialCount(run) {
 
 function decisionText(run) {
   const outcome = outcomeLabel(run);
-  if (outcome === "死亡") {
-    const cause = run.deathCause?.label || run.deathCause?.source || "原因未記録";
-    return `${floorText(run.deathCause?.floor || run.deepestFloor)}で${escapeHtml(cause)}に倒れた。素材${returnedMaterialCount(run)}個を持ち帰った`;
+  if (outcome === "死亡" || outcome === "断念") {
+    const loss = getRunLossCopy(run);
+    const cause = run.deathCause?.label || run.deathCause?.source;
+    const decision = outcome === "断念"
+      ? `${floorText(run.deepestFloor)}で冒険を断念した。`
+      : `${floorText(run.deathCause?.floor || run.deepestFloor)}で倒れた。${cause ? `死因：${escapeHtml(cause)}。` : "死因は未記録。"}`;
+    return `${decision}<strong>失ったもの</strong>：${escapeHtml(loss.items.length ? loss.items.join("、") : "失った品の内訳は未記録")}。${escapeHtml(loss.materials)}`;
   }
-  if (outcome === "断念") return `${floorText(run.deepestFloor)}で冒険を断念した。素材${returnedMaterialCount(run)}個を持ち帰った`;
   if (run.returnReason === "milestone_portal") return `${floorText(run.deepestFloor)}で帰還の門から帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
   if (run.returnReason === "escape_scroll") return `${floorText(run.deepestFloor)}で帰還の翼から帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;
   if (run.returnReason === "surface") return `${floorText(run.deepestFloor)}まで潜り、歩いて地上へ帰還。素材${returnedMaterialCount(run)}個を持ち帰った`;

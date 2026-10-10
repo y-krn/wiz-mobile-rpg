@@ -170,11 +170,15 @@ test('Critical equip ignores repeated activation and applies one exploration cos
   })).toEqual({ steps: 1, weapon: 'golden-journey-commit', inventory: ['DAGGER'] });
 });
 
-test('Stable DOM/CSS journey surfaces keep screenshot baselines separate from Dungeon View @visual @smoke', async ({ page }) => {
+test('Town DOM/CSS surface keeps its screenshot baseline separate from Dungeon View @visual @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expectStableSurfaceScreenshot(page, 'golden-town-390.png', '#town-controls');
+});
 
+test('Stable DOM/CSS journey surfaces keep screenshot baselines separate from Dungeon View @visual @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
   await openDeparturePreparation(page, { width: 390, height: 844 });
   await expect(page.locator('.solo-start-floor-option[data-start-floor="1"]')).toBeVisible();
   await expectStableSurfaceScreenshot(page, 'golden-preparation-390.png', '#submenu-controls');
