@@ -255,12 +255,15 @@ fallback is deterministic and not a hidden faction preference. Equipment
 comparison exposes only the same coarse labels (速い / 標準 / 遅い); the
 executable load classes and modifiers remain owned by the equipment-load rule.
 
-In an ordinary non-boss, non-midboss, non-roaming-elite encounter, living
-enemies still roll initiative individually, but the earliest ordinary enemy
-actor owns one shared ordinary action slot for the round. Other ordinary enemy
-turns are skipped without banking into a later round. An explicit trait-generated
-extra action remains attached to the slot owner and is recorded separately;
-summons and other trait grammar do not silently become ordinary slots.
+In an ordinary non-boss, non-midboss, non-roaming-elite encounter, every
+living enemy rolls initiative and acts in its own turn (#2100). The earliest
+ordinary enemy in the resolved order strikes at full strength; each later one
+is a group follower and every damage it deals to the adventurer is halved
+(rounded, at least one). Two enemies press about one and a half times as hard
+as one, three about twice: numbers matter without one hit per enemy flattening
+a solo adventurer. An explicit trait-generated extra action stays with its
+owner. (Before #2100, only the earliest enemy acted: the shared ordinary slot
+of #1216. Play showed that a second enemy then meant nothing.)
 Midbosses and roaming elites retain independent enemy scheduling. In a
 milestone guardian fight the guardian keeps its own turn (and any authored
 extra action), while the adds it brings or summons share one ordinary slot,
