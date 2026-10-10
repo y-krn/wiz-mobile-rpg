@@ -197,8 +197,11 @@ W.__walk = async (goalName = 'frontier', maxSteps = 200, stopWhen = null, { thro
     while (s.dir !== d && g++ < 4) { M.handleMove(((d - s.dir + 4) % 4) === 3 ? 'turn-left' : 'turn-right'); while (s.transitioning) await sl(20); await sl(10); }
     // A heat vent burns on a visible cycle: wait (search, one turn) until it
     // is cool on arrival, as a player would, at most a full cycle.
+    // Searching on stairs or an event opens its menu, so wait only on a plain cell.
+    const here = s.map?.[s.y]?.[s.x];
+    const plainHere = here?.type === 'empty' && !here.event && !here.specialRoom;
     const vent = s.map?.[ny]?.[nx]?.hazard;
-    for (let w = 0; vent?.kind === 'heat' && w < GIMMICKS.HEAT_CYCLE_TURNS
+    for (let w = 0; plainHere && vent?.kind === 'heat' && w < GIMMICKS.HEAT_CYCLE_TURNS
       && GIMMICKS.isHeatActive(vent, M.getCurrentFloorExplorationSteps() + 1); w++) {
       EXPLORE.handleExploreAction('search'); while (s.transitioning) await sl(20); await sl(10);
       if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' while waiting for a vent';
