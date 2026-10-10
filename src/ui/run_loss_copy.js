@@ -14,10 +14,12 @@ export function getRunLossCopy(run) {
     const quantity = run.bankedMaterials?.[name];
     return Number.isInteger(quantity) && quantity > 0 ? [`${name} ×${quantity}`] : [];
   }).join("、");
+  const hasMaterialRecord = run.bankedMaterials !== null &&
+    typeof run.bankedMaterials === "object" && !Array.isArray(run.bankedMaterials);
   return {
     items,
     materials: materials
       ? `街に残った素材：${materials}。`
-      : "街に残った素材の内訳は未記録。"
+      : hasMaterialRecord ? "街に残った素材なし。" : "街に残った素材の内訳は未記録。"
   };
 }
