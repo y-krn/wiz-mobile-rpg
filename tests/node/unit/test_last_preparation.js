@@ -128,11 +128,11 @@ const unlockedFloor = resolveLastPreparation(deepStart, {
 });
 assert.equal(unlockedFloor.canRepeat, true);
 assert.equal(unlockedFloor.startFloor, 6);
-// The sixth dungeon cannot be entered yet (the nest, the library, and the
-// forge are, #2064); with several dungeons open the choice is left to the player.
+// The throne cannot be entered before the forge is cleared (#2064); with
+// several dungeons open the choice is left to the player.
 const lockedAmongSeveral = resolveLastPreparation(
   { kitId: "vanguard", startingGear: null, recipeIds: [], startFloor: 26 },
-  { workshop: noWorkshop, metaMaterials: {}, storage: [], unlockedMilestones: [5, 10, 15, 20, 25] }
+  { workshop: noWorkshop, metaMaterials: {}, storage: [], unlockedMilestones: [5, 10, 15, 20] }
 );
 assert.equal(lockedAmongSeveral.startFloor, null, "several dungeons keep the explicit choice");
 assert.equal(lockedAmongSeveral.canRepeat, false);

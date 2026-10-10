@@ -77,6 +77,10 @@ function createState(floor, runSeed, monsters, flags = {}) {
   character.maxHp = 1_000_000;
   character.exp = 0;
   character.level = 1;
+  // The weak combatant fights bare-handed: since #2064 every dungeon past the
+  // mine eases its monsters, and the starting sword would fell the fleeing
+  // Rare before it can run.
+  if (flags.weak) character.equipment.weapon = null;
   if (!flags.weak) {
     character.equipment.weapon = {
       baseId: "SHORT_SWORD", identified: true,
@@ -198,9 +202,8 @@ function fixture({ floor, name, kind, rare = false, targetSize = 1 }) {
 }
 
 export function runLifecycleSettlementFixtures() {
-  // Floor 30: the nest, the library, and the forge (floors 11-25) ease their
-  // monsters for a fresh adventurer since #2064, so a Rare there falls before
-  // it can flee.
+  // The Rare pool holds メタルパピー only where the floors run deep; the
+  // weak combatant fights bare-handed so it can flee (see createState).
   const flee = fixture({ floor: 30, name: "メタルパピー", kind: "flee", rare: true });
   const split = fixture({ floor: 1, name: "分裂スライム", kind: "split" });
   const summon = fixture({ floor: 20, name: "召喚する悪魔", kind: "summon", targetSize: 2 });

@@ -1,3 +1,4 @@
+import { getEnemyStrength } from "../../../src/rules/dungeons.js";
 import assert from "node:assert/strict";
 import {
   ENCOUNTER_COMPOSITION_RULES,
@@ -39,15 +40,13 @@ function run() {
       assert.equal(encounterBoss[stat], scaledBoss[stat], `B${floor} boss ${stat} must use production scaling`);
     }
     if (floor === 30) {
-      assert.equal(encounterBoss.hp, template.hp);
-      assert.equal(encounterBoss.maxHp, template.hp);
-      assert.equal(encounterBoss.atk, template.atk);
-      assert.deepEqual(
-        { hp: encounterBoss.hp, maxHp: encounterBoss.maxHp, atk: encounterBoss.atk, def: encounterBoss.def },
-        // DEF follows the fifth floor of its dungeon, not the thirtieth
-        // floor of one long descent (#2060).
-        { hp: 640, maxHp: 640, atk: 26, def: 17 }
-      );
+      // The ancient dragon keeps its authored body under the throne's guardian
+      // multipliers (#2064): 640 HP and attack 26 at the table's 0.5.
+      const strength = getEnemyStrength(floor, bossName, { boss: true });
+      assert.equal(encounterBoss.hp, Math.round(template.hp * strength.hp));
+      assert.equal(encounterBoss.maxHp, Math.round(template.hp * strength.hp));
+      assert.equal(encounterBoss.atk, Math.round(template.atk * strength.atk));
+      assert.deepEqual({ hp: encounterBoss.hp, atk: encounterBoss.atk }, { hp: 320, atk: 13 });
     } else {
       for (const stat of ["hp", "maxHp", "atk"]) {
         assert.equal(encounterBoss[stat], scaledBoss[stat], `B${floor} boss ${stat} must retain production scaling`);
