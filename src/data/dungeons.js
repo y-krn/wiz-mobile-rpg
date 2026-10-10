@@ -34,7 +34,7 @@ const TABLES = Object.freeze({
   rift_nest: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
   sunken_library: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
   dragon_forge: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" }),
-  abyssal_throne: Object.freeze({ mapTemplate: "deep", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" })
+  abyssal_throne: Object.freeze({ mapTemplate: "shallow", rareMaterial: "竜鱗", guardianRareMaterial: "竜鱗" })
 });
 
 const DUNGEON_SETTINGS = Object.freeze({
@@ -128,7 +128,27 @@ const DUNGEON_SETTINGS = Object.freeze({
       chestMaterialBonus: 2
     })
   }),
-  abyssal_throne: Object.freeze({ shortName: "玉座" })
+  abyssal_throne: Object.freeze({
+    shortName: "玉座",
+    built: true,
+    // Scaled to the mine's averages (#2064). Its strong enemy casts the ice
+    // storm, which scales with attack. The ancient dragon keeps its authored
+    // body (encounter.js) under these guardian multipliers.
+    strength: Object.freeze({
+      enemyHp: 0.161, enemyAtk: 0.29, enemyDef: 0.163, entry: 0.85,
+      eliteHp: 1, eliteAtk: 0.75, eliteDef: 0.27,
+      guardianHp: 0.5, guardianAtk: 0.5, guardianDef: 0.5
+    }),
+    // The throne's rule (#2063): the adventurer may put out their own light
+    // (systems/darkness.js).
+    rule: Object.freeze({
+      id: "darkness",
+      line: "闇：自分の灯りを消せる。魔物に気づかれにくく宝箱は良くなるが、罠や仕掛けに気づけない。",
+      encounterFactor: 0.5,
+      detectionFactor: 0.5,
+      chestRarityBonus: 1
+    })
+  })
 });
 
 export const DUNGEONS = Object.freeze(BIOMES.map((biome, index) => {

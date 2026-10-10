@@ -43,6 +43,7 @@ const FACILITIES = await import('/src/systems/facilities.js');
 const FACILITY_DATA = await import('/src/data/facilities.js');
 const DUNGEON_RULES = await import('/src/rules/dungeons.js');
 const EXPLORE = await import('/src/menu/explore_actions.js');
+const DARK = await import('/src/systems/darkness.js');
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 // Real (unscaled) sleep when the runner accelerates timers.
@@ -53,7 +54,7 @@ const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
 const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine' };
 // A dungeon is five floors (#2060); a run is named by the running number of its first floor.
-const DUNGEON_ENTRY = { mine: 1, catacomb: 6, nest: 11, library: 16, forge: 21 };
+const DUNGEON_ENTRY = { mine: 1, catacomb: 6, nest: 11, library: 16, forge: 21, throne: 26 };
 const entryFloorOf = dungeon => DUNGEON_ENTRY[dungeon] || Math.max(1, Math.floor(Number(dungeon)) || 1);
 const localFloor = floor => ((Math.max(1, Number(floor) || 1) - 1) % 5) + 1;
 const atDungeonBottom = () => localFloor(st().floor) === 5;
@@ -185,6 +186,11 @@ const forcePastElite = async goalName => {
 };
 W.__walk = async (goalName = 'frontier', maxSteps = 200, stopWhen = null, { throughElites = false } = {}) => {
   const s = st(); let steps = 0; let pushes = 0;
+  // The throne's rule (#2063): walk in the dark on the way down (fewer fights,
+  // better chests), with the light on the way home.
+  if (DARK.getDungeonDarkRule(s.floor) && !(s.lightTurns > 0) && DARK.isDark(s) === goingHome()) {
+    DARK.toggleDarkness(s); W.__darkToggles = (W.__darkToggles || 0) + 1;
+  }
   while (steps < maxSteps) {
     if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState;
     // Rubble is dug only for a goal the run needs (stairs, guardian), never to explore.
@@ -835,7 +841,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false, dungeo
   finally { Date.now = realNow; }
   W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   resetPolicyState();
-  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0;
+  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0; W.__darkToggles = 0;
   W.__dungeonRule = DUNGEON_RULES.getDungeonRule(st().floor)?.line || '';
   trackHpLedger();
   const run = st().currentRun;
@@ -921,7 +927,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     returned: s.gameState === 'result' && (P()?.hp ?? 0) > 0,
     companions: companionNames() || null,
     roomActions: W.__roomActions, purchases: W.__purchases,
-    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
+    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, darkToggles: W.__darkToggles || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
     eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, riposteGuards: W.__riposteGuards || 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,

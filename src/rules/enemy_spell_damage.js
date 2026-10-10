@@ -9,7 +9,12 @@
 export const ENEMY_SPELL_ATTACK_SCALE = Object.freeze({
   LAHALITO: Object.freeze({ min: 0.8, max: 1.8 }),
   MADALTO: Object.freeze({ min: 1.0, max: 2.2 }),
-  CRUSH_STRIKE: Object.freeze({ min: 1.5, max: 2.7 })
+  CRUSH_STRIKE: Object.freeze({ min: 1.5, max: 2.7 }),
+  // The ancient dragon (#2064): its great blast, its fire breath, and its ice
+  // storm, scaled from its old fixed rolls at its authored attack 26.
+  DRAGON_TILTOWAIT: Object.freeze({ min: 1.7, max: 2.9 }),
+  DRAGON_BREATH: Object.freeze({ min: 0.45, max: 0.9 }),
+  DRAGON_MADALTO: Object.freeze({ min: 0.6, max: 1.35 })
 });
 
 export function getAttackScaledDamageRange(attack, scale) {

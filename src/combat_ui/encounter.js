@@ -1,3 +1,4 @@
+import { getEnemyStrength } from "../rules/dungeons.js";
 import {
   getBiomeForFloor,
   getEncounterPoolForFloor,
@@ -36,10 +37,14 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
     const scaledBoss = scaleEnemyForDepth(bossTemplate, state.floor, { boss: true });
     const statRule = getMilestoneBossStatRule(state.floor, bossName, { isBoss: true });
     const bossStats = statRule?.templateStats || [];
+    // The ancient dragon keeps its authored body under the throne's guardian
+    // multipliers (#2064), so a fresh adventurer meets it at the table's size.
+    const strength = getEnemyStrength(state.floor, bossName, { boss: true });
+    const authoredHp = Math.max(1, Math.round(bossTemplate.hp * (strength.hp ?? 1)));
     const guardian = {
       ...scaledBoss,
-      ...(bossStats.includes("hp") ? { hp: bossTemplate.hp, maxHp: bossTemplate.hp } : {}),
-      ...(bossStats.includes("atk") ? { atk: bossTemplate.atk } : {}),
+      ...(bossStats.includes("hp") ? { hp: authoredHp, maxHp: authoredHp } : {}),
+      ...(bossStats.includes("atk") ? { atk: Math.max(1, Math.round(bossTemplate.atk * (strength.atk ?? 1))) } : {}),
       // A guardian is a high-density confirmation of what this band already
       // taught. These IDs are internal and do not add a new boss rule.
       trialThemeIds: trial ? [trial.mainId, trial.subId] : [],
