@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import * as facade from "../../../src/rules/renderer_projection.js";
 import * as owner from "../../../src/rules/renderer_projection.ts";
+import { getEnemyPresentation } from "../../../src/enemy_presentation.js";
 
 const runtimeExports = [
   "CANONICAL_VIEW",
@@ -106,5 +107,38 @@ conversions = 0;
 const numericInput = { [Symbol.toPrimitive]() { conversions += 1; return "320"; } };
 facade.getProjectionProfile(numericInput, 568);
 assert.equal(conversions, 1);
+
+const ordinary = { name: "ゾンビ", spriteType: "zombie", hp: 32 };
+const strong = { name: "フラック", spriteType: "flack", hp: 90, isRare: true };
+const guardian = { name: "デーモンガード", spriteType: "flack", hp: 180, isBoss: true, isMidboss: true };
+for (const [width, height] of [[390, 844], [320, 568], [400, 260], [320, 220]]) {
+  const profile = facade.getProjectionProfile(width, height);
+  for (const enemies of [[strong], [guardian], [ordinary, strong, guardian], [guardian, strong, ordinary, ordinary]]) {
+    const layout = facade.getCombatMonsterLayout(enemies, profile);
+    for (const entry of layout) {
+      const presentation = getEnemyPresentation(entry.monster);
+      if (!presentation.combatRole) continue;
+      const { hitRegion, floorY, visualScale, slotWidth, cx, hpY } = entry;
+      assert.ok(hpY >= 49, "room above the sprite for name and telegraph");
+      assert.ok(floorY <= height - 8, "feet stay in the viewport");
+      assert.ok(presentation.maxWidth * visualScale < slotWidth, "silhouette stays in its slot");
+      assert.equal(hitRegion.centerX, cx);
+      assert.equal(hitRegion.centerY, floorY - presentation.maxHeight * visualScale / 2);
+      assert.ok(hitRegion.height >= presentation.maxHeight * visualScale, "tap region covers actual scaled body height");
+      assert.ok(hitRegion.x >= cx - slotWidth / 2 && hitRegion.x + hitRegion.width <= cx + slotWidth / 2);
+      assert.equal(facade.getCombatMonsterLayout(enemies, profile).find(other => other.monsterIndex === entry.monsterIndex).visualScale, visualScale);
+    }
+  }
+  const soloStrong = facade.getCombatMonsterLayout([strong], profile)[0];
+  const soloGuardian = facade.getCombatMonsterLayout([guardian], profile)[0];
+  assert.equal(soloGuardian.cx, width / 2);
+  assert.ok(soloGuardian.visualScale > soloStrong.visualScale, "guardian dominates the solo composition");
+  const regular = facade.getCombatMonsterLayout([ordinary], profile)[0];
+  const presentation = getEnemyPresentation(ordinary);
+  assert.equal(regular.floorY, height * 0.56 + 30);
+  assert.equal(regular.visualScale, Math.min(presentation.scale, regular.floorY * 0.94 / presentation.maxHeight, width * 0.82 / presentation.maxWidth));
+}
+const deadRoleLayout = facade.getCombatMonsterLayout([{ ...guardian, hp: 0 }, strong]);
+assert.deepEqual(deadRoleLayout.map(entry => entry.monsterIndex), [1]);
 
 console.log("[PASS] renderer projection owner/facade runtime and legacy contracts verified");

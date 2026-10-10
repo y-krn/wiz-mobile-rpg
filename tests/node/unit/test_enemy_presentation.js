@@ -176,7 +176,7 @@ for (const [monster, recipe, archetype] of familyCases) {
   const presentation = getEnemyPresentation(monster);
   assert.equal(presentation.recipe, recipe, `${monster.name} family recipe`);
   assert.equal(presentation.archetype, archetype, `${monster.name} archetype`);
-  assert.equal(presentation.width, ENEMY_ARCHETYPES[archetype].width, `${monster.name} keeps archetype size`);
+  assert.equal(presentation.width, presentation.combatRole ? 116 : ENEMY_ARCHETYPES[archetype].width, `${monster.name} role or archetype size`);
   assert.equal(presentation.label, ENEMY_ARCHETYPES[archetype].label);
 }
 assert.equal(ENEMY_ARCHETYPES.humanoid.recipe, ENEMY_RECIPE_KEYS.humanoid, "family lookup does not mutate archetype profiles");
@@ -184,5 +184,25 @@ assert.equal(getEnemyPresentation({ name: "unknown-brute", nameHint: "巨躯" })
 assert.equal(getEnemyPresentation({ name: "巨躯" }).recipe, ENEMY_RECIPE_KEYS.brute);
 assert.equal(getEnemyPresentation({ name: "unknown-caster", spriteType: "mage" }).recipe, ENEMY_RECIPE_KEYS.caster);
 assert.equal(getEnemyPresentation({ name: "unknown-boss", isBoss: true }).recipe, ENEMY_RECIPE_KEYS.boss);
+
+const flack = getEnemyPresentation({ name: "フラック", spriteType: "flack", isRare: true });
+const guardian = getEnemyPresentation({ name: "デーモンガード", spriteType: "flack", isBoss: true, isMidboss: true });
+assert.equal(flack.combatRole, "strong");
+assert.equal(guardian.combatRole, "guardian");
+assert.ok(guardian.scale > flack.scale && flack.scale > ENEMY_ARCHETYPES.boss.scale);
+assert.equal(getEnemyPresentation({ name: "デーモンガード", spriteType: "flack", isMidboss: true }).combatRole, "guardian");
+for (const monster of [
+  { name: "フラック", spriteType: "flack" },
+  { name: "デーモンガード", spriteType: "flack" },
+  { name: "深淵の徘徊者", spriteType: "flack", isRare: true },
+  { name: "マスターデーモン", spriteType: "flack", spell: "MADALTO" },
+  { name: "別の守護者", spriteType: "flack", isBoss: true },
+  { name: "ドラゴン", spriteType: "dragon", isBoss: true }
+]) {
+  const presentation = getEnemyPresentation(monster);
+  assert.equal(presentation.combatRole, undefined, `${monster.name} does not opt into encounter composition`);
+  const original = ENEMY_ARCHETYPES[presentation.archetype];
+  for (const key of ["width", "height", "maxWidth", "maxHeight", "scale"]) assert.equal(presentation[key], original[key]);
+}
 
 console.log("ENEMY PROCEDURAL PRESENTATION TEST PASSED");

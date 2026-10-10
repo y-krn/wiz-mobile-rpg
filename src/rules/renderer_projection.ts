@@ -3,6 +3,8 @@
 // Gameplay topology remains canonical; only the presentation profile changes
 // with the measured viewport aspect ratio.
 
+import { getEnemyPresentation } from "../enemy_presentation.js";
+
 export interface ProjectionProfile {
   readonly width: number;
   readonly height: number;
@@ -66,6 +68,9 @@ export interface CombatMonsterLayoutEntry {
   cy: number;
   scale: number;
   slotWidth: number;
+  floorY: number;
+  visualScale: number;
+  hpY: number;
   hitRegion: CombatMonsterHitRegion;
 }
 
@@ -432,6 +437,27 @@ export function getCombatMonsterLayout(monsters: unknown, profile: unknown = get
     const cy = rows === 1
       ? viewport.height * 0.56
       : row === 0 ? viewport.height * 0.38 : viewport.height * 0.72;
+    const presentation = getEnemyPresentation(monster);
+    const role = presentation.combatRole;
+    // Solo guardians advance toward the camera; groups retain their slots.
+    const floorY = role && alive.length === 1
+      ? viewport.height * 0.68
+      : cy + 30 * scale;
+    const soloScale = role && alive.length === 1
+      ? Math.max(presentation.scale, Math.min(
+        viewport.width * (role === "guardian" ? 0.62 : 0.40) / presentation.maxWidth,
+        viewport.height * (role === "guardian" ? 0.45 : 0.28) / presentation.maxHeight
+      )) : scale * presentation.scale;
+    const rowTop = row === 0 ? 0 : viewport.height * 0.5;
+    const visualScale = Math.min(
+      soloScale,
+      role ? Math.max(1, floorY - rowTop - 54) * (role === "strong" ? 0.85 : 1) / presentation.maxHeight : (floorY * 0.94) / presentation.maxHeight,
+      slotWidth * (role === "guardian" ? 0.92 : role === "strong" ? 0.84 : 0.82) / presentation.maxWidth
+    );
+    const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
+    const hitRegion = role
+      ? getRoleHitRegion(cx, floorY, presentation.maxWidth * visualScale, presentation.maxHeight * visualScale, slotWidth)
+      : getCombatMonsterHitRegion(monster, cx, cy, scale);
     return {
       monster,
       monsterIndex: index,
@@ -441,9 +467,25 @@ export function getCombatMonsterLayout(monsters: unknown, profile: unknown = get
       cy,
       scale,
       slotWidth,
-      hitRegion: getCombatMonsterHitRegion(monster, cx, cy, scale)
+      floorY,
+      visualScale,
+      hpY,
+      hitRegion
     };
   });
+}
+
+// The demon recipe is feet-anchored. Use the same silhouette envelope and
+// scale as production drawing, with touch padding kept inside its slot.
+function getRoleHitRegion(cx: number, floorY: number, width: number, height: number, slotWidth: number): CombatMonsterHitRegion {
+  const paddedWidth = Math.min(slotWidth - 2, width + 16);
+  const paddedHeight = height + 16;
+  return {
+    x: cx - paddedWidth / 2, y: floorY - height - 8,
+    width: paddedWidth, height: paddedHeight,
+    centerX: cx, centerY: floorY - height / 2,
+    radiusX: paddedWidth / 2, radiusY: paddedHeight / 2, shape: "ellipse"
+  };
 }
 
 const MONSTER_VISUAL_BOUNDS: Readonly<Record<string, Readonly<MonsterVisualBounds>>> = Object.freeze({

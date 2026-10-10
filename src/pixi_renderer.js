@@ -1334,19 +1334,18 @@ export class PixiDungeonRenderer {
   }
 
   drawMonsters(renderInput) {
-    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, monsterIndex, cx, cy, scale, slotWidth, hitRegion, row, column }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, monsterIndex, cx, cy, scale, slotWidth, hitRegion, row, column, floorY, visualScale: layoutScale, hpY: layoutHpY }) => {
       const color = getMonsterColor(monster);
       const actors = this.layer("actors");
       const presentation = this.enemyPresentationMode === "production"
         ? getEnemyPresentation(monster)
         : getEnemyPrototypePresentation(monster);
-      const floorY = cy + 30 * scale;
-      const visualScale = Math.min(
+      const visualScale = this.enemyPresentationMode === "production" ? layoutScale : Math.min(
         scale * presentation.scale,
         (floorY * 0.94) / presentation.maxHeight,
         (slotWidth * 0.82) / presentation.maxWidth
       );
-      const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
+      const hpY = this.enemyPresentationMode === "production" ? layoutHpY : Math.max(18, floorY - presentation.height * visualScale - 5);
       // Keep the last drawn position even after the enemy falls, so a killing
       // blow still shows its number where that enemy stood.
       this.combatAnchors.set(monsterIndex, { x: cx, y: (hpY + floorY) / 2, scale });
@@ -1367,8 +1366,8 @@ export class PixiDungeonRenderer {
       enemyLabel.position.set(cx, hpY - 3);
       enemyLabel.scale.set(Math.min(1, Math.max(0.64, slotWidth / 120)));
       actors.addChild(enemyLabel);
-      if (getQueuedThreat(monster)) this.drawTelegraphMarker(monsterIndex, cx, cy, hpY - 3 - enemyLabel.height, scale);
-      if (renderInput.combatTargetSelection?.active) this.drawTargetMarker(hitRegion, cx, cy, scale, color);
+      if (getQueuedThreat(monster)) this.drawTelegraphMarker(monsterIndex, cx, cy, hpY - 3 - enemyLabel.height, scale, presentation.combatRole ? hitRegion : null);
+      if (renderInput.combatTargetSelection?.active) this.drawTargetMarker(hitRegion, cx, floorY, scale, color);
     });
   }
 
@@ -1377,11 +1376,11 @@ export class PixiDungeonRenderer {
   // clipped. The badge shape and text carry the meaning; blinking only adds
   // urgency and is replaced by a steady full-strength frame under reduced
   // motion.
-  drawTelegraphMarker(monsterIndex, cx, cy, labelTop, scale) {
+  drawTelegraphMarker(monsterIndex, cx, cy, labelTop, scale, hitRegion = null) {
     const reducedMotion = prefersReducedMotion();
     const blink = reducedMotion ? 1 : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(this.clockMs / 150));
     const fx = this.layer("combat-fx");
-    drawEllipse(fx, cx, cy - 10 * scale, 31 * scale, 31 * scale, TELEGRAPH_COLOR, 0, { color: TELEGRAPH_COLOR, width: 2.5, alpha: reducedMotion ? 0.9 : 0.35 + 0.5 * blink });
+    drawEllipse(fx, cx, hitRegion?.centerY ?? cy - 10 * scale, hitRegion ? hitRegion.width * 0.42 : 31 * scale, hitRegion ? hitRegion.height * 0.42 : 31 * scale, TELEGRAPH_COLOR, 0, { color: TELEGRAPH_COLOR, width: 2.5, alpha: reducedMotion ? 0.9 : 0.35 + 0.5 * blink });
     const label = new Text({
       text: "! 予告",
       style: { fill: 0xffffff, fontFamily: "DotGothic16, monospace", fontSize: 13, fontWeight: "bold" }
@@ -1422,15 +1421,16 @@ export class PixiDungeonRenderer {
     this.resourceStats.enemyPresentationCount += 1;
   }
 
-  drawTargetMarker(hitRegion, cx, cy, scale, color) {
+  drawTargetMarker(hitRegion, cx, floorY, scale, color) {
     const radiusX = Math.min(hitRegion.width * 0.32, 40 * scale);
     const radiusY = 8 * scale;
     const graphic = new Graphics();
+    graphic.label = "combat-target";
     for (let segment = 0; segment < 8; segment += 2) {
       const start = (segment / 8) * Math.PI * 2;
       const end = ((segment + 1) / 8) * Math.PI * 2;
-      graphic.moveTo(cx + Math.cos(start) * radiusX, cy + 31 * scale + Math.sin(start) * radiusY);
-      graphic.lineTo(cx + Math.cos(end) * radiusX, cy + 31 * scale + Math.sin(end) * radiusY);
+      graphic.moveTo(cx + Math.cos(start) * radiusX, floorY + scale + Math.sin(start) * radiusY);
+      graphic.lineTo(cx + Math.cos(end) * radiusX, floorY + scale + Math.sin(end) * radiusY);
     }
     graphic.stroke({ color, width: 1.5, alpha: 0.82 });
     this.layer("combat-fx").addChild(graphic);
@@ -1438,8 +1438,9 @@ export class PixiDungeonRenderer {
 
   drawLocalFlash(renderInput) {
     const progress = clamp01(this.flashTime / 200);
-    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ cx, cy, scale }) => {
-      drawEllipse(this.layer("combat-fx"), cx, cy - 20 * scale, 28 * scale, 48 * scale, "#fff4dc", 0.05 + progress * 0.11);
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, cx, cy, scale, hitRegion }) => {
+      const centerY = getEnemyPresentation(monster).combatRole ? hitRegion.centerY : cy - 20 * scale;
+      drawEllipse(this.layer("combat-fx"), cx, centerY, 28 * scale, 48 * scale, "#fff4dc", 0.05 + progress * 0.11);
     });
   }
 
@@ -1563,12 +1564,13 @@ export class PixiDungeonRenderer {
     const progress = clamp01(this.hitTime / 220);
     const color = safeColor(renderInput.visual.wallColor, "#e8f7f4");
     const alpha = 0.12 * progress;
-    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monsterIndex, cx, cy, scale }) => {
+    getCombatMonsterLayout(renderInput.combatMonsters, this.viewport).forEach(({ monster, monsterIndex, cx, cy, scale, hitRegion }) => {
+      const centerY = getEnemyPresentation(monster).combatRole ? hitRegion.centerY : cy - 20 * scale;
       if (this.hitTarget !== null && monsterIndex !== this.hitTarget) return;
-      drawEllipse(this.layer("combat-fx"), cx, cy - 20 * scale, 24 * scale + progress * 8, 42 * scale + progress * 12, color, alpha);
+      drawEllipse(this.layer("combat-fx"), cx, centerY, 24 * scale + progress * 8, 42 * scale + progress * 12, color, alpha);
       addLine(this.layer("combat-fx"), [
-        { x: cx - 17 * scale, y: cy - 18 * scale },
-        { x: cx - 26 * scale, y: cy - 26 * scale }
+        { x: cx - 17 * scale, y: centerY + 2 * scale },
+        { x: cx - 26 * scale, y: centerY - 6 * scale }
       ], { color: "#fff4dc", width: Math.max(1, scale * 2), alpha: alpha + 0.12 });
     });
   }

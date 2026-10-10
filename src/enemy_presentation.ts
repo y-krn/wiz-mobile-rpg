@@ -31,6 +31,7 @@ type PresentationProfile = {
   scale: number;
   label?: string;
   recipe: EnemyRecipeKey;
+  combatRole?: "strong" | "guardian";
 };
 
 export const ENEMY_RECIPE_KEYS = Object.freeze({
@@ -173,8 +174,16 @@ export function getEnemyPresentation(monster: EnemyPresentationInput = {}) {
   const unique = name ? resolveUniqueRecipe(name) : null;
   const recipe = unique?.recipe || resolveFamilyRecipe(archetype, monster.spriteType, name);
   const profile = unique ? { ...PRESENTATION_DEFAULTS, label: recipe, recipe } : { ...base, recipe };
+  // Only the named encounter roles opt into the larger combat composition.
+  // Other demons and bosses retain their archetype profile.
+  const combatRole = name === "フラック" && monster.isRare ? "strong"
+    : name === "デーモンガード" && (monster.isBoss || monster.isMidboss) ? "guardian" : null;
+  const combatProfile = combatRole ? {
+    ...profile, width: 116, height: 124, maxWidth: 116, maxHeight: 124,
+    scale: combatRole === "guardian" ? 1.32 : 1.05, combatRole
+  } : profile;
   return {
-    ...profile,
+    ...combatProfile,
     archetype,
     recipe,
     assetKey: `recipe:${recipe}`,
