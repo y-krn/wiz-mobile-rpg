@@ -1,3 +1,4 @@
+import { FLEE_BASE_CHANCE, FLEE_MIN_CHANCE, getFleeChance } from "../../../src/rules/flee_rules.js";
 import assert from "node:assert/strict";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
 import { clearCharIncapacitationOnDamage } from "../../../src/combat_logic/status_effects.js";
@@ -161,6 +162,32 @@ test("fleeing the round-trip hunter costs its parting blow but never the last HP
   other.roamingMonsters[0].hunter = false;
   const fled = runCombatRoundCalculation(other, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
   assert.equal(fled.state.party[0].hp, 0);
+});
+
+test("an ordinary flee is a chance: it can fail, and a clean escape takes no parting hit (#2101)", () => {
+  const state = createState({ retreatPosition: { x: 4, y: 5 } });
+  const chance = getFleeChance(state.party[0], state.combatState);
+  assert.equal(chance, FLEE_BASE_CHANCE);
+  // A roll at or above the chance fails and spends the turn.
+  const failed = runCombatRoundCalculation(state, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0.99 });
+  assert.equal(failed.logQueue.some(log => log.runEscape), false);
+  assert.ok(failed.logQueue.some(log => log.msg?.includes("回り込まれた")));
+  // A roll below it escapes with no parting hit.
+  const escaped = runCombatRoundCalculation(createState({ retreatPosition: { x: 4, y: 5 } }), { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
+  assert.ok(escaped.logQueue.some(log => log.runEscape));
+  assert.equal(escaped.state.party[0].hp, 100);
+  assert.deepEqual({ x: escaped.state.x, y: escaped.state.y }, { x: 4, y: 5 });
+  assert.equal(escaped.logQueue.some(log => log.msg?.includes("追撃")), false);
+});
+
+test("more enemies lower the flee chance, escape support raises it, within bounds (#2101)", () => {
+  const combat = count => ({ monsters: Array.from({ length: count }, () => ({ hp: 10 })) });
+  const hero = { equipment: {} };
+  assert.equal(getFleeChance(hero, combat(1)), 0.7);
+  assert.ok(Math.abs(getFleeChance(hero, combat(3)) - 0.5) < 1e-9);
+  assert.equal(getFleeChance(hero, combat(9)), FLEE_MIN_CHANCE);
+  assert.equal(getFleeChance(hero, { ...combat(3), isRoamingFlack: true }), 1);
+  assert.equal(getFleeChance(hero, { ...combat(1), isBoss: true }), 1);
 });
 
 test("flee succeeds in place when no retreat tile was captured", () => {

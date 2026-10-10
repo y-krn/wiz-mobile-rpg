@@ -136,7 +136,8 @@ hit is clamped to at least one at the stages that can reduce its damage.
 Enemy attacks use the same bounded defense idea in the opposite direction. A
 typical attack is an authored attack value plus a small random roll, reduced by
 the player's effective defense, then by Guard/defend and other incoming damage
-mitigation. An escape parting hit uses the same damage semantics without
+mitigation. An escape parting hit (only on a guaranteed flee from a hunter,
+mid-boss, or boss) uses the same damage semantics without
 pretending that fleeing was a normal attack exchange.
 
 Blind affects the attacking side only; a blind target does not make an enemy's

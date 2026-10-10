@@ -126,18 +126,19 @@ assert.deepEqual(precombatReproduction.validity.matchedArmMismatches, []);
 // death and its combat coverage accounting. #1962 floor layouts moved the
 // previous index (10) onto a pre-combat trap death, so index 1 is pinned.
 // #2060 scales enemies by the floor inside the dungeon, which gave this
-// matched run one more battle.
+// matched run one more battle. #2101 lets an ordinary flee fail but escape
+// clean, which carried this matched run to nine battles.
 assert.deepEqual(precombatReproduction.rows.map(row => [row.terminationReason, row.battles, row.battleObservationCount]), [
-  ["death", 3, 3],
-  ["death", 3, 3]
+  ["death", 9, 9],
+  ["death", 9, 9]
 ]);
 assert.equal(precombatReproduction.rows[0].combatCoverage.precombatTermination, false);
 assert.notEqual(precombatReproduction.rows[0].firstCombat, null);
 assert.deepEqual(precombatReproduction.validity.coverage.map(({ arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations }) => [
   arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations
 ]), [
-  ["production", 1, 1, 0, 3, 3],
-  ["phase4j-b", 1, 1, 0, 3, 3]
+  ["production", 1, 1, 0, 9, 9],
+  ["phase4j-b", 1, 1, 0, 9, 9]
 ]);
 
 const firstCombat = {

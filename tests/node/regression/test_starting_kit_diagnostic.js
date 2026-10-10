@@ -111,7 +111,9 @@ assert.equal(
   fleeOutcome.fleeSelected,
   fleeOutcome.fleeExecuted + fleeOutcome.fleeSelectedButNotExecuted
 );
-assert.equal(fleeOutcome.fleeExecuted, fleeOutcome.fleePartingAttackCount);
+// Since #2101 only a guaranteed flee (boss, hunter) draws a parting hit;
+// an ordinary flee is a roll and escapes clean.
+assert.ok(fleeOutcome.fleePartingAttackCount <= fleeOutcome.fleeExecuted);
 assert.equal(
   fleeOutcome.fleeExecuted,
   fleeOutcome.fleeSurvived + fleeOutcome.fleeDiedFromPartingAttack
@@ -420,7 +422,8 @@ for (const row of visibleReport.encounterExposure.encounterRows) {
   }
   if (row.fleeSelected > 0) {
     assert.ok(row.initialVisibleEnemyCount >= 2, "only multi-enemy encounters select run");
-    assert.equal(row.fleeSelected, 1, "multi-enemy diagnostic selects run once");
+    // An ordinary flee can fail since #2101, so run may be chosen again.
+    assert.ok(row.fleeSelected >= 1, "multi-enemy diagnostic selects run");
   }
 }
 

@@ -45,7 +45,8 @@ assert.ok(report.cases.filter(testCase => testCase.compositionId.includes("kobol
 
 const fleeCases = report.cases.filter(testCase => testCase.policy === "immediate-flee");
 assert.equal(fleeCases.length, 24);
-assert.ok(fleeCases.every(testCase => testCase.fleeSelected === 1));
+// An ordinary flee can fail since #2101, so run may be chosen again.
+assert.ok(fleeCases.every(testCase => testCase.fleeSelected >= 1));
 assert.ok(fleeCases.every(testCase =>
   testCase.fleeExecuted + testCase.fleeSelectedButNotExecuted === testCase.fleeSelected
 ));

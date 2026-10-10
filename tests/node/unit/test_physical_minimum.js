@@ -131,8 +131,11 @@ const enemyNormalHit = run(
 assert.equal(enemyNormalHit.state.party[0].hp, 99);
 assert.equal(enemyNormalHit.state.combatFormulaTelemetry.physicalMonsterHits.at(-1).finalDmg, 1);
 
+// Only a guaranteed flee (here, from a boss) draws a parting hit (#2101).
+const bossFleeState = createState({ highPlayerDef: true });
+bossFleeState.combatState.isBoss = true;
 const enemyFleeHit = run(
-  createState({ highPlayerDef: true }),
+  bossFleeState,
   { type: "run", actorIdx: 0 }
 );
 assert.equal(enemyFleeHit.state.party[0].hp, 99);

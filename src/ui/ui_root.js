@@ -1,3 +1,4 @@
+import { getFleeChance, isFleeGuaranteed } from "../rules/flee_rules.js";
 import { syncAimRings } from "./aim_rings.js";
 import { createElement } from "react";
 import { getExplorationRecoveryOutlook } from "../systems/exploration_recovery.js";
@@ -830,6 +831,14 @@ export function updateUI() {
           const canCancel = combatSelection.charIdx > 0;
           cancelBtn.disabled = !canCancel;
           setCombatCommandReason(cancelBtn, canCancel ? "" : "最初の仲間");
+        }
+        // #2101: an ordinary fight is fled by chance; the button says how likely.
+        const runBtn = document.getElementById("btn-combat-run");
+        if (runBtn) {
+          const hero = state.party.find(char => char.status !== "dead") || null;
+          setCombatCommandReason(runBtn, isFleeGuaranteed(state.combatState)
+            ? ""
+            : `成功${Math.round(getFleeChance(hero, state.combatState) * 100)}%`);
         }
       }
 
