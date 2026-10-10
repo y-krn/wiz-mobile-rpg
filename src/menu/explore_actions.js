@@ -23,6 +23,7 @@ import {
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { trackExplorationDecision, trackLootLifecycle, trackPortalDecision, trackTrapResolution } from "../telemetry.js";
+import { getDungeonDarkRule, isDark, toggleDarkness } from "../systems/darkness.js";
 import { applyExplorationItem } from "../systems/exploration_items.js";
 import { calculateSecretDoorSearchChance } from "../rules/exploration_rules.js";
 import { consumeRunObjectLoot, findRunObjectLootEntry } from "../state/run_loot.js";
@@ -179,6 +180,22 @@ async function confirmAbandonRun() {
 }
 
 export function renderExploreManagement(optGrid) {
+  // The throne's rule (#2063): the adventurer may put out their own light.
+  if (getDungeonDarkRule(state.floor)) {
+    const dark = isDark(state);
+    const btnLight = document.createElement("button");
+    btnLight.id = "btn-toggle-light";
+    btnLight.className = "btn btn-neon btn-block";
+    btnLight.textContent = dark ? "灯りを灯す" : "灯りを消す（気づかれにくく、宝箱が良くなる。罠や仕掛けに気づけない）";
+    btnLight.addEventListener("click", () => {
+      const nowDark = toggleDarkness(state);
+      addLog(nowDark ? "灯りを消した。闇が身を包む……" : "灯りを灯した。");
+      closeSubmenu();
+      saveAutosave();
+      updateUI();
+    });
+    optGrid.appendChild(btnLight);
+  }
   const btnAbandon = document.createElement("button");
   btnAbandon.id = "btn-abandon-run";
   btnAbandon.className = "btn btn-danger btn-block";

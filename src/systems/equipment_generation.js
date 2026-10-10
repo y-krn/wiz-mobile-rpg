@@ -254,7 +254,7 @@ function rollRuleCurse(runFloor, rarity, forceRarity, rng) {
 // `runFloor` is the running floor number; supply reads the floor inside the
 // dungeon, so every dungeon hands out the same kinds on the same floor (#2060).
 export function generateRandomEquipment(runFloor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null, likelyCoreFamilies = party?.[0]?.likelyCoreFamilies ?? null } =
+  const { forceRarity = null, rarityBonus = 0, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null, forceBaseId = null, forceCoreId = null, likelyCoreFamilies = party?.[0]?.likelyCoreFamilies ?? null } =
     requireGenerationOptions(options, "generateRandomEquipment");
   recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor: runFloor });
   // An invalid floor stays invalid and is rejected below, as before.
@@ -292,6 +292,8 @@ export function generateRandomEquipment(runFloor, options) {
   }
   const ruleCurse = rollRuleCurse(runFloor, rarity, forceRarity, rng);
   rarity = ruleCurse.rarity;
+  // A chest opened in the throne's dark is better (#2063).
+  for (let step = 0; !forceRarity && step < rarityBonus; step++) rarity = RARITY_STEP_UP[rarity] || rarity;
 
   // Every Support can appear from the first floor (#2061); the floor raises
   // grade and the affix budget, never which kinds exist.

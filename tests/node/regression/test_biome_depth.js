@@ -61,8 +61,9 @@ check("one-way placement preserves the critical-path envelope without retrying",
     { floor: 6, runSeed: "run-floor-template-6-1", expectedOneWays: 1 },
     // B23 is the forge, on the shallow template since #2064.
     { floor: 23, runSeed: "run-floor-template-23-6", expectedOneWays: 3 },
-    { floor: 27, runSeed: "run-floor-template-27-0", expectedOneWays: 5 },
-    { floor: 30, runSeed: "run-floor-template-30-9", expectedOneWays: 5 }
+    // B27 and B30 are the throne, on the shallow template since #2064.
+    { floor: 27, runSeed: "run-floor-template-27-0", expectedOneWays: 3 },
+    { floor: 30, runSeed: "run-floor-template-30-9", expectedOneWays: 3 }
   ];
   retryRegressionCases.forEach(({ floor, runSeed, expectedOneWays }) => {
     const generated = generateRunFloor({ runSeed, floor });

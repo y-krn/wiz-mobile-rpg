@@ -32,6 +32,7 @@ import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { addNoise, applyNoiseToEncounterChance } from "./systems/dungeon_noise.js";
 import { riseWater } from "./systems/rising_water.js";
+import { applyDarknessToEncounterChance, getDarknessDetectionFactor, isDark } from "./systems/darkness.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
 import {
@@ -115,7 +116,7 @@ export function getCurrentFloorExplorationSteps() {
   return state.currentRun.floorSteps?.[String(state.floor)] || 0;
 }
 
-export function calculateEncounterChance(floorStep, { lightPower, lightTurns, silenceTurns, floor, noiseEvents } = {}) {
+export function calculateEncounterChance(floorStep, { lightPower, lightTurns, silenceTurns, floor, noiseEvents, darkness } = {}) {
   const baseRate = floorStep <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE;
   // The mine's rule (#2063): lingering noise brings ordinary monsters too.
   let rate = applyNoiseToEncounterChance(baseRate, { floor, noiseEvents });
@@ -127,7 +128,8 @@ export function calculateEncounterChance(floorStep, { lightPower, lightTurns, si
   if (silenceTurns > 0) {
     rate *= SILENCE_INCENSE_ENCOUNTER_MULTIPLIER;
   }
-  return rate;
+  // The throne's rule (#2063): in the dark, monsters notice later.
+  return applyDarknessToEncounterChance(rate, { floor, darkness, lightTurns });
 }
 
 export function getEncounterChance() {
@@ -276,6 +278,8 @@ function resolveTraversalStep() {
       ? "床の仕掛けを踏み込んだ。どこかで石扉の開く音が響いた。"
       : "床の仕掛けを踏み込んだが、何も起きなかった。");
   }
+  // In the dark (the throne's rule, #2063) nothing beside the adventurer is noticed.
+  if (isDark(state)) return;
   const found = discoverAdjacentTraversalFeatures(state.map, state.x, state.y);
   if (found.length === 0) return;
   markMapChanged();
@@ -1042,6 +1046,7 @@ export function enterDungeon() {
 
 export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.party = state.party.slice(0, 1);
+  state.darkness = false;
   state.gameState = "explore";
   menuContext.prevGameState = null;
   state.floor = floor;
@@ -1236,7 +1241,7 @@ export function moveRoamingMonsters(playerMoved = true) {
       noise: getLatestNoise(),
       playerMoved,
       grid,
-      rangeMultiplier: sneakStep?.detectionRangeMultiplier || 1
+      rangeMultiplier: (sneakStep?.detectionRangeMultiplier || 1) * getDarknessDetectionFactor(state)
     });
     monster.detected = intent.detected;
     if (!wasDetected && intent.detected) {
@@ -1323,7 +1328,7 @@ export function processExplorationResolution(prevX, prevY) {
     }
     if (triggerTrap(steppedTrap, false)) return;
   }
-  detectAdjacentTraps();
+  if (!isDark(state)) detectAdjacentTraps();
   if (applyTraversalHazards()) return;
   resolveTraversalStep();
 

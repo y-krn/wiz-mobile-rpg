@@ -35,6 +35,7 @@ import {
 } from "./chest/chest_domain.js";
 import { createRng } from "./seed_rng.js";
 import { getDungeonFloor, getDungeonRule } from "./rules/dungeons.js";
+import { getDarknessChestRarityBonus } from "./systems/darkness.js";
 import { renderChestMenu } from "./chest/chest_view.js";
 import { recordEliteGreedAction } from "./systems/roaming_elites.js";
 import { getFeatAnnouncementLines } from "./systems/feats.js";
@@ -146,7 +147,9 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
       forcedTrap,
       forcedItem,
       customRng,
-      fromDrop: options.fromDrop ?? false
+      fromDrop: options.fromDrop ?? false,
+      // The throne's rule (#2063): a chest opened in the dark is better.
+      rarityBonus: getDarknessChestRarityBonus(state)
     });
   if (encounter.consumedFirstChestGuarantee) {
     state.firstChestUnidentifiedGuaranteed = true;

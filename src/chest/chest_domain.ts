@@ -159,6 +159,7 @@ export interface ChestEncounterInput {
   readonly forcedItem?: ChestLootItem | null;
   readonly customRng?: ChestRng | null;
   readonly fromDrop?: boolean;
+  readonly rarityBonus?: number;
 }
 
 export interface ChestEncounterResult {
@@ -187,6 +188,7 @@ interface ChestRewardRollInput {
   readonly firstChestGuaranteed: boolean;
   readonly includeRunes: boolean;
   readonly runFloor?: number;
+  readonly rarityBonus?: number;
   readonly itemCandidates: readonly string[] | null;
   readonly itemWeights: Readonly<Record<string, number>> | null;
 }
@@ -350,7 +352,8 @@ export function rollChestEncounter({
   forcedTrap = null,
   forcedItem = null,
   customRng = null,
-  fromDrop = false
+  fromDrop = false,
+  rarityBonus = 0
 }: ChestEncounterInput = {}): ChestEncounterResult {
   const chestSeed = `${seed}:chest:B${floor}:${x},${y}`;
   const rng: ChestRng = customRng || (seed ? createRng(chestSeed) : Math.random);
@@ -379,6 +382,7 @@ export function rollChestEncounter({
       firstChestGuaranteed,
       includeRunes: !fromDrop,
       runFloor: floor,
+      rarityBonus,
       itemCandidates: dropCandidates,
       itemWeights: getChestItemWeightsBySource(depth, { fromDrop })
     });

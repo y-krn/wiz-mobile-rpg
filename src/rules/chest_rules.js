@@ -304,7 +304,9 @@ export function rollChestReward({
   includeRunes = false,
   runtimeDiagnostics = null,
   // The running floor, so equipment follows the dungeon's own rule (#2063).
-  runFloor = floor
+  runFloor = floor,
+  // Grades the equipment rises (a chest opened in the throne's dark, #2063).
+  rarityBonus = 0
 }) {
   // The forge's rule (#2063): fewer finds; a guaranteed find stays guaranteed.
   const equipmentChanceFactor = getDungeonRule(runFloor)?.equipmentChanceFactor ?? 1;
@@ -387,6 +389,7 @@ export function rollChestReward({
   if (rng() < randChance) {
     item = generateRandomEquipment(runFloor, {
       forceRarity: null,
+      rarityBonus,
       rng,
       party,
       excludeHighEnd: true,

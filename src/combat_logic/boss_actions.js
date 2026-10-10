@@ -65,7 +65,7 @@ export function resolveQueuedAncientDragonAction(mon, state, combatSelection, lo
     state.party.forEach((c, charIdx) => {
       if (c.status !== "dead") {
         const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-        let dmg = Math.floor(rng() * 31) + 45; // 45-75 DMG
+        let dmg = rollAttackScaledDamage(mon.atk, ENEMY_SPELL_ATTACK_SCALE.DRAGON_TILTOWAIT, rng);
         if (isDefending) {
           dmg = resolveGuardMitigation(c, dmg, {
             isDefending,
@@ -117,7 +117,7 @@ export function resolveQueuedAncientDragonAction(mon, state, combatSelection, lo
     state.party.forEach((c, charIdx) => {
       if (c.status !== "dead") {
         const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-        let dmg = Math.floor(rng() * 13) + 12; // 12-24 DMG
+        let dmg = rollAttackScaledDamage(mon.atk, ENEMY_SPELL_ATTACK_SCALE.DRAGON_BREATH, rng);
         dmg = resolveGuardMitigation(c, dmg, {
           isDefending,
           attackType: "breath",
@@ -156,7 +156,7 @@ export function resolveQueuedAncientDragonAction(mon, state, combatSelection, lo
     state.party.forEach((c, charIdx) => {
       if (c.status !== "dead") {
         const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-        let dmg = Math.floor(rng() * 21) + 15; // 15-35 DMG
+        let dmg = rollAttackScaledDamage(mon.atk, ENEMY_SPELL_ATTACK_SCALE.DRAGON_MADALTO, rng);
         dmg = resolveGuardMitigation(c, dmg, {
           isDefending,
           attackType: "spell",

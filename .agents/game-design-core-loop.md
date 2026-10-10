@@ -250,6 +250,29 @@ attack 0.32, defence 0.157, the first floor eased by 0.85). Its strong enemy
 and its guardian cast the ice storm, which scales with attack, so their
 attack stays low. Its maps are the size of the first dungeons'.
 
+### The abyssal throne: darkness (#2063, opened by #2064)
+
+The town shows it in one line on the throne's card.
+
+- In the throne the adventurer may put out their own light (from the
+  explore management menu; a light spell lights it again). The explore
+  screen reads "闇の中" while it is out.
+- In the dark, monsters notice later: half the chance of a monster on each
+  step, and the strong enemy senses the run from half as far. Chests are
+  better: a chest opened in the dark rolls its equipment one grade up.
+- But less is seen: traps and floor features beside the adventurer are not
+  noticed until stepped on, and a trap passed unseen on the way down is
+  still there on the way back.
+- So darkness is a danger the player chooses, floor by floor, and has to
+  weigh with the hunter and the guardian: the throne asks for several dangers
+  managed at once.
+
+Its strength table brings its monsters' averages to the mine's (HP 0.161,
+attack 0.29, defence 0.163, the first floor eased by 0.85). The ancient
+dragon keeps its authored body under the guardian multipliers (HP 0.35,
+attack 0.33, defence 0.5), and its great blast, fire breath, and ice storm
+scale with its attack (#2064). Its maps are the size of the first dungeons'.
+
 ### Strength without a running floor number
 
 Every dungeon is winnable by a fresh adventurer with any starting kit and no
@@ -281,7 +304,7 @@ permanent stat growth.
   and ice storms and the catacomb guardian's crush strike scale with the
   caster's attack (#2064), keeping the old rolls where the mine and the
   catacomb meet them; a chest's needle takes a share of maximum HP (#1803).
-  The ancient dragon's own attacks are set when the throne is built.
+  The ancient dragon's own attacks scale with its attack too (#2064).
 - Town progress widens what a run may start with or meet. It does not raise
   the baseline, and no dungeon gives a permanent reward for being repeated.
 

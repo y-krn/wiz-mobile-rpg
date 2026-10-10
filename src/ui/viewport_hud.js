@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { isDark } from "../systems/darkness.js";
 import { menuContext } from "../navigation.js";
 import { getScreenViewState } from "../state/view_state.js";
 import { getEnemyHpState } from "../rules/enemy_hp_state.js";
@@ -69,7 +70,7 @@ export function updateViewportHUD() {
   direction.className = "hud-dir";
   direction.textContent = state.lightTurns > 0
     ? `${state.lightPower === "lomilwa" ? "大灯り" : "灯り"}: 残り${state.lightTurns}手番 / 方角: ${dirLabel}`
-    : `方角: ${dirLabel}`;
+    : isDark(state) ? `闇の中 / 方角: ${dirLabel}` : `方角: ${dirLabel}`;
   hud.appendChild(direction);
   const huntChip = createHuntChip();
   if (huntChip) hud.appendChild(huntChip);
