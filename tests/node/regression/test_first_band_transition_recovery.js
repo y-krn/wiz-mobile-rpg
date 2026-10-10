@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { findSeed, seedWindow } from "../fixtures/seed_search.js";
 
 import {
   KIT_IDS,
@@ -43,8 +44,11 @@ const pitfallScenario = getScenarioById("workshop-complete");
 // are disabled to keep the seeded path independent of chest rules (#1938);
 // this world falls into a pitfall. The world seed is a fixture: floor layouts
 // (#1962) and gimmicks (#1963) decide where the run meets a pitfall.
-resetSimulationRandom(1);
-const pitfallResult = simulateRun({
+// Which world meets a pitfall moves with floor layouts and combat, so the
+// first one from world 1 that does is used (#2081; moved again by #2100).
+const { result: pitfallResult } = await findSeed("pitfall transition", seedWindow(1, 12), seed => {
+  resetSimulationRandom(seed);
+  return simulateRun({
   className: "Fighter",
   startFloor: 1,
   targetDepth: 6,
@@ -64,9 +68,10 @@ const pitfallResult = simulateRun({
     collectStage15Diagnostics: true
   },
   workshop: pitfallScenario.workshop,
-  worldSeed: "pitfall:legacy:source:1",
+  worldSeed: `pitfall:legacy:source:${seed}`,
   collectDiagnostics: true
 });
+}, result => (result.floorTransitionRecovery || []).some(event => event.source === "pitfall"));
 const pitfallEvents = (pitfallResult.floorTransitionRecovery || [])
   .filter(event => event.source === "pitfall");
 assert.ok(pitfallEvents.length > 0, "pitfall transition must be observable");

@@ -161,6 +161,7 @@ function resolveMeasurementBuffPhysicalDefMitigation(policy) {
 import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard_rules.js";
 import { buildCombatTurnQueue } from "./turn_order.js";
 import { ENEMY_SPELL_ATTACK_SCALE, rollAttackScaledDamage } from "../rules/enemy_spell_damage.js";
+import { GROUP_FOLLOWER_DAMAGE_SCALE } from "./turn_order.js";
 
 const MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS = new Set([
   "buffAtk",
@@ -658,6 +659,8 @@ export function runCombatRoundCalculation(
 
   // Run each action
   turns.forEach((turn, index) => {
+    // Set for an ordinary group's later enemies only (#2100); see turn_order.js.
+    if (state.combatState) state.combatState.groupFollowerScale = turn.type === "monster" && turn.groupFollower ? GROUP_FOLLOWER_DAMAGE_SCALE : 1;
     const actionStart = logQueue.length;
     const groupId = `combat:${roundNumber}:action:${index}`;
     const actionObservation = {
@@ -1108,18 +1111,6 @@ export function runCombatRoundCalculation(
       }
     } else {
       const mon = turn.mon;
-      if (turn.sharedSlotAnnouncement
-        && monsters.some(other => other.hp > 0)
-        && state.party.some(char => char.status !== "dead")) {
-        // Own group so the announcement stays a separate line from the owner's action.
-        logQueue.push({
-          msg: mon.hp <= 0
-            ? `[ 敵 ] 仕掛けようとした${mon.name}が倒れ、残りの敵は手を出せなかった。`
-            : "[ 敵 ] 敵は互いの出方をうかがい、1体だけが仕掛けてくる。",
-          groupId: `${groupId}:shared-slot`,
-          presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
-        });
-      }
       if (mon.hp <= 0) return;
 
       actionObservation.executed = true;
@@ -1964,6 +1955,7 @@ export function runCombatRoundCalculation(
       actionObservations.push(actionObservation);
     }
   });
+  if (state.combatState) state.combatState.groupFollowerScale = 1;
 
   recordQueuedPatternDeaths(state, monsters, measurement);
 
