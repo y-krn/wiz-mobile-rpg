@@ -247,7 +247,9 @@ export function rollChestTrap(floor, rng, runtimeDiagnostics = null) {
 
 // Build vNext: rule-changing Cores are part of the build seed from B1. The
 // coreMinFloor knobs remain so measurement scripts can override that floor.
-export function rollChestAccessory(floor, rng, party, coreMinFloor = 1) {
+// `floor` is the floor inside the dungeon; `runFloor`, the running floor, lets
+// the generator read the dungeon's own rule (the catacomb's curses, #2063).
+export function rollChestAccessory(floor, rng, party, coreMinFloor = 1, runFloor = floor) {
   const chance = floor >= 5 ? 0.16 : (floor === 4 ? 0.14 : (floor === 3 ? 0.12 : 0.08));
   if (rng() >= chance) return null;
   const rarityRoll = rng();
@@ -260,7 +262,7 @@ export function rollChestAccessory(floor, rng, party, coreMinFloor = 1) {
   // #270: 宝箱の装身具のみ B2 から core を解禁。実src経路のsim（N=500、工房解放済み）で
   // 前半core遭遇 65.4%→71.6%、前半core装備 58.2%→66.8%、平均到達 B4.77→B5.04。
   // 本体装備は B3 のまま（B2両方の解禁は深層core遭遇が 2.6%→1.8% に落ち二相構造が薄れるため）。
-  return generateRandomAccessory(floor, {
+  return generateRandomAccessory(runFloor, {
     forceRarity: rarity,
     rng,
     party,
@@ -299,7 +301,9 @@ export function rollChestReward({
   itemCandidates = null,
   itemWeights = null,
   includeRunes = false,
-  runtimeDiagnostics = null
+  runtimeDiagnostics = null,
+  // The running floor, so equipment follows the dungeon's own rule (#2063).
+  runFloor = floor
 }) {
   recordRuntimeCall(runtimeDiagnostics, "chests.reward-roll", { floor });
   let isGuaranteed = false;
@@ -327,7 +331,7 @@ export function rollChestReward({
   }
 
   if (isGuaranteed) {
-    const item = generateRandomEquipment(floor, {
+    const item = generateRandomEquipment(runFloor, {
       forceRarity: "magic",
       rng,
       party,
@@ -378,7 +382,7 @@ export function rollChestReward({
   randChance = Math.min(0.90, randChance);
 
   if (rng() < randChance) {
-    item = generateRandomEquipment(floor, {
+    item = generateRandomEquipment(runFloor, {
       forceRarity: null,
       rng,
       party,
