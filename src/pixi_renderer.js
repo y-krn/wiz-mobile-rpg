@@ -1360,7 +1360,7 @@ export class PixiDungeonRenderer {
       this.combatAnchors.set(monsterIndex, { x: cx, y: (hpY + floorY) / 2, scale });
       const hp = Math.max(0, Math.min(1, monster.hp / Math.max(1, monster.maxHp)));
       const healthBar = drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#2e2640", 0.55, { color: "#2e2640", width: 1.5 });
-      healthBar.label = `enemy-hp-${monsterIndex}`;
+      healthBar.label = `combat-enemy-hp-${monsterIndex}`;
       drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
       const enemyLabel = new Text({
         text: monster.name,

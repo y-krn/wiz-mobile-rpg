@@ -109,7 +109,7 @@ async function readRoleScene(page) {
     };
     const billboards = actors.filter(child => child.label?.startsWith('enemy-procedural-'));
     const bodies = billboards.map(bounds);
-    const bars = actors.filter(child => child.label?.startsWith('enemy-hp-')).map(bounds);
+    const bars = actors.filter(child => child.label?.startsWith('combat-enemy-hp-')).map(bounds);
     const labels = actors.filter(child => child.text).map(bounds);
     const badges = renderer.scene.layers['combat-fx'].children.filter(child => child.label?.startsWith('telegraph-')).map(bounds);
     const canvasRect = renderer.canvas.getBoundingClientRect();
