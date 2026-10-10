@@ -116,7 +116,7 @@ enforces these directory and naming boundaries.
 
 `--out` はシードが終わるたびに書き直され、Ctrl-C で中断したときもそこまでの結果を `complete: false` で残す。ゲーム側の例外（クリック処理内のエラーなど）は各ランの `pageErrors` に記録され、最後に件数付きで表示される。
 
-最後の2行目に「止まったシード・生還数・買った傷薬の数・部屋で取った行動の数・`cannot equip` の数」が出る。各ランの JSON には `returned`（生還）・`companions`（連れ帰った相手）・`roomActions`・`purchases`・`eliteFlees`（階ごとの強敵からの逃走回数）・`eliteFightsForced`・`bloodUses`・`riposteGuards` が入る。
+最後の2行目に「止まったシード・生還数・買った傷薬の数・部屋で取った行動の数・`cannot equip` の数」が出る。各ランの JSON には `returned`（生還）・`companions`（連れ帰った相手）・`roomActions`・`purchases`・`eliteFlees`（階ごとの強敵からの逃走回数）・`eliteFightsForced`・`bloodUses`・`riposteGuards`・`reflectAvoids` が入る。
 
 自動プレイの方針（#1881）:
 
@@ -130,6 +130,7 @@ enforces these directory and naming boundaries.
 - **音（坑道のルール、#2063）**: 坑道では、鉱脈を掘るのは HP 8割以上のときだけ（ほかの迷宮は6割）。物音が残っている間に始まった戦闘を数え、結果の `noiseFights` と、`journal` の戦闘行の `[noise]` に残す。
 - **呪い（#2063）**: 呪いと分かった装備も、プレビューの数字（呪いの良い面と悪い面を含む）が今の装備を 4 点以上上回れば着る（外せなくなる分を差し引く）。地下墓地の祭壇では、素材が足りれば呪いを解く（着ている物が先）。結果の `equipLog` に `CURSE:` 付きの装備、`roomActions` に解呪が残る。
 - **装備の評価**: 戦い方に合わせて重みを変える。杖を持っているあいだは魔力と最大MPを重く、攻撃力を軽く見る。剣の冒険者は杖に持ち替えず、杖の冒険者は剣に持ち替えない（以前は剣キットが杖を拾って持ち替え、術式キットが杖をメイスに替えて呪文を失っていた）。
+- **呪文を反射する敵**: `reflectMagic` を持つ敵（魔鏡の司祭・呪いの小鏡など）には攻撃呪文を撃たない。単体の呪文は反射しない敵のうち HP の低い方へ撃ち、反射しない敵がいなければ武器で攻撃する。敵全体の呪文は、1体でも反射する敵がいれば撃たない。呪文をやめて武器にした回数を結果の `reflectAvoids` に残す。
 - **Core 別の立ち回り**: 返しの構えは、攻撃の技が待ち時間のあいだ防御して技を戻し、次の技を1.5倍で打つ（魔力集中のような自分に使う技では行わない）。血の型は、守護者戦に限り、払ったあと HP が半分以上残るなら HP を払って技を打つ。罠喰いは宝箱を必ず開ける方針がそのまま当てはまる。
 - **瓦礫**: 階段・守護者・商人などへの道が瓦礫でしか通じないときは掘って進む。道が無いときは理由（瓦礫の先／強敵が道をふさいでいる／通れる道が無い）を `journal` に残す。
 - **往復（#2062 からすべての冒険）**: 至宝を取った後と、引き返すと決めた後は、各階の上り階段へまっすぐ向かう（寄り道しない）。追跡者からは逃げる。結果に `stepsBy`（行き `down:階`・帰り `up:階` の手数）、`turnBackAt`（引き返した階）、`hunterMin`（階ごとに追跡者がいちばん近づいた距離）、`returnFlees`（帰り道で追いつかれた回数）、`roundTrip.treasure`（至宝を持ち帰ったか）が入る。要約の3行目に、歩いて生還した数・至宝を持ち帰った数・帰りで死んだ数・追いつかれた回数・最接近の中央値が出る。
@@ -251,7 +252,7 @@ that entered the bag (`loot`), gear decisions (`equipLog`), technique uses
 (`techniqueUses`), the build seed offer and pick (`seedChoice`), the last live
 equipment, and the full event journal. The run policy adds `returned`,
 `companions`, `roomActions`, `purchases`, `eliteFlees` (per floor),
-`eliteFightsForced`, `bloodUses` and `riposteGuards`; the summary's second line counts stuck seeds, returns,
+`eliteFightsForced`, `bloodUses`, `riposteGuards` and `reflectAvoids`; the summary's second line counts stuck seeds, returns,
 potions bought, room actions and refused equips.
 
 #### Run policy (#1881)
@@ -276,6 +277,11 @@ Measurement policy, not game rules.
   copy, blasting, a mirror or a floor plan (the bot reads the map anyway).
   `rescue` adds: walk to the keeper's room, dig out / drain / fuel, and pay
   blood at 70% HP or more. It does not cut the cocoon (an elite fight).
+- Spell reflection: no attack spell at a `reflectMagic` monster (Mirror
+  Priest, Cursed Mirror). A single-target spell goes to the weakest
+  non-reflecting target, else the bot uses its weapon; an all-enemy spell is
+  cast only when no target reflects. Skipped casts are counted in
+  `reflectAvoids`.
 - Cores: Riposte guards while an attack technique cools down, then strikes at
   1.5x (not with a self technique such as focus mana).
   Blood pays HP for the technique only against a guardian and only with half

@@ -66,7 +66,7 @@ const companionNames = () => FACILITIES.getEscortNames?.(st().currentRun) || '';
 // Per-run bookkeeping of the run policy.
 const resetPolicyState = () => {
   W.__eliteFlees = {}; W.__fightElite = {}; W.__merchantDone = {}; W.__merchantTries = {}; W.__portalTries = {}; W.__keeperTries = {};
-  W.__roomActions = []; W.__purchases = []; W.__bloodUses = 0; W.__riposteGuards = 0;
+  W.__roomActions = []; W.__purchases = []; W.__bloodUses = 0; W.__riposteGuards = 0; W.__reflectAvoids = 0;
 };
 resetPolicyState();
 
@@ -296,10 +296,18 @@ const attackTarget = async (alive, preferHigh = false) => {
     if (W.__btns().some(b => b.includes('攻撃対象'))) return W.__act(target.name);
     return W.__act();
   }
+  // Spell reflection: a reflecting monster may bounce the spell back, so the
+  // spell goes to the weakest non-reflecting target (an all-enemy spell only
+  // when none reflects); otherwise the bot attacks with the weapon.
   const spell = castableSpell();
-  if (spell) {
+  const reflects = m => m.traits?.includes('reflectMagic');
+  const spellTarget = !spell ? null
+    : DATA.SPELLS?.[spell]?.target === 'all_enemies' ? (alive.some(reflects) ? null : t)
+    : [...alive].filter(m => !reflects(m)).sort((a, b) => preferHigh ? b.hp - a.hp : a.hp - b.hp)[0] || null;
+  if (spell && !spellTarget) W.__reflectAvoids = (W.__reflectAvoids || 0) + 1;
+  if (spellTarget) {
     await W.__click('呪文'); await sl(150);
-    if (await W.__click(spellLabel(spell)) === 'ok') { await sl(150); if (alive.length > 1 || W.__btns().some(b => b.includes('攻撃対象'))) return W.__act(t.name); return W.__act(); }
+    if (await W.__click(spellLabel(spell)) === 'ok') { await sl(150); if (alive.length > 1 || W.__btns().some(b => b.includes('攻撃対象'))) return W.__act(spellTarget.name); return W.__act(); }
     await W.__click('戻る');
   }
   if (alive.length > 1) { await W.__click('攻撃'); await sl(150); return W.__act(t.name); }
@@ -928,7 +936,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     companions: companionNames() || null,
     roomActions: W.__roomActions, purchases: W.__purchases,
     roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, darkToggles: W.__darkToggles || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
-    eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, riposteGuards: W.__riposteGuards || 0,
+    eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, reflectAvoids: W.__reflectAvoids || 0, riposteGuards: W.__riposteGuards || 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,
     techniqueUses: W.__techUses || 0, seedChoice: W.__seedChoice,
