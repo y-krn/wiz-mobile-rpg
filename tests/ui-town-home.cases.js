@@ -47,8 +47,9 @@ for (const reason of ['gameover', 'abandon', 'surface', 'escape_scroll']) {
 for (const { reason, quantity } of [
   ...['gameover', 'abandon', 'surface', 'escape_scroll'].map(reason => ({ reason, quantity: 10 })),
   ...['gameover', 'abandon'].map(reason => ({ reason, quantity: 3 })),
+  ...['surface', 'escape_scroll'].map(reason => ({ reason, quantity: 0 })),
 ]) {
-  test(`Actual ${reason}${quantity === 3 ? ' with zero banked materials' : ''} settlement reaches town and castle with consistent loss wording @smoke`, async ({ page }) => {
+  test(`Actual ${reason}${quantity < 10 ? ' with zero banked materials' : ''} settlement reaches town and castle with consistent loss wording @smoke`, async ({ page }) => {
     await page.goto('/');
     await waitForAppStart(page);
     const settled = await page.evaluate(async ({ reason, quantity }) => {
@@ -81,7 +82,7 @@ for (const { reason, quantity } of [
     const lost = ['gameover', 'abandon'].includes(reason);
     // Current settlement is 30% even without a facility; #2096 changes its
     // presentation, not the economic rule. Safe returns bank the full amount.
-    const expectedBanked = quantity === 3 ? 0 : lost ? 3 : 10;
+    const expectedBanked = quantity === 3 || quantity === 0 ? 0 : lost ? 3 : 10;
     expect(settled.banked).toBe(expectedBanked);
     expect(settled.balance).toBe(2 + expectedBanked);
     expect(settled.lostSupplies).toBe(lost ? 1 : 0);
@@ -96,27 +97,73 @@ for (const { reason, quantity } of [
     if (lost) {
       await expect(summary).toContainText('失ったもの');
       await expect(summary).toContainText('未使用の持ち込み品 1個');
-      await expect(summary).toContainText('迷宮で見つけた装備 1個');
+      await expect(summary).not.toContainText('迷宮で見つけた装備');
       await expect(summary).toContainText(expectedBanked > 0 ? '街に残った素材：獣の牙 ×3' : '街に残った素材なし');
       await expect(summary).not.toContainText('内訳は未記録');
       await expect(summary).not.toContainText('持ち帰');
       await expect(summary).not.toContainText('保全・回収');
     } else {
       await expect(summary).toContainText('持ち帰ったもの');
+      if (expectedBanked === 0) {
+        await expect(summary).toContainText('持ち帰った素材なし');
+        await expect(summary).not.toContainText('未記録');
+      }
       await expect(summary).not.toContainText('失ったもの');
     }
     await page.locator('#btn-town-castle').click();
     const history = page.locator('.adventure-run-decision').first();
     if (lost) {
-      await expect(history).toContainText('失ったもの：未使用の持ち込み品 1個、迷宮で見つけた装備 1個');
+      await expect(history).toContainText('失ったもの：未使用の持ち込み品 1個');
       await expect(history).toContainText(expectedBanked > 0 ? '街に残った素材：獣の牙 ×3' : '街に残った素材なし');
       await expect(history).not.toContainText('内訳は未記録');
       await expect(history).not.toContainText('持ち帰');
       await expect(history).not.toContainText('保全・回収');
     } else {
-      await expect(history).toContainText('素材10個を持ち帰った');
+      await expect(history).toContainText(`素材${expectedBanked}個を持ち帰った`);
       await expect(history).not.toContainText('失ったもの');
     }
+  });
+}
+
+for (const reason of ['gameover', 'abandon']) {
+  test(`Equipment left in a chest is not described as lost on ${reason} @smoke`, async ({ page }) => {
+    await page.goto('/');
+    await waitForAppStart(page);
+    const settled = await page.evaluate(async reason => {
+      const { initNewGame, state, createDefaultCurrentRun, createStartingKitCharacter } = await import('/src/state.js');
+      const { openChest } = await import('/src/chest.js');
+      const { resolvePendingRewardBundle } = await import('/src/pending_rewards.js');
+      const { triggerRunResult } = await import('/src/result.js');
+      initNewGame();
+      state.floor = 2;
+      state.party = [createStartingKitCharacter('vanguard')];
+      state.inventory = Array(20).fill('HEAL_POTION');
+      state.currentRun = createDefaultCurrentRun();
+      state.currentRun.buildSeedOffered = true;
+      state.currentRun.deepestFloor = 2;
+      state.floorChestsOpened = [0, 0, 0, 0, 0];
+      state.chestState = { x: state.x, y: state.y, trap: 'none', item: { kind: 'equipment', baseId: 'SHORT_SWORD', instanceId: 'left-sword', identified: false }, specialItem: null, accessoryItem: null, trapSign: 'none', trapSignAccuracy: 0.7, lootHint: null, fromDrop: false };
+      state.map[state.y][state.x].event = 'chest';
+      openChest(() => 0.99);
+      state.currentRun.pendingRewardBundle.entries.forEach(entry => { entry.decision = 'leave'; });
+      const resolved = resolvePendingRewardBundle(state).ok;
+      triggerRunResult(reason);
+      return { resolved, lost: state.currentRun.lostObjectLoot.length, found: state.runHistory[0].lostUnidentifiedCount };
+    }, reason);
+    expect(settled).toEqual({ resolved: true, lost: 0, found: 1 });
+    await page.locator('#btn-result-castle').click();
+    await page.reload();
+    await expect(page.locator('#town-last-run-summary')).not.toContainText('迷宮で見つけた装備');
+    await page.locator('#btn-town-castle').click();
+    await expect(page.locator('.adventure-run-decision').first()).not.toContainText('迷宮で見つけた装備');
+  });
+}
+
+for (const returnedSupplyCount of [0, 1]) {
+  test(`Known zero returned materials with ${returnedSupplyCount} returned supplies @smoke`, async ({ page }) => {
+    await townFixture(page, { outcome: 'retreat', returnReason: 'surface', deepestFloor: 2, bankedMaterials: { '獣の牙': 0 }, returnedSupplyCount });
+    await expect(page.locator('#town-last-run-summary')).toContainText('持ち帰った素材なし');
+    await expect(page.locator('#town-last-run-summary')).not.toContainText('未記録');
   });
 }
 

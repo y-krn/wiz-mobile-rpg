@@ -5,7 +5,7 @@ import { getOpenFacilityOrder, listFacilityNodes, listTownFacilities } from "../
 import { getNextGuidebookPage, listGuidebookPages } from "../systems/guidebook.js";
 import { getDungeonForFloor, getDungeonFloor } from "../rules/dungeons.js";
 import { MATERIAL_TYPES } from "../data/materials.js";
-import { getRunLossCopy } from "./run_loss_copy.js";
+import { getRunLossCopy, hasMaterialRecord } from "./run_loss_copy.js";
 
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
@@ -89,11 +89,13 @@ function getLastRunSummary(run) {
     fact.appendChild(label);
     fact.appendChild(loss);
   } else if (safe) {
+    const emptyMaterials = hasMaterialRecord(run) ? "持ち帰った素材なし。" : "素材の内訳は未記録。";
     fact.textContent = materials
       ? `持ち帰ったもの：${materials}${returnedSupplies > 0 ? `、未使用の持ち込み品 ${returnedSupplies}個` : ""}`
       : returnedSupplies > 0
-        ? `持ち帰ったもの：未使用の持ち込み品 ${returnedSupplies}個。素材の内訳は未記録。`
-        : "生還しました。持ち帰った品の内訳は記録されていません。";
+        ? `持ち帰ったもの：未使用の持ち込み品 ${returnedSupplies}個。${emptyMaterials}`
+        : hasMaterialRecord(run) ? `生還しました。${emptyMaterials}`
+          : "生還しました。持ち帰った品の内訳は記録されていません。";
   } else {
     fact.textContent = "持ち帰った品の記録はありません。";
   }
