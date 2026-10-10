@@ -204,6 +204,25 @@ test('The forge furnace reforges what is worn and stays open while materials las
   expect(after.iron).toBe(4);
 });
 
+test('In the throne the adventurer can put out the light and the explore screen says so (#2063)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await seedRoom(page, 27);
+  await page.evaluate(async () => {
+    const { closeSubmenu, openSubmenu } = await import('/src/navigation.js');
+    closeSubmenu();
+    openSubmenu('explore_management', '管理');
+  });
+  const toggle = page.locator('#btn-toggle-light');
+  await expect(toggle).toContainText('灯りを消す');
+  await expect(async () => {
+    await toggle.click({ timeout: 1000 });
+    await expect(page.locator('#log-content')).toContainText('灯りを消した', { timeout: 1000 });
+  }).toPass();
+  await expect(page.locator('.hud-dir')).toContainText('闇の中');
+  expect(await page.evaluate(async () => (await import('/src/state.js')).state.darkness)).toBe(true);
+});
+
 test('An oath heals fully and a death then leaves no materials in the town', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
