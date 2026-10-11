@@ -1459,7 +1459,7 @@ export class PixiDungeonRenderer {
     billboard.label = `enemy-procedural-${presentation.recipe}-${row}-${column}`;
     billboard.position.set(cx, floorY);
     billboard.zIndex = row * 100 + column;
-    billboard.addChild(createProceduralEnemy(presentation.recipe, visualScale, parseColor(color)));
+    billboard.addChild(createProceduralEnemy(presentation.recipe, visualScale, presentation));
     actors.addChild(billboard);
     this.resourceStats.enemyPresentationCount += 1;
   }

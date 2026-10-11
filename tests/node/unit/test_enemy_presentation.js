@@ -1,4 +1,5 @@
 import assert from "assert";
+import { MONSTERS } from "../../../src/data/monsters.js";
 import {
   ENEMY_ARCHETYPES,
   ENEMY_RECIPE_KEYS,
@@ -56,7 +57,8 @@ const expectedUniqueRecipes = [
   ["コボルトの斥候", "kobold-scout"], ["ゴブリンの呪術師", "goblin-caster"],
   ["錆びた盾兵", "rusted-shield"]
 ];
-assertStrict.deepEqual(Object.entries(ENEMY_UNIQUE_RECIPES), expectedUniqueRecipes);
+for (const [name, recipe] of expectedUniqueRecipes) assertStrict.equal(ENEMY_UNIQUE_RECIPES[name], recipe);
+assertStrict.deepEqual(Object.keys(ENEMY_UNIQUE_RECIPES).sort(), MONSTERS.map(monster => monster.name).sort());
 assertStrict.equal(Object.isFrozen(ENEMY_UNIQUE_RECIPES), true);
 
 assertStrict.equal(getEnemyArchetype({ isBoss: true, name: "ジャイアント", spriteType: "mage" }), "boss");
@@ -116,9 +118,9 @@ for (const presentation of Object.values(ENEMY_ARCHETYPES)) {
   assert.ok(presentation.recipe, "fallback has a procedural recipe");
 }
 
-assert.equal(Object.keys(ENEMY_UNIQUE_RECIPES).length, 11);
-assert.equal(new Set(Object.values(ENEMY_UNIQUE_RECIPES)).size, 11, "each named enemy has a distinct recipe");
-assert.equal(Object.keys(ENEMY_RECIPE_PALETTES).length, Object.keys(ENEMY_RECIPE_KEYS).length);
+assert.equal(Object.keys(ENEMY_UNIQUE_RECIPES).length, MONSTERS.length);
+assert.equal(new Set(Object.values(ENEMY_UNIQUE_RECIPES)).size, MONSTERS.length, "each named enemy has a distinct recipe");
+assert.ok(Object.keys(ENEMY_RECIPE_PALETTES).length >= Object.keys(ENEMY_RECIPE_KEYS).length);
 for (const recipe of Object.values(ENEMY_RECIPE_KEYS)) {
   const palette = ENEMY_RECIPE_PALETTES[recipe];
   assert.ok(palette, `palette exists for ${recipe}`);
@@ -127,9 +129,9 @@ for (const recipe of Object.values(ENEMY_RECIPE_KEYS)) {
   }
 }
 assert.ok(new Set(Object.values(ENEMY_UNIQUE_RECIPES).map(recipe => ENEMY_RECIPE_PALETTES[recipe].main)).size >= 7, "named enemies are not universal cyan-bodied pieces");
-assert.equal(ENEMY_RECIPE_PALETTES[ENEMY_RECIPE_KEYS.flashBat].main, 0x274147);
-assert.equal(ENEMY_RECIPE_PALETTES[ENEMY_RECIPE_KEYS.powderBat].material, 0x865b43);
-assert.equal(ENEMY_RECIPE_PALETTES[ENEMY_RECIPE_KEYS.ratPack].main, 0x4b4139);
+assert.equal(ENEMY_RECIPE_PALETTES[ENEMY_RECIPE_KEYS.flashBat].main, 0x486ca4);
+assert.equal(ENEMY_RECIPE_PALETTES[ENEMY_RECIPE_KEYS.powderBat].material, 0xb58254);
+assert.equal(ENEMY_RECIPE_PALETTES[ENEMY_RECIPE_KEYS.ratPack].main, 0x8c7767);
 for (const [name, recipe] of Object.entries(ENEMY_UNIQUE_RECIPES)) {
   const presentation = getEnemyPresentation({ name });
   assert.equal(presentation.recipe, recipe);
@@ -156,21 +158,21 @@ const familyCases = [
   [{ name: "ウィル・オー・ウィスプ", spriteType: "wisp" }, "wisp", "caster"],
   [{ name: "キラーラビット", spriteType: "rabbit" }, "rabbit", "small"],
   [{ name: "ジャイアントスパイダー", spriteType: "spider" }, "spider", "brute"],
-  [{ name: "フラック", spriteType: "flack" }, "demon", "small"],
+  [{ name: "フラック", spriteType: "flack" }, "flack", "small"],
   [{ name: "ドラゴンパピー", spriteType: "dragon" }, "dragon", "boss"],
-  [{ name: "デーモンガード", spriteType: "flack", isBoss: true }, "demon", "boss"],
-  [{ name: "ブラッドバット群", spriteType: "bat" }, "flash-bat", "small"],
-  [{ name: "アイアンゴーレム", spriteType: "zombie" }, "brute", "brute"],
+  [{ name: "デーモンガード", spriteType: "flack", isBoss: true }, "demon-guard", "boss"],
+  [{ name: "ブラッドバット群", spriteType: "bat" }, "blood-bats", "small"],
+  [{ name: "アイアンゴーレム", spriteType: "zombie" }, "iron-golem", "brute"],
   [{ name: "リビングアーマー", spriteType: "zombie" }, "living-armor", "brute"],
-  [{ name: "反逆の鎧", spriteType: "zombie" }, "living-armor", "humanoid"],
-  [{ name: "ストーンガード", spriteType: "zombie" }, "brute", "brute"],
-  [{ name: "石像兵", spriteType: "zombie" }, "brute", "brute"],
+  [{ name: "反逆の鎧", spriteType: "zombie" }, "rebel-armor", "humanoid"],
+  [{ name: "ストーンガード", spriteType: "zombie" }, "stone-guard", "brute"],
+  [{ name: "石像兵", spriteType: "zombie" }, "stone-soldier", "brute"],
   [{ name: "ワーウルフ", spriteType: "orc" }, "werewolf", "humanoid"],
   [{ name: "オークの戦士", spriteType: "orc" }, "orc", "humanoid"],
   [{ name: "はぐれ魔術師", spriteType: "mage", spell: "HALITO" }, "caster", "caster"],
-  [{ name: "オークの呪医", spriteType: "orc", spell: "DIOS" }, "caster", "caster"],
-  [{ name: "鉄皮のゴブリン", spriteType: "kobold" }, "humanoid", "humanoid"],
-  [{ name: "針甲虫", spriteType: "biter" }, "small", "small"]
+  [{ name: "オークの呪医", spriteType: "orc", spell: "DIOS" }, "orc-healer", "caster"],
+  [{ name: "鉄皮のゴブリン", spriteType: "kobold" }, "iron-goblin", "humanoid"],
+  [{ name: "針甲虫", spriteType: "biter" }, "needle-beetle", "small"]
 ];
 for (const [monster, recipe, archetype] of familyCases) {
   const presentation = getEnemyPresentation(monster);
@@ -185,4 +187,13 @@ assert.equal(getEnemyPresentation({ name: "巨躯" }).recipe, ENEMY_RECIPE_KEYS.
 assert.equal(getEnemyPresentation({ name: "unknown-caster", spriteType: "mage" }).recipe, ENEMY_RECIPE_KEYS.caster);
 assert.equal(getEnemyPresentation({ name: "unknown-boss", isBoss: true }).recipe, ENEMY_RECIPE_KEYS.boss);
 
-console.log("ENEMY PROCEDURAL PRESENTATION TEST PASSED");
+for (const monster of MONSTERS) {
+  const parent = getEnemyPresentation(monster);
+  assert.equal(parent.uniqueName, monster.name);
+  assert.ok(ENEMY_RECIPE_PALETTES[parent.recipe], `${monster.name} palette`);
+  assert.equal(getEnemyRecipeKey({ ...monster, name: `${monster.name}の分裂体1` }), parent.recipe);
+}
+assert.notEqual(getEnemyRecipeKey({ name: "フラック" }), getEnemyRecipeKey({ name: "デーモンガード" }));
+assert.equal(getEnemyPresentation({ name: "__proto__" }).uniqueName, null);
+assert.equal(getEnemyPresentation({ name: "constructorの分裂体1" }).uniqueName, null);
+console.log("ENEMY PROCEDURAL PRESENTATION TEST PASSED (79 species)");

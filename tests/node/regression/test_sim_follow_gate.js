@@ -52,6 +52,10 @@ assert.match(
   /merchant purchase policy/
 );
 const balanceDomainsFor = file => SIMULATION_MANIFEST.balanceImpactPaths.find(rule => rule.pattern === file)?.domains;
+for (const file of ["src/enemy_species_designs.ts", "src/pixi_enemy_recipes.js"]) {
+  assert.ok(SIMULATION_MANIFEST.balanceImpactNone.includes(file), `${file} is presentation only`);
+  assert.doesNotThrow(() => assertBalanceImpactCovered([file], SIMULATION_MANIFEST));
+}
 for (const file of ["src/assets/hero.png", "src/assets/javascript.svg", "src/assets/vite.svg"]) {
   assert.deepEqual(
     SIMULATION_MANIFEST.balanceImpactPaths.find(rule => rule.pattern === `src/assets/*.${file.endsWith(".png") ? "png" : "svg"}`)?.domains,

@@ -3,6 +3,7 @@
 // Production enemies are procedural Pixi recipes. The rejected illustrated
 // WebP set remains in the repository as historical visual evidence, but is
 // deliberately not imported or preloaded by the runtime.
+import { ENEMY_SPECIES_RECIPES, type EnemySpeciesRecipe } from "./enemy_species_designs";
 
 type EnemyArchetype = "small" | "humanoid" | "brute" | "caster" | "boss";
 type EnemyRecipeKey =
@@ -11,6 +12,7 @@ type EnemyRecipeKey =
   | "goblin-caster" | "rusted-shield"
   | "skeleton" | "zombie" | "orc" | "ghost" | "wisp" | "spider" | "rabbit" | "demon" | "dragon"
   | "werewolf" | "living-armor"
+  | EnemySpeciesRecipe
   | EnemyArchetype;
 type IncludesLike = { includes(value: string): unknown };
 type EnemyPresentationInput = {
@@ -81,19 +83,14 @@ const ARCHETYPE_PRESENTATIONS: Readonly<Record<EnemyArchetype, Readonly<Presenta
 
 export const ENEMY_ARCHETYPES = ARCHETYPE_PRESENTATIONS;
 
-export const ENEMY_UNIQUE_RECIPES: Readonly<Record<string, EnemyRecipeKey>> = Object.freeze({
-  "フラッシュバット": ENEMY_RECIPE_KEYS.flashBat,
-  "火薬コウモリ": ENEMY_RECIPE_KEYS.powderBat,
-  "かみつき蟲": ENEMY_RECIPE_KEYS.biter,
-  "マッドスライム": ENEMY_RECIPE_KEYS.mudSlime,
-  "分裂スライム": ENEMY_RECIPE_KEYS.splitSlime,
-  "群れネズミ": ENEMY_RECIPE_KEYS.ratPack,
-  "まどろみ胞子": ENEMY_RECIPE_KEYS.sleepSpore,
-  "泥の呪い子": ENEMY_RECIPE_KEYS.mudCursedChild,
-  "コボルトの斥候": ENEMY_RECIPE_KEYS.koboldScout,
-  "ゴブリンの呪術師": ENEMY_RECIPE_KEYS.goblinCaster,
-  "錆びた盾兵": ENEMY_RECIPE_KEYS.rustedShield
-});
+export const ENEMY_UNIQUE_RECIPES: Readonly<Record<string, EnemyRecipeKey>> = ENEMY_SPECIES_RECIPES;
+
+// Preserve the original eleven sizing profiles. Newly named recipes retain
+// their previous archetype dimensions, so identity does not change targeting.
+const COMPACT_RECIPES = new Set<EnemyRecipeKey>([
+  "flash-bat", "powder-bat", "biter", "mud-slime", "split-slime", "rat-pack",
+  "sleep-spore", "mud-cursed-child", "kobold-scout", "goblin-caster", "rusted-shield"
+]);
 
 // Compatibility name retained for callers that used the old registry export.
 // Values are recipe keys, never asset URLs.
@@ -160,9 +157,9 @@ export function getEnemyArchetype(monster: EnemyPresentationInput = {}): EnemyAr
 }
 
 function resolveUniqueRecipe(name: string): { name: string; recipe: EnemyRecipeKey } | null {
-  if (ENEMY_UNIQUE_RECIPES[name]) return { name, recipe: ENEMY_UNIQUE_RECIPES[name] };
+  if (Object.hasOwn(ENEMY_UNIQUE_RECIPES, name)) return { name, recipe: ENEMY_UNIQUE_RECIPES[name] };
   const splitChild = name.match(/^(.*)の分裂体\d+$/);
-  if (splitChild && ENEMY_UNIQUE_RECIPES[splitChild[1]]) return { name: splitChild[1], recipe: ENEMY_UNIQUE_RECIPES[splitChild[1]] };
+  if (splitChild && Object.hasOwn(ENEMY_UNIQUE_RECIPES, splitChild[1])) return { name: splitChild[1], recipe: ENEMY_UNIQUE_RECIPES[splitChild[1]] };
   return null;
 }
 
@@ -172,7 +169,9 @@ export function getEnemyPresentation(monster: EnemyPresentationInput = {}) {
   const name = typeof monster.name === "string" ? monster.name : "";
   const unique = name ? resolveUniqueRecipe(name) : null;
   const recipe = unique?.recipe || resolveFamilyRecipe(archetype, monster.spriteType, name);
-  const profile = unique ? { ...PRESENTATION_DEFAULTS, label: recipe, recipe } : { ...base, recipe };
+  const profile = unique && COMPACT_RECIPES.has(recipe)
+    ? { ...PRESENTATION_DEFAULTS, label: recipe, recipe }
+    : { ...base, recipe };
   return {
     ...profile,
     archetype,
