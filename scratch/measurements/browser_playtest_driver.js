@@ -148,7 +148,7 @@ const goals = {
   // which only the guardian branch (after healing) should do.
   // A trap the adventurer has already noticed is not a place to explore either:
   // it is crossed only when it lies on the way to something else.
-  frontier: (x, y) => !st().visitedMap[y][x] && st().map[y][x].event !== 'boss' && st().map[y][x].trap?.state !== 'discovered',
+  frontier: (x, y) => !st().visitedMap[y][x] && st().map[y][x].event !== 'boss' && st().map[y][x].trap?.state !== 'discovered' && !WATER.isDeepWater?.(st().map[y][x]),
   stairs: (x, y) => st().map[y][x].type === 'stairs-down',
   stairsUp: (x, y) => st().map[y][x].type === 'stairs-up',
   boss: (x, y) => st().map[y][x].event === 'boss',
