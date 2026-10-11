@@ -4,7 +4,7 @@ import { getOpenFacilityOrder, listFacilityNodes, listTownFacilities } from "../
 import { getNextGuidebookPage, listGuidebookPages } from "../systems/guidebook.js";
 import { formatDungeonFloor } from "../rules/dungeons.js";
 import {
-  TOWN_BUILDING_AREAS, TOWN_FACILITY_PLOTS, getFacilityArea, renderTownSceneSvg, toSceneBox
+  TOWN_BUILDING_AREAS, TOWN_FACILITY_PLOTS, getFacilityArea, paintTownScene, toSceneBox
 } from "./town_scene.js";
 
 function outcomeLabel(run) {
@@ -152,7 +152,7 @@ function renderFacilities() {
       const entry = entries[index];
       return entry ? (entry.open ? "open" : "waiting") : "empty";
     });
-    picture.innerHTML = renderTownSceneSvg(statuses);
+    paintTownScene(picture, statuses);
   }
   placeBuildings();
   const nodes = entries.map(({ facility, open }, index) => {

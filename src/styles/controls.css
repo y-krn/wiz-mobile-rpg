@@ -1561,8 +1561,7 @@
   margin: 0 calc(-1 * var(--sp-md));
   aspect-ratio: 180 / 260;
   overflow: hidden;
-  background: #2a2350;
-  image-rendering: pixelated;
+  background: #b8e1f1;
 }
 
 .town-scene-picture-host,
@@ -1571,6 +1570,10 @@
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.town-scene-picture {
+  image-rendering: pixelated;
 }
 
 .town-building,
@@ -1670,47 +1673,6 @@
 
 .town-rumor[hidden] {
   display: none;
-}
-
-@keyframes town-smoke-rise {
-  from { transform: translateY(0); opacity: 0.9; }
-  to { transform: translateY(-4px); opacity: 0.4; }
-}
-
-@keyframes town-flicker {
-  0%, 100% { opacity: 1; }
-  45% { opacity: 0.82; }
-  60% { opacity: 0.95; }
-}
-
-@keyframes town-spark {
-  0%, 70%, 100% { opacity: 0; }
-  75%, 85% { opacity: 1; }
-}
-
-.town-scene-picture .town-smoke {
-  animation: town-smoke-rise 2.4s ease-in-out infinite alternate;
-}
-
-.town-scene-picture .town-flicker {
-  animation: town-flicker 3.2s steps(4) infinite;
-}
-
-.town-scene-picture .town-twinkle {
-  animation: town-flicker 2.2s steps(2) infinite;
-}
-
-.town-scene-picture .town-spark {
-  animation: town-spark 1.6s steps(1) infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .town-scene-picture .town-smoke,
-  .town-scene-picture .town-flicker,
-  .town-scene-picture .town-twinkle,
-  .town-scene-picture .town-spark {
-    animation: none;
-  }
 }
 
 /* Without a recorded run the previous-run note stands alone. */
