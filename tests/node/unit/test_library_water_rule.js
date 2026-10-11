@@ -7,7 +7,7 @@ import { DUNGEONS } from "../../../src/data/dungeons.js";
 import { getDungeonEntryFloor, getDungeonRule } from "../../../src/rules/dungeons.js";
 import { generateRunFloor } from "../../../src/run_map_generator.js";
 import {
-  DEEP_WATER_DAMAGE_RATE, WATER_MAX_DEPTH, getDeepWaterDamage, getDungeonWaterRule, getWaterDepth,
+  DEEP_WATER_DAMAGE_RATE, WATER_MAX_DEPTH, WATER_RISES_PER_DEPTH, getDeepWaterDamage, getDungeonWaterRule, getWaterDepth,
   getWaterStatus, isDeepWater, riseWater, spreadWaterOnce
 } from "../../../src/systems/rising_water.js";
 
@@ -68,20 +68,20 @@ for (const seed of ["A", "B", "C"]) {
   assert.deepEqual(spreadWaterOnce(grid), [{ x: 1, y: 0 }, { x: 1, y: 1 }]);
 }
 
-// Each rise deepens the water already there: shallow, knee, deep. Deep water
-// costs a share of max HP per step (#2105).
+// Water deepens as it stands: shallow, knee, deep, one step per
+// WATER_RISES_PER_DEPTH rises. Deep water costs a share of max HP per step (#2105).
 {
   const cell = () => ({ type: "empty", walls: [false, false, false, false] });
-  const grid = [[cell(), cell(), cell(), cell()]];
+  const grid = [[cell(), cell(), cell(), cell(), cell(), cell(), cell(), cell(), cell(), cell()]];
   grid[0][0].hazard = { kind: "flood" };
   assert.equal(getWaterDepth(grid[0][0]), 1);
-  spreadWaterOnce(grid);
-  assert.deepEqual(grid[0].map(getWaterDepth), [2, 1, 0, 0]);
-  spreadWaterOnce(grid);
-  spreadWaterOnce(grid);
-  assert.deepEqual(grid[0].map(getWaterDepth), [WATER_MAX_DEPTH, WATER_MAX_DEPTH, 2, 1]);
+  for (let rise = 0; rise < WATER_RISES_PER_DEPTH; rise++) spreadWaterOnce(grid);
+  assert.equal(getWaterDepth(grid[0][0]), 2);
+  assert.equal(getWaterDepth(grid[0][WATER_RISES_PER_DEPTH]), 1);
+  for (let rise = 0; rise < WATER_RISES_PER_DEPTH; rise++) spreadWaterOnce(grid);
+  assert.equal(getWaterDepth(grid[0][0]), WATER_MAX_DEPTH);
   assert.equal(isDeepWater(grid[0][0]), true);
-  assert.equal(isDeepWater(grid[0][3]), false);
+  assert.equal(isDeepWater(grid[0][1]), false);
   assert.equal(getDeepWaterDamage(100), Math.ceil(100 * DEEP_WATER_DAMAGE_RATE));
   assert.equal(getDeepWaterDamage(1), 1);
 }

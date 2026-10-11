@@ -129,7 +129,7 @@ for the first time.
 | 1 | Collapsed mine | open from the start | **Noise.** Digging and drawn-out fights make noise, and noise brings monsters: go quietly or finish fast. |
 | 2 | Forgotten catacomb | the mine's treasure | **Curses.** Finds are cursed more often and a cursed piece is stronger for it, while chances to cleanse are few: cleanse it or wear the curse. |
 | 3 | Rift nest | the catacomb's treasure | **Collapse.** A ledge falls once crossed, so the way back is not the way down: choose which crossings to spend. |
-| 4 | Sunken library | the nest's treasure | **Rising water.** The longer the run stays on a floor, the more of it lies under water and costs turns: time is the resource. |
+| 4 | Sunken library | the nest's treasure | **Rising water.** The longer the run stays on a floor, the more of it lies under water, the deeper it gets (deep water costs HP), and the more chests sink: time is the resource. |
 | 5 | Dragon forge | the library's treasure | **Tempering.** Finds are few, materials are many, and every floor has a furnace: grow what is worn instead of replacing it. |
 | 6 | Abyssal throne | the forge's treasure | **Darkness.** The adventurer may put out their own light: monsters notice later and chests are better, but less is seen. |
 | — | Endless dungeon | the throne's treasure | Decided when it is built (#2065). |
@@ -218,8 +218,17 @@ The town shows it in one line on the library's card.
 
 - Flooded floor costs an extra turn to cross (#1963). Here the water rises
   with the turns spent on a floor: every twenty turns it spreads one ring
-  from every flooded cell, up to twelve times. Stairs, rooms, chests, and the
+  from every flooded cell, up to twelve times. Stairs, rooms, and the
   guardian stay dry, and since water is walkable no way is ever cut off.
+- The water deepens as it rises (#2105): each rise makes the water already
+  there one step deeper (shallow, knee-deep, deep). A step in deep water
+  costs a share of max HP as well as the turn, so a long stay turns the way
+  back into a drain.
+- A closed chest the water reaches sinks, and what was in it is lost: the
+  floor's treasure shrinks with the time spent on it.
+- The water is shown, not hinted: a flooded cell is a whole floor of water,
+  darker as it deepens, with a waterline on its walls, and the screen keeps
+  the level and the turns until the next rise.
 - A floor keeps its water, and the turns spent on it on the way back count
   on, so a floor explored long on the way down is slow to cross again with
   the hunter behind.

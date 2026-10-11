@@ -6,9 +6,9 @@
 // stay dry. The floor keeps its water for the way back, and the turns spent on
 // it then count on.
 //
-// Since #2105 the water also deepens: each rise makes the water already there
-// one step deeper (shallow, knee, deep), and a step in deep water costs a
-// share of max HP. A closed chest the water reaches sinks, and what was in it
+// Since #2105 the water also deepens: water that has stood through
+// `WATER_RISES_PER_DEPTH` rises gets one step deeper (shallow, knee, deep),
+// and a step in deep water costs a share of max HP. A closed chest the water reaches sinks, and what was in it
 // is lost.
 import { DX, DY } from "../constants/directions.js";
 import { getDungeonRule } from "../rules/dungeons.js";
@@ -18,11 +18,14 @@ const OPPOSITE = [2, 3, 0, 1];
 
 export const WATER_MAX_DEPTH = 3;
 export const WATER_DEPTH_LABELS = Object.freeze(["", "浅い", "膝まで", "深い"]);
-export const DEEP_WATER_DAMAGE_RATE = 0.06;
+export const DEEP_WATER_DAMAGE_RATE = 0.03;
+// Rises a cell must stand under water before it deepens one step.
+export const WATER_RISES_PER_DEPTH = 4;
 
 export function getWaterDepth(cell) {
   if (cell?.hazard?.kind !== TRAVERSAL_GIMMICKS.FLOOD) return 0;
-  return Math.min(WATER_MAX_DEPTH, Math.max(1, Number(cell.hazard.depth) || 1));
+  const age = Math.max(0, Number(cell.hazard.age) || 0);
+  return Math.min(WATER_MAX_DEPTH, 1 + Math.floor(age / WATER_RISES_PER_DEPTH));
 }
 
 export function isDeepWater(cell) {
@@ -59,7 +62,7 @@ export function spreadWaterOnce(grid, sunk = []) {
   const sinkChest = (next, nx, ny) => {
     // A closed chest the water reaches sinks with what was in it.
     next.event = null;
-    next.hazard = { kind: TRAVERSAL_GIMMICKS.FLOOD, discovered: false, risen: true, depth: 1, sunkChest: true };
+    next.hazard = { kind: TRAVERSAL_GIMMICKS.FLOOD, discovered: false, risen: true, age: 0, sunkChest: true };
     sunk.push({ x: nx, y: ny });
   };
   for (const { x, y } of flooded) {
@@ -82,9 +85,9 @@ export function spreadWaterOnce(grid, sunk = []) {
   }
   flooded.forEach(({ x, y }) => {
     const hazard = grid[y][x].hazard;
-    hazard.depth = Math.min(WATER_MAX_DEPTH, (Number(hazard.depth) || 1) + 1);
+    hazard.age = (Number(hazard.age) || 0) + 1;
   });
-  added.forEach(({ x, y }) => { grid[y][x].hazard = { kind: TRAVERSAL_GIMMICKS.FLOOD, discovered: false, risen: true, depth: 1 }; });
+  added.forEach(({ x, y }) => { grid[y][x].hazard = { kind: TRAVERSAL_GIMMICKS.FLOOD, discovered: false, risen: true, age: 0 }; });
   return added;
 }
 
