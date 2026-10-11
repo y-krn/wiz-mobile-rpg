@@ -14,7 +14,8 @@ import {
   purchaseWorkshopNode
 } from "../../../src/systems/workshop.js";
 import { normalizeSavePayload } from "../../../src/state/save_migrations.js";
-import { RETIRED_WORKSHOP_NODES, WORKSHOP_NODES } from "../../../src/data/workshop.js";
+import { RETIRED_WORKSHOP_NODES, WORKSHOP_LATERAL_UNLOCKS, WORKSHOP_NODES } from "../../../src/data/workshop.js";
+import { getGeneratableCoreIds } from "../../../src/systems/equipment_generation.js";
 import { isNormalizedMetaMaterialBalance } from "../../../src/state/material_balance.js";
 
 assert.deepEqual(createDefaultWorkshopState(), { ranks: {}, lateralUnlocks: [] });
@@ -63,7 +64,7 @@ const sourceWorkshop = { ranks: {}, lateralUnlocks: [] };
 const sourceMaterials = { "獣の牙": 4, "鉄片": 2 };
 assert.equal(purchaseWorkshopNode(sourceMaterials, sourceWorkshop, "missing_node").reason, "unknown_node");
 assert.equal(purchaseWorkshopNode(sourceMaterials, { ranks: {}, lateralUnlocks: ["gear_rapier"] }, "gear_rapier").reason, "already_unlocked");
-assert.equal(purchaseWorkshopNode(sourceMaterials, { ranks: {}, lateralUnlocks: [] }, "pool_thin_ice_pact").reason, "not_available_in_vnext");
+assert.equal(purchaseWorkshopNode(sourceMaterials, { ranks: {}, lateralUnlocks: [] }, "pool_thin_ice_pact").reason, "unknown_node");
 assert.equal(purchaseWorkshopNode(sourceMaterials, { ranks: { gear_rapier: 1 } }, "gear_rapier").reason, "max_rank");
 assert.equal(purchaseWorkshopNode({ "獣の牙": 1 }, sourceWorkshop, "gear_rapier").reason, "insufficient_materials");
 const purchased = purchaseWorkshopNode(sourceMaterials, sourceWorkshop, "gear_rapier");
@@ -73,26 +74,43 @@ assert.deepEqual(sourceMaterials, { "獣の牙": 4, "鉄片": 2 });
 assert.equal(purchased.workshop.ranks.gear_rapier, 1);
 assert.equal(purchased.metaMaterials["獣の牙"], 0);
 
-const unavailableCoreNodeIds = ["pool_thorn_shield", "pool_scholar_eye", "pool_thin_ice_pact"];
-const thinIceNode = WORKSHOP_NODES.find(entry => entry.id === "pool_thin_ice_pact");
-assert.equal(isWorkshopNodeUnlocked(thinIceNode, []), false);
-assert.equal(isWorkshopNodeUnlocked(thinIceNode, ["ABYSS_SEAL"]), true);
-for (const nodeId of unavailableCoreNodeIds) {
-  const node = WORKSHOP_NODES.find(entry => entry.id === nodeId);
-  assert.ok(node);
-  assert.equal(isWorkshopNodeAvailableInVNext(node), false);
-  assert.deepEqual(purchaseWorkshopNode({}, sourceWorkshop, nodeId, ["abyss_seal"]), {
-    ok: false,
-    reason: "not_available_in_vnext"
-  });
+// Every Workshop memory and automatic lateral unlock must change what a run
+// can generate; a node whose Cores never generate would take materials or
+// announce an unlock for nothing (#2111).
+for (const node of WORKSHOP_NODES) {
+  assert.equal(isWorkshopNodeAvailableInVNext(node), true, `${node.id} is purchasable in Build vNext`);
+  const affixIds = node.grants.affixIds || [];
+  assert.deepEqual(getGeneratableCoreIds(affixIds).filter(id => affixIds.includes(id)).sort(), [...affixIds].sort(),
+    `${node.id} grants only Cores that generation can hand out`);
 }
-const previouslyUnlocked = applyWorkshopToCharacter({ unlockedAffixIds: [] }, {
-  ranks: Object.fromEntries(unavailableCoreNodeIds.map(nodeId => [nodeId, 1])),
-  lateralUnlocks: []
+for (const { nodeId } of WORKSHOP_LATERAL_UNLOCKS) {
+  assert.ok(WORKSHOP_NODES.some(node => node.id === nodeId), `${nodeId} lateral unlock targets a live node`);
+}
+assert.equal(isWorkshopNodeAvailableInVNext({ grants: { affixIds: ["CORE_THORN_SHIELD"] } }), false);
+assert.equal(isWorkshopNodeUnlocked({ requiresKeyItem: "ABYSS_SEAL" }, []), false);
+assert.equal(isWorkshopNodeUnlocked({ requiresKeyItem: "ABYSS_SEAL" }, ["ABYSS_SEAL"]), true);
+
+const retiredCoreNodeIds = ["pool_thorn_shield", "pool_scholar_eye", "pool_thin_ice_pact"];
+for (const nodeId of retiredCoreNodeIds) {
+  assert.ok(!WORKSHOP_NODES.some(node => node.id === nodeId), `${nodeId} is no longer offered`);
+  assert.ok(RETIRED_WORKSHOP_NODES.some(node => node.id === nodeId), `${nodeId} is refunded by save migration`);
+}
+const retiredCoreSave = normalizeSavePayload({
+  workshop: {
+    ranks: { pool_thorn_shield: 1, pool_scholar_eye: 1, pool_thin_ice_pact: 1, pool_blood_wand: 1 },
+    lateralUnlocks: ["pool_scholar_eye", "pool_trap_eater"]
+  },
+  metaMaterials: { "霊粉": 1 }
 });
-assert.deepEqual(previouslyUnlocked.unlockedAffixIds.sort(), [
-  "CORE_SCHOLAR_EYE", "CORE_THIN_ICE_PACT", "CORE_THORN_SHIELD"
-]);
+assert.deepEqual(retiredCoreSave.workshop, {
+  ranks: { pool_blood_wand: 1 },
+  lateralUnlocks: ["pool_trap_eater"]
+});
+assert.deepEqual(retiredCoreSave.metaMaterials, {
+  ...retiredCoreSave.metaMaterials,
+  "硬い皮": 7, "呪布": 3, "霊粉": 8, "骨片": 3, "黒角": 7, "竜鱗": 3
+});
+assert.equal(isNormalizedWorkshopState(retiredCoreSave.workshop), true);
 
 assert.equal(canAffordDepartureCraft({}, [123]), false);
 assert.equal(purchaseDepartureCraft({}, [123]).reason, "unknown_recipe");

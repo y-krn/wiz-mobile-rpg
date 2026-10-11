@@ -38,22 +38,10 @@ test("workshop purchase spends declared materials and records unlock", () => {
   assert.equal(result.workshop.ranks.gear_rapier, 1);
 });
 
-test("Build vNext-disabled Core node stays unavailable with or without its key", () => {
+test("retired Core memory can no longer be bought", () => {
   const materials = { "黒角": 7, "竜鱗": 3 };
-  const locked = purchaseWorkshopNode(materials, { ranks: {} }, "pool_thin_ice_pact");
-  assert.equal(locked.ok, false);
-  assert.equal(locked.reason, "not_available_in_vnext");
-  assert.deepEqual(materials, { "黒角": 7, "竜鱗": 3 });
-
-  const keyItems = ["ABYSS_SEAL"];
-  const result = purchaseWorkshopNode(
-    materials,
-    { ranks: {} },
-    "pool_thin_ice_pact",
-    keyItems
-  );
-  assert.deepEqual(result, { ok: false, reason: "not_available_in_vnext" });
-  assert.deepEqual(keyItems, ["ABYSS_SEAL"]);
+  const result = purchaseWorkshopNode(materials, { ranks: {} }, "pool_thin_ice_pact", ["ABYSS_SEAL"]);
+  assert.deepEqual(result, { ok: false, reason: "unknown_node" });
   assert.deepEqual(materials, { "黒角": 7, "竜鱗": 3 });
 });
 

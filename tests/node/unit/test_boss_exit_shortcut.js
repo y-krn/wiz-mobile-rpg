@@ -32,7 +32,7 @@ assert.deepEqual(stateLike.unlockedMilestones, [], "the dungeon is cleared only 
 assert.deepEqual(stateLike.keyItems, ["FORGE_SEAL"]);
 assert.equal(stateLike.mapRevision, 1);
 
-// The abyss seal opens a workshop shelf, named as the workshop names it.
+// The abyss seal no longer opens a workshop shelf, so it announces none (#2111).
 const deepState = {
   floor: 10,
   x: 0,
@@ -46,7 +46,7 @@ const deepState = {
 // Beating the catacomb's guardian promises the rift nest (#2064).
 assert.deepEqual(applyPendingOutcomeRewards(deepState, { kind: "milestoneVictory", floor: 10 }), [
   "生きて帰れば、大裂溝の巣窟への道が開く。",
-  "深淵の印を手に入れた。工房に「深淵の型」が並ぶようになった。"
+  "深淵の印を手に入れた。"
 ]);
 
 console.log("[PASS] milestone boss victory opens a local stairs-down shortcut");

@@ -122,7 +122,7 @@ function normalizeLateralUnlocks(value: unknown): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
   for (const nodeId of value) {
-    if (typeof nodeId !== "string" || seen.has(nodeId)) continue;
+    if (typeof nodeId !== "string" || seen.has(nodeId) || RETIRED_WORKSHOP_NODE_IDS.has(nodeId)) continue;
     seen.add(nodeId);
     normalized.push(nodeId);
   }
