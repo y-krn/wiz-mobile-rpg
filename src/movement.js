@@ -31,7 +31,7 @@ import { getFeatAnnouncementLines, getNearestFeats } from "./systems/feats.js";
 import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { addNoise, applyNoiseToEncounterChance } from "./systems/dungeon_noise.js";
-import { riseWater } from "./systems/rising_water.js";
+import { getDeepWaterDamage, getWaterStatus, isDeepWater, riseWater } from "./systems/rising_water.js";
 import { applyDarknessToEncounterChance, getDarknessDetectionFactor, isDark } from "./systems/darkness.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
@@ -100,9 +100,12 @@ export function recordExplorationSteps(count = 1) {
   state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + count;
   if (refreshHeatHazards(state.map, state.currentRun.floorSteps[key])) markMapChanged();
   // The library's rule (#2063): the water rises with the turns spent here.
-  if (riseWater(state) > 0) {
+  const sunk = [];
+  if (riseWater(state, state.map, state.floor, sunk) > 0) {
     markMapChanged();
-    addLog("水位が上がった。床の水が広がっていく……");
+    const level = getWaterStatus(state);
+    addLog(`水位が上がった（${level.level}/${level.maxLevel}）。水が広がり、深みが増していく……`);
+    if (sunk.length > 0) addLog(`宝箱が${sunk.length}つ水に沈んだ。中身はもう駄目だろう。`);
   }
   // Carrying gives the first observation early; later signs require a
   // meaningful low-frequency exploration pulse instead of every step.
@@ -287,7 +290,9 @@ function resolveTraversalStep() {
     if (cell.obstacle?.kind === TRAVERSAL_GIMMICKS.CRUMBLE && cell.obstacle.state === "intact") {
       addLog("崩れかけた足場がある。一度渡れば崩れ落ちそうだ。");
     } else if (cell.hazard?.kind === TRAVERSAL_GIMMICKS.FLOOD) {
-      addLog("床が水に沈んでいる。踏み込めば足を取られそうだ。");
+      addLog(isDeepWater(cell)
+        ? "この先は深みになっている。踏み込めば溺れかけそうだ。"
+        : "床が水に沈んでいる。踏み込めば足を取られそうだ。");
     } else if (cell.hazard?.kind === TRAVERSAL_GIMMICKS.HEAT) {
       addLog("床の格子から熱気が噴き出している。熱が引く間合いがあるようだ。");
     } else if (cell.obstacle?.kind === TRAVERSAL_GIMMICKS.RUBBLE && isTraversalObstacleBlocking(cell)) {
@@ -310,7 +315,20 @@ function applyTraversalHazards() {
   hazard.discovered = true;
   markMapChanged();
   if (hazard.kind === TRAVERSAL_GIMMICKS.FLOOD) {
-    addLog("水に足を取られ、進むのに余計な時間がかかった（+1手番）。");
+    if (isDeepWater(cell)) {
+      // Deep water (#2105) chills and half-drowns the adventurer.
+      playSound("hit");
+      state.party.forEach(c => {
+        if (c.status === "dead" || c.hp <= 0) return;
+        const damage = getDeepWaterDamage(getCharMaxHp(c), c.hp);
+        c.hp -= damage;
+        addLog(damage > 0
+          ? `深みに足を取られ、水を飲んだ！${c.name}は${damage}のダメージを受けた（+1手番）。`
+          : `深みに足を取られ、溺れかけた。${c.name}はかろうじて息をつないだ（+1手番）。`);
+      });
+    } else {
+      addLog("水に足を取られ、進むのに余計な時間がかかった（+1手番）。");
+    }
     const turn = consumeExplorationTurn();
     return Boolean(turn.wiped || turn.encounter || state.gameState !== "explore");
   }

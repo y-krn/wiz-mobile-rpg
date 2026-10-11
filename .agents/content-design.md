@@ -64,7 +64,8 @@ style identifier.
 
 Traversal gimmicks follow the same rule: rubble, a sealed slab, a floor
 lever, a cracked ledge, standing water, and a heat grate each read by
-silhouette in the corridor view (a grate glows only while it burns), and their
+silhouette in the corridor view (a grate glows only while it burns; standing
+water covers the cell's floor and darkens with depth), and their
 map glyphs stay distinct from traps and facilities. Spinners are the one
 deliberate exception: they stay invisible until stepped on, as the genre
 expects, and are marked on the map from then on. Their wording names the cost of resolving

@@ -44,6 +44,8 @@ const FACILITY_DATA = await import('/src/data/facilities.js');
 const DUNGEON_RULES = await import('/src/rules/dungeons.js');
 const EXPLORE = await import('/src/menu/explore_actions.js');
 const DARK = await import('/src/systems/darkness.js');
+const WATER = await import('/src/systems/rising_water.js');
+const WATER_LEAVE_LEVEL = 8;
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 // Real (unscaled) sleep when the runner accelerates timers.
@@ -130,6 +132,8 @@ W.__bfs = (goal, allowTraps = false, { throughRubble = false, ignoreElites = fal
       if (!c.walls[d] && MAPU.isMapDirectionBlocked(s.map, x, y, d)) continue;
       const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= Wd || ny >= H) continue;
       const t = s.map[ny][nx].trap; if (t && t.state === 'discovered' && !allowTraps && !goal(nx, ny)) continue;
+      // Deep water (#2105) costs HP per step: walk around it like a known trap.
+      if (WATER.isDeepWater?.(s.map[ny][nx]) && !allowTraps && !goal(nx, ny)) continue;
       // Rubble, a closed seal or a collapsed ledge stops the step; every required
       // cell stays reachable around them, so route past instead of digging.
       if (GIMMICKS.isTraversalObstacleBlocking(s.map[ny][nx]) && !(throughRubble && isRubble(s.map[ny][nx]))) continue;
@@ -145,7 +149,7 @@ const goals = {
   // which only the guardian branch (after healing) should do.
   // A trap the adventurer has already noticed is not a place to explore either:
   // it is crossed only when it lies on the way to something else.
-  frontier: (x, y) => !st().visitedMap[y][x] && st().map[y][x].event !== 'boss' && st().map[y][x].trap?.state !== 'discovered',
+  frontier: (x, y) => !st().visitedMap[y][x] && st().map[y][x].event !== 'boss' && st().map[y][x].trap?.state !== 'discovered' && !WATER.isDeepWater?.(st().map[y][x]),
   stairs: (x, y) => st().map[y][x].type === 'stairs-down',
   stairsUp: (x, y) => st().map[y][x].type === 'stairs-up',
   boss: (x, y) => st().map[y][x].event === 'boss',
@@ -660,6 +664,10 @@ const stopExploring = (policy, p) => {
   if (policy.explore === 0) return true;
   // Two escapes from a roaming elite on one floor: it is hunting, so leave.
   if ((W.__eliteFlees[st().floor] || 0) >= 2) return true;
+  // The library's water (#2105) is on screen: once it has risen far enough to
+  // start deepening, a player moves on rather than wade through it.
+  const water = WATER.getWaterStatus?.(st());
+  if (water && water.level >= WATER_LEAVE_LEVEL) return true;
   // Hurt: stay only while walking gives HP back (descending does not heal).
   if (p.hp < DATA.getCharMaxHp(p) * policy.explore) return !worthWalking(policy, p);
   // Healthy: keep exploring, except on a cleared milestone floor.

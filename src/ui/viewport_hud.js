@@ -4,6 +4,7 @@ import { menuContext } from "../navigation.js";
 import { getScreenViewState } from "../state/view_state.js";
 import { getEnemyHpState } from "../rules/enemy_hp_state.js";
 import { getHuntStatus } from "../systems/round_trip.js";
+import { getWaterStatus } from "../systems/rising_water.js";
 
 // Round-trip prototype (#2066, #2069): the hunter comes from behind, where the
 // view never shows it, so its distance stays on screen for the whole way back.
@@ -25,6 +26,21 @@ function createHuntChip() {
   // The log announces the approach; the live region need not repeat every step.
   chip.setAttribute("aria-hidden", "true");
   chip.textContent = describeHunt(status);
+  return chip;
+}
+
+// The library's water (#2105): its level and the turns until it rises again.
+function createWaterChip() {
+  const status = getWaterStatus(state);
+  if (!status) return null;
+  const chip = document.createElement("div");
+  chip.className = "hud-water";
+  chip.dataset.level = String(status.level);
+  chip.dataset.stage = status.level >= status.maxLevel * 2 / 3 ? "high" : status.level >= status.maxLevel / 3 ? "mid" : "low";
+  chip.setAttribute("aria-hidden", "true");
+  chip.textContent = status.full
+    ? `水位 ${status.level}/${status.maxLevel}（満水）`
+    : `水位 ${status.level}/${status.maxLevel}・あと${status.turnsToRise}手番で上昇`;
   return chip;
 }
 
@@ -72,6 +88,8 @@ export function updateViewportHUD() {
     ? `${state.lightPower === "lomilwa" ? "大灯り" : "灯り"}: 残り${state.lightTurns}手番 / 方角: ${dirLabel}`
     : isDark(state) ? `闇の中 / 方角: ${dirLabel}` : `方角: ${dirLabel}`;
   hud.appendChild(direction);
+  const waterChip = createWaterChip();
+  if (waterChip) hud.appendChild(waterChip);
   const huntChip = createHuntChip();
   if (huntChip) hud.appendChild(huntChip);
 }
