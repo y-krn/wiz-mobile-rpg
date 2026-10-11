@@ -1388,16 +1388,19 @@ export class PixiDungeonRenderer {
         (floorY * 0.94) / presentation.maxHeight,
         (slotWidth * 0.82) / presentation.maxWidth
       );
-      const hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
-      // Keep the last drawn position even after the enemy falls, so a killing
-      // blow still shows its number where that enemy stood.
-      this.combatAnchors.set(monsterIndex, { x: cx, y: (hpY + floorY) / 2, scale });
+      let hpY = Math.max(18, floorY - presentation.height * visualScale - 5);
       drawEllipse(actors, cx, floorY, Math.min(42, presentation.width * visualScale * 0.42), 5.5 * scale, "#2e2640", 0.28);
       if (this.enemyPresentationMode === "production") {
-        this.drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column);
+        const enemy = this.drawProceduralEnemy(actors, presentation, cx, floorY, visualScale, color, row, column);
+        // Crowns, ears, and airborne swarms can rise above the old family
+        // height. Keep the full HP bar above the actual outlined silhouette.
+        hpY = Math.max(18, Math.min(hpY, floorY + enemy.getLocalBounds().y - 10));
       } else {
         this.drawEnemyPrototype(actors, monster, cx, floorY, visualScale, color, row, column, this.enemyPresentationMode);
       }
+      // Keep the last drawn position even after the enemy falls, so a killing
+      // blow still shows its number where that enemy stood.
+      this.combatAnchors.set(monsterIndex, { x: cx, y: (hpY + floorY) / 2, scale });
       const hp = Math.max(0, Math.min(1, monster.hp / Math.max(1, monster.maxHp)));
       drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8), 5, "#2e2640", 0.55, { color: "#2e2640", width: 1.5 });
       drawRect(actors, cx - Math.min(100, slotWidth - 8) / 2, hpY, Math.min(100, slotWidth - 8) * hp, 5, color, 0.9);
@@ -1462,6 +1465,7 @@ export class PixiDungeonRenderer {
     billboard.addChild(createProceduralEnemy(presentation.recipe, visualScale, presentation));
     actors.addChild(billboard);
     this.resourceStats.enemyPresentationCount += 1;
+    return billboard;
   }
 
   drawTargetMarker(hitRegion, cx, cy, scale, color) {

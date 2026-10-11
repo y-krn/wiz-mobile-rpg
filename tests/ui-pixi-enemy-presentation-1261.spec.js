@@ -136,6 +136,16 @@ test('all monster species have different geometry and fit their Pixi slots @smok
   const frames = [];
   for (const { name, monster } of proof) {
     await setCombat(page, [monster]);
+    const clearHp = await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer_runtime.js');
+      const { getCombatMonsterLayout } = await import('/src/rules/renderer_projection.js');
+      const layout = getCombatMonsterLayout(dungeonRenderer.getRenderInput().combatMonsters, dungeonRenderer.viewport)[0];
+      const floorY = layout.cy + 30 * layout.scale;
+      const hpY = 2 * dungeonRenderer.combatAnchors.get(0).y - floorY;
+      const enemy = dungeonRenderer.scene.layers.actors.children.find(child => child.label?.startsWith('enemy-'));
+      return hpY + 5 <= enemy.getBounds().y - 4;
+    });
+    expect(clearHp, `${name} HP bar stays above the silhouette`).toBe(true);
     frames.push({ name, frame: await capture(page, testInfo, `species-${name}.png`) });
   }
   for (let start = 0; start < frames.length; start += 20) {
