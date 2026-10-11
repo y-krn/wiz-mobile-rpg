@@ -78,8 +78,10 @@ test('The workshop says what each shelf adds, without internal terms', async ({ 
   await page.locator('#btn-town-workshop').click();
   await expect(page.locator('#submenu-title')).toHaveText('工房');
   const options = page.locator('#submenu-options');
-  await expect(options.locator('.workshop-purpose')).toContainText('次の冒険で選べるものを増やす');
-  await expect(options.locator('.workshop-category').first()).toHaveText('開始武器');
+  // The workshop's everyday use is the prototype for the next departure (#2109).
+  await expect(options.locator('.workshop-purpose')).toContainText('出発前の試作品を作る');
+  await expect(options.locator('.workshop-category').first()).toHaveText('次の出発の試作品');
+  await expect(options.locator('.workshop-category').nth(1)).toHaveText('開始武器');
   await expect(options).toContainText('迷宮で見つかる品');
   await expect(options).toContainText('30〜60ダメージ');
   const text = await options.textContent();

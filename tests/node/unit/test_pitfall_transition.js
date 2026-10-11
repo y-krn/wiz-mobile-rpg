@@ -67,7 +67,11 @@ try {
   for (let y = 1; y < state.map.length - 1 && !edge; y++) {
     for (let x = 1; x < state.map[y].length - 1 && !edge; x++) {
       for (let dir = 0; dir < 4; dir++) {
-        if (!state.map[y][x].walls[dir] && !state.map[y][x].blockEnter?.[dir]) {
+        // The step must land on a plain cell: the run's map is drawn fresh,
+        // and a traversal obstacle or hazard there would stop the step first.
+        const next = state.map[y + [-1, 0, 1, 0][dir]]?.[x + [0, 1, 0, -1][dir]];
+        const plain = next && !next.obstacle && !next.hazard && !next.event && !next.lever;
+        if (plain && !state.map[y][x].walls[dir] && !state.map[y][x].blockEnter?.[dir]) {
           edge = { x, y, dir };
           break;
         }

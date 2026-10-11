@@ -1693,3 +1693,49 @@
   padding: 1px 3px 2px;
   letter-spacing: 0;
 }
+
+/* Workshop prototypes (#2109): the offer in preparation and the bench in the
+   workshop read like the other preparation and workshop rows. */
+.solo-start-prototypes {
+  display: grid;
+  gap: var(--sp-sm);
+}
+
+.solo-start-prototype-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.workshop-prototypes {
+  display: grid;
+  gap: var(--sp-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workshop-prototypes li {
+  display: grid;
+  gap: var(--sp-xxs);
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+}
+
+.workshop-prototypes strong {
+  font-size: var(--fs-md);
+}
+
+.workshop-prototypes span {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.workshop-prototypes small {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
