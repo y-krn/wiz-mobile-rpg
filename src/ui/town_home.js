@@ -1,9 +1,11 @@
 import { state, getStartingKit } from "../state.js";
-import { getNearestFeats, listFeats } from "../systems/feats.js";
-import { createFeatCard } from "./feat_card.js";
+import { formatFeatProgress, getNearestFeats, listFeats } from "../systems/feats.js";
 import { getOpenFacilityOrder, listFacilityNodes, listTownFacilities } from "../systems/facilities.js";
 import { getNextGuidebookPage, listGuidebookPages } from "../systems/guidebook.js";
 import { formatDungeonFloor } from "../rules/dungeons.js";
+import {
+  TOWN_BUILDING_AREAS, TOWN_FACILITY_PLOTS, getFacilityArea, paintTownScene, toSceneBox
+} from "./town_scene.js";
 
 function outcomeLabel(run) {
   if (run?.outcome === "death" || run?.returnReason === "gameover") return "死亡";
@@ -98,43 +100,43 @@ function renderCastleEntry(hasRecord) {
   if (detail) detail.textContent = copy.detail;
 }
 
-// The three unachieved feats closest to completion: the town always shows
-// something within reach (#2007).
-let renderedFeatSignature = null;
-
+// The tavern counts the feats; its board's nearest notice is told in a line
+// under the picture, so the town always shows something within reach (#2007,
+// #2107). The full list is inside the tavern.
 function renderFeatSummary() {
-  const container = document.getElementById("town-feat-summary");
-  if (!container) return;
   const entries = listFeats(state.feats);
-  const nearest = getNearestFeats(state.feats, null, 3);
-  // Rebuild only when what is shown changes: replacing the cards on every UI
-  // update would disturb the town page's scroll position.
-  const signature = [
-    entries.filter(entry => entry.completed).length,
-    ...nearest.map(({ feat, progress }) => `${feat.id}:${progress.current}`)
-  ].join("|");
-  if (signature === renderedFeatSignature && container.firstChild) return;
-  renderedFeatSignature = signature;
-  const nodes = nearest.map(({ feat, progress }) => createFeatCard({ feat, completed: false, progress }));
-  if (nodes.length === 0) {
-    const done = document.createElement("p");
-    done.className = "town-feat-empty";
-    done.textContent = "すべての偉業を達成した。";
-    nodes.push(done);
-  }
-  container.replaceChildren(...nodes);
   const detail = typeof document.querySelector === "function"
     ? document.querySelector("[data-town-feats-detail]")
     : null;
-  if (detail) {
-    detail.textContent = `達成 ${entries.filter(entry => entry.completed).length} / ${entries.length}`;
-  }
+  if (detail) detail.textContent = `達成 ${entries.filter(entry => entry.completed).length} / ${entries.length}`;
+  const line = document.getElementById("town-board-line");
+  if (!line) return;
+  const [nearest] = getNearestFeats(state.feats, null, 1);
+  line.hidden = !nearest;
+  if (!nearest) return;
+  line.setAttribute?.("data-feat-id", nearest.feat.id);
+  line.textContent = `酒場の掲示板には「${nearest.feat.name}」（${formatFeatProgress(nearest.feat, nearest.progress)}）の貼り紙。`;
 }
 
 let renderedFacilitySignature = null;
 
-// One slot per open facility, plus a silhouette with a hint for the next
-// keeper to look for; afterwards it is the way in (#2009, #2018).
+function placeOver(element, area) {
+  if (!element?.style) return;
+  Object.assign(element.style, toSceneBox(area));
+}
+
+// Each building's button covers the building drawn in the picture.
+function placeBuildings() {
+  if (typeof document.querySelectorAll !== "function") return;
+  document.querySelectorAll("[data-town-building]").forEach(building => {
+    const area = TOWN_BUILDING_AREAS[building.getAttribute("data-town-building")];
+    if (area) placeOver(building, area);
+  });
+}
+
+// One house per facility along the front street: lit once its keeper is home,
+// dark with "？？？" while the next keeper still waits below (#2009, #2018,
+// #2107). The hint for the one still waiting is pinned to the board as a rumour.
 function renderFacilities() {
   const container = document.getElementById("town-facilities");
   if (!container) return;
@@ -144,15 +146,27 @@ function renderFacilities() {
     .join("|");
   if (signature === renderedFacilitySignature && container.firstChild) return;
   renderedFacilitySignature = signature;
-  const nodes = entries.map(({ facility, open }) => {
+  const picture = document.getElementById("town-scene-picture");
+  if (picture) {
+    const statuses = TOWN_FACILITY_PLOTS.map((_, index) => {
+      const entry = entries[index];
+      return entry ? (entry.open ? "open" : "waiting") : "empty";
+    });
+    paintTownScene(picture, statuses);
+  }
+  placeBuildings();
+  const nodes = entries.map(({ facility, open }, index) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `btn btn-neon btn-town town-facility${open ? "" : " is-locked"}`;
+    button.className = `town-building town-facility${open ? "" : " is-locked"}`;
     button.setAttribute?.("data-facility-id", facility.id);
     button.setAttribute?.("data-facility-open", String(open));
     button.disabled = !open;
-    const name = document.createElement("strong");
+    placeOver(button, getFacilityArea(index));
+    const name = document.createElement("span");
+    name.className = "town-plaque";
     const detail = document.createElement("span");
+    detail.className = "sr-only";
     if (open) {
       const bought = listFacilityNodes(facility.id, { facilities: state.facilities, feats: state.feats, metaMaterials: {} })
         .filter(entry => entry.bought).length;
@@ -173,6 +187,16 @@ function renderFacilities() {
     return button;
   });
   container.replaceChildren(...nodes);
+  renderRumors(entries);
+}
+
+// Whoever still waits below is a rumour told under the previous run.
+function renderRumors(entries) {
+  const container = document.getElementById("town-rumors");
+  if (!container) return;
+  const waiting = entries.find(entry => !entry.open);
+  container.textContent = waiting ? `噂では、${waiting.facility.lockedHint}` : "";
+  container.hidden = !waiting;
 }
 
 function renderGuidebookEntry() {

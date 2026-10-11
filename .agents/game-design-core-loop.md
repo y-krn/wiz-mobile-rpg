@@ -541,6 +541,18 @@ pace and route.
   under the same limits as the Workshop: a starting kit, a change to a room
   the dungeon already has, never a permanent stat or a targeted drop.
 
+The town home is the town itself (#2107): a storybook pixel picture of the mining
+town in which each role is a building, and the building is the way in (the
+castle, the tavern with its board of feats, the library with the guidebook's
+lectern, the workshop, and one house per facility along the front street,
+dark until its keeper is brought home). The mine mouth leads to preparation.
+Under the picture the previous run, the tavern board's nearest notice, and a
+rumour of whoever still waits below are each told in a line. Counts and lists
+live inside the buildings (the records in the castle, the feats in the
+tavern); the town shows the place first. The picture keeps the dungeon's
+storybook pixel look (daylight, ink outlines, textured stone, tiles, plaster
+and cobbles, cast shadows, light haze), painted pixel by pixel.
+
 Recovered dungeon equipment is terminal evidence, not permanent next-run
 combat equipment. Dungeon-acquired consumables also remain run loot and never
 replenish preparation storage. Only unused departure-craft supplies return

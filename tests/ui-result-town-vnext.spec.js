@@ -364,8 +364,12 @@ test('Town shows the three closest feats and opens the full list', async ({ page
     updateUI();
   });
 
-  const cards = page.locator('#town-feat-summary .feat-card');
-  await expect(cards).toHaveCount(3);
+  // The nearest notice is told under the town picture; the board itself is
+  // the tavern's list, closest first (#2107).
+  await expect(page.locator('#town-board-line')).toHaveAttribute('data-feat-id', 'elite_5');
+  await expect(page.locator('#town-board-line')).toContainText('強敵狩り');
+  await page.locator('#btn-town-feats').click();
+  const cards = page.locator('.feat-list-section[aria-label="これから"] .feat-card');
   await expect(cards.nth(0)).toHaveAttribute('data-feat-id', 'elite_5');
   await expect(cards.nth(0)).toContainText('強敵狩り');
   await expect(cards.nth(0)).toContainText('4 / 5');
@@ -375,11 +379,8 @@ test('Town shows the three closest feats and opens the full list', async ({ page
   await expect(cards.nth(1)).toContainText('B2F / 地下墓地 B5F');
   // The guardian of the next dungeon is no nearer for having beaten this one (#2060).
   await expect(cards.nth(2)).toHaveAttribute('data-feat-id', 'chest_30');
-  await expect(page.locator('#btn-town-feats')).toContainText('達成 2 / 26');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
-
-  await page.locator('#btn-town-feats').click();
   await expect(page.locator('#submenu-title')).toContainText('偉業');
   await expect(page.locator('.feat-list-summary')).toContainText('達成 2 / 26');
   await expect(page.locator('.feat-list-grid .feat-card')).toHaveCount(26);
@@ -388,6 +389,7 @@ test('Town shows the three closest feats and opens the full list', async ({ page
   await expect(page.locator('.feat-card[data-feat-id="kits_4"]')).toContainText('0 / 4');
   await page.locator('#btn-submenu-back').click();
   await expect(page.locator('#town-controls')).toBeVisible();
+  await expect(page.locator('#btn-town-feats')).toContainText('達成 2 / 26');
 });
 
 test('Result shows the feats achieved and how far the closest ones moved', async ({ page }) => {
@@ -422,7 +424,7 @@ test('Result shows the feats achieved and how far the closest ones moved', async
   await page.reload();
   await expect(page.locator('[data-result-feats] .result-feat-row').nth(0)).toContainText('坑道を抜ける');
   await page.locator('#btn-result-castle').click();
-  await expect(page.locator('#town-feat-summary .feat-card').first()).toHaveAttribute('data-feat-id', 'elite_5');
+  await expect(page.locator('#town-board-line')).toHaveAttribute('data-feat-id', 'elite_5');
 });
 
 test('Explore shows the closest feats with live progress and announces a feat once', async ({ page }) => {
@@ -466,7 +468,7 @@ test('Explore shows the closest feats with live progress and announces a feat on
   expect(live.storedChests).toBe(29);
 });
 
-test('Town home is organized as previous run, next descent, and accumulated knowledge', async ({ page }) => {
+test('Town home is a picture of the town, then the previous run and the tavern board', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
@@ -480,13 +482,14 @@ test('Town home is organized as previous run, next descent, and accumulated know
 
   const home = page.locator('[data-town-home]');
   await expect(home).toBeVisible();
+  // The town is a picture with its buildings' signs, then the previous run
+  // and the tavern board (#2107).
+  await expect(home.locator('.town-scene')).toBeVisible();
   await expect(home.locator('.town-home-section').nth(0)).toContainText('前回の冒険');
   await expect(home.locator('.town-home-section').nth(0)).toContainText('死亡');
   await expect(home.locator('.town-home-section').nth(0)).toContainText('開始キット');
-  await expect(home.locator('.town-home-section').nth(1)).toContainText('次の冒険');
-  await expect(home.locator('#town-next-run-title')).toHaveText('あと少しで届く偉業');
-  await expect(home.locator('.town-home-section').nth(2)).toContainText('街の施設');
-  await expect(home.locator('.town-home-section').nth(3)).toContainText('これまでの蓄え');
+  await expect(home.locator('#town-facilities')).toHaveCount(1);
+  await expect(page.locator('#btn-town-feats')).toContainText('酒場');
   await expect(page.locator('#btn-town-dungeon')).toContainText('準備を整える');
   await expect(page.locator('#btn-town-dungeon')).toContainText('開始キットと行き先を選ぶ');
   await expect(page.locator('#btn-town-dungeon')).not.toContainText('クラス');

@@ -23,7 +23,6 @@ import { describeFloor } from "./floor_label.js";
 import { formatFloorCode, getDungeonFloor, isDungeonBottomFloor, isDungeonEntryFloor } from "../rules/dungeons.js";
 import { formatFeatProgress, getFeat, getLiveFeatCounters, getNearestFeats } from "../systems/feats.js";
 import { getEscortNames } from "../systems/facilities.js";
-import { updateRecordsStrip } from "./records_view.js";
 import { renderTownHome } from "./town_home.js";
 import { getScreenViewState } from "../state/view_state.js";
 import {
@@ -373,7 +372,6 @@ function updateMinimapToggle(isExploreHud) {
 
 export function updateUI() {
   resetViewportZoom();
-  updateRecordsStrip();
   const view = getScreenViewState(state, menuContext);
   syncPwaUpdateAvailability(view);
   const { gameState } = view;

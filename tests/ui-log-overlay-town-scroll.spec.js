@@ -16,7 +16,9 @@ const OVERLAYS = [
   {
     name: 'archives',
     selector: '#archives-overlay',
-    open: async (page) => page.getByRole('button', { name: /迷宮について分かったこと/ }).click(),
+    // The library's sign sits in the town picture at the top of the page
+    // (#2107); a pointer click would scroll back up to it first.
+    open: async (page) => page.getByRole('button', { name: /迷宮について分かったこと/ }).evaluate(button => button.click()),
     close: async (page) => page.locator('#archives-overlay').getByRole('button', { name: /閉じる/ }).click(),
   },
 ];

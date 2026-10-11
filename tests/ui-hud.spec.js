@@ -71,12 +71,14 @@ for (const vp of VIEWPORTS) {
       updateUI();
     });
 
-    const recordsStrip = page.locator('#records-strip');
-    await expect(recordsStrip).toBeVisible();
-    await expect(recordsStrip).toContainText('帰還最深');
-    await expect(recordsStrip).toContainText('B12F');
-    await expect(recordsStrip).toContainText('死亡最深');
-    const titleBox = await recordsStrip.boundingBox();
+    // The records live in the castle (#2107); the town home is its picture.
+    await page.locator('#btn-town-castle').click();
+    const records = page.locator('.records-menu-summary');
+    await expect(records).toBeVisible();
+    await expect(records).toContainText('帰還最深');
+    await expect(records).toContainText('B12F');
+    await expect(records).toContainText('死亡最深');
+    const titleBox = await records.boundingBox();
     expect(titleBox.x).toBeGreaterThanOrEqual(0);
     expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(vp.width);
 

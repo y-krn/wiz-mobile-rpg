@@ -469,26 +469,6 @@
   font-weight: 400;
 }
 
-.town-home-section:last-child .btn-town:last-child {
-  --btn-edge: rgba(47, 158, 98, 0.3);
-  border-color: rgba(47, 158, 98, 0.5);
-  color: var(--neon-green);
-  background: linear-gradient(180deg, #fffdf8, var(--tint-green));
-}
-
-/* Without a recorded run the previous-run card collapses to the empty note and
-   a compact castle entry. */
-.town-home-last-run[data-empty="true"] h2 {
-  display: none;
-}
-
-.town-home-last-run[data-empty="true"] #btn-town-castle {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: none;
-}
-
 .town-primary-dock {
   position: sticky;
   bottom: 0;
@@ -1229,17 +1209,6 @@
   line-height: 1.5;
 }
 
-#town-controls .town-facility.is-locked {
-  border-style: dashed;
-  background: var(--surface-inset);
-  opacity: 1;
-}
-
-#town-controls .town-facility.is-locked strong {
-  color: var(--text-muted);
-  letter-spacing: 0.3em;
-}
-
 .submenu-info {
   padding: var(--sp-sm);
   border: 1px solid var(--border-strong);
@@ -1581,4 +1550,146 @@
 #btn-trap-force:active {
   background-color: rgba(137, 44, 37, 0.25) !important;
   box-shadow: var(--neon-glow-red) !important;
+}
+
+/* The town as a place (#2107): a dusk pixel picture whose buildings are the
+   ways in. town_home.js lays each button over its building in scene units;
+   the name hangs from it as a small painted board. */
+.town-scene {
+  position: relative;
+  width: calc(100% + 2 * var(--sp-md));
+  margin: 0 calc(-1 * var(--sp-md));
+  aspect-ratio: 180 / 260;
+  overflow: hidden;
+  background: #b8e1f1;
+}
+
+.town-scene-picture-host,
+.town-scene-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.town-scene-picture {
+  image-rendering: pixelated;
+}
+
+.town-building,
+#town-controls .town-building {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0 2px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.town-building:hover,
+.town-building:active {
+  background: rgba(255, 210, 122, 0.14);
+}
+
+.town-building:focus-visible {
+  outline: 2px solid #ffd27a;
+  outline-offset: -2px;
+}
+
+/* A small board hung from two cords: dark wood, a thin gold rim, cream ink. */
+.town-plaque {
+  position: relative;
+  padding: 1px 6px 2px;
+  border: 1px solid #c79a4a;
+  border-radius: 1px;
+  background: #2b1b14;
+  box-shadow: 0 1px 0 #0c0810;
+  color: #f6e7c1;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.town-plaque::before,
+.town-plaque::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  width: 1px;
+  height: 5px;
+  background: #c79a4a;
+}
+
+.town-plaque::before { left: 25%; }
+.town-plaque::after { right: 25%; }
+
+.town-building:active .town-plaque {
+  transform: translateY(1px);
+}
+
+.town-facility-plots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.town-facility-plots .town-building {
+  pointer-events: auto;
+}
+
+#town-controls .town-facility.is-locked {
+  cursor: default;
+  opacity: 1;
+}
+
+#town-controls .town-facility.is-locked .town-plaque {
+  border-color: #5a5262;
+  background: #1d1420;
+  color: #8a8296;
+}
+
+/* The previous run and the rumour, told in a line under the picture. */
+.town-home-last-run {
+  display: grid;
+  gap: var(--sp-xxs);
+}
+
+.town-rumor {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.town-rumor[hidden] {
+  display: none;
+}
+
+/* Without a recorded run the previous-run note stands alone. */
+.town-home-last-run[data-empty="true"] h2 {
+  display: none;
+}
+
+/* The previous run reads as a caption under the picture, not as a card. */
+.town-home-section.town-home-last-run {
+  padding: var(--sp-sm) var(--sp-xs);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.town-facility .town-plaque {
+  padding: 1px 3px 2px;
+  letter-spacing: 0;
 }
