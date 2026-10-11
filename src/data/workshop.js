@@ -1,4 +1,3 @@
-import { KEY_ITEMS } from "./key_items.js";
 
 export const WORKSHOP_CATEGORIES = Object.freeze({
   startingGear: "開始武器",
@@ -58,37 +57,12 @@ const WORKSHOP_BASE_NODES = [
     grants: { affixIds: ["CORE_TRAP_EATER"] }
   },
   {
-    id: "pool_thorn_shield",
-    category: "pools",
-    name: "棘盾の記憶",
-    description: "迷宮で「棘盾」の品が見つかるようになる。",
-    costs: [{ "硬い皮": 7, "呪布": 3 }],
-    grants: { affixIds: ["CORE_THORN_SHIELD"] }
-  },
-  {
     id: "pool_tomb_raider",
     category: "pools",
     name: "盗掘王の記憶",
     description: "迷宮で「盗掘王」の品が見つかるようになる。",
     costs: [{ "獣の牙": 7, "竜鱗": 3 }],
     grants: { affixIds: ["CORE_TOMB_RAIDER"] }
-  },
-  {
-    id: "pool_scholar_eye",
-    category: "pools",
-    name: "学者の眼の記憶",
-    description: "迷宮で「学者の眼」の品が見つかるようになる。",
-    costs: [{ "霊粉": 7, "骨片": 3 }],
-    grants: { affixIds: ["CORE_SCHOLAR_EYE"] }
-  },
-  {
-    id: "pool_thin_ice_pact",
-    category: "abyssBuild",
-    name: "薄氷の誓約",
-    description: "迷宮で、HPが低いほど攻撃も被害も増す品が見つかるようになる。",
-    costs: [{ "黒角": 7, "竜鱗": 3 }],
-    requiresKeyItem: KEY_ITEMS.ABYSS_SEAL,
-    grants: { affixIds: ["CORE_THIN_ICE_PACT"] }
   },
   {
     id: "convenience_identify_powder",
@@ -103,11 +77,15 @@ const WORKSHOP_BASE_NODES = [
 // 出発クラフトは冒険ごとに素材を支払う恒常シンク。個数上限は設けず、
 // 支払い可能な素材残高だけを制約とする。
 
-// 旧出発準備へ統合して撤去した買い切りノード。既存セーブのランクを消して素材を
-// 返還するためだけに残す（`src/state/save_migrations.js`）。
+// 撤去した買い切りノード。既存セーブのランクを消して素材を返還するためだけに
+// 残す（`src/state/save_migrations.js`）。kit_* は旧出発準備へ統合したもの、
+// pool_* は Build vNext で生成されない Core を解放していたもの（#2111）。
 export const RETIRED_WORKSHOP_NODES = Object.freeze([
   { id: "kit_identify_powder", costs: [{ "霊粉": 5, "呪布": 2 }] },
-  { id: "kit_return_wing", costs: [{ "黒角": 4, "竜鱗": 1 }] }
+  { id: "kit_return_wing", costs: [{ "黒角": 4, "竜鱗": 1 }] },
+  { id: "pool_thorn_shield", costs: [{ "硬い皮": 7, "呪布": 3 }] },
+  { id: "pool_scholar_eye", costs: [{ "霊粉": 7, "骨片": 3 }] },
+  { id: "pool_thin_ice_pact", costs: [{ "黒角": 7, "竜鱗": 3 }] }
 ]);
 
 export const WORKSHOP_NODES = Object.freeze([...WORKSHOP_BASE_NODES]);
@@ -137,16 +115,6 @@ export const WORKSHOP_LATERAL_UNLOCKS = Object.freeze([
     relatedLootRoles: ["convert"],
     relatedTags: ["search", "treasure"],
     relatedTypes: ["accessory", "weapon"],
-    relatedKnowledgeStages: ["trial", "full"]
-  }),
-  Object.freeze({
-    nodeId: "pool_scholar_eye",
-    minDepth: 30,
-    relatedCoreIds: ["CORE_SCHOLAR_EYE"],
-    relatedBuildRoles: ["pivot"],
-    relatedLootRoles: ["pivot"],
-    relatedTags: ["appraisal", "analysis", "spirit"],
-    relatedTypes: ["weapon", "accessory"],
     relatedKnowledgeStages: ["trial", "full"]
   })
 ]);

@@ -281,10 +281,12 @@ RETIRED_WORKSHOP_NODES.forEach(node => {
 check("legacy stat ranks are removed", restored.workshop.ranks.stat_str === undefined);
 check(
   "retired node costs are refunded",
-  restored.metaMaterials["霊粉"] === 6
-    && restored.metaMaterials["呪布"] === 2
-    && restored.metaMaterials["黒角"] === 4
-    && restored.metaMaterials["竜鱗"] === 1,
+  restored.metaMaterials["霊粉"] === 13
+    && restored.metaMaterials["呪布"] === 5
+    && restored.metaMaterials["黒角"] === 11
+    && restored.metaMaterials["竜鱗"] === 4
+    && restored.metaMaterials["硬い皮"] === 7
+    && restored.metaMaterials["骨片"] === 3,
   JSON.stringify(restored.metaMaterials)
 );
 check("existing save inventory is preserved", restored.inventory.length === 1 && restored.inventory[0] === "HEAL_POTION");

@@ -224,7 +224,7 @@ function setupRun(deepestFloor = 5) {
       knowledgeStage: "trial"
     }]
   });
-  assert.notEqual(scholarResult.unlocked?.id, "pool_scholar_eye", "automatic returns cannot unlock a vNext-disabled Core node");
+  assert.notEqual(scholarResult.unlocked?.id, "pool_scholar_eye", "automatic returns cannot unlock a retired Core node");
   assert.ok(!scholarResult.workshop.lateralUnlocks.includes("pool_scholar_eye"));
   const searchResult = applyAutomaticWorkshopUnlock({ ranks: {}, lateralUnlocks: [] }, {
     deepestFloor: 25,
