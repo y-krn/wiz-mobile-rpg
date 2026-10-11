@@ -20,7 +20,7 @@ export const WATER_MAX_DEPTH = 3;
 export const WATER_DEPTH_LABELS = Object.freeze(["", "浅い", "膝まで", "深い"]);
 export const DEEP_WATER_DAMAGE_RATE = 0.03;
 // Rises a cell must stand under water before it deepens one step.
-export const WATER_RISES_PER_DEPTH = 4;
+export const WATER_RISES_PER_DEPTH = 5;
 
 export function getWaterDepth(cell) {
   if (cell?.hazard?.kind !== TRAVERSAL_GIMMICKS.FLOOD) return 0;
@@ -32,8 +32,13 @@ export function isDeepWater(cell) {
   return getWaterDepth(cell) >= WATER_MAX_DEPTH;
 }
 
-export function getDeepWaterDamage(maxHp) {
-  return Math.max(1, Math.ceil((Number(maxHp) || 1) * DEEP_WATER_DAMAGE_RATE));
+/**
+ * HP a step in deep water takes. It half-drowns but never kills: it stops at
+ * 1 HP, so the cost is a weakened way on, not a death on the stairs' doorstep.
+ */
+export function getDeepWaterDamage(maxHp, hp = Infinity) {
+  const damage = Math.max(1, Math.ceil((Number(maxHp) || 1) * DEEP_WATER_DAMAGE_RATE));
+  return Math.max(0, Math.min(damage, (Number(hp) || 0) - 1));
 }
 
 export function getDungeonWaterRule(floor) {

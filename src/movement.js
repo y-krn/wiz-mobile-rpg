@@ -320,19 +320,12 @@ function applyTraversalHazards() {
       playSound("hit");
       state.party.forEach(c => {
         if (c.status === "dead" || c.hp <= 0) return;
-        const damage = getDeepWaterDamage(getCharMaxHp(c));
-        c.hp = Math.max(0, c.hp - damage);
-        addLog(`深みに足を取られ、水を飲んだ！${c.name}は${damage}のダメージを受けた（+1手番）。`);
-        if (c.hp === 0) {
-          c.status = "dead";
-          const deathLog = recordCharDeath(state, c, "深み", { type: "trap", source: "深み" });
-          if (deathLog) addLog(formatCharDeathLog(deathLog));
-        }
+        const damage = getDeepWaterDamage(getCharMaxHp(c), c.hp);
+        c.hp -= damage;
+        addLog(damage > 0
+          ? `深みに足を取られ、水を飲んだ！${c.name}は${damage}のダメージを受けた（+1手番）。`
+          : `深みに足を取られ、溺れかけた。${c.name}はかろうじて息をつないだ（+1手番）。`);
       });
-      if (state.party.every(c => c.status === "dead")) {
-        triggerGameOver();
-        return true;
-      }
     } else {
       addLog("水に足を取られ、進むのに余計な時間がかかった（+1手番）。");
     }

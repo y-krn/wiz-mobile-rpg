@@ -84,6 +84,9 @@ for (const seed of ["A", "B", "C"]) {
   assert.equal(isDeepWater(grid[0][1]), false);
   assert.equal(getDeepWaterDamage(100), Math.ceil(100 * DEEP_WATER_DAMAGE_RATE));
   assert.equal(getDeepWaterDamage(1), 1);
+  // It never kills: a step stops at 1 HP.
+  assert.equal(getDeepWaterDamage(100, 2), 1);
+  assert.equal(getDeepWaterDamage(100, 1), 0);
 }
 
 // The HUD reads the level and the turns until the next rise.
