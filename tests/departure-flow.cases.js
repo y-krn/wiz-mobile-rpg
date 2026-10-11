@@ -143,14 +143,22 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
     const directions = [
       { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 },
     ];
-    const direction = directions.findIndex(({ dx, dy }, index) => {
-      const cell = state.map?.[state.y]?.[state.x];
-      const next = state.map?.[state.y + dy]?.[state.x + dx];
+    const passable = (x, y) => directions.findIndex(({ dx, dy }, index) => {
+      const cell = state.map?.[y]?.[x];
+      const next = state.map?.[y + dy]?.[x + dx];
       return cell && next && next.type === 'empty' && !next.event && !next.trap &&
-        !cell.walls[index] && !next.blockEnter[(index + 2) % 4];
+        !next.obstacle && !next.hazard && !cell.walls[index] && !next.blockEnter[(index + 2) % 4];
     });
-    if (direction < 0) throw new Error('No passable encounter direction at the run entry cell');
-    state.dir = direction;
+    // The run's map is drawn fresh; when the entry cell has no plain step,
+    // stand on the first cell that does.
+    if (passable(state.x, state.y) < 0) {
+      const start = state.map.flatMap((row, y) => row.map((cell, x) => ({ cell, x, y })))
+        .find(({ cell, x, y }) => cell.type === 'empty' && !cell.event && !cell.trap && passable(x, y) >= 0);
+      if (!start) throw new Error('No passable encounter direction on the run floor');
+      state.x = start.x;
+      state.y = start.y;
+    }
+    state.dir = passable(state.x, state.y);
     // handleMove ticks exploration effects before checking the event, so two
     // steps leave one forced encounter after that tick.
     state.forcedEncounterSteps = 2;
@@ -161,9 +169,15 @@ test('Primary run path reaches Town again through UI actions @e2e @smoke', async
   expect(await screen()).toMatchObject({ gameState: 'combat', menu: '' });
 
   // Keep the combat interaction real while making its result deterministic:
-  // the escape action ends combat without depending on enemy traits or rolls.
+  // the escape action ends combat without depending on enemy traits. An
+  // ordinary flee is a roll since #2101, so the roll is pinned to succeed.
+  await page.evaluate(() => {
+    window.__testRandom = Math.random;
+    Math.random = () => 0;
+  });
   await page.locator('#btn-combat-run').click();
   await expect(page.locator('#explore-controls')).toBeVisible({ timeout: 15_000 });
+  await page.evaluate(() => { Math.random = window.__testRandom; });
   await expect(page.locator('#combat-overlay')).toBeHidden();
   await expectSingleDock('explore-controls');
   await page.evaluate(async () => {
