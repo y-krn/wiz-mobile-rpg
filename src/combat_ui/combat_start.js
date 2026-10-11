@@ -31,7 +31,7 @@ import { clearTechniqueCombatFlags } from "../rules/technique_rules.js";
 
 export const POST_COMBAT_QUIET_STEPS = 4;
 
-export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null, { mimicChest = null, broodChamber = false } = {}) {
+export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null, { mimicChest = null, broodChamber = false, pursuitMonsters = null } = {}) {
   const isMimic = Boolean(mimicChest);
   // A brood chamber (#1965) is an elite-strength fight that leaves a chest.
   const isBrood = Boolean(broodChamber);
@@ -51,13 +51,16 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     if (startArmorMendBattle(char) === "worn") addLog(`${char.name}の防具の繕いがほつれた。`);
   });
 
-  const { monsters, isRare, trial, floorRole } = generateEncounter(
-    state,
-    isBoss,
-    isMidboss,
-    isRoamingFlack,
-    isMimic ? { mimic: true } : isBrood ? { brood: true } : roamingMonster
-  );
+  // A fled pack that caught up (#2114) comes back as it was left.
+  const { monsters, isRare, trial, floorRole } = Array.isArray(pursuitMonsters) && pursuitMonsters.length > 0
+    ? { monsters: pursuitMonsters, isRare: false, trial: null, floorRole: null }
+    : generateEncounter(
+      state,
+      isBoss,
+      isMidboss,
+      isRoamingFlack,
+      isMimic ? { mimic: true } : isBrood ? { brood: true } : roamingMonster
+    );
   const trialExp = preparePhase4jBEncounter(state, monsters, {
     boss: isBoss,
     elite: isRoamingFlack || isMimic || isBrood,

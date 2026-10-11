@@ -653,11 +653,26 @@ const walkingStillHeals = () => {
 // Hurt, and this floor still pays HP for walking unvisited cells. Under 30% HP
 // the fight policy can only flee (and fleeing costs HP), so walking on is left
 // to the 'always' policy.
+// Since #2114 recovery is taken by resting, not by walking (the game exposes
+// restExploration). On an older tree the walking rule still applies.
+const RESTS = typeof M.restExploration === 'function';
+const restStillHeals = () => {
+  const outlook = RECOVERY.getExplorationRecoveryOutlook(st());
+  return Boolean(outlook && !outlook.suspended && outlook.hp > 0);
+};
 const worthWalking = (policy, p = P()) => {
   if (policy.recovery === 'off') return false;
   const maxHp = DATA.getCharMaxHp(p);
+  if (RESTS) return p.hp < maxHp * policy.explore && restStillHeals();
   if (p.hp >= maxHp * policy.explore || (policy.recovery !== 'always' && p.hp < maxHp * 0.3)) return false;
   return walkingStillHeals();
+};
+// Rest once where the bot stands. Returns true when it rested (a fight may follow).
+const restOnce = async () => {
+  if (!RESTS || !M.restExploration()) return false;
+  W.__rests = (W.__rests || 0) + 1;
+  await sl(700);
+  return true;
 };
 // When to stop exploring a floor and take the stairs.
 const stopExploring = (policy, p) => {
@@ -751,9 +766,13 @@ W.__auto = async (policy = W.__policy, maxIter = 600) => {
       const maxHp = DATA.getCharMaxHp(P());
       // Walking unvisited cells is the free heal: spend it before potions.
       if (worthWalking(policy)) {
-        const h = await W.__walk('frontier', 150, () => !worthWalking(policy));
-        W.__journal.push(`-> walk to recover before guardian: ${h} ${W.__status()}`);
-        if (!h.startsWith('blocked') && h !== 'no path') continue;
+        if (RESTS) {
+          if (await restOnce()) { W.__journal.push(`-> rest before guardian ${W.__status()}`); continue; }
+        } else {
+          const h = await W.__walk('frontier', 150, () => !worthWalking(policy));
+          W.__journal.push(`-> walk to recover before guardian: ${h} ${W.__status()}`);
+          if (!h.startsWith('blocked') && h !== 'no path') continue;
+        }
       }
       while (P().hp < maxHp * 0.6 && await W.__useHeal()) await sl(100);
       // Out of potions and badly hurt: try an unused spring or camp, at most
@@ -812,6 +831,8 @@ W.__auto = async (policy = W.__policy, maxIter = 600) => {
       && turnBackNow('a keeper follows')) continue;
     if (roundTrip() && !goingHome() && p.hp < DATA.getCharMaxHp(p) * W.__policy.turnBack && potionCount() === 0 && !worthWalking(policy, p)
       && turnBackNow('badly hurt, nothing left to heal with')) continue;
+    // Hurt and the floor still gives back: rest here before walking on.
+    if (RESTS && worthWalking(policy, p) && await restOnce()) continue;
     const wantStairs = stopExploring(policy, p);
     let r = await W.__walk(wantStairs && W.__bfs(goals.stairs) ? 'stairs' : 'frontier', 150);
     if (r === 'no path') r = await W.__walk('stairs', 150);
@@ -857,7 +878,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false, dungeo
   finally { Date.now = realNow; }
   W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   resetPolicyState();
-  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0; W.__darkToggles = 0;
+  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0; W.__darkToggles = 0; W.__rests = 0;
   W.__dungeonRule = DUNGEON_RULES.getDungeonRule(st().floor)?.line || '';
   trackHpLedger();
   const run = st().currentRun;
@@ -943,7 +964,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     returned: s.gameState === 'result' && (P()?.hp ?? 0) > 0,
     companions: companionNames() || null,
     roomActions: W.__roomActions, purchases: W.__purchases,
-    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, darkToggles: W.__darkToggles || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
+    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, darkToggles: W.__darkToggles || 0, rests: W.__rests || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
     eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, reflectAvoids: W.__reflectAvoids || 0, riposteGuards: W.__riposteGuards || 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,

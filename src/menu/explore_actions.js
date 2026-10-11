@@ -9,7 +9,8 @@ import { isSpellcaster } from "../rules/magic_rules.js";
 import { triggerRunResult } from "../result.js";
 import { requestConfirmation } from "../ui/confirm_dialog.js";
 import { confirmReturnWing } from "../ui/return_wing_confirmation.js";
-import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
+import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, restExploration, tickExplorationSpellEffects } from "../movement.js";
+import { REST_TURNS, getExplorationRecoveryOutlook } from "../systems/exploration_recovery.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
 import { startCombat } from "../combat.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
@@ -180,6 +181,25 @@ async function confirmAbandonRun() {
 }
 
 export function renderExploreManagement(optGrid) {
+  // Rest (#2114): recovery is taken here, turns spent where monsters may come.
+  const outlook = getExplorationRecoveryOutlook(state);
+  if (outlook) {
+    const btnRest = document.createElement("button");
+    btnRest.id = "btn-rest";
+    btnRest.className = "btn btn-neon btn-block";
+    const amounts = [outlook.hp > 0 ? `HP ${outlook.hp}` : null, outlook.mp > 0 ? `MP ${outlook.mp}` : null].filter(Boolean);
+    btnRest.textContent = outlook.suspended
+      ? "休む（毒が回っていて回復しない）"
+      : amounts.length > 0
+        ? `休む（最大${REST_TURNS}手番。この階であと${amounts.join("・")}回復できる。休む間に魔物に見つかることがある）`
+        : "休む（この階では、もう回復しない）";
+    btnRest.disabled = outlook.suspended || amounts.length === 0;
+    btnRest.addEventListener("click", () => {
+      closeSubmenu();
+      restExploration();
+    });
+    optGrid.appendChild(btnRest);
+  }
   // The throne's rule (#2063): the adventurer may put out their own light.
   if (getDungeonDarkRule(state.floor)) {
     const dark = isDark(state);
