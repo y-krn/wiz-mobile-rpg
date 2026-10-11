@@ -2,7 +2,7 @@ import { KEY_ITEMS } from "./key_items.js";
 
 export const WORKSHOP_CATEGORIES = Object.freeze({
   startingGear: "開始武器",
-  pools: "迷宮で見つかる品",
+  pools: "記憶（試作品と迷宮で見つかる品が増える）",
   milestoneBuild: "深層の型",
   abyssBuild: "深淵の型",
   convenience: "利便"

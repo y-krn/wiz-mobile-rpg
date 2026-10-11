@@ -171,6 +171,17 @@ space, not a targeted build shop:
 - when a possibility is added, preserve the authored supply structure instead
   of diluting every existing candidate.
 
+The Workshop's everyday use is the prototype (#2109). Before each departure
+it offers three prototypes, one per Core family: a plain base carrying a Core
+and no Support, identified and uncursed. The player may take one into the run
+for a few materials of the mine's first floors; it is paid at every departure,
+rides in the bag, and is used up by the run like any equipment. The offer is
+build-blind (drawn from the save seed and the run count, never the loadout or
+the kit), so it is a possibility, not a target. The Workshop's memories widen
+it: a family whose Cores the memories open can then be offered. A prototype
+starts a direction early; it does not replace forming and testing the build
+during the run, and the first chest's seed offer still comes.
+
 Town facilities follow the same rules. A facility opens when its keeper is led
 home from the dungeon (a feat), and its nodes are bought with materials. Each
 node widens what a run starts with or meets: a starting kit, a change to an

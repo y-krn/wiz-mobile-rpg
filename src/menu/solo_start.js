@@ -49,10 +49,14 @@ import { getStartingKitCopy } from "../data/starting_kit_copy.js";
 import { TECHNIQUE_BY_PROFILE } from "../data/techniques.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
 import { getCharDerivedStats } from "../rules/character_stats.js";
+import { getAffixDefinition } from "../data/affixes.js";
+import { canAffordPrototype, createPrototypeItem, getPrototypeOffers, payForPrototype } from "../systems/workshop_prototype.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
 let selectedStartFloor = null;
+// The workshop prototype chosen for this departure (#2109), by offer index.
+let selectedPrototypeIndex = null;
 // Kit selection is a two-step choice: pick a kit to read its details, then
 // confirm. The picked kit and weapon swap survive "choose again".
 let selectedKitId = null;
@@ -104,7 +108,7 @@ function createDepartureCharacter(startingKitId, startingGear = null) {
 
 // Every departure goes through here: the preparation screen and the repeat
 // departure from the result screen pay and start by the same steps.
-function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
+function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds, prototypeOffer = null) {
   const kit = getStartingKit(startingKitId);
   if (!kit || !isStartingKitAvailable(startingKitId, state.facilities)) return false;
   const { character, handConflict } = createDepartureCharacter(startingKitId, startingGear);
@@ -128,6 +132,17 @@ function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
       addLog("素材が足りず、何も作らずに出発する。");
     }
   }
+  let prototypeItem = null;
+  if (prototypeOffer) {
+    const paid = payForPrototype(state.metaMaterials, prototypeOffer);
+    if (paid) {
+      state.metaMaterials = paid;
+      prototypeItem = createPrototypeItem(prototypeOffer, { party: [character] });
+      addLog(`工房の試作品（${prototypeOffer.familyName}・${ITEMS[prototypeOffer.baseId]?.name || prototypeOffer.baseId}）を受け取った（${formatPrototypeCost(prototypeOffer.cost)}）。`);
+    } else {
+      addLog("素材が足りず、工房の試作品は持たずに出発する。");
+    }
+  }
   state.lastPreparation = normalizeLastPreparation({
     kitId: startingKitId,
     startingGear,
@@ -135,10 +150,11 @@ function launchRun(startingKitId, startingGear, startFloor, selectedRecipeIds) {
     startFloor
   });
   departureCraftQuantities = new Map();
+  selectedPrototypeIndex = null;
   droppedPreparationLines = [];
   state.party = [character];
   addLog(`${kit.name}で、ひとり迷宮へ向かう。`);
-  executeEnterDungeon(startFloor, { departureCraft });
+  executeEnterDungeon(startFloor, { departureCraft, prototypeItem });
   return true;
 }
 
@@ -147,7 +163,7 @@ function startRun(startingKitId, startingGear = null, startFloor = 1) {
   // exploration surface. Replayed events from the old button must not start
   // another run or charge its preparation choices twice.
   if (state.gameState !== "submenu") return false;
-  return launchRun(startingKitId, startingGear, startFloor, getSelectedRecipeIds());
+  return launchRun(startingKitId, startingGear, startFloor, getSelectedRecipeIds(), getSelectedPrototype());
 }
 
 /** The previous preparation checked against what can be chosen right now. */
@@ -181,6 +197,15 @@ function getSelectedRecipeIds() {
   return [...departureCraftQuantities.entries()].flatMap(([recipeId, quantity]) =>
     Array.from({ length: quantity }, () => recipeId)
   );
+}
+
+function formatPrototypeCost(cost) {
+  return Object.entries(cost || {}).map(([name, quantity]) => `${name} ${quantity}`).join("・");
+}
+
+function getSelectedPrototype() {
+  if (selectedPrototypeIndex === null) return null;
+  return getPrototypeOffers(state)[selectedPrototypeIndex] || null;
 }
 
 function getSelectedBagItems(recipeIds = getSelectedRecipeIds()) {
@@ -238,7 +263,8 @@ function appendPreparationRow(container, label, value, className = "") {
 
 function renderPreparationSummary(optGrid, startingKitId, startingGear) {
   const selectedRecipeIds = getSelectedRecipeIds();
-  const selectedItems = getSelectedBagItems(selectedRecipeIds);
+  const prototype = getSelectedPrototype();
+  const selectedItems = [...getSelectedBagItems(selectedRecipeIds), ...(prototype ? [prototype.baseId] : [])];
   const craftedItemCount = selectedRecipeIds.filter(recipeId => (
     !getDepartureCraftRecipes([recipeId])[0]?.identifyPowder
   )).length;
@@ -297,6 +323,14 @@ function renderPreparationSummary(optGrid, startingKitId, startingGear) {
       "替えた武器",
       `${getStartingGearName(startingGear)}（工房で解放）`,
       "solo-preparation-equipment"
+    );
+  }
+  if (prototype) {
+    appendPreparationRow(
+      conditions,
+      "工房の試作品",
+      `${prototype.familyName}・${ITEMS[prototype.baseId]?.name || prototype.baseId}（${getAffixDefinition(prototype.coreId)?.jpName || prototype.coreId}）`,
+      "solo-preparation-prototype"
     );
   }
   const startingEquipment = Object.values(startingCharacter.equipment || {})
@@ -492,6 +526,47 @@ function appendTreasurePin(optGrid, startingKitId, startingGear) {
   optGrid.appendChild(section);
 }
 
+// The workshop's prototypes (#2109): three Cores on plain bases, drawn
+// without reading the loadout. One may be taken for a few early materials;
+// it is paid at departure and used up by the run.
+function appendWorkshopPrototypes(optGrid, startingKitId, startingGear) {
+  const offers = getPrototypeOffers(state);
+  if (offers.length === 0) return;
+  const balance = getDepartureCraftBalance(state.metaMaterials, getSelectedRecipeIds(), state.storage);
+  if (selectedPrototypeIndex !== null && !canAffordPrototype(balance, offers[selectedPrototypeIndex])) selectedPrototypeIndex = null;
+  const section = document.createElement("section");
+  section.className = "solo-start-prototypes";
+  section.setAttribute("aria-label", "工房の試作品");
+  const heading = document.createElement("h3");
+  heading.className = "solo-preparation-section-heading";
+  heading.textContent = "工房の試作品";
+  const hint = document.createElement("p");
+  hint.className = "solo-start-prototype-hint";
+  hint.textContent = "1つ選ぶと、素材を払ってバッグに入れて出発する。Core だけを持つ素の品で、持ち帰っても次には持ち込めない。";
+  section.append(heading, hint);
+  offers.forEach((offer, index) => {
+    const core = getAffixDefinition(offer.coreId);
+    const affordable = canAffordPrototype(balance, offer);
+    const selected = selectedPrototypeIndex === index;
+    section.appendChild(createActionCard({
+      name: `${offer.familyName}：${ITEMS[offer.baseId]?.name || offer.baseId}`,
+      description: `${core?.jpName || offer.coreId}：${core?.desc || ""}`,
+      cost: `${formatPrototypeCost(offer.cost)}${affordable ? "" : " ・ 素材不足"}`,
+      costClassName: `solo-start-craft-cost${affordable ? "" : " is-insufficient"}`,
+      className: "solo-start-prototype-option",
+      selected,
+      disabled: !affordable && !selected,
+      ariaPressed: selected,
+      dataset: { prototypeFamily: offer.familyId },
+      onClick: () => {
+        selectedPrototypeIndex = selected ? null : index;
+        renderStartFloorChoices(optGrid, startingKitId, startingGear, `[data-prototype-family="${offer.familyId}"]`);
+      }
+    }));
+  });
+  optGrid.appendChild(section);
+}
+
 function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSelector = null) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-floor-grid";
@@ -615,6 +690,7 @@ function renderStartFloorChoices(optGrid, startingKitId, startingGear, focusSele
   appendTreasurePin(optGrid, startingKitId, startingGear);
 
   renderDepartureCraftOptions(optGrid, startingKitId, startingGear);
+  appendWorkshopPrototypes(optGrid, startingKitId, startingGear);
 
   const startButton = document.createElement("button");
   startButton.id = "btn-departure-start";
@@ -790,6 +866,7 @@ function renderKitDetail(optGrid, kit) {
 function seedFromLastPreparation() {
   departureCraftQuantities = new Map();
   selectedStartFloor = null;
+  selectedPrototypeIndex = null;
   droppedPreparationLines = [];
   const plan = getRepeatDeparturePlan();
   if (!plan) return false;

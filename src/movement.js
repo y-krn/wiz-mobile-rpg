@@ -1062,7 +1062,7 @@ export function enterDungeon() {
   openSubmenu("solo_start", "開始キットを選ぶ：冒険はいつもLv1から");
 }
 
-export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
+export function executeEnterDungeon(floor, { departureCraft = [], prototypeItem = null } = {}) {
   state.party = state.party.slice(0, 1);
   state.darkness = false;
   state.gameState = "explore";
@@ -1112,6 +1112,10 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
       addLog(`バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）で${item}を持ち込めなかった。`);
     }
   });
+  // The workshop's prototype (#2109) rides in the bag; the run uses it up.
+  if (prototypeItem && !addInventoryItem(prototypeItem)) {
+    addLog(`バッグが満杯（${INVENTORY_CAPACITY}/${INVENTORY_CAPACITY}）で工房の試作品を持ち込めなかった。`);
+  }
   state.currentRun.townInventory = state.inventory.slice();
   state.currentRun.unbankedObjectLoot = [];
   state.currentRun.departureItems = state.inventory.slice();

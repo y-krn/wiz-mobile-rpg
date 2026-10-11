@@ -3,6 +3,8 @@ import { WORKSHOP_CATEGORIES, WORKSHOP_NODES } from "../data/workshop.js";
 import { MATERIAL_TYPES } from "../data/materials.js";
 import { getAffixDefinition } from "../data/affixes.js";
 import { SPELLS } from "../data/spells.js";
+import { ITEMS } from "../data/items.js";
+import { getPrototypeOffers } from "../systems/workshop_prototype.js";
 import {
   getWorkshopNodeCost,
   getWorkshopRank,
@@ -51,6 +53,33 @@ function renderBalance(container) {
   container.appendChild(balance);
 }
 
+// The prototypes on the bench for the next departure (#2109); they are taken
+// in the preparation screen.
+function renderPrototypePreview(container) {
+  const offers = getPrototypeOffers(state);
+  if (offers.length === 0) return;
+  const heading = document.createElement("h3");
+  heading.className = "workshop-category";
+  heading.textContent = "次の出発の試作品";
+  container.appendChild(heading);
+  const list = document.createElement("ul");
+  list.className = "workshop-prototypes";
+  offers.forEach(offer => {
+    const core = getAffixDefinition(offer.coreId);
+    const item = document.createElement("li");
+    item.dataset.prototypeFamily = offer.familyId;
+    const name = document.createElement("strong");
+    name.textContent = `${offer.familyName}：${ITEMS[offer.baseId]?.name || offer.baseId}`;
+    const description = document.createElement("span");
+    description.textContent = `${core?.jpName || offer.coreId}：${core?.desc || ""}`;
+    const cost = document.createElement("small");
+    cost.textContent = formatCost(offer.cost);
+    item.append(name, description, cost);
+    list.appendChild(item);
+  });
+  container.appendChild(list);
+}
+
 export function renderWorkshop(optGrid) {
   optGrid.className = "submenu-grid workshop-grid";
   optGrid.innerHTML = "";
@@ -58,13 +87,14 @@ export function renderWorkshop(optGrid) {
   intro.className = "workshop-purpose";
   intro.dataset.workshopPurpose = "possibilities";
   const introTitle = document.createElement("strong");
-  introTitle.textContent = "次の冒険で選べるものを増やす";
+  introTitle.textContent = "出発前の試作品を作る";
   const introText = document.createElement("span");
-  introText.textContent = "素材を渡すと、開始武器や、迷宮で見つかる品の種類が増える。";
+  introText.textContent = "出発準備で、ここの試作品を1つ持っていける（素材は毎回払う）。記憶を渡すと、試作品と迷宮で見つかる品の種類が増える。";
   intro.appendChild(introTitle);
   intro.appendChild(introText);
   optGrid.appendChild(intro);
   renderBalance(optGrid);
+  renderPrototypePreview(optGrid);
   Object.entries(WORKSHOP_CATEGORIES).forEach(([category, label]) => {
     const nodes = WORKSHOP_NODES.filter(node => (
       node.category === category
