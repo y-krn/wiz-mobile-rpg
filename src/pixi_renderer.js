@@ -31,6 +31,7 @@ import {
   getStairsPropGeometry
 } from "./dungeon_prop.js";
 import { TRAVERSAL_GIMMICKS, isTraversalObstacleBlocking } from "./rules/traversal_gimmicks.js";
+import { getWaterDepth } from "./systems/rising_water.js";
 import {
   SIMPLE_ENEMY_PROTOTYPE_MODE,
   createEnemyPrototype,
@@ -268,6 +269,45 @@ function getEnemyPresentationMode() {
  * Pixi is used only as a 2D drawing surface; there is no camera, FOV, eye,
  * world-space mesh, or 3D occlusion contract here.
  */
+// Water (#2105): one colour per depth, from shallow to deep, and how far up a
+// wall each depth reaches as a share of the wall's height.
+const WATER_DEPTH_STYLES = Object.freeze([
+  null,
+  Object.freeze({ color: "#3d9be9", alpha: 0.5, wallRise: 0.05 }),
+  Object.freeze({ color: "#2468b4", alpha: 0.68, wallRise: 0.12 }),
+  Object.freeze({ color: "#0f3a78", alpha: 0.85, wallRise: 0.22 })
+]);
+
+function lerpPoint(a, b, t) {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+function drawWaterSurface(layer, corners, depth, palette, fog) {
+  const style = WATER_DEPTH_STYLES[depth] || WATER_DEPTH_STYLES[1];
+  addPolygon(layer, corners, style.color, style.alpha);
+  // Ripples run across the cell; deeper water shows more of them.
+  const [farLeft, farRight, nearRight, nearLeft] = corners;
+  const ripples = depth + 1;
+  for (let index = 1; index <= ripples; index++) {
+    const t = index / (ripples + 1);
+    const left = lerpPoint(farLeft, nearLeft, t);
+    const right = lerpPoint(farRight, nearRight, t);
+    const inset = 0.12 + 0.1 * (index % 2);
+    addLine(layer, [lerpPoint(left, right, inset), lerpPoint(left, right, 1 - inset - 0.1)], { color: "#bfe8ff", width: 1.2, alpha: 0.35 });
+  }
+  if (fog > 0) addPolygon(layer, corners, palette.fog, fog);
+}
+
+function drawWaterLine(layer, near, far, depth, fog, palette) {
+  const style = WATER_DEPTH_STYLES[depth] || WATER_DEPTH_STYLES[1];
+  const nearTop = lerpPoint(near.bottom, near.top, style.wallRise);
+  const farTop = lerpPoint(far.bottom, far.top, style.wallRise);
+  const band = [nearTop, farTop, far.bottom, near.bottom];
+  addPolygon(layer, band, style.color, style.alpha);
+  addLine(layer, [nearTop, farTop], { color: "#bfe8ff", width: 1.6, alpha: 0.7 });
+  if (fog > 0) addPolygon(layer, band, palette.fog, fog);
+}
+
 export class PixiDungeonRenderer {
   constructor(canvasId, { failurePhase = null } = {}) {
     this.canvas = document.getElementById(canvasId);
@@ -1049,6 +1089,9 @@ export class PixiDungeonRenderer {
           addPolygon(floorLayer, ceilingCorners, palette.ink, recess);
         }
         addLine(floorLayer, [floorCorners[3], floorCorners[0], floorCorners[1], floorCorners[2]], edgeStroke(0.22));
+        // Water (#2105) covers the whole floor of its cell, darker as it deepens.
+        const waterDepth = getWaterDepth(cell);
+        if (waterDepth > 0) drawWaterSurface(floorLayer, floorCorners, waterDepth, palette, spanFog);
 
         // Within one depth: end walls first, then objects standing in front
         // of them, then side walls, which are nearer at their open end.
@@ -1063,12 +1106,12 @@ export class PixiDungeonRenderer {
           objects.push(() => this.drawLandmark(cell, objectPlane, renderInput.visual.wallColor, renderInput.visual.landmarks));
         }
         if (cellTopology.leftBlocked) {
-          sideWalls.push(() => this.drawSideWall(plane, nextPlane, "left", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 3) % 4)));
+          sideWalls.push(() => this.drawSideWall(plane, nextPlane, "left", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 3) % 4), waterDepth));
         }
         if (cellTopology.rightBlocked) {
           const mirroredPlane = { ...plane, leftTop: plane.rightTop, rightTop: plane.leftTop, leftBottom: plane.rightBottom, rightBottom: plane.leftBottom };
           const mirroredNext = { ...nextPlane, leftTop: nextPlane.rightTop, rightTop: nextPlane.leftTop, leftBottom: nextPlane.rightBottom, rightBottom: nextPlane.leftBottom };
-          sideWalls.push(() => this.drawSideWall(mirroredPlane, mirroredNext, "right", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 1) % 4)));
+          sideWalls.push(() => this.drawSideWall(mirroredPlane, mirroredNext, "right", palette, surfaces, spanFog, recess, decorFor(cellTopology.x, cellTopology.y, (facing + 1) % 4), waterDepth));
         }
 
         if (column === 0 && renderInput.roamingMonsters.some((monster) => monster.floor === renderInput.floor && monster.x === cellTopology.x && monster.y === cellTopology.y) && z > 0) {
@@ -1096,7 +1139,7 @@ export class PixiDungeonRenderer {
     addLine(walls, [corners[0], corners[1]], { color: palette.accent, width: 2.5, alpha: 1 });
   }
 
-  drawSideWall(plane, nextPlane, side, palette, surfaces, fog, recess = 0, decor = null) {
+  drawSideWall(plane, nextPlane, side, palette, surfaces, fog, recess = 0, decor = null, waterDepth = 0) {
     const walls = this.layer("structural-walls");
     const near = { top: { x: plane.leftTop, y: plane.top }, bottom: { x: plane.leftBottom, y: plane.bottom } };
     const far = { top: { x: nextPlane.leftTop, y: nextPlane.top }, bottom: { x: nextPlane.leftBottom, y: nextPlane.bottom } };
@@ -1111,6 +1154,7 @@ export class PixiDungeonRenderer {
     addLine(walls, [near.top, far.top], { color: palette.accent, width: 2.5, alpha: 1 });
     addLine(walls, [near.bottom, far.bottom], { color: palette.ink, width: 2, alpha: 0.5 });
     addLine(walls, [far.top, far.bottom], { color: palette.ink, width: 2, alpha: 0.42 });
+    if (waterDepth > 0) drawWaterLine(walls, near, far, waterDepth, fog, palette);
   }
 
   drawFrontWall(plane, ceilingStyle, palette, surfaces, fog, recess = 0, decor = null) {
@@ -1213,10 +1257,8 @@ export class PixiDungeonRenderer {
     const geometry = getFloorPatchPropGeometry(plane);
     const worldObjects = this.layer("world-objects");
     const { patch } = geometry;
-    if (hazard.kind === TRAVERSAL_GIMMICKS.FLOOD) {
-      drawEllipse(worldObjects, patch.x, patch.y, patch.radiusX, patch.radiusY, "#3d9be9", 0.55, { color: "#bfe8ff", width: Math.max(1, geometry.width * 0.012) });
-      return;
-    }
+    // Water is drawn as the cell's whole floor (drawWaterSurface).
+    if (hazard.kind === TRAVERSAL_GIMMICKS.FLOOD) return;
     const hot = Boolean(hazard.hot);
     if (hot) drawEllipse(worldObjects, patch.x, patch.y, patch.radiusX * 1.15, patch.radiusY * 1.6, "#ff7a2f", 0.28);
     drawEllipse(worldObjects, patch.x, patch.y, patch.radiusX, patch.radiusY, mixColor(wallColor, "#2a1a10", 0.7), 1, { color: hot ? "#ffb347" : "#6b5a4a", width: Math.max(1, geometry.width * 0.014) });

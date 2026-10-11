@@ -6,7 +6,10 @@ import { strict as assert } from "node:assert";
 import { DUNGEONS } from "../../../src/data/dungeons.js";
 import { getDungeonEntryFloor, getDungeonRule } from "../../../src/rules/dungeons.js";
 import { generateRunFloor } from "../../../src/run_map_generator.js";
-import { getDungeonWaterRule, riseWater, spreadWaterOnce } from "../../../src/systems/rising_water.js";
+import {
+  DEEP_WATER_DAMAGE_RATE, WATER_MAX_DEPTH, getDeepWaterDamage, getDungeonWaterRule, getWaterDepth,
+  getWaterStatus, isDeepWater, riseWater, spreadWaterOnce
+} from "../../../src/systems/rising_water.js";
 
 const library = DUNGEONS.find(dungeon => dungeon.id === "sunken_library");
 const entry = getDungeonEntryFloor(library.index);
@@ -38,24 +41,59 @@ for (const seed of ["A", "B", "C"]) {
   // It stops at the rule's ceiling.
   state.currentRun.floorSteps[floor] = rule.riseEvery * (rule.maxRises + 5);
   assert.equal(riseWater(state), rule.maxRises - 2);
-  // Stairs, events, and rooms stay dry.
+  // Stairs, events, and rooms stay dry; a chest the water reached sank.
   grid.flat().forEach(cell => {
     if (cell.hazard?.kind !== "flood") return;
     assert.equal(cell.type, "empty");
     assert.ok(!cell.event && !cell.specialRoom && !cell.obstacle);
   });
+  assert.ok(grid.flat().some(cell => getWaterDepth(cell) === WATER_MAX_DEPTH), `seed ${seed}: full water has deep cells`);
 }
 
-// One ring reaches only open neighbours of the water.
+// One ring reaches only open neighbours of the water; a closed chest it
+// reaches sinks with what was in it (#2105).
 {
   const cell = () => ({ type: "empty", walls: [false, false, false, false] });
   const grid = [[cell(), cell(), cell()], [cell(), cell(), cell()]];
   grid[0][0].hazard = { kind: "flood" };
   grid[0][0].walls[1] = true; // wall to the east
   grid[1][0].event = "chest";
-  assert.deepEqual(spreadWaterOnce(grid), []);
+  const sunk = [];
+  assert.deepEqual(spreadWaterOnce(grid, sunk), []);
+  assert.deepEqual(sunk, [{ x: 0, y: 1 }]);
+  assert.equal(grid[1][0].event, null);
+  assert.equal(grid[1][0].hazard.kind, "flood");
   grid[0][0].walls[1] = false;
-  assert.deepEqual(spreadWaterOnce(grid), [{ x: 1, y: 0 }]);
+  // The sunk chest's cell is water now and spreads on as well.
+  assert.deepEqual(spreadWaterOnce(grid), [{ x: 1, y: 0 }, { x: 1, y: 1 }]);
 }
 
-console.log("[PASS] the library's water rises with the turns spent on a floor and keeps every way open");
+// Each rise deepens the water already there: shallow, knee, deep. Deep water
+// costs a share of max HP per step (#2105).
+{
+  const cell = () => ({ type: "empty", walls: [false, false, false, false] });
+  const grid = [[cell(), cell(), cell(), cell()]];
+  grid[0][0].hazard = { kind: "flood" };
+  assert.equal(getWaterDepth(grid[0][0]), 1);
+  spreadWaterOnce(grid);
+  assert.deepEqual(grid[0].map(getWaterDepth), [2, 1, 0, 0]);
+  spreadWaterOnce(grid);
+  spreadWaterOnce(grid);
+  assert.deepEqual(grid[0].map(getWaterDepth), [WATER_MAX_DEPTH, WATER_MAX_DEPTH, 2, 1]);
+  assert.equal(isDeepWater(grid[0][0]), true);
+  assert.equal(isDeepWater(grid[0][3]), false);
+  assert.equal(getDeepWaterDamage(100), Math.ceil(100 * DEEP_WATER_DAMAGE_RATE));
+  assert.equal(getDeepWaterDamage(1), 1);
+}
+
+// The HUD reads the level and the turns until the next rise.
+{
+  const floor = entry + 1;
+  const state = { floor, currentRun: { floorSteps: { [floor]: rule.riseEvery * 3 + 5 }, waterLevels: { [floor]: 3 } } };
+  assert.deepEqual(getWaterStatus(state), { level: 3, maxLevel: rule.maxRises, turnsToRise: rule.riseEvery - 5, full: false });
+  state.currentRun.waterLevels[floor] = rule.maxRises;
+  assert.equal(getWaterStatus(state).full, true);
+  assert.equal(getWaterStatus({ floor: 1, currentRun: {} }), null);
+}
+
+console.log("[PASS] the library's water rises and deepens with the turns spent on a floor, sinks chests, and keeps every way open");

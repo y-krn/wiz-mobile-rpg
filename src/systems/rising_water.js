@@ -2,14 +2,36 @@
 // more of it lies under water. Flooded cells already slow a step by a turn
 // (#1963); here the water spreads one ring from every flooded cell each time
 // the floor's turn count passes another `riseEvery`, up to `maxRises`. Water
-// is walkable, so it never cuts a way off; stairs, rooms, chests, and the
-// guardian stay dry. The floor keeps its water for the way back, and the turns
-// spent on it then count on.
+// is walkable, so it never cuts a way off; stairs, rooms, and the guardian
+// stay dry. The floor keeps its water for the way back, and the turns spent on
+// it then count on.
+//
+// Since #2105 the water also deepens: each rise makes the water already there
+// one step deeper (shallow, knee, deep), and a step in deep water costs a
+// share of max HP. A closed chest the water reaches sinks, and what was in it
+// is lost.
 import { DX, DY } from "../constants/directions.js";
 import { getDungeonRule } from "../rules/dungeons.js";
 import { TRAVERSAL_GIMMICKS } from "../rules/traversal_gimmicks.js";
 
 const OPPOSITE = [2, 3, 0, 1];
+
+export const WATER_MAX_DEPTH = 3;
+export const WATER_DEPTH_LABELS = Object.freeze(["", "浅い", "膝まで", "深い"]);
+export const DEEP_WATER_DAMAGE_RATE = 0.06;
+
+export function getWaterDepth(cell) {
+  if (cell?.hazard?.kind !== TRAVERSAL_GIMMICKS.FLOOD) return 0;
+  return Math.min(WATER_MAX_DEPTH, Math.max(1, Number(cell.hazard.depth) || 1));
+}
+
+export function isDeepWater(cell) {
+  return getWaterDepth(cell) >= WATER_MAX_DEPTH;
+}
+
+export function getDeepWaterDamage(maxHp) {
+  return Math.max(1, Math.ceil((Number(maxHp) || 1) * DEEP_WATER_DAMAGE_RATE));
+}
 
 export function getDungeonWaterRule(floor) {
   if (!Number.isInteger(floor) || floor < 1) return null;
@@ -22,8 +44,11 @@ function canFlood(cell) {
     !cell.hazard && !cell.lever && !cell.specialRoom && !cell.message;
 }
 
-/** Spread the water one ring. Returns the newly flooded cells. */
-export function spreadWaterOnce(grid) {
+/**
+ * Spread the water one ring and deepen what was already under it. Returns the
+ * newly flooded cells; `sunk` collects the closed chests the water reached.
+ */
+export function spreadWaterOnce(grid, sunk = []) {
   if (!Array.isArray(grid)) return [];
   const flooded = [];
   grid.forEach((row, y) => row.forEach((cell, x) => {
@@ -31,6 +56,12 @@ export function spreadWaterOnce(grid) {
   }));
   const added = [];
   const seen = new Set();
+  const sinkChest = (next, nx, ny) => {
+    // A closed chest the water reaches sinks with what was in it.
+    next.event = null;
+    next.hazard = { kind: TRAVERSAL_GIMMICKS.FLOOD, discovered: false, risen: true, depth: 1, sunkChest: true };
+    sunk.push({ x: nx, y: ny });
+  };
   for (const { x, y } of flooded) {
     const cell = grid[y][x];
     for (let dir = 0; dir < 4; dir++) {
@@ -38,20 +69,31 @@ export function spreadWaterOnce(grid) {
       const nx = x + DX[dir];
       const ny = y + DY[dir];
       const next = grid[ny]?.[nx];
-      if (!canFlood(next) || next.blockEnter?.[OPPOSITE[dir]] || seen.has(`${nx},${ny}`)) continue;
+      if (!next || next.blockEnter?.[OPPOSITE[dir]] || seen.has(`${nx},${ny}`)) continue;
+      if (next.event === "chest" && next.type === "empty" && !next.hazard) {
+        seen.add(`${nx},${ny}`);
+        sinkChest(next, nx, ny);
+        continue;
+      }
+      if (!canFlood(next)) continue;
       seen.add(`${nx},${ny}`);
       added.push({ x: nx, y: ny });
     }
   }
-  added.forEach(({ x, y }) => { grid[y][x].hazard = { kind: TRAVERSAL_GIMMICKS.FLOOD, discovered: false, risen: true }; });
+  flooded.forEach(({ x, y }) => {
+    const hazard = grid[y][x].hazard;
+    hazard.depth = Math.min(WATER_MAX_DEPTH, (Number(hazard.depth) || 1) + 1);
+  });
+  added.forEach(({ x, y }) => { grid[y][x].hazard = { kind: TRAVERSAL_GIMMICKS.FLOOD, discovered: false, risen: true, depth: 1 }; });
   return added;
 }
 
 /**
  * Raise the water on `floor` to the level its turn count has reached. Returns
  * how many times it rose now (0 when nothing changed or the floor has no rule).
+ * `sunk` collects the chests the water swallowed on the way.
  */
-export function riseWater(stateLike, grid = stateLike?.map, floor = stateLike?.floor) {
+export function riseWater(stateLike, grid = stateLike?.map, floor = stateLike?.floor, sunk = []) {
   const rule = getDungeonWaterRule(floor);
   const run = stateLike?.currentRun;
   if (!rule || !run || !Array.isArray(grid)) return 0;
@@ -61,9 +103,26 @@ export function riseWater(stateLike, grid = stateLike?.map, floor = stateLike?.f
   const current = run.waterLevels[String(floor)] || 0;
   let rose = 0;
   for (let level = current; level < target; level++) {
-    spreadWaterOnce(grid);
+    spreadWaterOnce(grid, sunk);
     rose++;
   }
   if (rose > 0) run.waterLevels[String(floor)] = target;
   return rose;
+}
+
+/** The water's level on the current floor for the HUD, or null off the library. */
+export function getWaterStatus(stateLike) {
+  const rule = getDungeonWaterRule(stateLike?.floor);
+  const run = stateLike?.currentRun;
+  if (!rule || !run) return null;
+  const key = String(stateLike.floor);
+  const level = run.waterLevels?.[key] || 0;
+  const steps = run.floorSteps?.[key] || 0;
+  const full = level >= rule.maxRises;
+  return {
+    level,
+    maxLevel: rule.maxRises,
+    turnsToRise: full ? null : rule.riseEvery - (steps % rule.riseEvery),
+    full
+  };
 }

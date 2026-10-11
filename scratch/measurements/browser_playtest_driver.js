@@ -44,6 +44,7 @@ const FACILITY_DATA = await import('/src/data/facilities.js');
 const DUNGEON_RULES = await import('/src/rules/dungeons.js');
 const EXPLORE = await import('/src/menu/explore_actions.js');
 const DARK = await import('/src/systems/darkness.js');
+const WATER = await import('/src/systems/rising_water.js');
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 // Real (unscaled) sleep when the runner accelerates timers.
@@ -130,6 +131,8 @@ W.__bfs = (goal, allowTraps = false, { throughRubble = false, ignoreElites = fal
       if (!c.walls[d] && MAPU.isMapDirectionBlocked(s.map, x, y, d)) continue;
       const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= Wd || ny >= H) continue;
       const t = s.map[ny][nx].trap; if (t && t.state === 'discovered' && !allowTraps && !goal(nx, ny)) continue;
+      // Deep water (#2105) costs HP per step: walk around it like a known trap.
+      if (WATER.isDeepWater?.(s.map[ny][nx]) && !allowTraps && !goal(nx, ny)) continue;
       // Rubble, a closed seal or a collapsed ledge stops the step; every required
       // cell stays reachable around them, so route past instead of digging.
       if (GIMMICKS.isTraversalObstacleBlocking(s.map[ny][nx]) && !(throughRubble && isRubble(s.map[ny][nx]))) continue;
