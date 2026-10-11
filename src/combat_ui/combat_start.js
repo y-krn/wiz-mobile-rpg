@@ -61,7 +61,9 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
       isRoamingFlack,
       isMimic ? { mimic: true } : isBrood ? { brood: true } : roamingMonster
     );
-  const trialExp = preparePhase4jBEncounter(state, monsters, {
+  // A pack that caught up was prepared when it was first met (#2114).
+  const isPursuit = Array.isArray(pursuitMonsters) && pursuitMonsters.length > 0;
+  const trialExp = isPursuit ? { applied: false } : preparePhase4jBEncounter(state, monsters, {
     boss: isBoss,
     elite: isRoamingFlack || isMimic || isBrood,
     midboss: isMidboss,
