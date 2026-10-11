@@ -1228,7 +1228,11 @@ test('Inline log preserves history scroll and follows new logs at the tail', asy
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');
 
+    // The town home keeps its news under its picture (#2107); the inline log
+    // shows inside the town's buildings, here the castle.
     state.gameState = 'town';
+    updateUI();
+    document.getElementById('btn-town-castle').click();
     state.logs = Array.from(
       { length: 12 },
       (_, index) => `インラインログ ${index + 1} ${'詳細 '.repeat(8)}`,

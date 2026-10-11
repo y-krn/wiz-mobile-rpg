@@ -135,7 +135,10 @@ test('The town shows only the next person to look for, and the chapel lists its 
   await expect(chapel).toBeDisabled();
   await expect(chapel).toContainText('？？？');
   await expect(chapel).toContainText('忘れられた地下墓地の3階目で、祈りの声が封じられている。');
-  await expect(page.locator('#town-feat-summary .feat-card[data-feat-id="priest_rescue"]')).toContainText('未救出');
+  // The rescue is posted in the tavern (#2107).
+  await page.locator('#btn-town-feats').click();
+  await expect(page.locator('.feat-card[data-feat-id="priest_rescue"]')).toContainText('未救出');
+  await page.locator('#btn-submenu-back').click();
 
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');

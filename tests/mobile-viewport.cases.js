@@ -73,7 +73,6 @@ test('canvas top and height stay stable across controls modes @visual', async ({
         return {
           canvas: rect('#dungeon-canvas'),
           viewportPanel: rect('#viewport-panel'),
-          recordsStrip: rect('.records-strip'),
           viewportHud: rect('#viewport-hud'),
         };
       });
@@ -81,7 +80,6 @@ test('canvas top and height stay stable across controls modes @visual', async ({
       boxes[mode.name] = { top: box.y, height: box.height };
 
       for (const [overlayName, overlayBox] of [
-        ['records-strip', layout.recordsStrip],
         ['viewport-hud', layout.viewportHud],
       ]) {
         if (!overlayBox || overlayBox.width === 0 || overlayBox.height === 0) continue;

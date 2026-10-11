@@ -46,7 +46,6 @@
         <canvas id="dungeon-canvas"></canvas>
         <canvas id="dungeon-minimap-overlay" aria-hidden="true"></canvas>
         <div id="minimap-toggle-root" class="minimap-toggle-root"></div>
-        <div id="records-strip" class="records-strip" aria-label="冒険の記録"></div>
         <!-- Text HUD representation of surrounding walls for accessibility & navigation -->
         <div id="viewport-hud" aria-live="polite"></div>
         <div id="result-overlay" class="result-overlay-container" role="dialog" aria-modal="true" aria-label="冒険結果" style="display: none;"></div>
@@ -120,60 +119,43 @@
         <!-- Town controls (shown in town mode) -->
         <div id="town-controls" class="controls-group">
           <div class="town-grid" data-town-home>
-            <section class="town-home-section town-home-last-run" aria-labelledby="town-last-run-title">
-              <div class="town-home-section-heading">
-                <span class="town-home-kicker">前回の冒険</span>
-                <h2 id="town-last-run-title">前回の結果</h2>
-              </div>
-              <div id="town-last-run-summary" class="town-last-run-summary" aria-live="polite"></div>
-              <button id="btn-town-castle" class="btn btn-neon btn-town">
-                <strong data-town-castle-label>冒険記録を見る</strong><span data-town-castle-detail>おしろ — 何が起きたか</span>
+            <!-- The town as a place (#2107): each building is the way in; its
+                 name hangs on a small board. -->
+            <section class="town-scene" aria-label="坑口の街">
+              <div id="town-scene-picture" class="town-scene-picture-host"></div>
+              <button type="button" class="town-building" data-town-building="mine" tabindex="-1" aria-hidden="true">
+                <span class="town-plaque">坑口</span>
               </button>
+              <button id="btn-town-castle" class="town-building" data-town-building="castle">
+                <span class="town-plaque">城</span><span class="sr-only" data-town-castle-label>冒険記録を見る</span><span class="sr-only" data-town-castle-detail>おしろ — 何が起きたか</span>
+              </button>
+              <button id="btn-town-feats" class="town-building" data-town-building="tavern">
+                <span class="town-plaque">酒場</span><span class="sr-only">偉業の一覧を見る</span><span class="sr-only" data-town-feats-detail>条件と進み具合</span>
+              </button>
+              <button id="btn-town-archives" class="town-building" data-town-building="archives">
+                <span class="town-plaque">書庫</span><span class="sr-only">迷宮について分かったこと</span>
+              </button>
+              <button id="btn-town-guidebook" class="town-building" data-town-building="guidebook">
+                <span class="town-plaque">手引き</span><span class="sr-only">迷宮の手引き書</span><span class="sr-only" data-town-guidebook-detail>断片 0枚・解読 0 / 8頁</span>
+              </button>
+              <button id="btn-town-workshop" class="town-building" data-town-building="workshop">
+                <span class="town-plaque">工房</span><span class="sr-only">次の冒険で選べるものを増やす</span>
+              </button>
+              <div id="town-facilities" class="town-facility-plots" aria-label="連れ帰った者が開く場所"></div>
             </section>
 
-            <section class="town-home-section" aria-labelledby="town-next-run-title">
-              <div class="town-home-section-heading">
-                <span class="town-home-kicker">次の冒険</span>
-                <h2 id="town-next-run-title">あと少しで届く偉業</h2>
-              </div>
-              <div id="town-feat-summary" class="town-feat-summary" aria-live="polite"></div>
-              <div class="town-home-actions">
-                <button id="btn-town-feats" class="btn btn-neon btn-town">
-                  <strong>偉業の一覧を見る</strong><span data-town-feats-detail>条件と進み具合</span>
-                </button>
-              </div>
-            </section>
-
-            <section class="town-home-section town-home-facilities" aria-labelledby="town-facilities-title">
-              <div class="town-home-section-heading">
-                <span class="town-home-kicker">街の施設</span>
-                <h2 id="town-facilities-title">連れ帰った者が開く場所</h2>
-              </div>
-              <div id="town-facilities" class="town-home-actions"></div>
-            </section>
-
-            <section class="town-home-section" aria-labelledby="town-memory-title">
-              <div class="town-home-section-heading">
-                <span class="town-home-kicker">これまでの蓄え</span>
-                <h2 id="town-memory-title">迷宮で得たもの</h2>
-              </div>
-              <div class="town-home-actions">
-                <button id="btn-town-archives" class="btn btn-neon btn-town">
-                  <strong>迷宮について分かったこと</strong><span>書庫</span>
-                </button>
-                <button id="btn-town-guidebook" class="btn btn-neon btn-town">
-                  <strong>迷宮の手引き書</strong><span data-town-guidebook-detail>断片 0枚・解読 0 / 8頁</span>
-                </button>
-                <button id="btn-town-workshop" class="btn btn-neon btn-town">
-                  <strong>工房</strong><span>次の冒険で選べるものを増やす</span>
-                </button>
-              </div>
+            <!-- The previous run, told in a line under the picture. -->
+            <section class="town-home-section town-home-last-run" aria-labelledby="town-last-run-title">
+              <h2 id="town-last-run-title" class="town-home-kicker">前回の冒険</h2>
+              <div id="town-last-run-summary" class="town-last-run-summary" aria-live="polite"></div>
+              <p id="town-board-line" class="town-rumor" hidden></p>
+              <p id="town-rumors" class="town-rumor" hidden></p>
             </section>
           </div>
           <!-- The next-run preparation stays pinned to the bottom of the town scroll. -->
           <div class="town-primary-dock">
-            <button id="btn-town-dungeon" class="btn btn-neon btn-town" aria-describedby="town-next-run-title">
-              <strong>準備を整える</strong><span>開始キットと行き先を選ぶ</span>
+            <button id="btn-town-dungeon" class="btn btn-neon btn-town">
+              <strong>準備を整える</strong><span>坑口へ向かう前に、開始キットと行き先を選ぶ</span>
             </button>
           </div>
         </div>

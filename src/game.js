@@ -401,6 +401,8 @@ function bindButtons() {
 
   // Town
   document.getElementById("btn-town-dungeon").addEventListener("click", () => enterDungeon());
+  // The mine mouth in the town picture leads to the same preparation (#2107).
+  document.querySelector('[data-town-building="mine"]')?.addEventListener("click", () => enterDungeon());
   // Result: depart again with the previous preparation (#2002).
   setResultDepartureActions({
     getPlan: getRepeatDeparturePlan,

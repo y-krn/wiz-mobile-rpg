@@ -194,29 +194,6 @@
   align-items: center;
 }
 
-.records-strip {
-  position: absolute;
-  right: var(--sp-md);
-  bottom: var(--sp-md);
-  left: var(--sp-md);
-  z-index: 3;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  padding: var(--sp-sm);
-  border: 1px solid color-mix(in srgb, var(--floor-border, var(--neon-cyan)) 38%, transparent);
-  border-radius: var(--radius-md);
-  background: rgba(250, 245, 237, 0.88);
-  box-shadow: var(--shadow-soft);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
-.records-strip[hidden] { display: none; }
-.records-strip span { display: grid; gap: var(--sp-xxs); }
-.records-strip small { color: var(--text-muted); font-size: var(--fs-xs); }
-.records-strip strong { color: var(--neon-cyan); font-size: var(--fs-md); text-shadow: none; }
-
 .feat-hud-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -283,20 +260,18 @@
   flex-shrink: 0;
 }
 
-#game-container.town-home-mode #viewport-panel {
-  flex: 0 0 auto;
-  aspect-ratio: auto;
-  height: clamp(132px, 26svh, 220px);
+/* The town home draws its own picture (#2107); the dungeon view stays out,
+   unless it holds the renderer's safe UI after a failure. */
+#game-container.town-home-mode #viewport-panel:not(:has(#renderer-safe-ui)) {
+  display: none;
 }
 
 /* Latest lines only; the expand button opens the full log. The panel still
    follows its tail programmatically, but never becomes a second scroll area. */
+/* The town tells its news under the picture; the event strip waits for the
+   dungeon (#2107). */
 #game-container.town-home-mode #log-panel {
-  flex: 0 0 auto;
-  height: 56px;
-  min-height: 0;
-  overflow-y: hidden;
-  touch-action: auto;
+  display: none;
 }
 
 /* No adventurer is selected in town before the first departure. That holds

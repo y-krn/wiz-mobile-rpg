@@ -70,7 +70,10 @@ test('Town shows a silhouette until the foreman is home, then opens the miner gu
   await expect(slot).toContainText('？？？');
   await expect(slot).toContainText('崩れた坑道の3階目で、誰かが助けを待っている。');
   await expect(slot).not.toContainText('坑夫組合');
-  await expect(page.locator('#town-feat-summary .feat-card[data-feat-id="foreman_rescue"]')).toContainText('未救出');
+  // The rescue is posted in the tavern (#2107).
+  await page.locator('#btn-town-feats').click();
+  await expect(page.locator('.feat-card[data-feat-id="foreman_rescue"]')).toContainText('未救出');
+  await page.locator('#btn-submenu-back').click();
 
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
