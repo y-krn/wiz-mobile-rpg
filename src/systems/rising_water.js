@@ -18,7 +18,7 @@ const OPPOSITE = [2, 3, 0, 1];
 
 export const WATER_MAX_DEPTH = 3;
 export const WATER_DEPTH_LABELS = Object.freeze(["", "浅い", "膝まで", "深い"]);
-export const DEEP_WATER_DAMAGE_RATE = 0.03;
+export const DEEP_WATER_DAMAGE_RATE = 0.015;
 // Rises a cell must stand under water before it deepens one step.
 export const WATER_RISES_PER_DEPTH = 5;
 
