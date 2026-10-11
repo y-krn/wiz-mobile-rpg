@@ -220,10 +220,11 @@ The town shows it in one line on the library's card.
   with the turns spent on a floor: every twenty turns it spreads one ring
   from every flooded cell, up to twelve times. Stairs, rooms, and the
   guardian stay dry, and since water is walkable no way is ever cut off.
-- The water deepens as it rises (#2105): each rise makes the water already
-  there one step deeper (shallow, knee-deep, deep). A step in deep water
-  costs a share of max HP as well as the turn, so a long stay turns the way
-  back into a drain.
+- The water deepens as it stands (#2105): water that has stood through a few
+  rises gets one step deeper (shallow, knee-deep, deep). A step in deep water
+  costs a small share of max HP as well as the turn, so a long stay turns the
+  way back into a drain. Deep water half-drowns but never kills (it stops at
+  1 HP): the cost is a weakened way on, not a death on its own.
 - A closed chest the water reaches sinks, and what was in it is lost: the
   floor's treasure shrinks with the time spent on it.
 - The water is shown, not hinted: a flooded cell is a whole floor of water,
