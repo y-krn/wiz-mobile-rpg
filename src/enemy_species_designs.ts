@@ -1,0 +1,96 @@
+// balance-impact: none — species identity and art direction only.
+// Original elemental-fantasy designs, rendered with the existing Pixi pen.
+// A species has its own recipe even when it shares an anatomical foundation.
+function species(name: string, family: string, main: number, secondary: number, accent: number, material: number) {
+  return Object.freeze({ name, family, palette: Object.freeze({
+    main, secondary, rim: secondary, accent, material, dark: 0x15182b
+  }) });
+}
+
+export const ENEMY_SPECIES_DESIGNS = Object.freeze({
+  biter: species("かみつき蟲", "biter", 0x42775a, 0x8bb880, 0xffd674, 0xe8d0a0),
+  "goblin-caster": species("ゴブリンの呪術師", "goblin-caster", 0x50776b, 0x6465a0, 0x8ef5dc, 0xc4a26b),
+  "kobold-scout": species("コボルトの斥候", "kobold-scout", 0x965841, 0xdba66d, 0x78dacb, 0xe8d5af),
+  zombie: species("ゾンビ", "zombie", 0x76917a, 0xb4c6a0, 0xf6d77d, 0x676491),
+  skeleton: species("ガイコツ戦士", "skeleton", 0xd9ccb0, 0xffe9c4, 0x88e7df, 0x967452),
+  rabbit: species("キラーラビット", "rabbit", 0xd3d8e2, 0xf5f0df, 0xff7274, 0x8c84b9),
+  ghost: species("マッドゴースト", "ghost", 0x7975b7, 0xb9b2e7, 0x91eaf7, 0x514a81),
+  orc: species("オークの戦士", "orc", 0x7e8c55, 0xb6c57b, 0xffd879, 0x8a5948),
+  caster: species("はぐれ魔術師", "caster", 0x55729a, 0x8babce, 0xffd48b, 0xc7a477),
+  werewolf: species("ワーウルフ", "werewolf", 0x596b89, 0x9bafc3, 0x90dce7, 0x343c61),
+  banshee: species("バンシー", "ghost", 0x8574a2, 0xcac0dc, 0xfca7ce, 0x513f73),
+  spirit: species("スピリット", "wisp", 0x489bb0, 0xa6e8e9, 0xfff0ae, 0x56749b),
+  wisp: species("ウィル・オー・ウィスプ", "wisp", 0x5876bb, 0xadcbfa, 0xdfedff, 0x343c74),
+  spider: species("ジャイアントスパイダー", "spider", 0x645182, 0xa58cbb, 0xcff08b, 0x9271a4),
+  "flash-bat": species("フラッシュバット", "flash-bat", 0x486ca4, 0x95b8e7, 0xffed96, 0xd9cfa5),
+  "master-mage": species("マスターメイジ", "caster", 0x9b455f, 0xd58598, 0xffce7c, 0xe2c087),
+  "poison-giant": species("ポイズンジャイアント", "brute", 0x6d8759, 0xaac58a, 0xd8fc83, 0x8973a5),
+  "demon-guard": species("デーモンガード", "living-armor", 0x40516e, 0x8298b6, 0xffbe6a, 0xc39c68),
+  "earth-giant": species("アースジャイアント", "brute", 0x9a7455, 0xd5b581, 0xffdb8a, 0x698f72),
+  "master-demon": species("マスターデーモン", "boss", 0x77548d, 0xb59bc9, 0xa2e2fa, 0xdac7a6),
+  flack: species("フラック", "demon", 0xc45c53, 0xf19f73, 0xffe1a0, 0x50466a),
+  "grave-colossus": species("墓守の巨躯", "brute", 0x737e89, 0xb0b9be, 0x92e5d9, 0xa89b78),
+  "creeping-shadow": species("這い寄る影", "ghost", 0x40466e, 0x827fab, 0xe29be4, 0x565784),
+  "archive-keeper": species("禁書の番人", "caster", 0x506a75, 0x94b2b1, 0xf4dfa2, 0xc9a573),
+  "ember-roamer": species("灼熱の徘徊者", "dragon", 0xa45042, 0xe29565, 0xffe589, 0xe7c998),
+  "abyss-roamer": species("深淵の徘徊者", "boss", 0x514478, 0x977cae, 0xce9ffd, 0xadbcda),
+  dragon: species("ドラゴンパピー", "dragon", 0x779c9b, 0xb9d7bd, 0xffd99b, 0xeee2b6),
+  wyvern: species("ワイバーン", "dragon", 0x4e8b99, 0x95c7cf, 0xaef3de, 0xc7d4aa),
+  "red-dragon": species("レッドドラゴン", "dragon", 0xad494d, 0xe88367, 0xffd274, 0xe3b87c),
+  "iron-golem": species("アイアンゴーレム", "brute", 0x5f7a88, 0xa8bfca, 0x83e4f0, 0xb69b73),
+  "mud-slime": species("マッドスライム", "mud-slime", 0xa08555, 0xd8bd7c, 0xb5e6aa, 0x776440),
+  "metal-puppy": species("メタルパピー", "hound", 0x8298ab, 0xdce4ec, 0xffe493, 0xc4a765),
+  "orc-healer": species("オークの呪医", "goblin-caster", 0x7f925f, 0xc8d8a0, 0xa9efdc, 0xe2c997),
+  "priest-demon": species("プリーストデーモン", "demon", 0x8a789f, 0xd6c5de, 0xffe6a2, 0xc4a066),
+  "skeleton-archer": species("スケルトンアーチャー", "skeleton", 0xd2bfa2, 0xf5e6c9, 0x9ef3d8, 0x688e7f),
+  "dark-assassin": species("ダークアサシン", "humanoid", 0x414963, 0x7e89a2, 0xfc9da3, 0x855d72),
+  "ancient-dragon": species("いにしえの竜", "dragon", 0x476b83, 0x91acba, 0xffdc92, 0xd2b675),
+  "living-armor": species("リビングアーマー", "living-armor", 0x677f9b, 0xb0c4d9, 0xa1eaf7, 0x8d6d91),
+  "spell-eater": species("呪文喰い", "eye", 0x638b76, 0xa9d0aa, 0xa4f6e7, 0xc2b587),
+  "stone-guard": species("ストーンガード", "brute", 0x89979b, 0xc1ceca, 0xf9dc9b, 0x9d8568),
+  "cursed-hand": species("カースドハンド", "hand", 0x7a6996, 0xbaabcf, 0x99edf5, 0xcdb78d),
+  "blood-bats": species("ブラッドバット群", "swarm", 0x954967, 0xd98aa0, 0xffd6a3, 0x654770),
+  "dragon-worm": species("ドラゴンワーム", "serpent", 0xaa794a, 0xe2ba7c, 0xade5c3, 0xe8d6a6),
+  "split-slime": species("分裂スライム", "split-slime", 0x56a79a, 0xa5e2c1, 0xfaf1a0, 0x3c7c81),
+  "rat-pack": species("群れネズミ", "rat-pack", 0x8c7767, 0xc4ad8b, 0xffc98e, 0x647d86),
+  "rusted-shield": species("錆びた盾兵", "rusted-shield", 0x527c85, 0x97bbc1, 0xb6f5e5, 0xbb8259),
+  "powder-bat": species("火薬コウモリ", "powder-bat", 0x8a5655, 0xd59879, 0xffb971, 0xb58254),
+  "sleep-spore": species("まどろみ胞子", "sleep-spore", 0x8e7fba, 0xd4c8ed, 0xa6f0e0, 0x709588),
+  "mud-cursed-child": species("泥の呪い子", "mud-cursed-child", 0x84705f, 0xc4ad8c, 0xd2a9e8, 0x625b83),
+  "cursed-mirror": species("呪いの小鏡", "mirror", 0x8194b1, 0xc3d9ed, 0xeab6ef, 0xccae75),
+  "needle-beetle": species("針甲虫", "small", 0x6f89a0, 0xa8c5d1, 0xffd38a, 0xe5d6ac),
+  "iron-goblin": species("鉄皮のゴブリン", "humanoid", 0x6d967b, 0xb6c99a, 0xffd39c, 0x839fb2),
+  "poison-grub": species("腐毒の蛆", "biter", 0x929b68, 0xd3d49d, 0xe4b7f4, 0x817297),
+  "prayer-goblin": species("祈祷ゴブリン", "goblin-caster", 0x7b996c, 0xc6d8a3, 0xf8e4a9, 0x9a7964),
+  "mana-drain": species("マナドレイン", "wisp", 0x5266a6, 0x9bace8, 0xb9f0ff, 0x8189c1),
+  "smoke-thief": species("煙幕盗賊", "humanoid", 0x6b7484, 0xb1b6c5, 0xf7d293, 0x5d6c92),
+  "hypno-bat": species("催眠コウモリ", "flash-bat", 0x7c65a5, 0xba9ed9, 0xe1d5ff, 0x88aec4),
+  "mist-wraith": species("霧の亡霊", "ghost", 0x729cac, 0xbce0e5, 0xedf5cf, 0x647a9f),
+  "sealing-eye": species("魔封じの目玉", "eye", 0x8d659e, 0xd7addd, 0xffdd88, 0x66568e),
+  "bone-drummer": species("骨の鼓手", "skeleton", 0xcabb9d, 0xf2e3c6, 0xffc078, 0xa46559),
+  witch: species("弱体の魔女", "caster", 0x766192, 0xb6a1cc, 0xb8eea5, 0xd6b579),
+  "cleansing-priest": species("解呪の司祭", "caster", 0x5d8f8c, 0xb2d7c9, 0xffe8ac, 0xd4bc86),
+  "stone-soldier": species("石像兵", "living-armor", 0x928c7b, 0xcfc4a8, 0x9cdbe9, 0x6f8a86),
+  "mirror-priest": species("魔鏡の司祭", "caster", 0x6f80ab, 0xb4c6e9, 0xf6c4f0, 0xd7bd87),
+  executioner: species("血塗れの処刑人", "orc", 0x756575, 0xb49ba0, 0xffad96, 0xba625b),
+  "steel-beetle": species("鋼殻ビートル", "small", 0x617b93, 0xa8bfd2, 0x94f0ee, 0xc0a375),
+  "ward-serpent": species("魔防崩しの蛇", "serpent", 0x4e8b83, 0xa1cfc0, 0xead889, 0x896aa2),
+  "silent-monk": species("沈黙の修道士", "caster", 0x746f86, 0xbeb6c9, 0xefe2ad, 0x897956),
+  "summoner-demon": species("召喚する悪魔", "demon", 0x856095, 0xc39dcd, 0xabe8f2, 0xd3b581),
+  "two-headed-hound": species("双頭の番犬", "hound", 0x667184, 0xaab4c6, 0xffc69b, 0xab7b69),
+  "barrier-guardian": species("結界の守護者", "living-armor", 0x518f8b, 0x9cd2c1, 0xf7e7a4, 0xd7ba7b),
+  "dragon-regenerator": species("竜血の再生者", "dragon", 0x886977, 0xc49b9c, 0xa0ecbb, 0xe7cf9d),
+  "rebel-armor": species("反逆の鎧", "living-armor", 0x5e5277, 0xaaa0c3, 0xffa6b1, 0xc39785),
+  "obsidian-mage": species("黒曜の魔導士", "caster", 0x41495f, 0x8190af, 0xebb4ff, 0xcaad7b),
+  "abyss-splitter": species("深淵の分裂体", "split-slime", 0x67539c, 0xb1a0db, 0xacebfc, 0x403d70),
+  "doom-guide": species("破滅の導師", "caster", 0x886287, 0xc79ab6, 0xffd79f, 0xc8b088),
+  "life-eater": species("命喰いの影", "ghost", 0x51486c, 0x9383ac, 0xf1a9b9, 0x736383),
+  "ash-caster": species("灰燼の術士", "caster", 0x8d7062, 0xcdb198, 0xffcb87, 0xb86651),
+  "shield-demon": species("盾持ちデーモン", "demon", 0x806277, 0xbc99a8, 0xffd09b, 0x607e98)
+});
+
+export type EnemySpeciesRecipe = keyof typeof ENEMY_SPECIES_DESIGNS;
+
+export const ENEMY_SPECIES_RECIPES: Readonly<Record<string, EnemySpeciesRecipe>> = Object.freeze(
+  Object.fromEntries(Object.entries(ENEMY_SPECIES_DESIGNS).map(([recipe, design]) => [design.name, recipe as EnemySpeciesRecipe]))
+);

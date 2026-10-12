@@ -244,6 +244,7 @@ function createSilhouetteOutline(body, visualScale) {
     body.children.forEach((part) => {
       const silhouette = new Graphics(part.context);
       silhouette.alpha = part.alpha;
+      silhouette.position.copyFrom(part.position);
       copy.addChild(silhouette);
     });
     outline.addChild(copy);
@@ -252,14 +253,24 @@ function createSilhouetteOutline(body, visualScale) {
   return outline;
 }
 
-export function createProceduralEnemy(recipeKey, visualScale = 1) {
+export function createProceduralEnemy(recipeKey, visualScale = 1, presentation = null) {
   const container = new Container();
   container.label = "enemy-procedural";
   const body = new Container();
   body.label = "enemy-body";
   const builder = PROCEDURAL_RECIPE_BUILDERS[recipeKey] || PROCEDURAL_RECIPE_BUILDERS.small;
   builder(body, visualScale, ENEMY_RECIPE_PALETTES[recipeKey] || ENEMY_RECIPE_PALETTES.small);
-  container.addChild(createSilhouetteOutline(body, visualScale));
+  const outline = createSilhouetteOutline(body, visualScale);
+  // Large crowns, weapons, and the reused outline all participate in the
+  // existing slot limits. Fit around the feet origin; do not change hit regions.
+  if (presentation) {
+    const bounds = outline.getLocalBounds();
+    const fit = Math.min(1, presentation.maxWidth * visualScale / bounds.width,
+      presentation.maxHeight * visualScale / bounds.height);
+    body.scale.set(fit);
+    outline.scale.set(fit);
+  }
+  container.addChild(outline);
   container.addChild(body);
   return container;
 }

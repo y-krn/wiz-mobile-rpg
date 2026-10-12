@@ -327,7 +327,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/rules/near_miss.js", "src/state/run_near_miss.ts",
     "src/data/equipment_vnext.js", "src/rules/combat_tier.js", "src/rules/diagnostic_build_identity.js",
     "src/combat_logic/combat_action.js", "src/combat_logic/combat_action.ts", "src/combat_ui/combat_state.ts",
-    "src/enemy_presentation.js", "src/enemy_presentation.ts", "src/enemy_presentation_palette.js", "src/enemy_presentation_palette.ts", "src/assets/enemies/**",
+    "src/enemy_presentation.js", "src/enemy_presentation.ts", "src/enemy_presentation_palette.js", "src/enemy_presentation_palette.ts", "src/enemy_species_designs.ts", "src/pixi_enemy_recipes.js", "src/assets/enemies/**",
     "src/equipment_ui_loader.js", "src/equipment_ui_state.js",
     "src/data/starting_kit_copy.js",
     "src/state/last_preparation.ts", "src/systems/departure_preparation.js",

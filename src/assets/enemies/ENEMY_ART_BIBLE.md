@@ -1,4 +1,37 @@
-# Dark Archive Enemy Art Bible
+# Elemental Fantasy Enemy Art Bible
+
+## Current procedural direction
+
+The current request replaces the earlier restrained symbolic art direction with
+original elemental-fantasy monster designs. Keep Pixi Graphics, procedural
+geometry, the shared silhouette outline, and the existing combat layout. Do not
+introduce monster textures, models, or an image generation pipeline.
+
+All 79 species in `src/data/monsters.js` have a dedicated recipe in
+`src/enemy_species_designs.ts`. Share anatomical drawing helpers, but distinguish
+species through silhouette, face or mask, large equipment, and elemental cores.
+Palette differences alone do not establish identity. Split offspring inherit
+their parent species recipe. Unknown species retain safe archetype fallbacks.
+
+Use clear shade planes, sculpted ivory masks, faceted crystals, restrained local
+light, and readable equipment. Species cues follow the existing monster names
+and abilities: mirrors remain mirrors, hands remain hands, serpents remain
+serpents, and the two-headed hound has two heads. Flack is a winged masked fiend;
+Demon Guard is a horned armored sentinel with a large shield. These designs are
+original; Genshin Impact is a style reference, not an asset source.
+
+Preserve combat rules, original archetype sizing, targeting indices, labels,
+HP bars, hit feedback, and reduced-motion behavior. Geometry plus outline must
+fit the declared presentation bounds, including 320px three-enemy layouts.
+Verify all species have distinct geometry without relying on color, then review
+actual combat screenshots. Technical checks establish coverage and layout;
+visual preference remains a human judgement.
+
+## Previous direction (historical provenance)
+
+The following sections record earlier art experiments and approvals. Their
+palette, detail, and production-rollout restrictions are superseded by the
+current request above.
 
 ## Enemy Presentation Canon — production rollout
 

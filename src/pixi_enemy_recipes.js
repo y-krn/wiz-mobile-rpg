@@ -1,13 +1,13 @@
 // balance-impact: none — procedural enemy presentation geometry only.
 //
-// Production enemy recipes. The style target is a deformed (chibi) monster:
-// an oversized head or body mass, big glowing eyes, and one or two
-// unmistakable monster cues (fangs, horns, ears, claws, tails, extra legs).
+// Production enemy recipes. Elemental-fantasy silhouettes use broad shaded
+// planes, sculpted masks, crystals, and oversized role-specific equipment.
 // Every recipe stays a small set of flat Pixi shapes drawn around the feet
 // origin (x = 0, y = 0, up is negative) so the shared silhouette outline in
 // `pixi_enemy_prototypes.js` can reuse each part's geometry context.
 import { Graphics } from "pixi.js";
 import { ENEMY_RECIPE_PALETTES } from "./enemy_presentation_palette.js";
+import { ENEMY_SPECIES_DESIGNS } from "./enemy_species_designs.ts";
 
 const DEFAULT_PALETTE = ENEMY_RECIPE_PALETTES["flash-bat"];
 const IVORY = 0xf1e9d2;
@@ -93,9 +93,12 @@ function createPen(container, scale, palette) {
 // A glowing eye with a highlight. `mood` > 0 slants a brow down toward the
 // face center (angry); `side` is -1 for the viewer's left eye, +1 for right.
 function eye(pen, x, y, radius, { color = pen.palette.accent, side = 0, mood = 1, brow = pen.palette.main, glow = true } = {}) {
-  if (glow) pen.ellipse(x, y, radius * 1.7, radius * 1.5, color, 0.22);
-  pen.ellipse(x, y, radius, radius * 1.08, color, 1);
-  pen.circle(x - radius * 0.32, y - radius * 0.36, Math.max(0.8, radius * 0.34), GLINT, 0.9);
+  if (glow) pen.ellipse(x, y, radius * 1.5, radius, color, 0.12);
+  pen.blob([x - radius * 1.3, y, x - radius * 0.6, y - radius * 0.7,
+    x + radius * 1.1, y - radius * 0.4, x + radius, y + radius * 0.65,
+    x - radius * 0.9, y + radius * 0.65], color);
+  pen.ellipse(x, y, radius * 0.23, radius * 0.65, pen.palette.dark);
+  pen.circle(x - radius * 0.45, y - radius * 0.2, Math.max(0.7, radius * 0.2), GLINT, 0.85);
   if (mood > 0 && side !== 0) {
     const inner = -side;
     pen.poly([
@@ -905,7 +908,7 @@ function createFallbackBoss(container, scale, palette = DEFAULT_PALETTE) {
   fangs(pen, 0, -95, 32, 6, 6);
 }
 
-export const PROCEDURAL_RECIPE_BUILDERS = Object.freeze({
+const FAMILY_RECIPE_BUILDERS = Object.freeze({
   ["flash-bat"]: createFlashBat,
   ["powder-bat"]: createPowderBat,
   biter: createBiter,
@@ -933,4 +936,398 @@ export const PROCEDURAL_RECIPE_BUILDERS = Object.freeze({
   brute: createFallbackBrute,
   caster: createFallbackCaster,
   boss: createFallbackBoss
+});
+
+// Species cues are deliberately large enough to survive a three-enemy phone
+// layout. They change geometry, never just the tint of a family silhouette.
+function crystal(pen, x, y, radius, color = pen.palette.accent) {
+  pen.poly([x, y - radius, x + radius * 0.65, y, x, y + radius, x - radius * 0.65, y], color);
+  pen.poly([x, y - radius, x, y + radius * 0.5, x - radius * 0.65, y], GLINT, 0.35);
+}
+
+function mask(pen, x, y, width = 24, height = 25) {
+  pen.poly([x - width, y - height * 0.5, x - width * 0.75, y - height,
+    x, y - height * 0.75, x + width * 0.75, y - height, x + width, y - height * 0.5,
+    x + width * 0.65, y + height * 0.4, x, y + height * 0.75, x - width * 0.65, y + height * 0.4], IVORY);
+  pen.poly([x, y - height * 0.75, x + width * 0.75, y - height,
+    x + width, y - height * 0.5, x + width * 0.65, y + height * 0.4, x, y + height * 0.75], pen.palette.material, 0.32);
+  [-1, 1].forEach(side => {
+    pen.poly([x + side * width * 0.15, y - 2, x + side * width * 0.75, y - 6,
+      x + side * width * 0.6, y + 3, x + side * width * 0.2, y + 3], pen.palette.dark);
+    pen.line([x + side * width * 0.25, y, x + side * width * 0.6, y - 1], pen.palette.accent, 2);
+  });
+  crystal(pen, x, y - height * 0.5, 4);
+  pen.line([x, y + 7, x - 4, y + 12, x + 4, y + 12], pen.palette.dark, 1.5);
+}
+
+function crest(pen, x, y, count = 3, radius = 22) {
+  for (let i = 0; i < count; i += 1) {
+    const dx = (i - (count - 1) / 2) * radius * 0.55;
+    crystal(pen, x + dx, y - (i % 2) * 6, radius * 0.55, pen.palette.material);
+  }
+}
+
+function mantle(pen, y = -46, length = 38) {
+  const p = pen.palette;
+  pen.poly([-24, y, -12, y + 5, -18, y + length, -38, y + length + 6], p.material);
+  pen.poly([24, y, 12, y + 5, 18, y + length, 38, y + length + 6], p.material);
+  pen.line([-24, y + 5, -20, y + length - 5], IVORY, 2);
+  pen.line([24, y + 5, 20, y + length - 5], IVORY, 2);
+}
+
+function shield(pen, x, y, width = 22, height = 35) {
+  const p = pen.palette;
+  pen.poly([x - width, y - height, x + width, y - height, x + width * 0.9, y + 4,
+    x, y + height * 0.55, x - width * 0.9, y + 4], p.material);
+  pen.poly([x - width + 4, y - height + 4, x + width - 4, y - height + 4,
+    x + width * 0.65, y, x, y + height * 0.4, x - width * 0.65, y], p.secondary);
+  crystal(pen, x, y - height * 0.3, width * 0.45);
+}
+
+function book(pen, x, y, open = false) {
+  const p = pen.palette;
+  pen.poly([x - 16, y - 18, x + 12, y - 22, x + 16, y + 14, x - 12, y + 18], p.material);
+  pen.poly([x - 12, y - 14, x + 9, y - 18, x + 12, y + 10, x - 9, y + 14], open ? IVORY : p.main);
+  pen.line([x - 2, y - 13, x + 2, y + 12], p.accent, 2);
+  crystal(pen, x + 2, y - 1, 6);
+}
+
+function halo(pen, x, y, radius = 25) {
+  // Broken geometric ring rather than a full-body bloom.
+  const p = pen.palette;
+  for (const side of [-1, 1]) {
+    pen.line([x + side * radius * 0.5, y - radius, x + side * radius, y,
+      x + side * radius * 0.5, y + radius], p.accent, 2.5, 0.8);
+    crystal(pen, x + side * radius, y, 4, p.material);
+  }
+}
+
+function drawHound(container, scale, palette) {
+  const pen = createPen(container, scale, palette);
+  pen.poly([-38, -28, -46, -54, -56, -70, -36, -62, -22, -42], palette.main);
+  pen.blob([-34, -12, -36, -40, -4, -56, 26, -44, 36, -16], palette.main);
+  pen.poly([-20, -44, 8, -48, 24, -30, -22, -28], palette.secondary);
+  [-24, 24].forEach(x => {
+    pen.poly([x - 6, -24, x + 8, -22, x + 4, -2, x - 10, -2], palette.main);
+    pen.ellipse(x - 3, -2, 12, 4, palette.secondary);
+  });
+  pen.poly([-18, -74, -26, -110, -6, -90, 12, -110, 14, -72], palette.main);
+  pen.blob([-22, -68, -22, -90, 0, -98, 22, -84, 34, -66, 14, -58], palette.main);
+  pen.blob([2, -72, 30, -76, 38, -66, 18, -58], palette.secondary);
+  eyePair(pen, 0, -82, 10, 4);
+  pen.poly([28, -69, 38, -69, 34, -63], palette.dark);
+  fangs(pen, 22, -60, 18, 2, 7);
+}
+
+function drawSerpent(container, scale, palette) {
+  const pen = createPen(container, scale, palette);
+  pen.curve([-52, -4, -30, -20, 30, -3, 42, -18, -10, -36, -20, -60, 14, -77], palette.main, 17);
+  pen.curve([-46, -8, -25, -17, 26, -8, 35, -18, -14, -36], palette.secondary, 5);
+  pen.blob([-14, -64, -22, -84, 0, -100, 26, -88, 30, -66, 8, -60], palette.main);
+  pen.poly([-14, -82, -10, -92, 10, -90, 20, -80, 8, -76], palette.secondary);
+  eyePair(pen, 4, -78, 10, 4.2);
+  pen.line([4, -65, 6, -56, 0, -51, 6, -56, 12, -52], palette.accent, 2);
+}
+
+function drawHand(container, scale, palette) {
+  const pen = createPen(container, scale, palette);
+  pen.blob([-22, -4, -28, -44, -18, -66, 20, -68, 30, -46, 22, -4], palette.main);
+  // Five separate fingers are the species silhouette, not zombie arms.
+  [[-22, -54, -46, -76], [-14, -65, -22, -111], [-2, -70, -3, -123],
+    [10, -68, 17, -116], [22, -62, 36, -102]].forEach(([x, y, tx, ty]) => {
+    pen.line([x, y, tx, ty], palette.main, 9);
+    pen.poly([tx - 4, ty, tx + 4, ty, tx + 2, ty - 10], IVORY);
+    pen.line([x, y, (x + tx) / 2, (y + ty) / 2], palette.secondary, 2);
+  });
+  pen.poly([-15, -56, 4, -62, 20, -46, 10, -24, -10, -30], palette.secondary);
+  eye(pen, 0, -43, 8, { mood: 0 });
+  pen.line([-20, -10, 20, -10], palette.material, 5);
+}
+
+function drawEye(container, scale, palette) {
+  const pen = createPen(container, scale, palette);
+  [-1, 1].forEach(side => {
+    pen.poly([side * 22, -64, side * 52, -92, side * 46, -60, side * 60, -40, side * 26, -44], palette.material);
+  });
+  pen.ellipse(0, -59, 30, 33, palette.main);
+  pen.ellipse(0, -59, 24, 21, IVORY);
+  pen.circle(0, -59, 13, palette.accent);
+  pen.ellipse(0, -59, 4, 12, palette.dark);
+  pen.circle(-5, -64, 3, GLINT);
+  pen.poly([-12, -28, 0, -12, 12, -28, 0, -22], palette.secondary);
+}
+
+function drawMirror(container, scale, palette) {
+  const pen = createPen(container, scale, palette);
+  pen.line([0, -34, 0, -5], palette.material, 7);
+  pen.ellipse(0, -66, 34, 44, palette.material);
+  pen.ellipse(0, -66, 27, 36, palette.main);
+  pen.poly([-19, -82, -7, -96, 22, -68, 10, -48], palette.secondary, 0.7);
+  mask(pen, 0, -65, 16, 20);
+  crest(pen, 0, -111, 3, 14);
+}
+
+function drawBatSwarm(container, scale, palette) {
+  const pen = createPen(container, scale, palette);
+  // A descending triangular flock, not a single bat with a new color.
+  [[-34, -86, 0.55], [34, -72, 0.48], [0, -38, 0.7]].forEach(([x, y, size]) => {
+    const bat = createPen(container, scale * size, palette);
+    const start = container.children.length;
+    drawBat(bat, palette, y / size);
+    // All graphics stay direct children so the existing outline can reuse them.
+    container.children.slice(start).forEach(part => { part.position.x += x * scale; });
+  });
+  pen.line([-28, -10, 0, -4, 28, -12], palette.accent, 2, 0.7);
+}
+
+const SPECIAL_BODY_BUILDERS = Object.freeze({
+  hound: drawHound, serpent: drawSerpent, hand: drawHand, eye: drawEye,
+  mirror: drawMirror, swarm: drawBatSwarm
+});
+
+function addSpeciesFeatures(pen, recipe) {
+  const p = pen.palette;
+  switch (recipe) {
+    case "biter":
+      pen.poly([-28, -62, -18, -86, -6, -66], p.material); crystal(pen, 30, -27, 7); break;
+    case "goblin-caster":
+      mask(pen, 0, -75, 18, 19); mantle(pen, -43, 33); break;
+    case "kobold-scout":
+      pen.poly([-25, -110, -36, -126, -10, -115], p.accent); shield(pen, -29, -28, 12, 20); break;
+    case "zombie":
+      pen.poly([-24, -103, -9, -119, 17, -107, 6, -96], p.material);
+      pen.line([-18, -46, -5, -32, 12, -49], IVORY, 3); break;
+    case "skeleton":
+      pen.poly([-23, -99, -12, -117, 14, -111, 23, -97], p.material); mantle(pen, -52, 23); break;
+    case "rabbit":
+      crystal(pen, -18, -90, 9, p.material); pen.poly([-22, -36, -34, -49, -29, -27], p.material); break;
+    case "ghost":
+      mask(pen, 0, -77, 20, 24); pen.poly([-27, -28, -44, -6, -24, -15], p.secondary); break;
+    case "orc":
+      mask(pen, 0, -82, 24, 24); horn(pen, -20, -99, -40, -120, 7, IVORY);
+      pen.poly([-37, -50, -53, -70, -49, -34], p.secondary); break;
+    case "caster":
+      book(pen, 35, -42); pen.line([-23, -5, 0, -16, 24, -5], p.material, 3); break;
+    case "werewolf":
+      crystal(pen, 0, -57, 13, p.material); pen.poly([-24, -108, -44, -118, -26, -98], IVORY); break;
+    case "banshee":
+      pen.blob([-27, -86, -44, -116, -18, -127, 3, -110, 32, -125, 43, -98, 23, -78], p.material);
+      pen.ellipse(0, -61, 13, 18, p.dark); pen.line([-10, -29, -24, -7, 0, -18, 22, -5], p.accent, 2); break;
+    case "spirit":
+      halo(pen, 0, -62, 39); crest(pen, 0, -27, 2, 16); break;
+    case "wisp":
+      crystal(pen, 0, -71, 16, IVORY); pen.line([-18, -20, 0, -12, 18, -20], p.accent, 2); break;
+    case "spider":
+      crystal(pen, 0, -56, 15, p.material); crest(pen, 0, -80, 3, 15); break;
+    case "flash-bat":
+      crystal(pen, 0, -80, 12); pen.poly([-61, -83, -46, -77, -50, -66], IVORY);
+      pen.poly([61, -83, 46, -77, 50, -66], IVORY); break;
+    case "master-mage":
+      crest(pen, 0, -115, 5, 15); mantle(pen, -56, 43); halo(pen, 34, -35, 18); break;
+    case "poison-giant":
+      [[-33, -88], [32, -82], [-52, -37]].forEach(([x, y]) => {
+        pen.circle(x, y, 12, p.material); crystal(pen, x, y, 8);
+      }); pen.poly([-12, -109, 3, -123, 15, -103], p.secondary); break;
+    case "demon-guard":
+      mask(pen, 0, -106, 19, 23); horn(pen, -16, -119, -39, -147, 7, p.material);
+      horn(pen, 16, -119, 39, -147, 7, p.material); shield(pen, -43, -39, 26, 44);
+      pen.poly([28, -85, 59, -113, 57, -72], p.material); break;
+    case "earth-giant":
+      pen.poly([-42, -78, -58, -104, -32, -99, -18, -77], p.material);
+      pen.poly([42, -78, 57, -111, 29, -99, 18, -77], p.secondary); crest(pen, 0, -106, 3, 18); break;
+    case "master-demon":
+      crest(pen, 0, -142, 5, 17); mask(pen, 0, -108, 25, 27); book(pen, 56, -32); break;
+    case "flack":
+      mask(pen, 0, -77, 20, 22); pen.poly([-28, -41, -46, -16, -29, -19], p.accent);
+      pen.poly([28, -41, 46, -16, 29, -19], p.accent); crystal(pen, 0, -34, 10); break;
+    case "grave-colossus":
+      pen.poly([-15, -116, -19, -140, 17, -140, 21, -112], p.material);
+      pen.line([-8, -131, 10, -131, 1, -116], p.accent, 2); shield(pen, -42, -30, 26, 40); break;
+    case "creeping-shadow":
+      pen.poly([-33, -45, -62, -16, -70, -3, -47, -11], p.main);
+      pen.poly([33, -45, 62, -16, 70, -3, 47, -11], p.main); mask(pen, 0, -73, 15, 21); break;
+    case "archive-keeper":
+      book(pen, 40, -67, true); book(pen, -15, -24); crest(pen, 0, -118, 2, 20); break;
+    case "ember-roamer":
+      [[-33, -47], [0, -120], [57, -24]].forEach(([x, y]) => crystal(pen, x, y, 16));
+      pen.poly([-25, -36, -41, -67, -6, -51], p.dark, 0.5); break;
+    case "abyss-roamer":
+      mask(pen, 0, -107, 24, 31); halo(pen, 0, -56, 37); mantle(pen, -70, 51); break;
+    case "dragon":
+      pen.poly([-17, -103, -8, -123, 2, -108, 13, -122, 15, -99], p.material);
+      pen.line([-24, -43, -18, -31, -26, -20], IVORY, 2); break;
+    case "wyvern":
+      pen.poly([-24, -87, -82, -128, -65, -71, -43, -75], p.main);
+      pen.poly([24, -87, 82, -128, 65, -71, 43, -75], p.main);
+      pen.line([-76, -114, -44, -84, -24, -87], p.secondary, 3);
+      pen.line([76, -114, 44, -84, 24, -87], p.secondary, 3); crest(pen, -6, -121, 2, 15); break;
+    case "red-dragon":
+      crest(pen, 0, -122, 4, 16); mask(pen, -4, -94, 20, 18);
+      pen.poly([35, -34, 50, -52, 63, -30], p.material); break;
+    case "iron-golem":
+      pen.ellipse(-51, -64, 16, 18, p.material); pen.ellipse(51, -64, 16, 18, p.material);
+      pen.circle(0, -58, 17, p.dark); pen.circle(0, -58, 11, p.material); crystal(pen, 0, -58, 8);
+      pen.poly([-21, -95, -14, -120, 17, -120, 22, -95], p.secondary); break;
+    case "mud-slime":
+      pen.poly([-29, -65, -24, -96, -3, -82, 5, -99, 24, -64], p.material);
+      pen.poly([-21, -78, -20, -90, -8, -82], p.secondary); crystal(pen, 30, -28, 8); break;
+    case "metal-puppy":
+      shield(pen, -4, -31, 17, 23); crest(pen, 0, -97, 2, 15);
+      pen.line([-27, -55, 19, -53], p.material, 6); break;
+    case "orc-healer":
+      mask(pen, 0, -78, 22, 24); crest(pen, 0, -115, 2, 15);
+      pen.line([-40, -118, -40, -96], IVORY, 3); pen.line([-49, -108, -31, -108], IVORY, 3); break;
+    case "priest-demon":
+      mantle(pen, -51, 42); mask(pen, 0, -77, 18, 22); halo(pen, 0, -100, 38); break;
+    case "skeleton-archer":
+      pen.curve([-30, -97, -63, -57, -28, -15], p.material, 5);
+      pen.line([-30, -97, -29, -15], IVORY, 1.6); pen.line([-52, -60, 22, -60], p.accent, 3);
+      pen.poly([22, -66, 36, -60, 22, -54], p.material); crest(pen, 0, -109, 1, 21); break;
+    case "dark-assassin":
+      mask(pen, 0, -73, 17, 20); pen.poly([-29, -58, -47, -105, -18, -79], p.material);
+      pen.poly([30, -35, 56, -67, 48, -28], IVORY); mantle(pen, -45, 29); break;
+    case "ancient-dragon":
+      horn(pen, -20, -111, -55, -159, 10, p.material); horn(pen, 16, -112, 47, -157, 10, p.material);
+      crest(pen, 0, -43, 3, 22); pen.line([-52, -91, -37, -84, -50, -62], IVORY, 3); break;
+    case "living-armor":
+      crystal(pen, 0, -66, 13); pen.poly([-13, -116, 0, -140, 13, -116], p.material); break;
+    case "spell-eater":
+      pen.blob([-26, -35, 0, -41, 26, -35, 14, -18, -14, -18], p.dark);
+      fangs(pen, 0, -37, 43, 5, 10); book(pen, -43, -19, true); break;
+    case "stone-guard":
+      shield(pen, -41, -34, 29, 47); pen.poly([33, -77, 49, -107, 55, -74], p.material);
+      mask(pen, 0, -95, 18, 18); break;
+    case "cursed-hand":
+      halo(pen, 0, -43, 19); crystal(pen, 0, -13, 6); break;
+    case "blood-bats":
+      crystal(pen, -34, -88, 6); crystal(pen, 34, -74, 6); break;
+    case "dragon-worm":
+      horn(pen, -13, -88, -28, -112, 5, p.material); horn(pen, 15, -88, 30, -108, 5, p.material);
+      [-22, 0, 22].forEach(x => crystal(pen, x, -16, 6, p.material)); break;
+    case "split-slime":
+      crystal(pen, -14, -72, 13); crystal(pen, 36, -45, 8); break;
+    case "rat-pack":
+      pen.poly([-9, -34, -5, -55, 3, -40, 11, -51, 14, -33], p.material);
+      pen.line([-17, -22, 3, -28, 15, -22], p.accent, 3); break;
+    case "rusted-shield":
+      pen.poly([-40, -80, -50, -98, -21, -90, 0, -100, 16, -81], p.material);
+      crystal(pen, -15, -48, 14); break;
+    case "powder-bat":
+      pen.poly([-15, -27, 0, -40, 15, -27, 0, -15], p.material);
+      pen.line([-10, -22, 10, -22], IVORY, 2); crest(pen, 0, -87, 2, 12); break;
+    case "sleep-spore":
+      pen.poly([-39, -65, -47, -85, -28, -77], p.secondary);
+      pen.poly([33, -68, 42, -95, 48, -71], p.secondary); crystal(pen, 0, -75, 14); break;
+    case "mud-cursed-child":
+      mask(pen, 0, -84, 21, 24); pen.poly([-17, -103, -30, -119, -8, -110], p.material);
+      pen.line([-19, -47, 0, -37, 19, -47], p.accent, 3); break;
+    case "cursed-mirror":
+      halo(pen, 0, -66, 42); pen.line([-10, -27, 10, -27], IVORY, 3); break;
+    case "needle-beetle":
+      [-1, 1].forEach(side => {
+        pen.poly([side * 19, -45, side * 46, -72, side * 36, -32], p.material);
+        pen.poly([side * 25, -30, side * 51, -43, side * 35, -20], IVORY);
+      }); crystal(pen, 0, -47, 7); break;
+    case "iron-goblin":
+      mask(pen, 0, -72, 22, 23); shield(pen, -25, -31, 20, 31);
+      pen.poly([-18, -84, -15, -108, 17, -105, 22, -82], p.material); break;
+    case "poison-grub":
+      pen.circle(39, -22, 12, p.material); pen.circle(47, -44, 8, p.accent);
+      pen.poly([-28, -60, -44, -74, -37, -48], p.secondary); break;
+    case "prayer-goblin":
+      mask(pen, 0, -77, 18, 25); halo(pen, 0, -92, 35); book(pen, 27, -26, true); break;
+    case "mana-drain":
+      pen.curve([-40, -42, -53, -22, -26, -17, -20, -30], p.secondary, 5);
+      pen.curve([40, -42, 53, -22, 26, -17, 20, -30], p.secondary, 5); crystal(pen, 0, -56, 14); break;
+    case "smoke-thief":
+      pen.blob([-45, -11, -67, -35, -53, -55, -38, -33, -27, -14], p.secondary, 0.8);
+      mask(pen, 0, -70, 16, 18); pen.circle(-33, -33, 11, p.material); mantle(pen, -48, 31); break;
+    case "hypno-bat":
+      halo(pen, 0, -56, 27); pen.poly([-10, -79, 0, -109, 10, -79], p.material);
+      pen.line([-52, -72, -42, -64, -31, -69], IVORY, 2); break;
+    case "mist-wraith":
+      pen.curve([-48, -52, -67, -32, -33, -19, -45, -3], p.secondary, 9);
+      pen.curve([48, -52, 67, -32, 33, -19, 45, -3], p.secondary, 9); mask(pen, 0, -75, 17, 21); break;
+    case "sealing-eye":
+      halo(pen, 0, -59, 40); pen.line([-24, -41, 24, -78], p.material, 6);
+      crystal(pen, -18, -91, 9); break;
+    case "bone-drummer":
+      pen.ellipse(0, -29, 24, 19, p.material); pen.ellipse(0, -44, 24, 7, IVORY);
+      pen.line([-19, -36, -14, -15, 0, -36, 14, -15, 20, -36], p.accent, 2);
+      pen.line([-28, -60, -12, -40], p.material, 4); crest(pen, 0, -109, 3, 12); break;
+    case "witch":
+      pen.poly([-36, -97, -6, -138, 25, -117, 39, -92], p.material);
+      pen.line([-35, -96, 34, -96], IVORY, 3); pen.circle(34, -24, 13, p.accent);
+      pen.circle(34, -21, 10, p.main); break;
+    case "cleansing-priest":
+      pen.poly([-19, -108, -17, -130, 17, -130, 19, -108], IVORY);
+      crystal(pen, 0, -120, 7); mantle(pen, -58, 50); break;
+    case "stone-soldier":
+      pen.poly([-26, -97, -18, -132, 20, -132, 28, -97], p.material);
+      mask(pen, 0, -107, 19, 18); pen.line([-17, -57, 17, -57, 0, -39, -17, -57], p.accent, 3); break;
+    case "mirror-priest":
+      pen.ellipse(36, -49, 22, 31, p.material); pen.ellipse(36, -49, 17, 25, p.secondary);
+      pen.line([23, -63, 48, -36], IVORY, 3); crest(pen, 0, -116, 3, 17); break;
+    case "executioner":
+      mask(pen, 0, -83, 22, 27); pen.poly([39, -93, 71, -123, 69, -65, 39, -75], p.material);
+      pen.line([47, -96, 61, -107, 60, -81], IVORY, 3); mantle(pen, -52, 42); break;
+    case "steel-beetle":
+      pen.poly([-28, -41, -35, -67, 0, -82, 35, -67, 28, -41], p.material);
+      pen.poly([-18, -44, 0, -70, 18, -44, 0, -39], p.secondary); crystal(pen, 0, -58, 12); break;
+    case "ward-serpent":
+      pen.poly([-19, -62, -42, -95, -22, -113, -4, -89, 20, -111, 39, -89, 27, -58], p.material);
+      mask(pen, 5, -80, 16, 20); break;
+    case "silent-monk":
+      pen.circle(0, -93, 28, p.secondary); pen.ellipse(0, -89, 20, 18, p.main);
+      pen.line([-16, -82, 16, -82], IVORY, 7); mantle(pen, -55, 44); break;
+    case "summoner-demon":
+      halo(pen, -40, -32, 23); book(pen, 39, -38, true); mask(pen, 0, -77, 20, 23); break;
+    case "two-headed-hound":
+      pen.poly([22, -63, 24, -101, 42, -83, 61, -106, 61, -64], p.main);
+      pen.blob([18, -64, 21, -87, 45, -91, 66, -76, 70, -59, 46, -48], p.main);
+      pen.blob([46, -67, 69, -67, 74, -55, 48, -51], p.secondary);
+      eyePair(pen, 44, -74, 9, 4); fangs(pen, 59, -53, 17, 2, 7); crest(pen, -7, -90, 2, 13); break;
+    case "barrier-guardian":
+      halo(pen, 0, -67, 61); mask(pen, 0, -106, 19, 22); crystal(pen, 0, -63, 17);
+      crest(pen, 0, -129, 3, 16); break;
+    case "dragon-regenerator":
+      pen.poly([-30, -65, -48, -102, -16, -80], p.material);
+      pen.poly([30, -65, 48, -102, 16, -80], p.material); crystal(pen, 0, -35, 18);
+      pen.curve([-26, -20, -17, -37, -21, -52], p.accent, 3); break;
+    case "rebel-armor":
+      horn(pen, -14, -114, -35, -142, 7, p.material);
+      pen.poly([16, -111, 40, -132, 31, -105], p.secondary);
+      shield(pen, -43, -43, 23, 37); pen.line([-47, -71, -38, -54, -49, -32], p.accent, 4); break;
+    case "obsidian-mage":
+      crest(pen, 0, -118, 4, 17); mask(pen, 0, -80, 17, 23);
+      pen.poly([-22, -55, -43, -73, -30, -34], p.secondary); crystal(pen, 35, -34, 17); break;
+    case "abyss-splitter":
+      pen.poly([-44, -40, -50, -93, -27, -69, -6, -104, 10, -53], p.material);
+      mask(pen, -14, -42, 19, 19); halo(pen, 37, -24, 22); break;
+    case "doom-guide":
+      halo(pen, 0, -100, 42); mask(pen, 0, -80, 20, 24); book(pen, 36, -39);
+      mantle(pen, -51, 44); break;
+    case "life-eater":
+      pen.poly([-35, -57, -62, -86, -47, -31, -33, -20], p.material);
+      pen.poly([35, -57, 62, -86, 47, -31, 33, -20], p.material);
+      pen.ellipse(0, -53, 14, 18, p.dark); fangs(pen, 0, -63, 21, 3, 10); break;
+    case "ash-caster":
+      pen.poly([-28, -74, -40, -126, -15, -111, 1, -137, 17, -110, 39, -120, 27, -72], p.material);
+      mask(pen, 0, -80, 19, 22); crystal(pen, 36, -29, 14); break;
+    case "shield-demon":
+      shield(pen, -38, -36, 29, 43); mask(pen, 0, -78, 20, 23);
+      pen.poly([24, -52, 58, -77, 50, -43], p.material); break;
+  }
+}
+
+export const PROCEDURAL_RECIPE_BUILDERS = Object.freeze({
+  ...FAMILY_RECIPE_BUILDERS,
+  ...Object.fromEntries(Object.entries(ENEMY_SPECIES_DESIGNS).map(([recipe, design]) => [
+    recipe,
+    (container, scale, palette = design.palette) => {
+      const builder = SPECIAL_BODY_BUILDERS[design.family] || FAMILY_RECIPE_BUILDERS[design.family];
+      builder(container, scale, palette);
+      addSpeciesFeatures(createPen(container, scale, palette), recipe);
+    }
+  ]))
 });

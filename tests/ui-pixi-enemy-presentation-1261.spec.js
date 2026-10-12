@@ -94,6 +94,86 @@ async function evidence(page) {
   });
 }
 
+test('all monster species have different geometry and fit their Pixi slots @smoke @visual @e2e', async ({ page }, testInfo) => {
+  test.setTimeout(120000);
+  await openPixi(page);
+  const proof = await page.evaluate(async () => {
+    const { MONSTERS } = await import('/src/data/monsters.js');
+    const { getEnemyPresentation } = await import('/src/enemy_presentation.js');
+    const { createProceduralEnemy } = await import('/src/pixi_enemy_prototypes.js');
+    return MONSTERS.map(monster => {
+      const presentation = getEnemyPresentation(monster);
+      const drawings = [1, 0.35].map(scale => {
+        const sprite = createProceduralEnemy(presentation.recipe, scale, presentation);
+        const bounds = sprite.getLocalBounds();
+        const body = sprite.getChildByLabel('enemy-body');
+        // Color and fill style are excluded: tint-only variants must fail.
+        const geometry = JSON.stringify(body.children.map(part => ({
+          x: part.x, y: part.y,
+          paths: part.context.instructions.map(instruction => ({
+            action: instruction.action, path: instruction.data.path.instructions,
+          })),
+        })));
+        const result = { width: bounds.width, height: bounds.height, scale, geometry };
+        sprite.destroy({ children: true });
+        return result;
+      });
+      return { name: monster.name, presentation, drawings, monster: withMaxHp(monster) };
+    });
+    function withMaxHp(monster) { return { ...monster, maxHp: monster.hp }; }
+  });
+  expect(new Set(proof.map(row => row.presentation.recipe)).size).toBe(proof.length);
+  expect(new Set(proof.map(row => row.drawings[0].geometry)).size).toBe(proof.length);
+  for (const { name, presentation, drawings } of proof) {
+    expect(presentation.uniqueName, name).toBe(name);
+    for (const drawing of drawings) {
+      expect(drawing.width, `${name} width at ${drawing.scale}`).toBeLessThanOrEqual(presentation.maxWidth * drawing.scale + 0.01);
+      expect(drawing.height, `${name} height at ${drawing.scale}`).toBeLessThanOrEqual(presentation.maxHeight * drawing.scale + 0.01);
+      expect(drawing.width, name).toBeGreaterThan(10 * drawing.scale);
+      expect(drawing.height, name).toBeGreaterThan(10 * drawing.scale);
+    }
+  }
+  const frames = [];
+  for (const { name, monster } of proof) {
+    await setCombat(page, [monster]);
+    const clearHp = await page.evaluate(async () => {
+      const { dungeonRenderer } = await import('/src/renderer_runtime.js');
+      const { getCombatMonsterLayout } = await import('/src/rules/renderer_projection.js');
+      const layout = getCombatMonsterLayout(dungeonRenderer.getRenderInput().combatMonsters, dungeonRenderer.viewport)[0];
+      const floorY = layout.cy + 30 * layout.scale;
+      const hpY = 2 * dungeonRenderer.combatAnchors.get(0).y - floorY;
+      const enemy = dungeonRenderer.scene.layers.actors.children.find(child => child.label?.startsWith('enemy-'));
+      return hpY + 5 <= enemy.getBounds().y - 4;
+    });
+    expect(clearHp, `${name} HP bar stays above the silhouette`).toBe(true);
+    frames.push({ name, frame: await capture(page, testInfo, `species-${name}.png`) });
+  }
+  for (let start = 0; start < frames.length; start += 20) {
+    await captureFrameSheet(page, frames.slice(start, start + 20), testInfo, `all-species-${1 + start / 20}.png`, 4);
+  }
+  for (const viewport of [VIEWPORTS[0], VIEWPORTS[2]]) {
+    await page.setViewportSize(viewport);
+    for (let start = 0; start < proof.length; start += 3) {
+      await setCombat(page, proof.slice(start, start + 3).map(row => row.monster), true);
+      const current = await evidence(page);
+      expect(current.billboards).toHaveLength(Math.min(3, proof.length - start));
+      expect(current.layoutIndices).toEqual(proof.slice(start, start + 3).map((_, index) => index));
+      expect(current.textureCount).toBe(0);
+      const bounded = await page.evaluate(async () => {
+        const { dungeonRenderer } = await import('/src/renderer_runtime.js');
+        const viewport = dungeonRenderer.viewport;
+        return dungeonRenderer.scene.layers.actors.children.filter(child => child.label?.startsWith('enemy-')).every(child => {
+          const b = child.getBounds();
+          return b.x >= 0 && b.y >= 0 && b.x + b.width <= viewport.width + 1 && b.y + b.height <= viewport.height + 1;
+        });
+      });
+      expect(bounded, `all species group ${start} at ${viewport.width}px`).toBe(true);
+    }
+  }
+  const representatives = ['フラッシュバット', 'マッドスライム', 'ゴブリンの呪術師', '錆びた盾兵', 'フラック', 'デーモンガード', '呪いの小鏡', '双頭の番犬'];
+  await captureFrameSheet(page, representatives.map(name => frames.find(frame => frame.name === name)), testInfo, 'elemental-fantasy-representatives.png', 4);
+});
+
 test('procedural production registry renders all named recipes without enemy textures @smoke @visual @e2e', async ({ page }, testInfo) => {
   await openPixi(page);
   const frames = [];
@@ -151,8 +231,9 @@ test('procedural registry preserves distinct recipe mappings, target indices, an
     const { getProceduralRecipeKeys } = await import('/src/pixi_enemy_prototypes.js');
     return { named: ENEMY_UNIQUE_RECIPES, keys: getProceduralRecipeKeys(), presentations: Object.fromEntries(Object.keys(ENEMY_UNIQUE_RECIPES).map(name => [name, getEnemyPresentation({ name })])) };
   });
-  expect(Object.keys(mapping.named)).toHaveLength(11);
-  expect(new Set(Object.values(mapping.named)).size).toBe(11);
+  const speciesCount = await page.evaluate(async () => (await import('/src/data/monsters.js')).MONSTERS.length);
+  expect(Object.keys(mapping.named)).toHaveLength(speciesCount);
+  expect(new Set(Object.values(mapping.named)).size).toBe(speciesCount);
   expect(mapping.keys).toEqual(expect.arrayContaining(['small', 'humanoid', 'brute', 'caster', 'boss']));
   expect(Object.values(mapping.presentations).every(({ asset, recipe }) => asset === null && recipe)).toBe(true);
 
