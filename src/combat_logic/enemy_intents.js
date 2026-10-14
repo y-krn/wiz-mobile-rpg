@@ -8,8 +8,8 @@
 // telegraphs; they get no intent here.
 import { hasTrait } from "./monster_traits.js";
 
-export const HEAVY_EVERY = 3;
-export const HEAVY_MULTIPLIER = 2;
+export const HEAVY_EVERY = 2;
+export const HEAVY_MULTIPLIER = 3;
 export const GUARD_HP_RATE = 0.5;
 export const HEAL_SPELL_HP_RATE = 0.6;
 
