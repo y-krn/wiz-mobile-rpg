@@ -80,6 +80,11 @@ export function getDungeonStrength(floor) {
  * roaming strong enemy (by its template name; a mimic and a brood keeper wear
  * that body too), or any other monster.
  */
+// Fewer, heavier ordinary fights (#2115): an ordinary enemy is tougher and
+// hits harder so a fight lasts long enough for its shown moves to matter;
+// encounters come half as often and each pays twice the EXP and materials.
+export const ORDINARY_HEFT = Object.freeze({ hp: 2.2, atk: 1.15, encounters: 0.5, reward: 2 });
+
 export function getEnemyStrength(floor, templateName, { boss = false } = {}) {
   const dungeon = getDungeonForFloor(floor);
   const strength = dungeon.strength;
@@ -88,7 +93,11 @@ export function getEnemyStrength(floor, templateName, { boss = false } = {}) {
     return { hp: strength.eliteHp, atk: strength.eliteAtk, def: strength.eliteDef };
   }
   const entry = getDungeonFloor(floor) === 1 ? strength.entry : 1;
-  return { hp: strength.enemyHp * entry, atk: strength.enemyAtk * entry, def: strength.enemyDef };
+  return {
+    hp: strength.enemyHp * entry * ORDINARY_HEFT.hp,
+    atk: strength.enemyAtk * entry * ORDINARY_HEFT.atk,
+    def: strength.enemyDef
+  };
 }
 
 /**

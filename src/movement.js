@@ -55,7 +55,7 @@ import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 import { createRunRoundTrip } from "./state/run_round_trip.js";
 import { isRoundTripRun } from "./rules/round_trip.js";
-import { getDungeonFloor, isDungeonBottomFloor, isDungeonEntryFloor } from "./rules/dungeons.js";
+import { ORDINARY_HEFT, getDungeonFloor, isDungeonBottomFloor, isDungeonEntryFloor } from "./rules/dungeons.js";
 import { arriveOnFloor, getHunterName, isHunted, tickHunter, wakeDungeon } from "./systems/round_trip.js";
 import { takeCoreFamiliesForRun } from "./systems/core_families.js";
 
@@ -139,7 +139,7 @@ export function getCurrentFloorExplorationSteps() {
 }
 
 export function calculateEncounterChance(floorStep, { lightPower, lightTurns, silenceTurns, floor, noiseEvents, darkness } = {}) {
-  const baseRate = floorStep <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE;
+  const baseRate = (floorStep <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE) * ORDINARY_HEFT.encounters;
   // The mine's rule (#2063): lingering noise brings ordinary monsters too.
   let rate = applyNoiseToEncounterChance(baseRate, { floor, noiseEvents });
   if (lightPower === "lomilwa") {
