@@ -162,6 +162,7 @@ import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard
 import { buildCombatTurnQueue } from "./turn_order.js";
 import { ENEMY_SPELL_ATTACK_SCALE, rollAttackScaledDamage } from "../rules/enemy_spell_damage.js";
 import { getFleeChance, isFleeGuaranteed } from "../rules/flee_rules.js";
+import { PURSUIT_TURNS, recordFleePursuit } from "../systems/pursuit.js";
 import { GROUP_FOLLOWER_DAMAGE_SCALE } from "./turn_order.js";
 
 const MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS = new Set([
@@ -1112,6 +1113,10 @@ export function runCombatRoundCalculation(
             runEscape: true,
             fleeExecution: true
           });
+          // The pack is not gone: it follows on this floor (#2114).
+          if (recordFleePursuit(state, state.combatState.monsters)) {
+            logQueue.push({ msg: `[味方] 魔物の群れはまだ追ってくる。${PURSUIT_TURNS}手番ほどで追いつかれそうだ（階段を移れば振り切れる）。` });
+          }
           escaped = true;
           return;
         }

@@ -1,5 +1,5 @@
 import { state, saveAutosave, scheduleAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, getStartingKitItems, INVENTORY_CAPACITY } from "./state.js";
-import { applyExplorationRecovery, getExplorationRecoveryOutlook } from "./systems/exploration_recovery.js";
+import { REST_TURNS, applyExplorationRecovery, getExplorationRecoveryOutlook } from "./systems/exploration_recovery.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum, getEffectiveHealAmount } from "./data.js";
 import { playSound } from "./audio.js";
@@ -32,6 +32,7 @@ import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { addNoise, applyNoiseToEncounterChance } from "./systems/dungeon_noise.js";
 import { getDeepWaterDamage, getWaterStatus, isDeepWater, riseWater } from "./systems/rising_water.js";
+import { isPursuitDue, shakeOffPursuit, takePursuitMonsters, tickPursuit } from "./systems/pursuit.js";
 import { applyDarknessToEncounterChance, getDarknessDetectionFactor, isDark } from "./systems/darkness.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
@@ -93,6 +94,9 @@ function recordAdjacentTrapAvoidance(destinationX, destinationY) {
 
 export function recordExplorationSteps(count = 1) {
   if (!state.currentRun) return;
+  // Taking the stairs shakes a fled pack off; on its floor it closes in.
+  if (shakeOffPursuit(state)) addLog("追ってきた魔物の群れを振り切った。");
+  tickPursuit(state, count);
   const previousSteps = state.currentRun.steps;
   state.currentRun.steps += count;
   if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
@@ -112,6 +116,20 @@ export function recordExplorationSteps(count = 1) {
   if (isCarriedObservationDue(previousSteps, state.currentRun.steps) && observeCarriedEquipment(state) > 0) {
     addLog("持ち歩く装備から新たな兆候を読み取った。");
   }
+}
+
+// Start the fight with a fled pack that has caught up. Returns true when one did.
+export function startPursuitIfDue() {
+  if (!isPursuitDue(state)) return false;
+  const monsters = takePursuitMonsters(state);
+  if (!monsters) return false;
+  state.transitioning = true;
+  addLog("逃げた魔物の群れが追いついてきた！");
+  setTimeout(() => {
+    state.transitioning = false;
+    startCombat(false, false, false, null, { pursuitMonsters: monsters });
+  }, 600);
+  return true;
 }
 
 export function getCurrentFloorExplorationSteps() {
@@ -207,21 +225,51 @@ function finishBlockedMove() {
   updateUI();
 }
 
-// The HP bar's striped stretch is the only standing sign of walking recovery,
-// so the first recovery of a run says what happened and how much this floor
-// still holds (#2044). Later steps stay silent. Runtime-only: a reload says it
-// once more.
-let recoveryExplainedRunSeed = null;
-
-function explainFirstExplorationRecovery(recovered) {
-  if (!recovered || recovered.hpRecovered + recovered.mpRecovered <= 0) return;
-  const runSeed = state.currentRun?.runSeed ?? "";
-  if (recoveryExplainedRunSeed === runSeed) return;
-  recoveryExplainedRunSeed = runSeed;
+// Rest (#2114): spend up to REST_TURNS turns where the adventurer stands to
+// take back HP and MP from the floor's allowance. Each turn passes as any
+// other (poison, the water, the hunter, a fled pack), and monsters may find
+// the resting adventurer: the post-fight quiet does not cover a rest.
+export function restExploration() {
+  if (state.transitioning || state.gameState !== "explore" || !state.currentRun) return false;
   const outlook = getExplorationRecoveryOutlook(state);
-  const amounts = [`HP ${outlook?.allowance?.hp ?? 0}`];
-  if (outlook?.hasMpAllowance) amounts.push(`MP ${outlook.allowance.mp}`);
-  addLog(`初めて歩く場所を進むと、少しずつ回復する（この階であと${amounts.join("・")}）。`);
+  if (!outlook || outlook.suspended || (outlook.hp <= 0 && outlook.mp <= 0)) {
+    addLog(outlook?.suspended ? "毒が回っていて、休んでも回復しない。" : "この階では、もう休んでも回復しない。");
+    updateUI();
+    return false;
+  }
+  addLog("腰を下ろして休んだ……");
+  let hp = 0;
+  let mp = 0;
+  let turns = 0;
+  let interrupted = null;
+  for (; turns < REST_TURNS; turns++) {
+    const turn = consumeExplorationTurn();
+    if (turn.wiped || state.gameState !== "explore") { interrupted = "stopped"; break; }
+    if (turn.encounter) { interrupted = "stopped"; break; }
+    if (startPursuitIfDue()) { interrupted = "pursuit"; break; }
+    if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < getEncounterChance()) {
+      interrupted = "ambush";
+      state.transitioning = true;
+      createNoiseEvent(state.x, state.y, 4, { source: "encounter" });
+      setTimeout(() => {
+        state.transitioning = false;
+        startCombat(false, false);
+      }, 600);
+      break;
+    }
+    const recovered = applyExplorationRecovery(state);
+    hp += recovered.hpRecovered;
+    mp += recovered.mpRecovered;
+    const left = getExplorationRecoveryOutlook(state);
+    if (!left || (left.hp <= 0 && left.mp <= 0)) { turns++; break; }
+  }
+  const gained = [hp > 0 ? `HP+${hp}` : null, mp > 0 ? `MP+${mp}` : null].filter(Boolean).join("・");
+  if (interrupted === "ambush") addLog(`休んでいるところを魔物に見つかった！${gained ? `（${gained}）` : ""}`);
+  else if (gained || turns > 0) addLog(`${turns}手番休んだ。${gained || "回復しなかった。"}`);
+  markMapChanged();
+  saveAutosave();
+  updateUI();
+  return true;
 }
 
 // Rubble asks for a second push in a row before digging, so a stray tap never
@@ -469,7 +517,6 @@ export function handleMove(action) {
       
       // Mark as visited
       if (markMapCellVisited(state.x, state.y)) {
-        explainFirstExplorationRecovery(applyExplorationRecovery(state));
         recordEliteGreedAction(state, "new_room");
       }
 
@@ -508,7 +555,6 @@ export function handleMove(action) {
       recordExplorationSteps();
       tickExplorationSpellEffects();
       if (markMapCellVisited(state.x, state.y)) {
-        explainFirstExplorationRecovery(applyExplorationRecovery(state));
         recordEliteGreedAction(state, "new_room");
       }
       
@@ -993,6 +1039,9 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     openGuardedSubmenu("milestone_portal", `B${getDungeonFloor(state.floor)}F 帰還の門`);
     return;
   }
+
+  // A fled pack that caught up attacks before anything else (#2114).
+  if (startPursuitIfDue()) return;
 
   const encounterChance = getEncounterChance();
 

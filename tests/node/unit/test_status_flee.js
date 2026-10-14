@@ -178,6 +178,9 @@ test("an ordinary flee is a chance: it can fail, and a clean escape takes no par
   assert.equal(escaped.state.party[0].hp, 100);
   assert.deepEqual({ x: escaped.state.x, y: escaped.state.y }, { x: 4, y: 5 });
   assert.equal(escaped.logQueue.some(log => log.msg?.includes("追撃")), false);
+  // The pack is not gone: it follows on this floor (#2114).
+  assert.ok(escaped.state.currentRun.pursuit?.monsters?.length > 0);
+  assert.ok(escaped.logQueue.some(log => log.msg?.includes("追ってくる")));
 });
 
 test("more enemies lower the flee chance, escape support raises it, within bounds (#2101)", () => {

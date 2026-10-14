@@ -1,5 +1,4 @@
 import { state, saveAutosave, addLog, addEventLog, resolveEventObservation, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "../state.js";
-import { applyExplorationRecovery } from "./exploration_recovery.js";
 import { updateUI } from "../ui.js";
 import { playSound } from "../audio.js";
 import { triggerGameOver } from "../combat.js";
@@ -358,7 +357,7 @@ function completePendingMove() {
   if (!move) return;
   state.x = move.x;
   state.y = move.y;
-  if (markMapCellVisited(move.x, move.y)) applyExplorationRecovery(state);
+  markMapCellVisited(move.x, move.y);
 }
 
 function endTrapEncounter() {

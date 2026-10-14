@@ -1,8 +1,8 @@
 import { test, expect } from './fixtures/browser-health.js';
 
-// Exploration recovery (#1993): the floor's allowance is shown on the HP/MP
-// bars, in the unfolded goal, and on the stairs menu, without taking width
-// from the folded goal pill.
+// Exploration recovery (#1993, rest since #2114): the floor's allowance is
+// shown on the HP/MP bars, in the unfolded goal, and on the stairs menu,
+// without taking width from the folded goal pill.
 
 // A 9x9 map with one corridor running north from the start cell (4,4).
 function makeCorridorMap() {
@@ -65,41 +65,41 @@ async function stepForward(page) {
 
 const heroHp = page => page.evaluate(async () => (await import('/src/state.js')).state.party[0].hp);
 
-test('Walking an unvisited cell recovers HP and the bars, goal, and stairs menu show what is left @smoke', async ({ page }) => {
+async function rest(page) {
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { restExploration } = await import('/src/movement.js');
+    state.transitioning = false;
+    restExploration();
+  });
+}
+
+test('Walking no longer heals; resting does, and the bars, goal, and stairs menu show what is left @smoke', async ({ page }) => {
   await seedExplore(page);
   const hpRow = page.locator('#character-hud .hp-row');
   const recoveryStat = page.locator('.goal-recovery-stat');
 
-  // Max HP 100: the floor allowance is a whole bar (#1803), held to the 60 missing.
+  // Max HP 100: the floor allowance is 60% of the bar (#2114), held to the 60 missing.
   await expect(hpRow).toHaveAttribute('data-recovery-reserve', '60');
   await expect(hpRow.locator('.bar-reserve.hp')).toBeVisible();
   await expect(recoveryStat).toBeHidden();
 
+  // A newly visited cell gives nothing back.
   await stepForward(page);
-  // 1.5% of 100 per cell: one point now, the half point carries to the next cell.
-  await expect.poll(() => heroHp(page)).toBe(41);
-  await expect(hpRow.locator('.bar-value')).toHaveText('41/100');
-  await expect(hpRow).toHaveAttribute('data-recovery-reserve', '59');
-  await expect(hpRow).toContainText('この階を歩けば、あと59回復できる');
-  // The first recovery of the run says what happened; later steps stay silent (#2044).
-  const recoveryLogs = () => page.evaluate(async () => (await import('/src/state.js')).state.logs
-    .map(entry => String(entry?.text ?? entry)).filter(text => /回復/.test(text)));
-  expect(await recoveryLogs()).toEqual(['初めて歩く場所を進むと、少しずつ回復する（この階であとHP 99）。']);
+  await expect.poll(() => page.evaluate(async () => (await import('/src/state.js')).state.y)).toBe(3);
+  expect(await heroHp(page)).toBe(40);
 
-  // Stepping back onto a visited cell gives nothing.
-  await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { handleMove } = await import('/src/movement.js');
-    state.transitioning = false;
-    handleMove('backward');
-  });
-  await expect.poll(() => page.evaluate(async () => (await import('/src/state.js')).state.y)).toBe(4);
-  expect(await heroHp(page)).toBe(41);
+  // A full rest (10 turns at 3% of 100) gives back 30, from the allowance.
+  await rest(page);
+  await expect.poll(() => heroHp(page)).toBe(70);
+  await expect(hpRow.locator('.bar-value')).toHaveText('70/100');
+  await expect(hpRow).toHaveAttribute('data-recovery-reserve', '30');
+  await expect(hpRow).toContainText('この階で休めば、あと30回復できる');
 
   // The unfolded goal names the allowance; vanguard's single MP earns none.
   await page.locator('#btn-goal-toggle').click();
   await expect(recoveryStat).toBeVisible();
-  await expect(recoveryStat).toHaveText('♨️ 歩いて回復 あとHP 99');
+  await expect(recoveryStat).toHaveText('♨️ 休んで回復 あとHP 30');
 
   // The stairs menu says what the floor can still give before descending.
   await page.evaluate(async () => {
@@ -108,20 +108,20 @@ test('Walking an unvisited cell recovers HP and the bars, goal, and stairs menu 
   });
   const note = page.getByTestId('stairs-recovery-note');
   await expect(note).toBeVisible();
-  await expect(note).toHaveText('この階を歩けば、あとHP 59回復できる。 階段を降りても回復はしない。');
-  await expect(hpRow).toHaveAttribute('data-recovery-reserve', '59');
+  await expect(note).toHaveText('この階で休めば、あとHP 30回復できる。 階段を降りても回復はしない。');
 });
 
-test('Only the first recovery of a run is explained in the log', async ({ page }) => {
+test('Rest is offered in the adventure menu with what it can still give', async ({ page }) => {
   await seedExplore(page);
-  const recoveryLogs = () => page.evaluate(async () => (await import('/src/state.js')).state.logs
-    .map(entry => String(entry?.text ?? entry)).filter(text => /回復/.test(text)));
-  for (const hp of [41, 43, 44]) {
-    await page.evaluate(async () => { (await import('/src/state.js')).state.transitioning = false; });
-    await stepForward(page);
-    await expect.poll(() => heroHp(page)).toBe(hp);
-  }
-  expect(await recoveryLogs()).toHaveLength(1);
+  await page.evaluate(async () => {
+    const { openSubmenu } = await import('/src/navigation.js');
+    openSubmenu('explore_management', '冒険管理');
+  });
+  const restButton = page.locator('#btn-rest');
+  await expect(restButton).toBeEnabled();
+  await expect(restButton).toContainText('あとHP 60');
+  await restButton.click();
+  await expect.poll(() => heroHp(page)).toBe(70);
 });
 
 test('The bars hold the reserve to what is missing, and poison suspends it', async ({ page }) => {
@@ -132,7 +132,7 @@ test('The bars hold the reserve to what is missing, and poison suspends it', asy
   await expect(hpRow).toHaveAttribute('data-recovery-reserve', '3');
   await expect(mpRow).toHaveAttribute('data-recovery-reserve', '1');
   await page.locator('#btn-goal-toggle').click();
-  await expect(page.locator('.goal-recovery-stat')).toHaveText('♨️ 歩いて回復 あとHP 100・MP 1');
+  await expect(page.locator('.goal-recovery-stat')).toHaveText('♨️ 休んで回復 あとHP 60・MP 1');
 
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -140,7 +140,7 @@ test('The bars hold the reserve to what is missing, and poison suspends it', asy
     state.party[0].status = 'poisoned';
     updateUI();
   });
-  await expect(page.locator('.goal-recovery-stat')).toHaveText('♨️ 歩いて回復 毒で止まっている');
+  await expect(page.locator('.goal-recovery-stat')).toHaveText('♨️ 休んで回復 毒で止まっている');
   await expect(hpRow.locator('.bar-reserve')).toHaveCount(0);
   await expect(mpRow.locator('.bar-reserve')).toHaveCount(0);
   // Poison bites on some steps at random; hold the roll so this step shows
@@ -202,7 +202,7 @@ for (const width of [320, 360, 390]) {
     const stat = page.locator('.goal-recovery-stat');
     await expect(stat).toBeVisible();
     await expect(page.locator('.goal-stats-container')).toContainText('探索率: 100%');
-    await expect(stat).toContainText('あとHP 100・MP 1');
+    await expect(stat).toContainText('あとHP 60・MP 1');
     await page.waitForFunction(() => document.getAnimations().every(animation => !(animation instanceof CSSTransition)));
     const unfolded = await measure();
     expect(unfolded.statClipped).toBe(false);

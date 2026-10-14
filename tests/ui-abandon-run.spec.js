@@ -40,7 +40,8 @@ for (const vp of VIEWPORTS) {
     await expect(page.locator('#btn-abandon-run')).toBeVisible();
     await expect(page.locator('#btn-submenu-back')).toBeVisible();
     const managementOrder = await page.locator('#submenu-controls button:visible').evaluateAll((buttons) => buttons.map((button) => button.id));
-    expect(managementOrder).toEqual(['btn-abandon-run', 'btn-submenu-back']);
+    // Rest (#2114) leads the adventure menu.
+    expect(managementOrder).toEqual(['btn-rest', 'btn-abandon-run', 'btn-submenu-back']);
     await page.locator('#btn-abandon-run').focus();
     await page.keyboard.press('Tab');
     expect(await page.evaluate(() => document.activeElement?.id)).toBe('btn-submenu-back');
