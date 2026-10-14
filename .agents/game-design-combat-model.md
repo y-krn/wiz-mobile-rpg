@@ -215,6 +215,35 @@ Milestone guardians may telegraph a counter window that rewards the build or
 resource choice the band has been teaching. A counter window must not silently
 rewrite ordinary floor damage, rewards, or the meaning of depth.
 
+## Enemy intents and group roles (#2115)
+
+In an ordinary fight every enemy decides its next move before the player
+chooses, and the move is shown above it (and read out with its target). What
+is shown is what happens: the monster's turn carries the intent out instead
+of rolling for its traits again, so trait actions such as silence, MP drain,
+anti-heal, buffs, summons and charges are announced a round ahead. Bosses,
+mid-bosses and the roaming elites keep their own patterns and telegraphs.
+
+Groups act by roles that follow fixed rules, so a group can be read:
+
+- **Guard.** A monster that guards by nature, or the one tougher than every
+  other in a group that casts nothing, covers an ally about to strike or
+  badly hurt. While it stands, single-target attacks on that ally hit the
+  guard instead, every time; the guard does not attack that round.
+- **Healer.** A monster with a healing spell mends the most hurt ally once
+  one falls below a share of its HP.
+- **Leader.** A monster that rallies does so whenever the group's attack is
+  not already raised.
+- **Lookout.** A quick monster runs for help once an ally has fallen. If it
+  is not stopped that round it leaves the fight, and a fresh pack follows the
+  adventurer on that floor a few turns later (the stairs shake it off).
+- **Heavy hitter.** The group's strongest attacker that casts nothing swings
+  heavy every third round, for twice the damage; defending blunts it.
+
+Reading a group decides who falls first, when to defend, and when to leave.
+Because the moves can be read, their effects are strong. Exact values stay in
+`src/combat_logic/enemy_intents.js`.
+
 ## Weapon techniques (Build vNext trial)
 
 In the Phase 3 equipment rules (every new run since #1815) each weapon behavior profile owns one
