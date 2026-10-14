@@ -45,8 +45,9 @@ const pitfallScenario = getScenarioById("workshop-complete");
 // this world falls into a pitfall. The world seed is a fixture: floor layouts
 // (#1962) and gimmicks (#1963) decide where the run meets a pitfall.
 // Which world meets a pitfall moves with floor layouts and combat, so the
-// first one from world 1 that does is used (#2081; moved again by #2100).
-const { result: pitfallResult } = await findSeed("pitfall transition", seedWindow(1, 12), seed => {
+// first one from world 1 that does is used (#2081; moved again by #2100 and
+// by #2115, whose enemy intents change the combat rolls).
+const { result: pitfallResult } = await findSeed("pitfall transition", seedWindow(1, 150), seed => {
   resetSimulationRandom(seed);
   return simulateRun({
   className: "Fighter",

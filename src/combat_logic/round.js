@@ -162,7 +162,8 @@ import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard
 import { buildCombatTurnQueue } from "./turn_order.js";
 import { ENEMY_SPELL_ATTACK_SCALE, rollAttackScaledDamage } from "../rules/enemy_spell_damage.js";
 import { getFleeChance, isFleeGuaranteed } from "../rules/flee_rules.js";
-import { PURSUIT_TURNS, recordFleePursuit } from "../systems/pursuit.js";
+import { PURSUIT_TURNS, callReinforcements, recordFleePursuit } from "../systems/pursuit.js";
+import { HEAVY_MULTIPLIER, findIntentGuard, getActiveIntent, isIntentEncounter, planEncounterIntents } from "./enemy_intents.js";
 import { GROUP_FOLLOWER_DAMAGE_SCALE } from "./turn_order.js";
 
 const MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS = new Set([
@@ -746,7 +747,11 @@ export function runCombatRoundCalculation(
         actionObservation.hpBeforeExecution = char.hp;
 
         let finalTarget = monsters[act.targetIdx];
-        const guard = findAdjacentGuard(monsters, act.targetIdx, rng);
+        // With intents planned (#2115), only a guard that showed it covers;
+        // otherwise guarding rolls as before.
+        const guard = isIntentEncounter(state.combatState) && monsters.some(monster => monster?.intent)
+          ? findIntentGuard(monsters, act.targetIdx)
+          : findAdjacentGuard(monsters, act.targetIdx, rng);
         if (guard) {
           logQueue.push({
             msg: `[ 敵 ] ${guard.mon.name}が${finalTarget.name}を庇った！`,
@@ -1137,6 +1142,10 @@ export function runCombatRoundCalculation(
     } else {
       const mon = turn.mon;
       if (mon.hp <= 0) return;
+      // An ordinary enemy carries out the intent it showed (#2115); without
+      // one (bosses, elites, measurement) its traits roll as before.
+      const intent = getActiveIntent(mon, state.combatState);
+      const gate = (kind, legacy) => (intent ? intent.kind === kind : legacy());
 
       actionObservation.executed = true;
 
@@ -1272,8 +1281,26 @@ export function runCombatRoundCalculation(
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は再生し、HPが${heal}回復した。` });
       }
 
+      if (intent?.kind === "guard") {
+        const ward = monsters[intent.targetIdx];
+        recordAction(mon, "かばう");
+        logQueue.push({ msg: `[ 敵 ] ${mon.name}は${ward?.name || "仲間"}をかばって身構えている。` });
+        return;
+      }
+      if (intent?.kind === "call") {
+        recordAction(mon, "仲間を呼ぶ");
+        mon.calledForHelp = true;
+        mon.hp = 0;
+        mon.fled = true;
+        clearBleed(mon, "flee");
+        clearVulnerable(mon, "flee");
+        callReinforcements(state);
+        logQueue.push({ msg: `[ 敵 ] [!] ${mon.name}は仲間を呼びに逃げ去った！`, sound: "miss" });
+        return;
+      }
+
       // Check if monster flees
-      if (mon.fleeChance && rng() < mon.fleeChance) {
+      if (mon.fleeChance && gate("flee", () => rng() < mon.fleeChance)) {
         recordAction(mon, "逃走");
         mon.hp = 0;
         mon.fled = true;
@@ -1309,7 +1336,7 @@ export function runCombatRoundCalculation(
           applyPartyDamage(state, combatSelection, logQueue, mon.name, 18, 32, { spell: true, defendRate: 0.5, rng, measurement });
           return;
         }
-        if (rng() < (mon.traitChance ?? 0.35)) {
+        if (gate("charge", () => rng() < (mon.traitChance ?? 0.35))) {
           mon.chargeQueued = true;
           logQueue.push({ msg: `[警告] ${mon.name}が魔力を集中している！次のターンに大技が来る！`, sound: "cast_spell" });
           return;
@@ -1335,7 +1362,7 @@ export function runCombatRoundCalculation(
           mon.turnCount = (mon.turnCount || 0) + 1;
           const livingMonsterCount = monsters.filter(m => m.hp > 0).length;
           const summonLimit = mon.summon?.maxAllies ?? 5;
-          if (mon.turnCount % 3 === 0 && livingMonsterCount < summonLimit) {
+          if ((intent ? intent.kind === "summon" : mon.turnCount % 3 === 0) && livingMonsterCount < summonLimit) {
             mon.summonQueued = true;
             logQueue.push({ msg: `[警告] ${mon.name}が怪しい声で呪文を唱え始めた！次のターン、召喚の予兆！`, sound: "cast_spell" });
             if (!continueAfterSupportAction) return;
@@ -1344,14 +1371,14 @@ export function runCombatRoundCalculation(
       }
 
       if (hasTrait(mon, "multiAction") && policy?.measurementMaxActionsPerEnemy !== 1) {
-        if (!mon.multiActionQueued && rng() < (mon.traitChance ?? 0.35)) {
+        if (!mon.multiActionQueued && gate("multiAction", () => rng() < (mon.traitChance ?? 0.35))) {
           mon.multiActionQueued = true;
           logQueue.push({ msg: `[警告] ${mon.name}の目が血走り、凶暴化している！次のターン、連続攻撃の予兆！`, sound: "cast_spell" });
           return;
         }
       }
 
-      if (hasTrait(mon, "cleanseAlly") && rng() < (mon.traitChance ?? 0.35)) {
+      if (hasTrait(mon, "cleanseAlly") && gate("cleanse", () => rng() < (mon.traitChance ?? 0.35))) {
         const target = monsters.find(m => m.hp > 0 && ((m.buffs || []).some(buff => buff.value < 0) || m.status === "sleep"));
         if (target) {
           recordAction(mon, "状態異常を治す");
@@ -1364,7 +1391,7 @@ export function runCombatRoundCalculation(
         }
       }
 
-      if (hasTrait(mon, "drainMp") && rng() < (mon.traitChance ?? 0.25)) {
+      if (hasTrait(mon, "drainMp") && gate("drainMp", () => rng() < (mon.traitChance ?? 0.25))) {
         const targetSelect = pickTarget(state.party, "random", rng);
         if (targetSelect && targetSelect.c.mp > 0) {
           recordAction(mon, "MPを吸収");
@@ -1376,7 +1403,7 @@ export function runCombatRoundCalculation(
         }
       }
 
-      if (hasTrait(mon, "silence") && rng() < (mon.traitChance ?? 0.25)) {
+      if (hasTrait(mon, "silence") && gate("silence", () => rng() < (mon.traitChance ?? 0.25))) {
         const targetSelect = pickTarget(state.party, "random", rng);
         if (targetSelect) {
           recordAction(mon, "沈黙");
@@ -1397,7 +1424,7 @@ export function runCombatRoundCalculation(
         }
       }
 
-      if (hasTrait(mon, "antiHeal") && rng() < (mon.traitChance ?? 0.3)) {
+      if (hasTrait(mon, "antiHeal") && gate("antiHeal", () => rng() < (mon.traitChance ?? 0.3))) {
         const targetSelect = pickTarget(state.party, "lowHp", rng);
         if (targetSelect) {
           recordAction(mon, "回復を阻害");
@@ -1418,7 +1445,7 @@ export function runCombatRoundCalculation(
         }
       }
 
-      if (hasTrait(mon, "buffPhysicalDef") && rng() < (mon.traitChance ?? 0.3)) {
+      if (hasTrait(mon, "buffPhysicalDef") && gate("buffDef", () => rng() < (mon.traitChance ?? 0.3))) {
         const continueAfterSupportAction = shouldContinueAfterMeasurementSupportAction(mon, policy);
         recordAction(mon, "物理防御を強化");
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(
@@ -1431,14 +1458,14 @@ export function runCombatRoundCalculation(
         if (!continueAfterSupportAction) return;
       }
 
-      if (hasTrait(mon, "buffMagicDef") && rng() < (mon.traitChance ?? 0.3)) {
+      if (hasTrait(mon, "buffMagicDef") && gate("buffMagic", () => rng() < (mon.traitChance ?? 0.3))) {
         recordAction(mon, "魔法防御を強化");
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "magicResist", mon.buffValue ?? 0.3, 3));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は魔法の結界を張った！` });
         return;
       }
 
-      if (hasTrait(mon, "buffAtk") && rng() < (mon.traitChance ?? 0.3)) {
+      if (hasTrait(mon, "buffAtk") && gate("rally", () => rng() < (mon.traitChance ?? 0.3))) {
         const continueAfterSupportAction = shouldContinueAfterMeasurementSupportAction(mon, policy);
         recordAction(mon, "仲間を鼓舞");
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "atk", mon.buffValue ?? 3, 3));
@@ -1467,7 +1494,7 @@ export function runCombatRoundCalculation(
       }
 
       const healSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.35;
-      if (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && rng() < healSpellChance) {
+      if (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && gate("healSpell", () => rng() < healSpellChance)) {
         const woundedMonsters = monsters.filter(m => m.hp > 0 && m.hp < m.maxHp);
         if (woundedMonsters.length > 0) {
           recordAction(mon, mon.spell);
@@ -1506,7 +1533,7 @@ export function runCombatRoundCalculation(
             }
           }
         } else {
-          if (rng() < (mon.traitChance ?? 0.35)) {
+          if (gate("aim", () => rng() < (mon.traitChance ?? 0.35))) {
             targetCandidates = getLivingTargetCandidates(state.party);
             if (targetCandidates.length > 0) {
               const selected = targetCandidates[Math.floor(rng() * targetCandidates.length)];
@@ -1546,7 +1573,7 @@ export function runCombatRoundCalculation(
       let isLahalitoForced = !isSilenced && mon.spell === "LAHALITO" && mon.lahalitoQueued;
       let isMadaltoForced = !isSilenced && mon.spell === "MADALTO" && mon.madaltoQueued;
 
-      if (isLahalitoForced || isMadaltoForced || (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && rng() < attackSpellChance)) {
+      if (isLahalitoForced || isMadaltoForced || (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && gate("spell", () => rng() < attackSpellChance))) {
         if (isLahalitoForced || mon.spell === "LAHALITO") {
           if (mon.lahalitoQueued) {
             recordAction(mon, "LAHALITO");
@@ -1769,6 +1796,8 @@ export function runCombatRoundCalculation(
           } else {
             finalAtk = baseAtk + Math.floor(rng() * 4);
           }
+          // The heavy swing it showed (#2115) lands twice as hard.
+          if (intent?.kind === "heavy") finalAtk = Math.round(finalAtk * HEAVY_MULTIPLIER);
           finalAtk = Math.max(1, Math.round(finalAtk * getEliteAttackMultiplier(mon, target)));
           const frontGuard = targetSelect.i < 2 ? getCharAffixSum(target, "frontGuard") : 0;
           const firstStrikeDefense = target.combatFirstStrikeActive ? getCharAffixSum(target, "firstStrikeDefense") : 0;
@@ -2098,5 +2127,7 @@ export function runCombatRoundCalculation(
     delete char.combatFirstStrikeActive;
     delete char.combatFloor;
   });
+  // The next round's intents are decided now, before the player chooses (#2115).
+  if (!policy?.measurementDisableEnemyIntents) planEncounterIntents(state, rng);
   return { logQueue, state, actionObservations };
 }

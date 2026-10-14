@@ -279,6 +279,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/rules/enemy_spell_damage.js", domains: ["combat"] },
     { pattern: "src/rules/flee_rules.js", domains: ["combat"] },
     { pattern: "src/systems/pursuit.js", domains: ["combat"] },
+    { pattern: "src/combat_logic/enemy_intents.js", domains: ["combat"] },
     { pattern: "src/combat_ui/encounter.js", domains: ["combat"] },
     { pattern: "src/systems/milestone_merchant.js", domains: ["economy"] },
     { pattern: "src/systems/milestone_merchant.ts", domains: ["economy"] },

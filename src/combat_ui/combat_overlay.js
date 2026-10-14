@@ -134,8 +134,9 @@ export function renderCombatOverlay() {
         button.type = "button";
         button.className = "combat-target-a11y";
         const hpState = getEnemyHpState(m);
-        button.textContent = `${m.name}、${hpState}、攻撃対象にする`;
-        button.setAttribute("aria-label", `${m.name}、${hpState}、攻撃対象にする`);
+        const intentText = m.intent?.detail ? `、次は${m.intent.detail}` : "";
+        button.textContent = `${m.name}、${hpState}${intentText}、攻撃対象にする`;
+        button.setAttribute("aria-label", `${m.name}、${hpState}${intentText}、攻撃対象にする`);
         button.addEventListener("click", () => {
           if (canCommitOverlayAction()) commitCombatTarget(idx);
         });

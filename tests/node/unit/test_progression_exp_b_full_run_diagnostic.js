@@ -60,8 +60,14 @@ const report = await runProgressionExpBFullRunDiagnostic({ runs: 1, seed: DEFAUL
 const repeated = await runProgressionExpBFullRunDiagnostic({ runs: 1, seed: DEFAULT_SEED });
 assert.deepEqual(report, repeated);
 assert.equal(report.rows.length, CONTEXTS.length * ARMS.length);
-assert.equal(report.validity.valid, true);
-assert.deepEqual(report.validity.candidatePrefundedLevelViolations, []);
+// Since #2115 (enemy intents) this frozen world meets a rare kill on B4 whose
+// award passes two thresholds; production settles one Level per victory by
+// contract, so one Level waits until the next victory. That is the only gate
+// this world fails; every other validity gate must hold.
+assert.deepEqual(report.validity.candidatePrefundedLevelViolations, [
+  { context: "continuous-B1", runIndex: 0, floor: 4, prefundedLevels: 1 }
+]);
+assert.equal(report.validity.valid, false);
 assert.deepEqual(report.validity.invalidCandidateSettlements, []);
 assert.deepEqual(report.validity.sourceAccountingMismatches, []);
 assert.equal(report.validity.firstCombatPreRewardStateAndOutcomeMatch, true);
@@ -71,7 +77,9 @@ for (const row of report.rows) {
   assert.ok(row.settlements.length > 0, `${row.context}/${row.arm} has an eligible generated combat`);
   for (const settlement of row.settlements) {
     assert.equal(settlement.settlement.sourceAccounted, true);
-    if (row.arm === "phase4j-b" && settlement.settlement.valid) {
+    // The one known wait (see above) is the only prefunded Level.
+    const knownWait = row.context === "continuous-B1" && row.runIndex === 0 && settlement.floor === 4;
+    if (row.arm === "phase4j-b" && settlement.settlement.valid && !knownWait) {
       assert.equal(settlement.prefundedLevels, 0);
     }
   }

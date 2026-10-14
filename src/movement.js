@@ -121,13 +121,14 @@ export function recordExplorationSteps(count = 1) {
 // Start the fight with a fled pack that has caught up. Returns true when one did.
 export function startPursuitIfDue() {
   if (!isPursuitDue(state)) return false;
-  const monsters = takePursuitMonsters(state);
-  if (!monsters) return false;
+  const pack = takePursuitMonsters(state);
+  if (!pack) return false;
   state.transitioning = true;
-  addLog("逃げた魔物の群れが追いついてきた！");
+  addLog(pack.reinforcement ? "呼ばれた魔物の群れが駆けつけた！" : "逃げた魔物の群れが追いついてきた！");
   setTimeout(() => {
     state.transitioning = false;
-    startCombat(false, false, false, null, { pursuitMonsters: monsters });
+    if (pack.monsters) startCombat(false, false, false, null, { pursuitMonsters: pack.monsters });
+    else startCombat(false, false);
   }, 600);
   return true;
 }

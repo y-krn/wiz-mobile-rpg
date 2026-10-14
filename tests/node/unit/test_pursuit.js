@@ -16,7 +16,7 @@ for (let turn = 1; turn < PURSUIT_TURNS; turn++) assert.equal(tickPursuit(state)
 assert.equal(isPursuitDue(state), false);
 assert.equal(tickPursuit(state), true);
 assert.equal(isPursuitDue(state), true);
-assert.deepEqual(takePursuitMonsters(state).map(monster => monster.name), ["A"]);
+assert.deepEqual(takePursuitMonsters(state).monsters.map(monster => monster.name), ["A"]);
 assert.equal(getPursuit(state), null, "taken once");
 
 // The stairs shake it off.
