@@ -23,7 +23,7 @@ global.window = {};
 global.localStorage = { getItem: () => "false", setItem() {} };
 
 const { state, createDefaultCurrentRun } = await import("../../../src/state.js");
-const { BIOMES, MONSTERS, getEncounterPoolForFloor } = await import("../../../src/data.js");
+const { BIOMES, EXP_LEVELS, MONSTERS, getEncounterPoolForFloor } = await import("../../../src/data.js");
 const { generateEncounter } = await import("../../../src/combat_ui/encounter.js");
 const { isEncounterCompositionAllowed } = await import("../../../src/rules/encounter_rules.js");
 const { getBandTrialForFloor } = await import("../../../src/rules/floor_trials.js");
@@ -156,13 +156,19 @@ assert.equal(combatState.currentRun.expGained, candidate.totalAward,
 assert.equal(settledCharacter.exp - characterExpBefore, candidate.totalAward,
   "production reward settlement adds the combat candidate EXP");
 assert.equal(settledCharacter.exp, 980 + candidate.totalAward);
-assert.equal(settledCharacter.level, 2, "production reward settlement performs one Level check");
-assert.equal(settledCharacter.maxHp, rawMaxHpBefore + 5, "production Level-up grows raw maxHP");
+// #2119: one victory takes every Level its EXP pays for. 980 + the award
+// passes the Lv2, Lv3, and Lv4 thresholds (100, 400, 1000) but not Lv5 (2250).
+assert.ok(settledCharacter.exp >= EXP_LEVELS[4] && settledCharacter.exp < EXP_LEVELS[5]);
+assert.equal(settledCharacter.level, 4, "production reward settlement takes every Level the EXP pays for");
+assert.equal(settledCharacter.maxHp, rawMaxHpBefore + 15, "each production Level-up grows raw maxHP");
 assert.ok(settledCharacter.hp > hpBefore, "production Level-up heals current HP");
 const levelUpLogs = finalRound.logQueue.filter(entry => Number.isFinite(entry.levelUpRecoveryHp));
-assert.equal(levelUpLogs.length, 1, "production performs one Level check and one Level-up");
+assert.equal(levelUpLogs.length, 1, "one victory reports its Level-ups in one log");
 const levelUpLog = levelUpLogs[0];
-assert.equal(levelUpLog.levelUpRecoveryHp, 10, "natural HP growth and extra recovery use production values");
+assert.equal(levelUpLog.levelUpRecoveryHp, 30, "natural HP growth and extra recovery apply once per Level");
+const victorySummary = finalRound.logQueue.find(entry => entry.victorySummary)?.victorySummary;
+assert.deepEqual(victorySummary?.levelUps.map(({ levelBefore, level }) => [levelBefore, level]), [[1, 4]],
+  "the victory summary shows one entry spanning every Level gained");
 assert.equal(settledCharacter.hp, hpBefore + levelUpLog.levelUpRecoveryHp);
 assert.equal(settledCharacter.exp - 980, combatState.currentRun.expGained,
   "combat candidate accounts for the character EXP total");
