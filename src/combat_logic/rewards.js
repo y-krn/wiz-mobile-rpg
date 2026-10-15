@@ -11,7 +11,7 @@ import { addRunFragments, getVictoryFragments } from "../systems/guidebook.js";
 import { freeKeeperAfterFight } from "../systems/facility_rooms.js";
 import { settlePhase4jBExpOwnership } from "../rules/phase4j_b_trial.js";
 import { markHunterSlain } from "../systems/round_trip.js";
-import { ORDINARY_HEFT, formatFloorCode } from "../rules/dungeons.js";
+import { formatFloorCode, getOrdinaryHeft } from "../rules/dungeons.js";
 import { isIntentEncounter } from "./enemy_intents.js";
 
 function rollCombatAccessoryDrop(state, rng) {
@@ -163,7 +163,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     });
     scholarActivated ||= guaranteed;
     // Ordinary fights are rarer and heavier since #2115, and pay for it.
-    const heft = isIntentEncounter(state.combatState) && !m.isRare ? ORDINARY_HEFT.reward : 1;
+    const heft = isIntentEncounter(state.combatState) && !m.isRare ? getOrdinaryHeft(state.floor).reward : 1;
     Object.entries(drops).forEach(([mat, rolled]) => {
       const qty = rolled * heft;
       runMats[mat] = (runMats[mat] || 0) + qty;

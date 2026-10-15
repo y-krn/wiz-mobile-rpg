@@ -1,7 +1,7 @@
 import { BIOMES } from "../data/biomes.js";
 import { ENCOUNTER_SIZE_WEIGHTS } from "../data/encounters.js";
 import { MONSTERS } from "../data/monsters.js";
-import { ORDINARY_HEFT, getDungeonFloor } from "./dungeons.js";
+import { getDungeonFloor, getOrdinaryHeft } from "./dungeons.js";
 
 const SPECIAL_UNITS = Object.freeze({ rare: 1.75, elite: 2, midboss: 2, boss: 3 });
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -112,7 +112,7 @@ export function preparePhase4jBEncounter(stateLike, monsters, context = {}) {
   }
   // An ordinary fight is rarer and heavier since #2115, and pays for it.
   const totalAward = calculatePhase4jBExpAward({ floor: stateLike.floor, kind, monsters: templates }) *
-    (kind === "ordinary" ? ORDINARY_HEFT.reward : 1);
+    (kind === "ordinary" ? getOrdinaryHeft(stateLike.floor).reward : 1);
   const allocations = kind === "ordinary"
     ? allocatePhase4jBExp(totalAward, templates)
     : [totalAward];
