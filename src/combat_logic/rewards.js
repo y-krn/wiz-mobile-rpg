@@ -165,7 +165,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     // Ordinary fights are rarer and heavier since #2115, and pay for it.
     const heft = isIntentEncounter(state.combatState) && !m.isRare ? getOrdinaryHeft(state.floor).reward : 1;
     Object.entries(drops).forEach(([mat, rolled]) => {
-      const qty = rolled * heft;
+      const qty = Math.round(rolled * heft);
       runMats[mat] = (runMats[mat] || 0) + qty;
       recordMonsterLoot(m, mat, state);
       
