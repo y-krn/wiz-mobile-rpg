@@ -678,7 +678,7 @@
   margin-top: 0;
 }
 
-.equip-item-row.equip-equipped-row.is-cursed {
+.equip-item-row.is-cursed {
   border-color: var(--neon-red);
 }
 
@@ -783,6 +783,19 @@
 .equip-rarity-badge.epic {
   background-color: rgba(70, 47, 106, 0.16);
   color: var(--neon-purple);
+}
+
+.equip-curse-badge {
+  background-color: rgba(197, 20, 10, 0.15);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  color: var(--neon-red);
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  line-height: 1.2;
+  padding: 2px 5px;
+  white-space: nowrap;
 }
 
 /* Badge rules for list checking */
