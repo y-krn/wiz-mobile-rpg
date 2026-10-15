@@ -82,22 +82,14 @@ export function getDungeonStrength(floor) {
  */
 // Fewer, heavier ordinary fights (#2115): an ordinary enemy is tougher and
 // hits harder so a fight lasts long enough for its shown moves to matter;
-// encounters come half as often and each pays twice the EXP and materials.
-export const ORDINARY_HEFT = Object.freeze({ hp: 2.2, atk: 1.45, encounters: 0.6, reward: 2 });
-// Every run starts at Lv1, so the heft comes in by the floor inside the
-// dungeon: none on the first floor, half on the second, all from the third.
-const HEFT_BY_DUNGEON_FLOOR = Object.freeze([0, 0, 0.5, 1, 1, 1]);
+// encounters come less often and each pays twice the EXP and materials. The
+// heft is the same on every floor, so a monster met again deeper is the same
+// monster; only the small depth scaling grows with the floor.
+export const ORDINARY_HEFT = Object.freeze({ hp: 1.8, atk: 1.3, encounters: 0.6, reward: 2 });
 
-/** The share of ORDINARY_HEFT that applies on `floor` (0 to 1). */
-export function getOrdinaryHeftShare(floor) {
-  return HEFT_BY_DUNGEON_FLOOR[getDungeonFloor(floor)] ?? 1;
-}
-
-/** The ordinary-fight heft on `floor`: multipliers that are 1 where it does not apply. */
-export function getOrdinaryHeft(floor) {
-  const share = getOrdinaryHeftShare(floor);
-  const lerp = full => 1 + (full - 1) * share;
-  return { hp: lerp(ORDINARY_HEFT.hp), atk: lerp(ORDINARY_HEFT.atk), encounters: lerp(ORDINARY_HEFT.encounters), reward: lerp(ORDINARY_HEFT.reward) };
+/** The ordinary-fight heft: multipliers on an ordinary enemy and its encounters. */
+export function getOrdinaryHeft() {
+  return ORDINARY_HEFT;
 }
 
 export function getEnemyStrength(floor, templateName, { boss = false } = {}) {
@@ -108,7 +100,7 @@ export function getEnemyStrength(floor, templateName, { boss = false } = {}) {
     return { hp: strength.eliteHp, atk: strength.eliteAtk, def: strength.eliteDef };
   }
   const entry = getDungeonFloor(floor) === 1 ? strength.entry : 1;
-  const heft = getOrdinaryHeft(floor);
+  const heft = getOrdinaryHeft();
   return {
     hp: strength.enemyHp * entry * heft.hp,
     atk: strength.enemyAtk * entry * heft.atk,

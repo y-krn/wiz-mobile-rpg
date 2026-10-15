@@ -163,7 +163,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     });
     scholarActivated ||= guaranteed;
     // Ordinary fights are rarer and heavier since #2115, and pay for it.
-    const heft = isIntentEncounter(state.combatState) && !m.isRare ? getOrdinaryHeft(state.floor).reward : 1;
+    const heft = isIntentEncounter(state.combatState) && !m.isRare ? getOrdinaryHeft().reward : 1;
     Object.entries(drops).forEach(([mat, rolled]) => {
       const qty = Math.round(rolled * heft);
       runMats[mat] = (runMats[mat] || 0) + qty;

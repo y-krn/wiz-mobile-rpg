@@ -245,11 +245,11 @@ Because the moves can be read, their effects are strong. Exact values stay in
 `src/combat_logic/enemy_intents.js`.
 
 Ordinary fights are fewer and heavier so that a fight lasts long enough for
-the shown moves to matter: from the second floor of a dungeon an ordinary
-enemy is tougher and hits harder, encounters come less often, and each fight
-pays proportionally more EXP and materials. The first floor carries none of
-it, since every run starts at Lv1, and the second floor half. Exact values
-stay in `ORDINARY_HEFT` (`src/rules/dungeons.js`).
+the shown moves to matter: an ordinary enemy is tougher and hits harder,
+encounters come less often, and each fight pays proportionally more EXP and
+materials. The heft is the same on every floor, so a monster met again deeper
+is the same monster; a step in strength between floors reads as the monster
+itself changing. Exact values stay in `ORDINARY_HEFT` (`src/rules/dungeons.js`).
 
 ## Weapon techniques (Build vNext trial)
 

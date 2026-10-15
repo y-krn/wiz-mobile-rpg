@@ -27,8 +27,9 @@ function test(name, fn) {
   }
 }
 
-// The first floor of a dungeon carries no ordinary-fight heft (#2115), so the
-// base rates read as authored there.
+// Ordinary fights come less often on every floor (#2115).
+const HEFT = getOrdinaryHeft().encounters;
+
 function resetRun(floorSteps, lightTurns = 0, lightPower = "", floor = 1) {
   state.floor = floor;
   state.currentRun = {
@@ -46,29 +47,29 @@ function assertChance(actual, expected) {
 test("encounter rate stays high through floor step 30", () => {
   resetRun(30);
   assert.equal(getCurrentFloorExplorationSteps(), 30);
-  assertChance(getEncounterChance(), 0.10);
+  assertChance(getEncounterChance(), 0.10 * HEFT);
 });
 
 test("encounter rate decays after floor step 30", () => {
   resetRun(31);
-  assertChance(getEncounterChance(), 0.04);
+  assertChance(getEncounterChance(), 0.04 * HEFT);
 });
 
-test("deeper floors of a dungeon meet fewer, heavier fights (#2115)", () => {
-  resetRun(30, 0, "", 2);
-  assertChance(getEncounterChance(), 0.10 * getOrdinaryHeft(2).encounters);
-  resetRun(30, 0, "", 3);
-  assertChance(getEncounterChance(), 0.10 * getOrdinaryHeft(3).encounters);
-  assert.ok(getOrdinaryHeft(3).encounters < getOrdinaryHeft(2).encounters && getOrdinaryHeft(2).encounters < 1);
+test("every floor of a dungeon meets the same, fewer fights (#2115)", () => {
+  assert.ok(HEFT < 1);
+  for (const floor of [1, 2, 5, 6]) {
+    resetRun(30, 0, "", floor);
+    assertChance(getEncounterChance(), 0.10 * HEFT);
+  }
 });
 
 test("MILWA and LOMILWA reduce the active base rate", () => {
   resetRun(30, 10, "milwa");
-  assertChance(getEncounterChance(), 0.07);
+  assertChance(getEncounterChance(), 0.10 * HEFT - 0.03);
   resetRun(31, 10, "milwa");
-  assertChance(getEncounterChance(), 0.01);
+  assertChance(getEncounterChance(), Math.max(0, 0.04 * HEFT - 0.03));
   resetRun(30, 10, "lomilwa");
-  assertChance(getEncounterChance(), 0.05);
+  assertChance(getEncounterChance(), Math.max(0, 0.10 * HEFT - 0.05));
   resetRun(31, 10, "lomilwa");
   assertChance(getEncounterChance(), 0);
 });

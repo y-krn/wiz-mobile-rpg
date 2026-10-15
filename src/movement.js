@@ -139,7 +139,7 @@ export function getCurrentFloorExplorationSteps() {
 }
 
 export function calculateEncounterChance(floorStep, { lightPower, lightTurns, silenceTurns, floor, noiseEvents, darkness } = {}) {
-  const baseRate = (floorStep <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE) * getOrdinaryHeft(floor).encounters;
+  const baseRate = (floorStep <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE) * getOrdinaryHeft().encounters;
   // The mine's rule (#2063): lingering noise brings ordinary monsters too.
   let rate = applyNoiseToEncounterChance(baseRate, { floor, noiseEvents });
   if (lightPower === "lomilwa") {

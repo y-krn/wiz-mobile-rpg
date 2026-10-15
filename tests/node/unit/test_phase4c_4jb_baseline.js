@@ -146,8 +146,8 @@ test("Phase 4c scales generic enemies, summons, and guardians by band, and split
   const boss = { ...guardianTemplate, isBoss: true, hp: 321, maxHp: 321, atk: 123, def: 45 };
   const band = applyPhase4cV1EnemyBaseline([generic, boss], 5);
   assert.equal(band, 1);
-  // An ordinary enemy also carries the floor's heft (#2115).
-  const heft5 = getOrdinaryHeft(5);
+  // An ordinary enemy also carries the ordinary-fight heft (#2115).
+  const heft5 = getOrdinaryHeft();
   assert.equal(generic.hp, Math.round(template.hp * 1.2 * heft5.hp));
   assert.equal(generic.atk, Math.round(template.atk * 1.1 * heft5.atk));
   assert.equal(generic.def, Math.round(template.def));
@@ -208,8 +208,8 @@ test("Phase 4j-B awards match the frozen diagnostic formula and deterministic al
     const state = makeState(floor);
     const enemies = templates.map(template => ({ ...template, hp: 1, maxHp: 1 }));
     const planned = preparePhase4jBEncounter(state, enemies);
-    // An ordinary fight pays the floor's heft on top (#2115).
-    const paid = Math.round(frozenAward * getOrdinaryHeft(floor).reward);
+    // An ordinary fight pays the heft on top (#2115).
+    const paid = Math.round(frozenAward * getOrdinaryHeft().reward);
     assert.equal(planned.totalAward, paid);
     assert.equal(enemies.reduce((sum, enemy) => sum + enemy.exp, 0), paid);
     assert.equal(enemies.length, planned.initialCount);

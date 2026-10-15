@@ -112,7 +112,7 @@ export function preparePhase4jBEncounter(stateLike, monsters, context = {}) {
   }
   // An ordinary fight is rarer and heavier since #2115, and pays for it.
   const totalAward = Math.round(calculatePhase4jBExpAward({ floor: stateLike.floor, kind, monsters: templates }) *
-    (kind === "ordinary" ? getOrdinaryHeft(stateLike.floor).reward : 1));
+    (kind === "ordinary" ? getOrdinaryHeft().reward : 1));
   const allocations = kind === "ordinary"
     ? allocatePhase4jBExp(totalAward, templates)
     : [totalAward];
