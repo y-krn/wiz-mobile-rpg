@@ -20,8 +20,8 @@ function reportStatFallback(error, stat) {
   });
 }
 
-// The share of a bar that resting can still refill on this floor (#1993,
-// #2114). A HUD refresh must never fail on it.
+// The share of a bar that walking unvisited cells can still refill on this
+// floor (#1993). A HUD refresh must never fail on it.
 function getRecoveryReserve(showExplorationRecovery) {
   if (!showExplorationRecovery) return null;
   try {
@@ -112,7 +112,7 @@ export function updateSoloHUD({ showExplorationRecovery = false } = {}) {
       if (row.dataset) row.dataset.recoveryReserve = String(reservePoints);
       const note = document.createElement("span");
       note.className = "sr-only";
-      note.textContent = `この階で休めば、あと${reservePoints}回復できる`;
+      note.textContent = `この階を歩けば、あと${reservePoints}回復できる`;
       row.appendChild(note);
     }
     const value = document.createElement("span");

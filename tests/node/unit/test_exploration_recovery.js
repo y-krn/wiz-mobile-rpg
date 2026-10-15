@@ -36,10 +36,9 @@ const {
   EXPLORATION_RECOVERY_FLOOR_CAP,
   EXPLORATION_RECOVERY_RATE,
   getExplorationRecoveryOutlook,
-  getExplorationRecoveryRemaining,
-  REST_TURNS
+  getExplorationRecoveryRemaining
 } = await import("../../../src/systems/exploration_recovery.js");
-const { descendToFloor, executeEnterDungeon, handleMove, restExploration } = await import("../../../src/movement.js");
+const { descendToFloor, executeEnterDungeon, handleMove } = await import("../../../src/movement.js");
 
 function freshRun(kit = "vanguard") {
   state.party = [createStartingKitCharacter(kit)];
@@ -71,10 +70,9 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   };
 }
 
-// Fractional recovery carries between rest turns.
+// Fractional recovery carries between newly visited cells.
 {
   const char = freshRun();
-  char.maxHp = 20;
   const maxHp = getCharMaxHp(char);
   char.hp = maxHp - 5;
   const first = applyExplorationRecovery(state);
@@ -103,10 +101,9 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   });
 }
 
-// Fractional credit from the turn that fills HP remains available after later damage.
+// Fractional credit from the cell that fills HP remains available after later damage.
 {
   const char = freshRun();
-  char.maxHp = 30;
   const maxHp = getCharMaxHp(char);
   char.hp = maxHp - 1;
   applyExplorationRecovery(state);
@@ -137,13 +134,13 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
 
 // Healing modifiers scale HP recovery credit while MP recovery remains unmodified.
 {
-  const unmodified = recoverHpAcrossCells({ cells: 20 });
-  const cursed = recoverHpAcrossCells({ cells: 20, cursed: true });
-  assert.equal(unmodified.recovered, Math.round(20 * 100 * EXPLORATION_RECOVERY_RATE));
+  const unmodified = recoverHpAcrossCells({ cells: 40 });
+  const cursed = recoverHpAcrossCells({ cells: 40, cursed: true });
+  assert.equal(unmodified.recovered, Math.round(40 * 100 * EXPLORATION_RECOVERY_RATE));
   assert.equal(cursed.multiplier, 0.8);
   assert.equal(cursed.recovered / unmodified.recovered, 0.8);
 
-  const antiHealed = recoverHpAcrossCells({ cells: 20, antiHealTurns: 1 });
+  const antiHealed = recoverHpAcrossCells({ cells: 40, antiHealTurns: 1 });
   assert.equal(antiHealed.multiplier, 0.5);
   assert.equal(antiHealed.recovered / unmodified.recovered, 0.5);
 
@@ -222,8 +219,7 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   assert.ok(state.currentRun.explorationRecovery["2"].hpRecovered <= Math.floor(getCharMaxHp(char) * EXPLORATION_RECOVERY_FLOOR_CAP));
 }
 
-// Walking never heals since #2114; resting does, turn by turn, from the
-// floor's allowance, and spends the turns.
+// Movement heals only on a newly visited cell; walking back and forth does not repeat it.
 {
   const char = freshRun();
   executeEnterDungeon(1);
@@ -231,6 +227,7 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   state.repelTurns = 999;
   state.encounterQuietSteps = 99;
   state.roamingMonsters = [];
+  // A two-cell corridor isolates revisit recovery from generated start-cell hazards.
   const plainCell = { blockEnter: [false, false, false, false], secretDoor: [false, false, false, false], secretFound: [false, false, false, false] };
   state.maps[0] = [[
     { ...plainCell, walls: [true, false, true, true], type: "empty" },
@@ -241,23 +238,11 @@ function recoverHpAcrossCells({ cells, cursed = false, antiHealTurns = 0 }) {
   state.y = 0;
   state.dir = 1;
   handleMove("forward");
-  assert.equal(char.hp, 5, "a newly visited cell gives nothing back");
-  assert.equal(state.currentRun.explorationRecovery["1"], undefined);
-
-  const stepsBefore = state.currentRun.floorSteps["1"] || 0;
-  assert.equal(restExploration(), true);
-  const maxHp = getCharMaxHp(char);
-  const expected = Math.min(maxHp - 5, Math.floor(maxHp * EXPLORATION_RECOVERY_FLOOR_CAP), Math.floor(REST_TURNS * maxHp * EXPLORATION_RECOVERY_RATE + 1e-9));
-  assert.equal(char.hp, 5 + expected, "a full rest recovers its turns' share");
-  assert.equal((state.currentRun.floorSteps["1"] || 0) - stepsBefore, REST_TURNS, "a rest spends its turns");
-  // Without the repellent, a monster may find the resting adventurer.
-  state.repelTurns = 0;
-  char.hp = 5;
-  const originalRandom = Math.random;
-  Math.random = () => 0;
-  restExploration();
-  Math.random = originalRandom;
-  assert.equal(state.gameState, "combat", "a rest can be interrupted by an ambush");
+  const afterFirstVisit = { ...state.currentRun.explorationRecovery["1"] };
+  assert.ok(afterFirstVisit.hpRecovered > 0 || afterFirstVisit.hpRemainder > 0);
+  handleMove("backward");
+  handleMove("forward");
+  assert.deepEqual(state.currentRun.explorationRecovery["1"], afterFirstVisit);
 }
 
 // Stairs and pitfall transitions no longer restore resources.
