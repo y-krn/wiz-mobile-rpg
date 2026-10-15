@@ -234,9 +234,10 @@ Groups act by roles that follow fixed rules, so a group can be read:
   one falls below a share of its HP.
 - **Leader.** A monster that rallies does so whenever the group's attack is
   not already raised.
-- **Lookout.** A quick monster runs for help once an ally has fallen. If it
-  is not stopped that round it leaves the fight, and a fresh pack follows the
-  adventurer on that floor a few turns later (the stairs shake it off).
+- **Lookout.** A quick monster calls for help once an ally has fallen. If it
+  is not stopped that round, one more of the fallen ally's kind joins this
+  fight at full strength, as the group was when it was met. The lookout stays,
+  calls only once, and the newcomer gives no experience.
 - **Heavy hitter.** The group's strongest attacker that casts nothing swings
   heavy every third round, for twice the damage; defending blunts it.
 

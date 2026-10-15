@@ -4,8 +4,6 @@
 // hunter, mid-boss or boss) leaves no pack behind; those have their own rules.
 
 export const PURSUIT_TURNS = 6;
-// A lookout that ran for help (#2115) brings a fresh pack this soon.
-export const REINFORCEMENT_TURNS = 4;
 
 /** Remember the pack that was fled from on `floor`. */
 export function recordFleePursuit(stateLike, monsters, floor = stateLike?.floor) {
@@ -24,22 +22,11 @@ export function recordFleePursuit(stateLike, monsters, floor = stateLike?.floor)
   return run.pursuit;
 }
 
-/**
- * A lookout ran for help: a fresh pack comes for the adventurer on this
- * floor. A pack already following keeps its place.
- */
-export function callReinforcements(stateLike, floor = stateLike?.floor) {
-  const run = stateLike?.currentRun;
-  if (!run || !Number.isInteger(floor) || getPursuit(stateLike)) return null;
-  run.pursuit = { floor, turns: REINFORCEMENT_TURNS, monsters: null, reinforcement: true };
-  return run.pursuit;
-}
-
 /** The pack still following on this floor, or null. */
 export function getPursuit(stateLike) {
   const pursuit = stateLike?.currentRun?.pursuit;
   if (!pursuit || pursuit.floor !== stateLike.floor) return null;
-  if (!Array.isArray(pursuit.monsters) && !pursuit.reinforcement) return null;
+  if (!Array.isArray(pursuit.monsters)) return null;
   return pursuit;
 }
 
@@ -56,15 +43,12 @@ export function isPursuitDue(stateLike) {
   return Boolean(pursuit && pursuit.turns <= 0);
 }
 
-/**
- * Hand over the pack that caught up and forget it: `{ monsters }` for a fled
- * pack, `{ monsters: null, reinforcement: true }` for one called by a lookout.
- */
+/** Hand over the pack that caught up and forget it. */
 export function takePursuitMonsters(stateLike) {
   const pursuit = getPursuit(stateLike);
   if (!pursuit) return null;
   stateLike.currentRun.pursuit = null;
-  return { monsters: pursuit.monsters, reinforcement: Boolean(pursuit.reinforcement) };
+  return { monsters: pursuit.monsters };
 }
 
 /** Leaving the floor loses the pack. Returns true when one was following. */

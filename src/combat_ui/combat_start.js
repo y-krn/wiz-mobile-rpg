@@ -127,6 +127,10 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
       floorRole
     } : null
   };
+  // A lookout's call brings one of these back fresh (#2115).
+  if (state.combatState.enemyActionScheduling === "shared-normal-slot") {
+    state.combatState.callReserve = structuredClone(monsters);
+  }
   // Every ordinary enemy shows its first move before the player chooses (#2115).
   planEncounterIntents(state);
   trackCombatStart({

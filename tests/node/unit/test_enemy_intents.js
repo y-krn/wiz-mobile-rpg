@@ -80,7 +80,8 @@ assert.equal(isIntentEncounter({ isRoamingFlack: true }), false);
   assert.equal(healIntent.targetIdx, 1);
 }
 
-// A lookout runs for help once an ally has fallen, and its call brings a pack.
+// A lookout calls for help once an ally has fallen: it stays, and one more of the
+// fallen kind joins this fight, fresh. It calls only once.
 {
   const lookout = monster("蝙蝠", { traits: ["evasive"], hp: 30, maxHp: 30 });
   const fallen = monster("倒れた仲間", { hp: 0 });
@@ -88,8 +89,15 @@ assert.equal(isIntentEncounter({ isRoamingFlack: true }), false);
   planEncounterIntents(state, never);
   assert.equal(lookout.intent.kind, "call");
   const result = runCombatRoundCalculation(state, { actions: [{ type: "defend", actorIdx: 0 }] }, { rng: () => 0.5 });
-  assert.equal(result.state.combatState.monsters[0].fled, true);
-  assert.equal(result.state.currentRun.pursuit?.reinforcement, true, "help is on its way");
+  const after = result.state.combatState.monsters;
+  assert.equal(after[0].fled, undefined, "the lookout stays in the fight");
+  assert.ok(after[0].hp > 0);
+  assert.equal(after.length, 3, "one ally joins");
+  assert.equal(after[2].name, "倒れた仲間");
+  assert.equal(after[2].hp, after[2].maxHp, "the newcomer is fresh");
+  assert.equal(after[2].exp, 0, "a called ally gives no experience");
+  assert.equal(result.state.currentRun.pursuit ?? null, null, "no pack is sent after the party");
+  assert.notEqual(after[0].intent?.kind, "call", "it calls only once");
 }
 
 // What is shown is what happens: a silencer that showed an attack does not silence,
