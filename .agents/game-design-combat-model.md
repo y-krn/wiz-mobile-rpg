@@ -244,6 +244,13 @@ Reading a group decides who falls first, when to defend, and when to leave.
 Because the moves can be read, their effects are strong. Exact values stay in
 `src/combat_logic/enemy_intents.js`.
 
+Ordinary fights are fewer and heavier so that a fight lasts long enough for
+the shown moves to matter: from the second floor of a dungeon an ordinary
+enemy is tougher and hits harder, encounters come less often, and each fight
+pays proportionally more EXP and materials. The first floor carries none of
+it, since every run starts at Lv1, and the second floor half. Exact values
+stay in `ORDINARY_HEFT` (`src/rules/dungeons.js`).
+
 ## Weapon techniques (Build vNext trial)
 
 In the Phase 3 equipment rules (every new run since #1815) each weapon behavior profile owns one

@@ -46,8 +46,8 @@ const pitfallScenario = getScenarioById("workshop-complete");
 // (#1962) and gimmicks (#1963) decide where the run meets a pitfall.
 // Which world meets a pitfall moves with floor layouts and combat, so the
 // first one from world 1 that does is used (#2081; moved again by #2100 and
-// by #2115, whose enemy intents change the combat rolls).
-const { result: pitfallResult } = await findSeed("pitfall transition", seedWindow(1, 150), seed => {
+// by #2115, whose enemy intents and fewer, heavier fights change combat).
+const { result: pitfallResult } = await findSeed("pitfall transition", seedWindow(1, 400), seed => {
   resetSimulationRandom(seed);
   return simulateRun({
   className: "Fighter",

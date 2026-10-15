@@ -1,5 +1,6 @@
 import assert from "assert";
 import { state } from "../../../src/state.js";
+import { getOrdinaryHeft } from "../../../src/rules/dungeons.js";
 import {
   getCurrentFloorExplorationSteps,
   getEncounterChance,
@@ -26,11 +27,13 @@ function test(name, fn) {
   }
 }
 
-function resetRun(floorSteps, lightTurns = 0, lightPower = "") {
-  state.floor = 2;
+// The first floor of a dungeon carries no ordinary-fight heft (#2115), so the
+// base rates read as authored there.
+function resetRun(floorSteps, lightTurns = 0, lightPower = "", floor = 1) {
+  state.floor = floor;
   state.currentRun = {
     steps: floorSteps,
-    floorSteps: { 2: floorSteps }
+    floorSteps: { [floor]: floorSteps }
   };
   state.lightTurns = lightTurns;
   state.lightPower = lightPower;
@@ -49,6 +52,14 @@ test("encounter rate stays high through floor step 30", () => {
 test("encounter rate decays after floor step 30", () => {
   resetRun(31);
   assertChance(getEncounterChance(), 0.04);
+});
+
+test("deeper floors of a dungeon meet fewer, heavier fights (#2115)", () => {
+  resetRun(30, 0, "", 2);
+  assertChance(getEncounterChance(), 0.10 * getOrdinaryHeft(2).encounters);
+  resetRun(30, 0, "", 3);
+  assertChance(getEncounterChance(), 0.10 * getOrdinaryHeft(3).encounters);
+  assert.ok(getOrdinaryHeft(3).encounters < getOrdinaryHeft(2).encounters && getOrdinaryHeft(2).encounters < 1);
 });
 
 test("MILWA and LOMILWA reduce the active base rate", () => {
