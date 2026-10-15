@@ -124,11 +124,10 @@ export function startPursuitIfDue() {
   const pack = takePursuitMonsters(state);
   if (!pack) return false;
   state.transitioning = true;
-  addLog(pack.reinforcement ? "呼ばれた魔物の群れが駆けつけた！" : "逃げた魔物の群れが追いついてきた！");
+  addLog("逃げた魔物の群れが追いついてきた！");
   setTimeout(() => {
     state.transitioning = false;
-    if (pack.monsters) startCombat(false, false, false, null, { pursuitMonsters: pack.monsters });
-    else startCombat(false, false);
+    startCombat(false, false, false, null, { pursuitMonsters: pack.monsters });
   }, 600);
   return true;
 }

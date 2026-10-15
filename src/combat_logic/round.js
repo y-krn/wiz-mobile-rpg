@@ -162,7 +162,7 @@ import { resolveGuardMitigation, resolveGuardStatusChance } from "../rules/guard
 import { buildCombatTurnQueue } from "./turn_order.js";
 import { ENEMY_SPELL_ATTACK_SCALE, rollAttackScaledDamage } from "../rules/enemy_spell_damage.js";
 import { getFleeChance, isFleeGuaranteed } from "../rules/flee_rules.js";
-import { PURSUIT_TURNS, callReinforcements, recordFleePursuit } from "../systems/pursuit.js";
+import { PURSUIT_TURNS, recordFleePursuit } from "../systems/pursuit.js";
 import { HEAVY_MULTIPLIER, findIntentGuard, getActiveIntent, isIntentEncounter, planEncounterIntents } from "./enemy_intents.js";
 import { GROUP_FOLLOWER_DAMAGE_SCALE } from "./turn_order.js";
 
@@ -175,6 +175,29 @@ const MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS = new Set([
 function shouldContinueAfterMeasurementSupportAction(mon, policy) {
   return policy?.measurementSupportActionContinuation === true &&
     [...MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS].some(trait => hasTrait(mon, trait));
+}
+
+// A lookout's call (#2115) brings one more of the fallen ally's kind, as the
+// group was when the fight began. It stays in this fight; it does not run off.
+const TRANSIENT_MONSTER_KEY = /(Queued|Turns|Cooldown|Processed|Consumed)$/;
+function callAlly(combatState, caller) {
+  const monsters = combatState.monsters;
+  const fallenIdx = monsters.findIndex(m => m && m !== caller && m.hp <= 0 && !m.fled);
+  const sourceIdx = fallenIdx >= 0 ? fallenIdx : monsters.indexOf(caller);
+  const source = combatState.callReserve?.[sourceIdx] || monsters[sourceIdx];
+  if (!source) return null;
+  const ally = structuredClone(source);
+  for (const key of Object.keys(ally)) {
+    if (TRANSIENT_MONSTER_KEY.test(key)) delete ally[key];
+  }
+  for (const key of ["fled", "status", "statusEffects", "intent", "intentRound", "calledForHelp", "loggedDeath",
+    "flinched", "tempDefDown", "magicVulnerableTurns", "turnCount", "snipeTargetIdx", "affixKillProcessed"]) {
+    delete ally[key];
+  }
+  ally.buffs = [];
+  ally.hp = ally.maxHp;
+  ally.exp = 0;
+  return ally;
 }
 
 function findMonsterTemplate(name) {
@@ -1290,12 +1313,13 @@ export function runCombatRoundCalculation(
       if (intent?.kind === "call") {
         recordAction(mon, "仲間を呼ぶ");
         mon.calledForHelp = true;
-        mon.hp = 0;
-        mon.fled = true;
-        clearBleed(mon, "flee");
-        clearVulnerable(mon, "flee");
-        callReinforcements(state);
-        logQueue.push({ msg: `[ 敵 ] [!] ${mon.name}は仲間を呼びに逃げ去った！`, sound: "miss" });
+        const ally = callAlly(state.combatState, mon);
+        if (ally) {
+          monsters.push(ally);
+          logQueue.push({ msg: `[ 敵 ] [!] ${mon.name}の呼び声に、${ally.name}が駆けつけた！`, sound: "cast_spell" });
+        } else {
+          logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間を呼んだが、誰も来なかった。` });
+        }
         return;
       }
 
