@@ -235,6 +235,21 @@ function isIdentified(itemKey) {
   return !itemKey || typeof itemKey !== "object" || itemKey.identified === true;
 }
 
+// Only a full identification discloses the curse, so the list marker never
+// leaks a hidden curse on an unidentified item.
+function isRevealedCursed(itemKey) {
+  return Boolean(itemKey && typeof itemKey === "object" && itemKey.identified === true && itemKey.curseEffectId);
+}
+
+function createCurseBadge(itemKey) {
+  if (!isRevealedCursed(itemKey)) return null;
+  const badge = document.createElement("span");
+  badge.className = "equip-curse-badge";
+  badge.textContent = "呪";
+  badge.setAttribute("aria-label", "呪われている");
+  return badge;
+}
+
 function getRarityInfo(itemKey) {
   if (!itemKey || !isIdentified(itemKey) || typeof itemKey !== "object") return null;
   const label = RARITY_LABELS[itemKey.rarity];
@@ -732,6 +747,7 @@ function selectEquippedSlot(itemKey, slotId) {
 
 function getEquippedSlotSummary(itemKey, item) {
   if (isCurseLocked(itemKey)) return "🔒 呪い・外せない";
+  if (isRevealedCursed(itemKey)) return `呪い / ${getItemSummary(item)}`;
   if (!isIdentified(itemKey)) return getKnowledgeSummary(itemKey);
   if (item.type === "weapon") {
     return `攻撃 +${item.atk || 0} / ${item.hands === 2 ? "両手" : "片手"}`;
@@ -784,7 +800,7 @@ function createEquippedSection(char) {
     const selected = equipState.selectedIsEquipped && equipState.selectedSlot === id;
     const row = document.createElement("button");
     row.type = "button";
-    row.className = `equip-item-row equip-equipped-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${isCurseLocked(itemKey) ? "is-cursed" : ""}`.replace(/\s+/g, " ").trim();
+    row.className = `equip-item-row equip-equipped-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${isCurseLocked(itemKey) || isRevealedCursed(itemKey) ? "is-cursed" : ""}`.replace(/\s+/g, " ").trim();
     row.dataset.slotId = id;
     row.setAttribute("aria-selected", selected ? "true" : "false");
     const ownership = getItemOwnership(itemKey, { state });
@@ -923,12 +939,12 @@ function createEquipmentList(char, savedScrollTop) {
       });
       const row = document.createElement("button");
       row.type = "button";
-      row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${selectedForDiscard ? "discard-selected" : ""} ${availability.ok ? "" : "not-equipable"}`.trim();
+      row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${selectedForDiscard ? "discard-selected" : ""} ${availability.ok ? "" : "not-equipable"} ${isRevealedCursed(itemKey) ? "is-cursed" : ""}`.replace(/\s+/g, " ").trim();
       row.setAttribute("aria-selected", selected ? "true" : "false");
       if (equipState.mode === "organize") {
         row.setAttribute("role", "checkbox");
         row.setAttribute("aria-checked", selectedForDiscard ? "true" : "false");
-        row.setAttribute("aria-label", `${!isIdentified(itemKey) ? "未鑑定の" : ""}${item.name}`);
+        row.setAttribute("aria-label", `${!isIdentified(itemKey) ? "未鑑定の" : ""}${isRevealedCursed(itemKey) ? "呪われた" : ""}${item.name}`);
 
         const indicator = document.createElement("span");
         indicator.className = "equip-discard-indicator";
@@ -947,6 +963,8 @@ function createEquipmentList(char, savedScrollTop) {
       nameLine.appendChild(name);
       const rarityBadge = createRarityBadge(itemKey);
       if (rarityBadge) nameLine.appendChild(rarityBadge);
+      const curseBadge = createCurseBadge(itemKey);
+      if (curseBadge) nameLine.appendChild(curseBadge);
       left.appendChild(nameLine);
 
       const meta = document.createElement("span");
