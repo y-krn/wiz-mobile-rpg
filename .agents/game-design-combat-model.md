@@ -226,9 +226,8 @@ mid-bosses and the roaming elites keep their own patterns and telegraphs.
 
 Groups act by roles that follow fixed rules, so a group can be read:
 
-- **Guard.** A monster that guards by nature, or the one tougher than every
-  other in a group that casts nothing, covers an ally about to strike or
-  badly hurt. While it stands, single-target attacks on that ally hit the
+- **Guard.** A monster that guards by nature covers an ally about to strike
+  or badly hurt. While it stands, single-target attacks on that ally hit the
   guard instead, every time; the guard does not attack that round.
 - **Healer.** A monster with a healing spell mends the most hurt ally once
   one falls below a share of its HP.
@@ -238,8 +237,23 @@ Groups act by roles that follow fixed rules, so a group can be read:
   is not stopped that round, one more of the fallen ally's kind joins this
   fight at full strength, as the group was when it was met. The lookout stays,
   calls only once, and the newcomer gives no experience.
-- **Heavy hitter.** The group's strongest attacker that casts nothing swings
-  heavy every third round, for twice the damage; defending blunts it.
+
+Beyond the roles, each kind of monster fights its own way. A monster without
+an active trait or spell has a **signature move** in its data, shown on its
+own fixed beat (for example the third round, then every third). A signature
+either strikes or hardens:
+
+- A strike can hit harder (an orc's cleave, a dragon worm's breath), leave a
+  status (a spore's sleep, a zombie's poison, a banshee's paralysis), break
+  the target's defense, or drain HP back to the monster. A shown status lands
+  unless the target defends, which halves the chance, or resists it.
+- A hardening move raises the monster's own defense for two rounds (a living
+  armor's stance, a beetle's shell), which tells the player to strike
+  something else that round.
+
+No move is shared by every group: there is no generic heavy swing for
+whoever hits hardest, and no guard by mere toughness. A plain monster that
+shows nothing special just attacks.
 
 Reading a group decides who falls first, when to defend, and when to leave.
 Because the moves can be read, their effects are strong. Exact values stay in

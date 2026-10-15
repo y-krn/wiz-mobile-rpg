@@ -4,12 +4,14 @@
 // rolling for its traits again. Roles follow fixed rules so a player can read
 // a group and choose who to strike first, when to defend, and when to run.
 //
+// Each kind of monster fights its own way: its traits and its signature move
+// (`signature` in the monster data) come on a fixed beat, so no two kinds
+// share one generic heavy swing or guard.
+//
 // Bosses, mid-bosses and the roaming elites keep their own patterns and
 // telegraphs; they get no intent here.
 import { hasTrait } from "./monster_traits.js";
 
-export const HEAVY_EVERY = 3;
-export const HEAVY_MULTIPLIER = 2;
 export const GUARD_HP_RATE = 0.5;
 export const HEAL_SPELL_HP_RATE = 0.6;
 
@@ -61,19 +63,18 @@ function releaseIntent(mon) {
   return null;
 }
 
-// The group's guard: a monster that guards by nature, or, in a group of two
-// or more, the one tougher than every other that casts nothing.
-function isGuardOf(mon, group) {
-  if (hasTrait(mon, "guardAdjacent")) return true;
-  if (group.length < 2 || mon.spell) return false;
-  return group.every(monster => monster === mon || (mon.def || 0) > (monster.def || 0));
+// A signature move comes on its beat: round `first` (default `every`), then
+// every `every` rounds.
+export function isSignatureRound(signature, round) {
+  const every = Math.max(1, signature?.every || 3);
+  const first = signature?.first || every;
+  return round >= first && (round - first) % every === 0;
 }
 
-// The group's heavy hitter: the strongest attacker, when it casts nothing.
-function isHeavyHitterOf(mon, group) {
-  if (mon.spell) return false;
-  const strongest = group.reduce((best, monster) => ((monster.atk || 0) > (best.atk || 0) ? monster : best), group[0]);
-  return strongest === mon;
+function signatureIntent(signature) {
+  // A move that hits harder or leaves a status is a threat worth bracing for.
+  const threat = signature.kind === "strike" && ((signature.mult || 1) >= 1.5 || Boolean(signature.status));
+  return intent("signature", signature.label, { threat });
 }
 
 /**
@@ -95,8 +96,8 @@ export function planIntent(mon, monsters, party, rng = Math.random) {
     return intent("call", "仲間を呼ぶ", { threat: true });
   }
 
-  // The guard covers an ally about to strike or badly hurt.
-  if (isGuardOf(mon, group)) {
+  // A guard by nature covers an ally about to strike or badly hurt.
+  if (hasTrait(mon, "guardAdjacent")) {
     const charge = group.find(monster => monster !== mon && isQueued(monster));
     const hurt = group.filter(monster => monster !== mon && ratio(monster) < GUARD_HP_RATE).sort((a, b) => ratio(a) - ratio(b))[0];
     const ward = charge || hurt;
@@ -140,9 +141,7 @@ export function planIntent(mon, monsters, party, rng = Math.random) {
       : intent("spell", SPELL_LABELS[mon.spell] || "呪文", { threat: true });
   }
 
-  if (isHeavyHitterOf(mon, group) && mon.intentRound % HEAVY_EVERY === 0) {
-    return intent("heavy", "大振り", { threat: true });
-  }
+  if (mon.signature && isSignatureRound(mon.signature, mon.intentRound)) return signatureIntent(mon.signature);
   return intent("attack", "攻撃");
 }
 

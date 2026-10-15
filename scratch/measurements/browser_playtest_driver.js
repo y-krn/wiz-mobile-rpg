@@ -288,8 +288,8 @@ const riposteGuardDue = () => {
 // Reading the enemies' shown moves (#2115). 'read' strikes the one whose move
 // costs most if it lands (a lookout about to call, a healer, a leader, a
 // threat), never a guarded ally while its guard stands, and defends against a
-// heavy blow it cannot prevent. 'ignore' fights as before intents existed.
-const INTENT_PRIORITY = { call: 5, healSpell: 4, rally: 3, release: 2, spell: 2, heavy: 2, charge: 1, aim: 1, multiAction: 1, summon: 1 };
+// signature strike or other shown threat it cannot prevent. 'ignore' fights as before intents existed.
+const INTENT_PRIORITY = { call: 5, healSpell: 4, rally: 3, release: 2, spell: 2, signature: 2, charge: 1, aim: 1, multiAction: 1, summon: 1 };
 const intentTarget = alive => {
   if (W.__policy.intents !== 'read') return null;
   const guarded = new Set(alive.filter(m => m.intent?.kind === 'guard').map(m => m.intent.targetIdx));
@@ -300,7 +300,7 @@ const intentTarget = alive => {
   return ranked[0] || null;
 };
 const shouldBraceForIntent = alive => W.__policy.intents === 'read' && alive.some(m =>
-  (m.intent?.kind === 'heavy' || (m.intent?.kind === 'release' && m.intent.threat)) && m.hp > 15);
+  (['signature', 'release'].includes(m.intent?.kind) && m.intent.threat) && m.hp > 15);
 const attackTarget = async (alive, preferHigh = false) => {
   const t = intentTarget(alive) || [...alive].sort((a, b) => preferHigh ? b.hp - a.hp : a.hp - b.hp)[0];
   if (riposteGuardDue()) { W.__riposteGuards = (W.__riposteGuards || 0) + 1; return W.__act('防御'); }
