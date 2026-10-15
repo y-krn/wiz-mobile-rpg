@@ -3,8 +3,9 @@
 import assert from "node:assert/strict";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
 import {
-  HEAVY_EVERY, findIntentGuard, isIntentEncounter, planEncounterIntents, planIntent
+  findIntentGuard, isIntentEncounter, isSignatureRound, planEncounterIntents, planIntent
 } from "../../../src/combat_logic/enemy_intents.js";
+import { MONSTERS } from "../../../src/data/monsters.js";
 
 global.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
@@ -32,9 +33,9 @@ assert.equal(isIntentEncounter({ isBoss: false }), true);
 assert.equal(isIntentEncounter({ isBoss: true }), false);
 assert.equal(isIntentEncounter({ isRoamingFlack: true }), false);
 
-// The toughest of a group guards a badly hurt ally, and the guard is certain.
+// A guard by nature covers a badly hurt ally, and the guard is certain.
 {
-  const guard = monster("盾", { def: 6 });
+  const guard = monster("盾", { def: 6, traits: ["guardAdjacent"] });
   const ward = monster("術師", { hp: 10 });
   const state = createState([guard, ward]);
   planEncounterIntents(state, never);
@@ -47,22 +48,78 @@ assert.equal(isIntentEncounter({ isRoamingFlack: true }), false);
   assert.ok(result.state.combatState.monsters[0].hp < 40, "the guard takes the blow");
 }
 
-// The strongest attacker swings heavy every HEAVY_EVERY rounds, and it lands twice as hard.
+// Only a guard by nature guards: the toughest of a plain group just fights.
 {
-  const brute = monster("力自慢", { atk: 12 });
-  const small = monster("小物", { atk: 3 });
-  const seen = [];
-  for (let round = 1; round <= HEAVY_EVERY * 2; round++) seen.push(planIntent(brute, [brute, small], [hero()], never).kind);
-  assert.deepEqual(seen.filter(kind => kind === "heavy").length, 2);
-  assert.equal(planIntent(small, [brute, small], [hero()], never).kind, "attack");
+  const tough = monster("硬い", { def: 9 });
+  const hurt = monster("傷", { hp: 5 });
+  assert.notEqual(planIntent(tough, [tough, hurt], [hero()], never).kind, "guard");
+}
 
-  const hit = heavy => {
-    const state = createState([monster("力自慢", { atk: 12, intent: heavy ? { kind: "heavy", label: "大振り" } : { kind: "attack", label: "攻撃" } })]);
+// Each kind fights its own way: a signature move comes on its own beat, and
+// there is no shared heavy swing for whoever hits hardest.
+{
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].filter(round => isSignatureRound({ every: 3 }, round)), [3, 6]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].filter(round => isSignatureRound({ every: 3, first: 2 }, round)), [2, 5]);
+  const brute = monster("力自慢", { atk: 12 });
+  const seen = [];
+  for (let round = 1; round <= 6; round++) seen.push(planIntent(brute, [brute], [hero()], never).kind);
+  assert.ok(seen.every(kind => kind === "attack"), "no generic heavy swing");
+
+  const orc = monster("オーク", { atk: 12, signature: { kind: "strike", label: "叩き割り", every: 3, mult: 2 } });
+  const kinds = [];
+  for (let round = 1; round <= 3; round++) kinds.push(planIntent(orc, [orc], [hero()], never));
+  assert.equal(kinds[2].kind, "signature");
+  assert.equal(kinds[2].label, "叩き割り");
+  assert.equal(kinds[2].threat, true);
+
+  const hit = signature => {
+    const mon = monster("オーク", { atk: 12, signature, intent: signature ? { kind: "signature", label: signature.label } : { kind: "attack", label: "攻撃" } });
+    const state = createState([mon]);
     const before = state.party[0].hp;
     const result = runCombatRoundCalculation(state, { actions: [{ type: "defend", actorIdx: 0 }] }, { rng: () => 0.5 });
     return before - result.state.party[0].hp;
   };
-  assert.ok(hit(true) > hit(false), "a heavy swing hurts more than an attack");
+  assert.ok(hit({ kind: "strike", label: "叩き割り", every: 3, mult: 2 }) > hit(null), "the signature strike hurts more");
+}
+
+// A shown status strike lands unless the target defends or resists.
+{
+  const spore = monster("胞子", { signature: { kind: "strike", label: "眠りの胞子", every: 3, status: "sleep" } });
+  spore.intent = { kind: "signature", label: "眠りの胞子" };
+  const state = createState([spore]);
+  const result = runCombatRoundCalculation(state, { actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }] }, { rng: () => 0.5 });
+  assert.equal(result.state.party[0].status, "sleep");
+}
+
+// A draining strike takes back what it deals; a hardening one raises its guard.
+{
+  const spirit = monster("霊", { hp: 10, maxHp: 40, signature: { kind: "strike", label: "生気を吸う", every: 3, drain: 1 } });
+  spirit.intent = { kind: "signature", label: "生気を吸う" };
+  const result = runCombatRoundCalculation(createState([spirit]), { actions: [{ type: "defend", actorIdx: 0 }] }, { rng: () => 0.5 });
+  assert.ok(result.state.combatState.monsters[0].hp > 10);
+
+  const beetle = monster("甲虫", { signature: { kind: "harden", label: "殻にこもる", every: 3, def: 8 } });
+  beetle.intent = { kind: "signature", label: "殻にこもる" };
+  const hardened = runCombatRoundCalculation(createState([beetle]), { actions: [{ type: "defend", actorIdx: 0 }] }, { rng: () => 0.5 });
+  assert.ok(hardened.state.combatState.monsters[0].buffs.some(buff => buff.type === "def" && buff.value === 8));
+}
+
+// Every ordinary monster has a way of its own: a signature move, an active
+// trait, a spell, or a sniper's aim.
+{
+  const ACTIVE = ["evasive", "guardAdjacent", "chargeAttack", "summonAlly", "multiAction", "cleanseAlly", "drainMp",
+    "silence", "antiHeal", "buffPhysicalDef", "buffMagicDef", "buffAtk", "selfDestruct", "counterSpell", "debuffMagicDef", "reflectMagic"];
+  const signatures = MONSTERS.filter(mon => mon.signature);
+  assert.ok(signatures.length >= 25);
+  for (const mon of signatures) {
+    assert.ok(["strike", "harden"].includes(mon.signature.kind), mon.name);
+    assert.ok(mon.signature.label && mon.signature.every >= 2, mon.name);
+    assert.ok(mon.signature.kind !== "strike" || mon.signature.mult || mon.signature.status || mon.signature.drain, mon.name);
+  }
+  for (const name of ["かみつき蟲", "マッドスライム", "まどろみ胞子", "ゾンビ", "リビングアーマー", "オークの戦士", "バンシー", "ドラゴンワーム"]) {
+    const mon = MONSTERS.find(entry => entry.name === name);
+    assert.ok(mon.signature || mon.spell || mon.isSniper || (mon.traits || []).some(trait => ACTIVE.includes(trait)), name);
+  }
 }
 
 // A leader rallies whenever the group's attack is not raised; a healer mends the most hurt.

@@ -163,7 +163,7 @@ import { buildCombatTurnQueue } from "./turn_order.js";
 import { ENEMY_SPELL_ATTACK_SCALE, rollAttackScaledDamage } from "../rules/enemy_spell_damage.js";
 import { getFleeChance, isFleeGuaranteed } from "../rules/flee_rules.js";
 import { PURSUIT_TURNS, recordFleePursuit } from "../systems/pursuit.js";
-import { HEAVY_MULTIPLIER, findIntentGuard, getActiveIntent, isIntentEncounter, planEncounterIntents } from "./enemy_intents.js";
+import { findIntentGuard, getActiveIntent, isIntentEncounter, planEncounterIntents } from "./enemy_intents.js";
 import { GROUP_FOLLOWER_DAMAGE_SCALE } from "./turn_order.js";
 
 const MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS = new Set([
@@ -175,6 +175,39 @@ const MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS = new Set([
 function shouldContinueAfterMeasurementSupportAction(mon, policy) {
   return policy?.measurementSupportActionContinuation === true &&
     [...MEASUREMENT_SUPPORT_ACTION_CONTINUATION_TRAITS].some(trait => hasTrait(mon, trait));
+}
+
+// A signature strike's status (#2115) is shown in advance, so it lands unless
+// the target defends (which halves it) or resists it.
+const SIGNATURE_STATUS = Object.freeze({
+  poison: { id: STATUS_EFFECT_IDS.POISONED, msg: name => `${name}は毒に侵された。`, ward: "poisonWard" },
+  sleep: { id: STATUS_EFFECT_IDS.SLEEP, msg: name => `${name}は眠りに落ちた！`, options: { remainingTurns: 2 } },
+  paralyze: { id: STATUS_EFFECT_IDS.PARALYZED, msg: name => `${name}は体が痺れて動けない！` },
+  blind: { id: STATUS_EFFECT_IDS.BLIND, msg: name => `${name}は目がくらんだ！` }
+});
+function applySignatureStatus(state, mon, target, signature, isDefending, logQueue, rng, recordCondition) {
+  if (target.hp <= 0) return;
+  if (signature.status === "defDown") {
+    target.tempDefDown = Math.min(6, (target.tempDefDown || 0) + 2);
+    logQueue.push({ msg: `[ 敵 ] ${target.name}の守りが崩された！` });
+    return;
+  }
+  const status = SIGNATURE_STATUS[signature.status];
+  if (!status || target.status !== "ok") return;
+  const telemetry = state.combatFormulaTelemetry;
+  const chance = resolveGuardStatusChance(target, getStatusEffectChance(target, 1, { telemetry }), { isDefending, telemetry });
+  if (rng() >= chance) {
+    logQueue.push({ msg: `[ 敵 ] ${target.name}は${signature.label}をしのいだ。`, sound: "miss" });
+    return;
+  }
+  const ward = status.ward ? getCharAffixSum(target, status.ward) : 0;
+  if (ward > 0 && rng() * 100 < ward) {
+    logQueue.push({ msg: `[ 敵 ] ${target.name}は備えで${signature.label}を退けた！`, sound: "miss" });
+    return;
+  }
+  applyStatusEffect(target, status.id, { source: "monster", ...(status.options || {}) });
+  recordCondition(mon, `${signature.label}を受けた`);
+  logQueue.push({ msg: `[ 敵 ] [!] ${status.msg(target.name)}`, sound: "chest_trap" });
 }
 
 // A lookout's call (#2115) brings one more of the fallen ally's kind, as the
@@ -1323,6 +1356,15 @@ export function runCombatRoundCalculation(
         return;
       }
 
+      // A signature that hardens shell or stance (#2115): tougher for two rounds.
+      const signature = intent?.kind === "signature" ? mon.signature : null;
+      if (signature?.kind === "harden") {
+        recordAction(mon, signature.label);
+        addMonsterBuff(mon, "def", signature.def ?? 4, 2);
+        logQueue.push({ msg: `[ 敵 ] ${mon.name}は${signature.label}。守りが固くなった！` });
+        return;
+      }
+
       // Check if monster flees
       if (mon.fleeChance && gate("flee", () => rng() < mon.fleeChance)) {
         recordAction(mon, "逃走");
@@ -1820,8 +1862,8 @@ export function runCombatRoundCalculation(
           } else {
             finalAtk = baseAtk + Math.floor(rng() * 4);
           }
-          // The heavy swing it showed (#2115) lands twice as hard.
-          if (intent?.kind === "heavy") finalAtk = Math.round(finalAtk * HEAVY_MULTIPLIER);
+          // The signature strike it showed (#2115) lands with its own weight.
+          if (signature?.kind === "strike" && signature.mult) finalAtk = Math.round(finalAtk * signature.mult);
           finalAtk = Math.max(1, Math.round(finalAtk * getEliteAttackMultiplier(mon, target)));
           const frontGuard = targetSelect.i < 2 ? getCharAffixSum(target, "frontGuard") : 0;
           const firstStrikeDefense = target.combatFirstStrikeActive ? getCharAffixSum(target, "firstStrikeDefense") : 0;
@@ -1878,6 +1920,8 @@ export function runCombatRoundCalculation(
             ? `[ 敵 ] ${mon.name}の${statusPayoff.pattern.payoffMessage}！${target.name}に${dmg}のダメージ！`
             : isSnipeAttack
               ? `[ 敵 ] ${mon.name}の狙撃！${target.name}に${dmg}のダメージ！`
+            : signature?.kind === "strike"
+              ? `[ 敵 ] ${mon.name}の${signature.label}！${target.name}に${dmg}のダメージ！`
             : `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`;
           
           logQueue.push({
@@ -1906,6 +1950,19 @@ export function runCombatRoundCalculation(
             logQueue.push({ msg: `[味方] [!] ${mon.name}を反撃で倒した！` });
             processMonsterDefeat(monsters, mon, logQueue);
             return;
+          }
+
+          if (signature?.kind === "strike") {
+            if (signature.drain && dmg > 0 && mon.hp > 0) {
+              const healed = Math.min(mon.maxHp - mon.hp, Math.round(dmg * signature.drain));
+              if (healed > 0) {
+                mon.hp += healed;
+                logQueue.push({ msg: `[ 敵 ] ${mon.name}はHPを${healed}奪った。` });
+              }
+            }
+            if (signature.status) {
+              applySignatureStatus(state, mon, target, signature, isDefending, logQueue, rng, recordCondition);
+            }
           }
 
           if (hasTrait(mon, "debuffPhysicalDef") && target.hp > 0 && rng() < (mon.traitChance ?? 0.25)) {
