@@ -217,6 +217,57 @@ Milestone guardians may telegraph a counter window that rewards the build or
 resource choice the band has been teaching. A counter window must not silently
 rewrite ordinary floor damage, rewards, or the meaning of depth.
 
+## Enemy intents and group roles (#2115)
+
+In an ordinary fight every enemy decides its next move before the player
+chooses, and the move is shown above it (and read out with its target). What
+is shown is what happens: the monster's turn carries the intent out instead
+of rolling for its traits again, so trait actions such as silence, MP drain,
+anti-heal, buffs, summons and charges are announced a round ahead. Bosses,
+mid-bosses and the roaming elites keep their own patterns and telegraphs.
+
+Groups act by roles that follow fixed rules, so a group can be read:
+
+- **Guard.** A monster that guards by nature covers an ally about to strike
+  or badly hurt. While it stands, single-target attacks on that ally hit the
+  guard instead, every time; the guard does not attack that round.
+- **Healer.** A monster with a healing spell mends the most hurt ally once
+  one falls below a share of its HP.
+- **Leader.** A monster that rallies does so whenever the group's attack is
+  not already raised.
+- **Lookout.** A quick monster calls for help once an ally has fallen. If it
+  is not stopped that round, one more of the fallen ally's kind joins this
+  fight at full strength, as the group was when it was met. The lookout stays,
+  calls only once, and the newcomer gives no experience.
+
+Beyond the roles, each kind of monster fights its own way. A monster without
+an active trait or spell has a **signature move** in its data, shown on its
+own fixed beat (for example the third round, then every third). A signature
+either strikes or hardens:
+
+- A strike can hit harder (an orc's cleave, a dragon worm's breath), leave a
+  status (a spore's sleep, a zombie's poison, a banshee's paralysis), break
+  the target's defense, or drain HP back to the monster. A shown status lands
+  unless the target defends, which halves the chance, or resists it.
+- A hardening move raises the monster's own defense for two rounds (a living
+  armor's stance, a beetle's shell), which tells the player to strike
+  something else that round.
+
+No move is shared by every group: there is no generic heavy swing for
+whoever hits hardest, and no guard by mere toughness. A plain monster that
+shows nothing special just attacks.
+
+Reading a group decides who falls first, when to defend, and when to leave.
+Because the moves can be read, their effects are strong. Exact values stay in
+`src/combat_logic/enemy_intents.js`.
+
+Ordinary fights are fewer and heavier so that a fight lasts long enough for
+the shown moves to matter: an ordinary enemy is tougher and hits harder,
+encounters come less often, and each fight pays proportionally more EXP and
+materials. The heft is the same on every floor, so a monster met again deeper
+is the same monster; a step in strength between floors reads as the monster
+itself changing. Exact values stay in `ORDINARY_HEFT` (`src/rules/dungeons.js`).
+
 ## Weapon techniques (Build vNext trial)
 
 In the Phase 3 equipment rules (every new run since #1815) each weapon behavior profile owns one

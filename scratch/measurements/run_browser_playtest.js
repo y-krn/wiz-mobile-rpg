@@ -70,7 +70,7 @@ function parseArgs(argv) {
     url: "http://localhost:5173", compare: null, ref: null, compareRef: null, fresh: false, seeds: "1-5", kit: "vanguard",
     explore: 0.6, equip: "greedy", maxFloor: null, speed: 0.1, out: null,
     // Run policy; null keeps the driver's default (see browser_playtest_driver.js).
-    recovery: null, rooms: null, cores: null, roundTrip: null, turnBack: null, dungeon: null,
+    recovery: null, rooms: null, cores: null, roundTrip: null, turnBack: null, dungeon: null, intents: null,
     boss: false, bossLevel: 3, bossMaxHp: 55, bossHp: 40, headed: false,
     seedTimeout: 900, allowHmr: false, fps: null, jobs: os.availableParallelism()
   };
@@ -195,7 +195,7 @@ async function playOne(browser, baseUrl, seed, opts) {
       : page.evaluate(o => window.__playRun(o), {
         kit: opts.kit, seed, explore: opts.explore, maxFloor: opts.maxFloor, equip: opts.equip,
         recovery: opts.recovery, rooms: opts.rooms, cores: opts.cores, roundTrip: opts.roundTrip, turnBack: opts.turnBack,
-        dungeon: opts.dungeon
+        dungeon: opts.dungeon, intents: opts.intents
       });
     const limit = new Promise((_, reject) => {
       if (opts.seedTimeout > 0) timer = setTimeout(() => reject(new Error(`seed timed out after ${opts.seedTimeout}s`)), opts.seedTimeout * 1000);
@@ -299,7 +299,7 @@ const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["
 // (design notes, tests, scratch) plays exactly like its parent.
 const GAME_PATHS = ["src", "public", "index.html", "vite.config.js", "package-lock.json"];
 // Options that change how a seed plays out. url/jobs/fps/seedTimeout/headed do not.
-const PLAY_OPTIONS = ["kit", "explore", "equip", "maxFloor", "speed", "recovery", "rooms", "cores", "roundTrip", "turnBack", "dungeon", "boss", "bossLevel", "bossMaxHp", "bossHp"];
+const PLAY_OPTIONS = ["kit", "explore", "equip", "maxFloor", "speed", "recovery", "rooms", "cores", "roundTrip", "turnBack", "dungeon", "intents", "boss", "bossLevel", "bossMaxHp", "bossHp"];
 const sha256 = text => crypto.createHash("sha256").update(text).digest("hex");
 const CACHE_DIR = path.join(path.resolve(git("rev-parse", "--git-common-dir")), "playtest-cache");
 const BOT_HASH = sha256(`${RUNNER_SOURCE}\0${HELPER_SOURCE}`);

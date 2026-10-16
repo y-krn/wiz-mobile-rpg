@@ -1,18 +1,16 @@
-// balance-impact: maps, recovery — the depth simulation calls applyExplorationRecovery (#2028); since #2114 the game calls it per rest turn.
+// balance-impact: maps, recovery — the depth simulation calls applyExplorationRecovery on each newly entered cell (#2028).
 import { getCharMaxHp, getCharMaxMp } from "../data.js";
 import { getHealMultiplier } from "../rules/item_rules.js";
 
-// Recovery lives on the floors (#1803), and since #2114 it is taken by
-// resting, not by walking: each turn spent resting gives back a share of the
-// maximum, up to a per-floor cap. Resting spends turns where monsters find the
-// adventurer (and the water rises, the hunter closes in), so a recovery is a
-// risk the player chooses the place and time for.
-export const EXPLORATION_RECOVERY_RATE = 0.03;
-export const EXPLORATION_RECOVERY_FLOOR_CAP = 0.6;
-export const EXPLORATION_MP_RECOVERY_RATE = 0.03;
+// Walking recovery lives on the floors (#1803): a cell first entered gives
+// back a share of the maximum, up to a per-floor cap. For HP the rate is low
+// enough that walking straight to the stairs leaves most of the cap behind,
+// and the cap is a whole HP bar so a floor explored end to end can pay for its
+// own fights. MP keeps its earlier pace (#1993).
+export const EXPLORATION_RECOVERY_RATE = 0.015;
+export const EXPLORATION_RECOVERY_FLOOR_CAP = 1;
+export const EXPLORATION_MP_RECOVERY_RATE = 0.02;
 export const EXPLORATION_MP_RECOVERY_FLOOR_CAP = 0.5;
-/** Turns one rest lasts when nothing interrupts it. */
-export const REST_TURNS = 10;
 const RECOVERY = Object.freeze({
   hp: Object.freeze({ rate: EXPLORATION_RECOVERY_RATE, cap: EXPLORATION_RECOVERY_FLOOR_CAP }),
   mp: Object.freeze({ rate: EXPLORATION_MP_RECOVERY_RATE, cap: EXPLORATION_MP_RECOVERY_FLOOR_CAP })
@@ -62,7 +60,6 @@ function isRecoverySuspended(char) {
   return !char || char.hp <= 0 || ["dead", "ash", "poisoned"].includes(char.status);
 }
 
-/** One turn of rest: recover a share of the maximum from the floor's allowance. */
 export function applyExplorationRecovery(stateLike, floor = stateLike?.floor) {
   const char = stateLike?.party?.[0];
   const floorState = getFloorRecovery(stateLike?.currentRun, floor);
@@ -91,7 +88,7 @@ export function getExplorationRecoveryRemaining(stateLike, floor = stateLike?.fl
 /**
  * What the explore screen shows for this floor. `allowance` is the per-floor
  * budget still unspent. `hp` / `mp` are how much of it the adventurer can take
- * right now by resting: the allowance held to what is missing,
+ * right now by walking unvisited cells: the allowance held to what is missing,
  * and 0 while recovery is `suspended`. `hasMpAllowance` is false for an
  * adventurer whose maximum MP is too small to earn any MP back.
  */

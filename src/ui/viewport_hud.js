@@ -76,7 +76,7 @@ export function updateViewportHUD() {
     state.combatState.monsters.filter(monster => monster.hp > 0).forEach(monster => {
       const status = document.createElement("span");
       status.className = "sr-only";
-      status.textContent = `${monster.name}、${getEnemyHpState(monster)}、攻撃対象`;
+      status.textContent = `${monster.name}、${getEnemyHpState(monster)}${monster.intent?.detail ? `、次は${monster.intent.detail}` : ""}、攻撃対象`;
       enemyStatus.appendChild(status);
     });
     hud.appendChild(enemyStatus);

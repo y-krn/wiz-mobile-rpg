@@ -5,6 +5,7 @@ import { Application, Assets, Container, Graphics, PerspectiveMesh, RenderLayer,
 import { EVENT_TYPES } from "./data.js";
 import { getEnemyPresentation } from "./enemy_presentation.js";
 import { TELEGRAPH_FLAGS } from "./data/techniques.js";
+import { getIntentTag } from "./combat_logic/enemy_intents.js";
 import {
   BASE_GEOMETRY,
   CANONICAL_VIEW,
@@ -566,7 +567,7 @@ export class PixiDungeonRenderer {
     const renderInput = this.resolveRenderInput(input);
     const { view, sceneVisibility } = renderInput;
     const combat = view.hasCombat
-      ? renderInput.combatMonsters.map((monster) => [monster.name, monster.hp, monster.maxHp, monster.color, monster.spriteType, monster.isBoss, monster.isMidboss, monster.isRare, getQueuedThreat(monster)].join(",")).join(";")
+      ? renderInput.combatMonsters.map((monster) => [monster.name, monster.hp, monster.maxHp, monster.color, monster.spriteType, monster.isBoss, monster.isMidboss, monster.isRare, getQueuedThreat(monster), monster.intent?.label || ""].join(",")).join(";")
       : "";
     return [
       view.gameState,
@@ -1412,7 +1413,14 @@ export class PixiDungeonRenderer {
       enemyLabel.position.set(cx, hpY - 3);
       enemyLabel.scale.set(Math.min(1, Math.max(0.64, slotWidth / 120)));
       actors.addChild(enemyLabel);
-      if (getQueuedThreat(monster)) this.drawTelegraphMarker(monsterIndex, cx, cy, hpY - 3 - enemyLabel.height, scale);
+      // The enemy's next move (#2115): a threat keeps the warning badge with
+      // the move named in it; any other move shows as a quiet tag.
+      const intentLabel = monster.hp > 0 ? getIntentTag(renderInput.combatMonsters, monsterIndex) : null;
+      if (getQueuedThreat(monster) || monster.intent?.threat) {
+        this.drawTelegraphMarker(monsterIndex, cx, cy, hpY - 3 - enemyLabel.height, scale, intentLabel ? `! ${intentLabel}` : "! 予告");
+      } else if (intentLabel) {
+        this.drawIntentTag(monsterIndex, cx, hpY - 3 - enemyLabel.height, slotWidth, intentLabel);
+      }
       if (renderInput.combatTargetSelection?.active) this.drawTargetMarker(hitRegion, cx, cy, scale, color);
     });
   }
@@ -1422,13 +1430,33 @@ export class PixiDungeonRenderer {
   // clipped. The badge shape and text carry the meaning; blinking only adds
   // urgency and is replaced by a steady full-strength frame under reduced
   // motion.
-  drawTelegraphMarker(monsterIndex, cx, cy, labelTop, scale) {
+  // A quiet tag above the enemy name for a move that is not a threat (#2115).
+  drawIntentTag(monsterIndex, cx, labelTop, slotWidth, text) {
+    const fx = this.layer("combat-fx");
+    const label = new Text({
+      text,
+      style: { fill: 0x2e2640, fontFamily: "DotGothic16, monospace", fontSize: 12 }
+    });
+    label.anchor.set(0.5, 0.5);
+    label.scale.set(Math.min(1, Math.max(0.64, slotWidth / 120)));
+    const halfWidth = label.width / 2 + 6;
+    const radius = label.height / 2 + 2;
+    const tag = new Container();
+    tag.label = `intent-${monsterIndex}`;
+    tag.position.set(cx, Math.max(radius + 2, labelTop - radius - 2));
+    const pill = new Graphics();
+    pill.roundRect(-halfWidth, -radius, halfWidth * 2, radius * 2, 4).fill({ color: 0xfaf5ed, alpha: 0.92 }).stroke({ color: 0x2e2640, width: 1.5 });
+    tag.addChild(pill, label);
+    fx.addChild(tag);
+  }
+
+  drawTelegraphMarker(monsterIndex, cx, cy, labelTop, scale, text = "! 予告") {
     const reducedMotion = prefersReducedMotion();
     const blink = reducedMotion ? 1 : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(this.clockMs / 150));
     const fx = this.layer("combat-fx");
     drawEllipse(fx, cx, cy - 10 * scale, 31 * scale, 31 * scale, TELEGRAPH_COLOR, 0, { color: TELEGRAPH_COLOR, width: 2.5, alpha: reducedMotion ? 0.9 : 0.35 + 0.5 * blink });
     const label = new Text({
-      text: "! 予告",
+      text,
       style: { fill: 0xffffff, fontFamily: "DotGothic16, monospace", fontSize: 13, fontWeight: "bold" }
     });
     label.anchor.set(0.5, 0.5);
