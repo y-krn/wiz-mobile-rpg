@@ -18,7 +18,7 @@ import { applyCombatRewards } from "../../../src/combat_logic/rewards.js";
 import { processMonsterDefeat } from "../../../src/combat_logic/monster_traits.js";
 import { calculateCandidateAward } from "../../../scratch/measurements/progression_exp_award_paired_inventory.js";
 import { SPELL_EFFECTS } from "../../../src/systems/spell_effects.js";
-import { getDungeonStrength } from "../../../src/rules/dungeons.js";
+import { getDungeonStrength, getOrdinaryHeft } from "../../../src/rules/dungeons.js";
 
 function test(name, body) {
   try {
@@ -146,8 +146,10 @@ test("Phase 4c scales generic enemies, summons, and guardians by band, and split
   const boss = { ...guardianTemplate, isBoss: true, hp: 321, maxHp: 321, atk: 123, def: 45 };
   const band = applyPhase4cV1EnemyBaseline([generic, boss], 5);
   assert.equal(band, 1);
-  assert.equal(generic.hp, Math.round(template.hp * 1.2));
-  assert.equal(generic.atk, Math.round(template.atk * 1.1));
+  // An ordinary enemy also carries the ordinary-fight heft (#2115).
+  const heft5 = getOrdinaryHeft();
+  assert.equal(generic.hp, Math.round(template.hp * 1.2 * heft5.hp));
+  assert.equal(generic.atk, Math.round(template.atk * 1.1 * heft5.atk));
   assert.equal(generic.def, Math.round(template.def));
   // The guardian also takes its dungeon's guardian multipliers (#1803).
   const mineStrength = getDungeonStrength(5);
@@ -178,8 +180,8 @@ test("Phase 4c scales generic enemies, summons, and guardians by band, and split
   assert.deepEqual([b30.hp, b30.atk, b30.def], [640, 26, 20], "B30 keeps its authored template-stat rule");
 
   const summon = preparePhase4cV1Summon(state, { ...template, hp: template.hp, maxHp: template.hp, exp: template.exp });
-  assert.equal(summon.maxHp, Math.round(template.hp * 1.2));
-  assert.equal(summon.atk, Math.round(template.atk * 1.1));
+  assert.equal(summon.maxHp, Math.round(template.hp * 1.2 * heft5.hp));
+  assert.equal(summon.atk, Math.round(template.atk * 1.1 * heft5.atk));
   assert.equal(summon.exp, 0);
 
   const splitTemplate = MONSTERS.find(monster => monster.traits?.includes("splitOnDeath") && !monster.isBoss);
@@ -206,8 +208,10 @@ test("Phase 4j-B awards match the frozen diagnostic formula and deterministic al
     const state = makeState(floor);
     const enemies = templates.map(template => ({ ...template, hp: 1, maxHp: 1 }));
     const planned = preparePhase4jBEncounter(state, enemies);
-    assert.equal(planned.totalAward, frozenAward);
-    assert.equal(enemies.reduce((sum, enemy) => sum + enemy.exp, 0), frozenAward);
+    // An ordinary fight pays the heft on top (#2115).
+    const paid = Math.round(frozenAward * getOrdinaryHeft().reward);
+    assert.equal(planned.totalAward, paid);
+    assert.equal(enemies.reduce((sum, enemy) => sum + enemy.exp, 0), paid);
     assert.equal(enemies.length, planned.initialCount);
   }
   for (const kind of ["rare", "elite", "midboss", "boss"]) {

@@ -25,7 +25,8 @@ export function recordFleePursuit(stateLike, monsters, floor = stateLike?.floor)
 /** The pack still following on this floor, or null. */
 export function getPursuit(stateLike) {
   const pursuit = stateLike?.currentRun?.pursuit;
-  if (!pursuit || pursuit.floor !== stateLike.floor || !Array.isArray(pursuit.monsters)) return null;
+  if (!pursuit || pursuit.floor !== stateLike.floor) return null;
+  if (!Array.isArray(pursuit.monsters)) return null;
   return pursuit;
 }
 
@@ -47,7 +48,7 @@ export function takePursuitMonsters(stateLike) {
   const pursuit = getPursuit(stateLike);
   if (!pursuit) return null;
   stateLike.currentRun.pursuit = null;
-  return pursuit.monsters;
+  return { monsters: pursuit.monsters };
 }
 
 /** Leaving the floor loses the pack. Returns true when one was following. */

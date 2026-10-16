@@ -169,7 +169,7 @@ const report = await runDiagnostic({
   policy: "fight",
   fleeHpThreshold: 0.2,
   runs: 2,
-  seed: 1139,
+  seed: 1140, // a world where one run reaches B2 (moved by #2115)
   allowSmallRunCount: true
 });
 
@@ -179,7 +179,7 @@ assert.equal(report.configuration.consumablesAtDeparture, "none");
 assert.equal(report.configuration.enemyPool, "production");
 assert.equal(report.configuration.combatActionPolicy, "production-auto");
 assert.equal(report.configuration.targetPolicy, "production-auto");
-assert.equal(report.configuration.seed, 1139);
+assert.equal(report.configuration.seed, 1140);
 assert.equal(report.configuration.worldSeedTemplate, "issue-1176:{seed}:{runIndex}");
 assert.equal(typeof report.runOutcome.b1DeathRate, "number");
 assert.equal(typeof report.earlyProgression.survival[1].survivedRate, "number");
@@ -236,7 +236,7 @@ assert.equal(report.configuration.b1MainRewardUnitWeights.ordinary.HEAL_POTION, 
 assert.equal(report.configuration.b1MainRewardUnitWeights.fromDrop.HEAL_POTION, 1);
 assert.equal(
   report.configuration.matchedCohortKey,
-  "vanguard:fight:production:1139:2"
+  "vanguard:fight:production:1140:2"
 );
 assert.equal(report.configuration.candidateId, "b1-heal-potion-none-baseline");
 assert.ok(report.naturalEntryHpBands);
@@ -384,7 +384,7 @@ const repeat = await runDiagnostic({
   policy: "fight",
   fleeHpThreshold: 0.2,
   runs: 2,
-  seed: 1139,
+  seed: 1140,
   allowSmallRunCount: true
 });
 assert.deepEqual(repeat, report);

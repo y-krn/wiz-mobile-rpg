@@ -1,3 +1,4 @@
+import { planEncounterIntents } from "../combat_logic/enemy_intents.js";
 import { state, addLog, saveAutosave, recordMonsterEncounter, clearEventObservations } from "../state.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { combatSelection } from "./combat_state.js";
@@ -126,6 +127,12 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
       floorRole
     } : null
   };
+  // A lookout's call brings one of these back fresh (#2115).
+  if (state.combatState.enemyActionScheduling === "shared-normal-slot") {
+    state.combatState.callReserve = structuredClone(monsters);
+  }
+  // Every ordinary enemy shows its first move before the player chooses (#2115).
+  planEncounterIntents(state);
   trackCombatStart({
     floor: state.floor,
     player: state.party[0],

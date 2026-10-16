@@ -45,6 +45,7 @@ import { applyTombRaiderTrapTier, generateChestMaterials } from "../../../src/ch
 import { increaseChestTrapTier } from "../../../src/systems/traps.js";
 import { restAtCamp } from "../../../src/systems/camp_rest.js";
 import { applyCombatRewards } from "../../../src/combat_logic/rewards.js";
+import { getOrdinaryHeft } from "../../../src/rules/dungeons.js";
 import { SPELL_EFFECTS } from "../../../src/systems/spell_effects.js";
 import { ITEM_EFFECTS } from "../../../src/systems/item_effects.ts";
 import { CURSE_EFFECTS } from "../../../src/data/items.js";
@@ -424,7 +425,8 @@ test("学者の眼: 図鑑未登録敵からrng不発でも素材確定", () => 
   rewardState.combatState.monsters = [goblin()];
   const logs = [];
   applyCombatRewards(rewardState, rewardState.combatState.monsters, logs, () => 1);
-  assert.equal(rewardState.currentRun.materials["獣の牙"], 1);
+  // An ordinary fight pays its heft on top (#2115).
+  assert.equal(rewardState.currentRun.materials["獣の牙"], getOrdinaryHeft().reward);
   assert.ok(logs.some(entry => entry.msg.startsWith("[学者の眼]")));
 });
 
