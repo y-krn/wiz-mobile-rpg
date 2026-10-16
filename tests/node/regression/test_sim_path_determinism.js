@@ -65,7 +65,7 @@ const dropRun = simulateRun({
   targetDepth: 6,
   // The open/leave chest rule (#1938) changes the old fixed fixture path;
   // this deterministic run still exercises the fromDrop branch.
-  runIndex: 6,
+  runIndex: 2, // moved by #2126
   seriesId: "issue-894-drop",
   scoringProfile: null,
   scenario: { chestTrapPolicy: "legacy" }
