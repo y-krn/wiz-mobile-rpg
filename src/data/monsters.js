@@ -114,6 +114,31 @@ export const MONSTER_ROLE_BY_NAME = Object.freeze({
   "盾持ちデーモン": ENEMY_ROLES.AMPLIFIER
 });
 
+// Who follows a party that fled (#2128): hunters, packs on four legs, things
+// that fly or drift. The slow, the mindless and the timid stay where they were
+// left. Roughly a third of the ordinary monsters.
+export const MONSTER_PURSUERS = Object.freeze(new Set([
+  "コボルトの斥候",
+  "キラーラビット",
+  "マッドゴースト",
+  "オークの戦士",
+  "ワーウルフ",
+  "バンシー",
+  "ジャイアントスパイダー",
+  "フラッシュバット",
+  "マスターデーモン",
+  "ドラゴンパピー",
+  "ワイバーン",
+  "ダークアサシン",
+  "ブラッドバット群",
+  "群れネズミ",
+  "煙幕盗賊",
+  "催眠コウモリ",
+  "霧の亡霊",
+  "血塗れの処刑人",
+  "双頭の番犬"
+]));
+
 const MONSTER_DATA = [
   { name: "かみつき蟲", level: 1, hp: 16, atk: 6, def: 1, exp: 40, spriteType: "biter", tags: ["beast"], color: "#00ff66" },
   { name: "ゴブリンの呪術師", level: 1, hp: 20, atk: 4, def: 1, exp: 50, spriteType: "kobold", spell: "HALITO", spellChance: 0.3, color: "#00ff66" },

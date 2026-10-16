@@ -934,10 +934,14 @@ resource timing, and build counterplay.
   share of HP and MP from the floor's allowance, and every turn of it passes
   as any other (poison, the water, the hunter) and may bring monsters on the
   resting adventurer; the post-fight quiet does not cover a rest. Escaping an
-  ordinary fight only buys time: the monsters left standing keep their wounds
-  and catch up after a few turns on the same floor, and taking the stairs
-  shakes them off. So where and when to recover or run is a decision, not a
-  reflex.
+  ordinary fight leaves the slow and the mindless behind, but the hunters
+  among them (about a third of the ordinary monsters: beasts, scouts and
+  assassins, ghosts, flyers; #2128) keep their wounds and catch up after a few
+  turns on the same floor. They chase once: escaping them again after they
+  catch up makes them give up, and pursuers fled from later join a pack
+  already following. Taking the stairs shakes them off. So whether to run
+  depends on what is in front of you, and where and when to recover or run is
+  a decision, not a reflex.
 - Healing exists through consumables, safe transitions, and build effects, but
   in-combat healing must compete with the resources and actions needed to
   go on and to get home.

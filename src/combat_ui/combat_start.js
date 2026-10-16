@@ -106,6 +106,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     isMimic,
     mimicChest,
     isBrood,
+    // A pack that caught up gives up if escaped again (#2128).
+    ...(isPursuit ? { isPursuit: true } : {}),
     enemyActionScheduling: !isBoss && !isMidboss && !isRoamingFlack && !isMimic && !isBrood
       ? "shared-normal-slot"
       : "independent",

@@ -173,14 +173,29 @@ test("an ordinary flee is a chance: it can fail, and a clean escape takes no par
   assert.equal(failed.logQueue.some(log => log.runEscape), false);
   assert.ok(failed.logQueue.some(log => log.msg?.includes("回り込まれた")));
   // A roll below it escapes with no parting hit.
-  const escaped = runCombatRoundCalculation(createState({ retreatPosition: { x: 4, y: 5 } }), { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
+  const hunted = createState({ retreatPosition: { x: 4, y: 5 } });
+  hunted.combatState.monsters[0].name = "ワーウルフ";
+  const escaped = runCombatRoundCalculation(hunted, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
   assert.ok(escaped.logQueue.some(log => log.runEscape));
   assert.equal(escaped.state.party[0].hp, 100);
   assert.deepEqual({ x: escaped.state.x, y: escaped.state.y }, { x: 4, y: 5 });
   assert.equal(escaped.logQueue.some(log => log.msg?.includes("追撃")), false);
-  // The pack is not gone: it follows on this floor (#2114).
+  // A hunter is not gone: it follows on this floor (#2114, #2128).
   assert.ok(escaped.state.currentRun.pursuit?.monsters?.length > 0);
-  assert.ok(escaped.logQueue.some(log => log.msg?.includes("追ってくる")));
+  assert.ok(escaped.logQueue.some(log => log.msg?.includes("ワーウルフはまだ追ってくる")));
+  // A monster that does not hunt stays behind.
+  const slow = createState();
+  slow.combatState.monsters[0].name = "ゾンビ";
+  const left = runCombatRoundCalculation(slow, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
+  assert.equal(left.state.currentRun.pursuit ?? null, null);
+  assert.ok(left.logQueue.some(log => log.msg?.includes("追ってこない")));
+  // A hunter that already caught up gives up when escaped again.
+  const again = createState();
+  again.combatState.monsters[0].name = "ワーウルフ";
+  again.combatState.isPursuit = true;
+  const gaveUp = runCombatRoundCalculation(again, { actions: [{ type: "run", actorIdx: 0 }] }, { rng: () => 0 });
+  assert.equal(gaveUp.state.currentRun.pursuit ?? null, null);
+  assert.ok(gaveUp.logQueue.some(log => log.msg?.includes("諦めた")));
 });
 
 test("more enemies lower the flee chance, escape support raises it, within bounds (#2101)", () => {
