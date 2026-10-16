@@ -16,6 +16,7 @@ import {
   getDungeonIndexForFloor,
   getDungeonStrength,
   getEnemyStrength,
+  getOrdinaryHeft,
   getOpenEntryFloors,
   isDungeonBottomFloor,
   isDungeonEntryFloor,
@@ -205,14 +206,16 @@ check("the mine is the baseline, and every dungeon starts at the same strength",
   // Its first floor is eased once more, for an adventurer with only a kit.
   const [atEntry] = [scaleEnemyForDepth(zombie, 6)];
   applyPhase4cV1EnemyBaseline([atEntry], 6);
-  assert.equal(atEntry.maxHp, Math.round(zombie.hp * strength.enemyHp * strength.entry));
-  assert.equal(atEntry.atk, Math.round(zombie.atk * strength.enemyAtk * strength.entry));
+  assert.equal(atEntry.maxHp, Math.round(zombie.hp * strength.enemyHp * strength.entry * getOrdinaryHeft().hp));
+  assert.equal(atEntry.atk, Math.round(zombie.atk * strength.enemyAtk * strength.entry * getOrdinaryHeft().atk));
   assert.equal(atEntry.def, Math.round(zombie.def * strength.enemyDef));
   const [onSecond] = [scaleEnemyForDepth(zombie, 7)];
   applyPhase4cV1EnemyBaseline([onSecond], 7);
-  assert.equal(onSecond.maxHp, Math.round(zombie.hp * strength.enemyHp));
-  assert.equal(onSecond.atk, Math.round(zombie.atk * strength.enemyAtk));
-  assert.ok(atEntry.maxHp < onSecond.maxHp && onSecond.maxHp < zombie.hp,
+  // Ordinary fights are heavier on every floor (#2115).
+  const heft = getOrdinaryHeft();
+  assert.equal(onSecond.maxHp, Math.round(zombie.hp * strength.enemyHp * heft.hp));
+  assert.equal(onSecond.atk, Math.round(zombie.atk * strength.enemyAtk * heft.atk));
+  assert.ok(atEntry.maxHp < onSecond.maxHp && Math.round(onSecond.maxHp / heft.hp) < zombie.hp,
     "the catacomb is scaled down for a fresh adventurer, its first floor most");
 
   // The roaming strong enemy has its own multipliers: it keeps the HP and
@@ -224,19 +227,23 @@ check("the mine is the baseline, and every dungeon starts at the same strength",
   assert.equal(roaming.atk, Math.round(keeper.atk * strength.eliteAtk));
   assert.equal(roaming.def, Math.round(keeper.def * strength.eliteDef));
   assert.deepEqual(getEnemyStrength(8, "墓守の巨躯"), { hp: strength.eliteHp, atk: strength.eliteAtk, def: strength.eliteDef });
-  assert.deepEqual(getEnemyStrength(8, "ゾンビ"), { hp: strength.enemyHp, atk: strength.enemyAtk, def: strength.enemyDef });
+  assert.deepEqual(getEnemyStrength(8, "ゾンビ"), { hp: strength.enemyHp * heft.hp, atk: strength.enemyAtk * heft.atk, def: strength.enemyDef });
   assert.deepEqual(getEnemyStrength(6, "ゾンビ"),
-    { hp: strength.enemyHp * strength.entry, atk: strength.enemyAtk * strength.entry, def: strength.enemyDef });
+    { hp: strength.enemyHp * strength.entry * heft.hp, atk: strength.enemyAtk * strength.entry * heft.atk, def: strength.enemyDef });
   assert.deepEqual(getEnemyStrength(10, "ストーンガード", { boss: true }),
     { hp: strength.guardianHp, atk: strength.guardianAtk, def: strength.guardianDef });
 
-  // A mine monster is untouched on every floor of the mine.
+  // A mine monster keeps its authored strength in the mine, but for the
+  // ordinary-fight heft, the same on every floor (#2115).
   const slime = template("マッドスライム");
   const mine = scaleEnemyForDepth(slime, 3);
   applyPhase4cV1EnemyBaseline([mine], 3);
-  assert.equal(mine.maxHp, slime.hp);
-  assert.equal(mine.atk, slime.atk);
+  assert.equal(mine.maxHp, Math.round(slime.hp * heft.hp));
+  assert.equal(mine.atk, Math.round(slime.atk * heft.atk));
   assert.equal(mine.def, slime.def);
+  const mineEntry = scaleEnemyForDepth(slime, 1);
+  applyPhase4cV1EnemyBaseline([mineEntry], 1);
+  assert.equal(mineEntry.maxHp, mine.maxHp, "the same monster is as tough on the first floor as on the third");
 });
 
 check("a fresh adventurer starts every dungeon without the guardian bonus", () => {

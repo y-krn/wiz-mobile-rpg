@@ -54,7 +54,7 @@ const st = () => S.state;
 const W = window;
 const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
-const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine' };
+const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine', intents: 'read' };
 // A dungeon is five floors (#2060); a run is named by the running number of its first floor.
 const DUNGEON_ENTRY = { mine: 1, catacomb: 6, nest: 11, library: 16, forge: 21, throne: 26 };
 const entryFloorOf = dungeon => DUNGEON_ENTRY[dungeon] || Math.max(1, Math.floor(Number(dungeon)) || 1);
@@ -285,8 +285,24 @@ const riposteGuardDue = () => {
   const btn = techniqueButton();
   return Boolean(hasCore('CORE_GUARD_RIPOSTE') && btn && !/魔力集中/.test(btn.textContent) && !techniqueReady() && !P().riposteReady);
 };
+// Reading the enemies' shown moves (#2115). 'read' strikes the one whose move
+// costs most if it lands (a lookout about to call, a healer, a leader, a
+// threat), never a guarded ally while its guard stands, and defends against a
+// signature strike or other shown threat it cannot prevent. 'ignore' fights as before intents existed.
+const INTENT_PRIORITY = { call: 5, healSpell: 4, rally: 3, release: 2, spell: 2, signature: 2, charge: 1, aim: 1, multiAction: 1, summon: 1 };
+const intentTarget = alive => {
+  if (W.__policy.intents !== 'read') return null;
+  const guarded = new Set(alive.filter(m => m.intent?.kind === 'guard').map(m => m.intent.targetIdx));
+  const all = st().combatState.monsters;
+  const open = alive.filter(m => !guarded.has(all.indexOf(m)));
+  const ranked = [...(open.length ? open : alive)].sort((a, b) =>
+    (INTENT_PRIORITY[b.intent?.kind] || 0) - (INTENT_PRIORITY[a.intent?.kind] || 0) || a.hp - b.hp);
+  return ranked[0] || null;
+};
+const shouldBraceForIntent = alive => W.__policy.intents === 'read' && alive.some(m =>
+  (['signature', 'release'].includes(m.intent?.kind) && m.intent.threat) && m.hp > 15);
 const attackTarget = async (alive, preferHigh = false) => {
-  const t = [...alive].sort((a, b) => preferHigh ? b.hp - a.hp : a.hp - b.hp)[0];
+  const t = intentTarget(alive) || [...alive].sort((a, b) => preferHigh ? b.hp - a.hp : a.hp - b.hp)[0];
   if (riposteGuardDue()) { W.__riposteGuards = (W.__riposteGuards || 0) + 1; return W.__act('防御'); }
   const tech = techniqueReady();
   const isSelfTech = tech && /魔力集中/.test(tech.textContent);
@@ -334,6 +350,7 @@ W.__fight = async () => {
       // A forced elite fight is fought out: fleeing would not open the way.
       if (enemyHp > 12 && !s.combatState.isRoamingFlack) { await W.__act('逃走'); note += ' [flee]'; continue; }
     }
+    if (shouldBraceForIntent(alive)) { W.__intentBraces = (W.__intentBraces || 0) + 1; await W.__act('防御'); continue; }
     await attackTarget(alive);
   }
   const line = `F${s.floor} ${mons}: R${r} HP ${hp0}->${P().hp}${note} ${s.gameState}`;
@@ -878,7 +895,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false, dungeo
   finally { Date.now = realNow; }
   W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   resetPolicyState();
-  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0; W.__darkToggles = 0; W.__rests = 0;
+  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0; W.__darkToggles = 0; W.__rests = 0; W.__intentBraces = 0;
   W.__dungeonRule = DUNGEON_RULES.getDungeonRule(st().floor)?.line || '';
   trackHpLedger();
   const run = st().currentRun;
@@ -964,7 +981,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     returned: s.gameState === 'result' && (P()?.hp ?? 0) > 0,
     companions: companionNames() || null,
     roomActions: W.__roomActions, purchases: W.__purchases,
-    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, darkToggles: W.__darkToggles || 0, rests: W.__rests || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
+    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, darkToggles: W.__darkToggles || 0, rests: W.__rests || 0, intentBraces: W.__intentBraces || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
     eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, reflectAvoids: W.__reflectAvoids || 0, riposteGuards: W.__riposteGuards || 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,

@@ -33,7 +33,7 @@ for (let turn = 1; turn < PURSUIT_TURNS; turn++) assert.equal(tickPursuit(state)
 assert.equal(isPursuitDue(state), false);
 assert.equal(tickPursuit(state), true);
 assert.equal(isPursuitDue(state), true);
-const caught = takePursuitMonsters(state);
+const caught = takePursuitMonsters(state).monsters;
 assert.deepEqual(caught.map(monster => monster.name), ["ワーウルフ A"]);
 assert.equal(getPursuit(state), null, "taken once");
 

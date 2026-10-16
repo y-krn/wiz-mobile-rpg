@@ -1,5 +1,6 @@
 import assert from "assert";
 import { state } from "../../../src/state.js";
+import { getOrdinaryHeft } from "../../../src/rules/dungeons.js";
 import {
   getCurrentFloorExplorationSteps,
   getEncounterChance,
@@ -26,11 +27,14 @@ function test(name, fn) {
   }
 }
 
-function resetRun(floorSteps, lightTurns = 0, lightPower = "") {
-  state.floor = 2;
+// Ordinary fights come less often on every floor (#2115).
+const HEFT = getOrdinaryHeft().encounters;
+
+function resetRun(floorSteps, lightTurns = 0, lightPower = "", floor = 1) {
+  state.floor = floor;
   state.currentRun = {
     steps: floorSteps,
-    floorSteps: { 2: floorSteps }
+    floorSteps: { [floor]: floorSteps }
   };
   state.lightTurns = lightTurns;
   state.lightPower = lightPower;
@@ -43,21 +47,29 @@ function assertChance(actual, expected) {
 test("encounter rate stays high through floor step 30", () => {
   resetRun(30);
   assert.equal(getCurrentFloorExplorationSteps(), 30);
-  assertChance(getEncounterChance(), 0.10);
+  assertChance(getEncounterChance(), 0.10 * HEFT);
 });
 
 test("encounter rate decays after floor step 30", () => {
   resetRun(31);
-  assertChance(getEncounterChance(), 0.04);
+  assertChance(getEncounterChance(), 0.04 * HEFT);
+});
+
+test("every floor of a dungeon meets the same, fewer fights (#2115)", () => {
+  assert.ok(HEFT < 1);
+  for (const floor of [1, 2, 5, 6]) {
+    resetRun(30, 0, "", floor);
+    assertChance(getEncounterChance(), 0.10 * HEFT);
+  }
 });
 
 test("MILWA and LOMILWA reduce the active base rate", () => {
   resetRun(30, 10, "milwa");
-  assertChance(getEncounterChance(), 0.07);
+  assertChance(getEncounterChance(), 0.10 * HEFT - 0.03);
   resetRun(31, 10, "milwa");
-  assertChance(getEncounterChance(), 0.01);
+  assertChance(getEncounterChance(), Math.max(0, 0.04 * HEFT - 0.03));
   resetRun(30, 10, "lomilwa");
-  assertChance(getEncounterChance(), 0.05);
+  assertChance(getEncounterChance(), Math.max(0, 0.10 * HEFT - 0.05));
   resetRun(31, 10, "lomilwa");
   assertChance(getEncounterChance(), 0);
 });
