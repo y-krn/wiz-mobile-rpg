@@ -608,7 +608,7 @@ export function updateUI() {
         // can be taken right now (#1993).
         const amounts = [`HP ${recoveryOutlook.allowance.hp}`];
         if (recoveryOutlook.hasMpAllowance) amounts.push(`MP ${recoveryOutlook.allowance.mp}`);
-        const recovery = createGoalStat("♨️", "休んで回復 ", recoveryOutlook.suspended ? "毒で止まっている" : `あと${amounts.join("・")}`);
+        const recovery = createGoalStat("♨️", "歩いて回復 ", recoveryOutlook.suspended ? "毒で止まっている" : `あと${amounts.join("・")}`);
         recovery.className = "goal-recovery-stat";
         statsContainer.appendChild(recovery);
       }

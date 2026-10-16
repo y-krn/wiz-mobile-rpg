@@ -438,10 +438,10 @@ name:
 1. **The build is on the floors.** With no floor gate on kinds, any chest on
    any floor can hold the piece the run needs, most build pieces lie off the
    natural route, and the guardian is sized against a formed build.
-2. **Recovery is on the floors.** Each floor holds a capped allowance taken
-   by resting (#2114; before, by walking unvisited cells). Five floors hold
-   all of it; a run that walks straight takes the same rests with less known
-   ground to choose a safe place from.
+2. **Recovery is on the floors.** Walking recovery comes only from cells not
+   yet visited, up to a cap per floor. Five floors hold all of it, and a run
+   that walks straight leaves most of it behind. (#2114 tried resting in its
+   place; #2124 brought walking back.)
 3. **The lead on the way back is made on the way down.** An opened secret
    door is a way through that the hunter cannot follow, rubble dug on the way
    down does not have to be dug with the hunter behind, found traps are not
@@ -929,15 +929,10 @@ resource timing, and build counterplay.
   escape support, within bounds. A failed flee spends the turn; a successful
   one escapes clean. Fleeing a hunter, mid-boss, or boss is certain but pays
   the parting hit, so escaping the dangerous fights stays reliable but costly.
-- Recovering and fleeing cost something (#2114). Recovery is taken by resting:
-  a rest spends up to ten turns where the adventurer stands, giving back a
-  share of HP and MP from the floor's allowance, and every turn of it passes
-  as any other (poison, the water, the hunter) and may bring monsters on the
-  resting adventurer; the post-fight quiet does not cover a rest. Escaping an
-  ordinary fight only buys time: the monsters left standing keep their wounds
-  and catch up after a few turns on the same floor, and taking the stairs
-  shakes them off. So where and when to recover or run is a decision, not a
-  reflex.
+- Fleeing costs something (#2114). Escaping an ordinary fight only buys
+  time: the monsters left standing keep their wounds and catch up after a few
+  turns on the same floor, and taking the stairs shakes them off. So when to
+  run is a decision, not a reflex.
 - Healing exists through consumables, safe transitions, and build effects, but
   in-combat healing must compete with the resources and actions needed to
   go on and to get home.
@@ -945,8 +940,8 @@ resource timing, and build counterplay.
   absorb a floor's ordinary fights with a meaningful but not run-ending share
   lost per fight. Generic floor-trap damage scales with the victim's max HP
   instead of a party-era floor-linear roll; ordinary enemy spell damage scales
-  with the caster's attack; resting restores a bounded share of HP and MP per
-  floor (#2114); and a won or fled fight is followed by a few quiet steps of
+  with the caster's attack; unvisited cells restore a bounded share of HP and
+  MP during exploration; and a won or fled fight is followed by a few quiet steps of
   walking so a flee cannot chain into back-to-back random ambushes (a fled
   pack still follows). Exact values stay in source.
 - Live combat and deterministic simulation share action-selection and combat
