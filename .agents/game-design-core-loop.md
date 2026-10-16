@@ -929,10 +929,14 @@ resource timing, and build counterplay.
   escape support, within bounds. A failed flee spends the turn; a successful
   one escapes clean. Fleeing a hunter, mid-boss, or boss is certain but pays
   the parting hit, so escaping the dangerous fights stays reliable but costly.
-- Fleeing costs something (#2114). Escaping an ordinary fight only buys
-  time: the monsters left standing keep their wounds and catch up after a few
-  turns on the same floor, and taking the stairs shakes them off. So when to
-  run is a decision, not a reflex.
+- Fleeing costs something (#2114). Escaping an ordinary fight leaves the slow
+  and the mindless behind, but the hunters among them (about a third of the
+  ordinary monsters: beasts, scouts and assassins, ghosts, flyers; #2128) keep
+  their wounds and catch up after a few turns on the same floor. They chase
+  once: escaping them again after they catch up makes them give up, and
+  pursuers fled from later join a pack already following. Taking the stairs
+  shakes them off. So whether to run depends on what is in front of you, and
+  when to run is a decision, not a reflex.
 - Healing exists through consumables, safe transitions, and build effects, but
   in-combat healing must compete with the resources and actions needed to
   go on and to get home.

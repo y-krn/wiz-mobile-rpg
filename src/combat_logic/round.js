@@ -1174,9 +1174,16 @@ export function runCombatRoundCalculation(
             runEscape: true,
             fleeExecution: true
           });
-          // The pack is not gone: it follows on this floor (#2114).
-          if (recordFleePursuit(state, state.combatState.monsters)) {
-            logQueue.push({ msg: `[味方] 魔物の群れはまだ追ってくる。${PURSUIT_TURNS}手番ほどで追いつかれそうだ（階段を移れば振り切れる）。` });
+          // Only the hunters follow, and only once (#2114, #2128).
+          const caughtUp = Boolean(state.combatState.isPursuit);
+          const pursuers = recordFleePursuit(state, state.combatState.monsters, state.floor, { caughtUp });
+          if (pursuers.length > 0) {
+            const names = [...new Set(pursuers.map(monster => monster.name.replace(/\s[A-Z]$/, "")))].join("・");
+            logQueue.push({ msg: `[味方] ${names}はまだ追ってくる。${PURSUIT_TURNS}手番ほどで追いつかれそうだ（階段を移れば振り切れる）。` });
+          } else if (caughtUp) {
+            logQueue.push({ msg: "[味方] 追ってきた魔物は、ついに諦めたようだ。" });
+          } else {
+            logQueue.push({ msg: "[味方] 魔物は追ってこない。" });
           }
           escaped = true;
           return;

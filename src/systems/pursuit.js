@@ -1,25 +1,41 @@
-// A fled pack follows (#2114). Escaping an ordinary fight only buys time: the
-// monsters left standing keep their wounds and catch up after a few turns on
-// the same floor. Taking the stairs shakes them off. A guaranteed flee (from a
-// hunter, mid-boss or boss) leaves no pack behind; those have their own rules.
+// A fled pack follows (#2114), but only the monsters that hunt (#2128). Escaping
+// an ordinary fight leaves the slow and the mindless behind; the pursuers left
+// standing keep their wounds and catch up after a few turns on the same floor.
+// They chase once: escaping them again after they catch up makes them give up.
+// Taking the stairs shakes them off. A guaranteed flee (from a hunter,
+// mid-boss or boss) leaves no pack behind; those have their own rules.
+import { MONSTER_PURSUERS } from "../data/monsters.js";
 
 export const PURSUIT_TURNS = 6;
 
-/** Remember the pack that was fled from on `floor`. */
-export function recordFleePursuit(stateLike, monsters, floor = stateLike?.floor) {
+/** Whether this monster follows a party that fled from it. */
+export function isPursuer(monster) {
+  const name = String(monster?.name || "").replace(/\s[A-Z]$/, "");
+  return MONSTER_PURSUERS.has(name);
+}
+
+/**
+ * Remember the pursuers among the pack that was fled from on `floor`.
+ * A pack that already caught up once (`caughtUp`) gives up instead. A pack
+ * already following on this floor is kept, and new pursuers join it.
+ * Returns the monsters that now follow, or [] when none do.
+ */
+export function recordFleePursuit(stateLike, monsters, floor = stateLike?.floor, { caughtUp = false } = {}) {
   const run = stateLike?.currentRun;
-  if (!run || !Number.isInteger(floor)) return null;
-  const standing = (monsters || []).filter(monster => monster && monster.hp > 0 && !monster.fled);
-  if (standing.length === 0) {
-    run.pursuit = null;
-    return null;
+  if (!run || !Number.isInteger(floor)) return [];
+  const following = getPursuit(stateLike);
+  const pursuers = caughtUp
+    ? []
+    : (monsters || []).filter(monster => monster && monster.hp > 0 && !monster.fled && isPursuer(monster));
+  if (pursuers.length === 0) return [];
+  const clones = pursuers.map(monster => structuredClone(monster));
+  if (following) {
+    following.monsters.push(...clones);
+    following.turns = Math.min(following.turns, PURSUIT_TURNS);
+  } else {
+    run.pursuit = { floor, turns: PURSUIT_TURNS, monsters: clones };
   }
-  run.pursuit = {
-    floor,
-    turns: PURSUIT_TURNS,
-    monsters: standing.map(monster => structuredClone(monster))
-  };
-  return run.pursuit;
+  return clones;
 }
 
 /** The pack still following on this floor, or null. */
