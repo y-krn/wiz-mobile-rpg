@@ -14,7 +14,7 @@ export const ITEMS = {
   LONG_SWORD: { id: "LONG_SWORD", name: "ロングソード", type: "weapon", loadClass: "standard", hands: 1, behaviorProfile: "blade", atk: 18, randRange: [0, 4], desc: "両刃の美しい鋼鉄長剣。攻撃力+18", tags: ["iron", "blade"] },
   NINJA_BLADE: { id: "NINJA_BLADE", name: "忍刀", type: "weapon", loadClass: "light", hands: 1, behaviorProfile: "light", atk: 21, randRange: [1, 3], desc: "素早い斬撃に向いた片刃の忍刀。攻撃力+21", tags: ["ambush", "blade"] },
   FLAME_SWORD: { id: "FLAME_SWORD", name: "フレイムソード", type: "weapon", loadClass: "standard", hands: 1, behaviorProfile: "blade", atk: 21, randRange: [0, 4], desc: "火のルーンを刻んだ剣。攻撃力+21", tags: ["fire", "blade"] },
-  CLAYMORE: { id: "CLAYMORE", name: "クレイモア", type: "weapon", loadClass: "heavy", hands: 2, behaviorProfile: "heavy", atk: 27, randRange: [0, 4], desc: "重量のある両手大剣。攻撃力+27", tags: ["iron", "blade"] },
+  CLAYMORE: { id: "CLAYMORE", name: "クレイモア", type: "weapon", loadClass: "heavy", hands: 2, behaviorProfile: "heavy", atk: 15, randRange: [0, 4], desc: "重量のある両手大剣。攻撃力+15", tags: ["iron", "blade"] },
   MOONSHADOW: { id: "MOONSHADOW", name: "月影丸", type: "weapon", loadClass: "light", hands: 1, behaviorProfile: "light", atk: 30, randRange: [0, 4], desc: "月光を吸う黒刃の忍刀。攻撃力+30", tags: ["ambush", "evasion", "blade"] },
   KATANA: { id: "KATANA", name: "名刀ムラマサ", type: "weapon", loadClass: "heavy", hands: 2, behaviorProfile: "heavy", atk: 37.5, randRange: [0, 4], desc: "伝説の妖刀。攻撃力+37.5", tags: ["blood", "blade", "curse"] },
   MACE: { id: "MACE", name: "メイス", type: "weapon", loadClass: "standard", hands: 1, behaviorProfile: "impact", atk: 7.5, randRange: [0, 4], desc: "打撃用の重い金属槌。攻撃力+7.5", tags: ["iron"] },
@@ -41,7 +41,7 @@ export const ITEMS = {
 
   PRIEST_ROBE: { id: "PRIEST_ROBE", name: "司祭の法衣", type: "armor", loadClass: "standard", def: 8, desc: "神聖な加護を得た法衣。防御力+8", tags: ["holy", "ward"] },
   BATTLE_GARB: { id: "BATTLE_GARB", name: "戦装束", type: "armor", loadClass: "light", def: 6, desc: "軽量で動きやすい戦装束。防御力+6", tags: ["ambush", "ward"] },
-  PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", loadClass: "heavy", def: 16, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16", tags: ["iron", "ward"] },
+  PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", loadClass: "heavy", def: 8, desc: "全身を包み込む鋼鉄の板金鎧。防御力+8", tags: ["iron", "ward"] },
   DRAGON_SCALE: { id: "DRAGON_SCALE", name: "竜鱗の鎧", type: "armor", loadClass: "heavy", def: 12, desc: "竜の鱗を加工して作られた極めて頑丈な鱗鎧。防御力+12", tags: ["dragon", "ward"] },
 
   // Accessories

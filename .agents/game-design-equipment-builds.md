@@ -241,6 +241,15 @@ and the affix budget. Exceptions, which never enter ordinary supply:
   the first floor;
 - retired Cores and Cores marked for change in the Build vNext audit.
 
+**Bases are horizontal (#2126).** Because any base can be the first find, the
+base value of a weapon or armor is a play style, not a power tier. A heavy
+base is only moderately stronger than its standard peer and pays for it with
+the heavy load (and, for a two-handed weapon, the shield slot). It must never
+be a strict upgrade that decides the run by whether it was found: the
+greatsword stays within about 1.7x the sword's ATK, and heavy armor within
+about 2x the medium armor's DEF. Power growth comes from grade, rarity, and
+Supports.
+
 Runes are not equipment and keep their supply bands by floor
 (`src/data/magic.js`).
 

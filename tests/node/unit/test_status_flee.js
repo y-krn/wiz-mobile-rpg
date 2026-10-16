@@ -1,5 +1,6 @@
 import { FLEE_BASE_CHANCE, FLEE_MIN_CHANCE, getFleeChance } from "../../../src/rules/flee_rules.js";
 import assert from "node:assert/strict";
+import { ITEMS } from "../../../src/data/items.js";
 import { runCombatRoundCalculation } from "../../../src/combat_logic.js";
 import { clearCharIncapacitationOnDamage } from "../../../src/combat_logic/status_effects.js";
 import {
@@ -131,7 +132,7 @@ test("flee always succeeds against a boss, takes one parting hit, and retreats",
     assert.ok(result.logQueue.some(log => log.runEscape));
     const expectedPartingDamage = Math.max(
       1,
-      Math.floor(10 * (1 - getPhysicalDefenseResistance(16, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING)))
+      Math.floor(10 * (1 - getPhysicalDefenseResistance(ITEMS.PLATE_MAIL.def, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING)))
     );
     assert.equal(result.state.party[0].hp, 100 - expectedPartingDamage);
     assert.deepEqual({ x: result.state.x, y: result.state.y }, { x: 4, y: 5 });
