@@ -259,8 +259,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random,
     const hpBeforeLevelUp = c.hp;
     const levelBefore = c.level;
     const maxHpBefore = getCharMaxHp(c);
-    const lvlUp = checkCharLevelUp(c);
-    if (lvlUp) {
+    // #2119: one victory takes every Level its EXP pays for.
+    while (checkCharLevelUp(c)) { /* one Level per check */ }
+    if (c.level > levelBefore) {
       const levelUpRecoveryHp = Math.max(0, c.hp - hpBeforeLevelUp);
       victorySummary.levelUps.push({
         name: c.name,

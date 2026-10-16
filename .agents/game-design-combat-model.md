@@ -26,7 +26,9 @@ surfaces should preserve.
 3. **Level is a durability floor.** A level-up helps the character remain in
    the conversation with deeper threats, but does not grant spell permission,
    MP ownership, Core access, critical scaling, melee scaling, or exploration
-   authority.
+   authority. A victory takes every Level its EXP pays for (#2119): a large
+   award that passes several thresholds settles them all at once, so no Level
+   waits for a later victory.
 4. **Target tags use one shared stage.** Physical attacks and offensive spells
    pool matching tag bonuses once. A spell's intrinsic affinity joins that pool
    instead of becoming a second multiplier.
