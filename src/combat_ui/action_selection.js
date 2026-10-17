@@ -46,7 +46,7 @@ function isRepeatableAction(action, actorIdx) {
   if (action.type === "technique") {
     const status = getTechniqueStatus(state, actorIdx);
     if (!status.available || status.hpCost !== null) return false;
-    return status.technique.target === "self" || isValidEnemyTarget(action.targetIdx);
+    return status.technique.target !== "enemy" || isValidEnemyTarget(action.targetIdx);
   }
   if (action.type === "spell") {
     const spell = SPELLS[action.spellName];
@@ -241,7 +241,9 @@ export function selectCombatAction(type) {
     const status = getTechniqueStatus(state, charOriginalIdx);
     if (!status.technique) return;
     if (!status.available) {
-      addLog(`${status.technique.name}はあと${status.remaining}ターン使えない。`);
+      addLog(status.mpShort
+        ? `${status.technique.name}にはMPが${status.technique.mpCost}要る。`
+        : `${status.technique.name}はあと${status.remaining}ターン使えない。`);
       updateUI();
       return;
     }
@@ -254,7 +256,8 @@ export function selectCombatAction(type) {
       combatSelection.charIdx++;
       advanceActionSelection();
     };
-    if (status.technique.target === "self") commit(-1);
+    // Self and all-enemy techniques (薙ぎ払い) need no target choice.
+    if (status.technique.target !== "enemy") commit(-1);
     else chooseEnemyTarget(commit);
   } else if (type === "spell") {
     // Show available caster spells

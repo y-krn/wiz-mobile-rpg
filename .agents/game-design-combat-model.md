@@ -292,6 +292,28 @@ the technique be used early for an HP payment. These are one-shot, encounter-
 local modifiers applied at the melee-modifier stage; they never become a
 hidden second damage formula. Normal-profile combat has no technique action.
 
+### Variant techniques (#2135)
+
+A weapon carrying the 変化の型 Core (`CORE_TECH_SHIFT`) swaps its family
+technique for that family's variant. A variant fills a role no base technique
+has, so a find changes how the weapon is played rather than how hard it hits:
+
+- light — control: a weaker hit after which an ordinary enemy loses its next
+  action (its telegraph moves one turn later, it is not cancelled); guardians
+  and elites are unaffected;
+- blade — area: a reduced cut against every enemy in reach, with no target
+  choice;
+- impact — defense: a hit that also lowers incoming damage until the end of
+  the next round;
+- heavy — risk: a large hit on a short cooldown that raises incoming damage
+  until the end of the next round;
+- medium — spellblade: an MP-paid hit that ignores DEF, unusable without the
+  MP.
+
+The incoming-damage stance is applied at the shared guard-mitigation step, so
+it scales every incoming path and still stacks with Guard. Exact values live
+in `VARIANT_TECHNIQUES` (`src/data/techniques.js`) and are tuned by play.
+
 ## Initiative and equipment load
 
 Combat initiative is a shared production roll rather than a permanent player

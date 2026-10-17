@@ -118,6 +118,7 @@ cap.
 | --- | --- | --- |
 | 連環の型 | `CORE_TECH_CHAIN` | After a technique, the next universal attack is stronger, making the technique the opener of a two-turn rhythm. |
 | 研ぎ澄まし | `CORE_TECH_HONE` | Shorten the technique cooldown and strengthen it, making the technique the main verb. |
+| 変化の型 | `CORE_TECH_SHIFT` | Swap the weapon's family technique for a variant with a different role (control, area, defense, risk, spellblade), so a find changes how the weapon is played (#2135). |
 | 返しの構え | `CORE_GUARD_RIPOSTE` | Guard resets the technique cooldown and primes the next attack or technique, turning Guard into offense. |
 | 血の型 | `CORE_BLOOD_TECH` | During the cooldown, the technique can still be used by paying a share of max HP. |
 
@@ -267,7 +268,7 @@ families and their Cores are data-owned (`src/data/core_families.js`):
 
 | Family | Shown as | Cores |
 | --- | --- | --- |
-| technique | 技 | 連環の型, 研ぎ澄まし |
+| technique | 技 | 連環の型, 研ぎ澄まし, 変化の型 |
 | guard | 構え | 返しの構え (反撃の棘 when it returns) |
 | blood | 血 | 血の型, 血杖 (and 薄氷の誓約 when it returns) |
 | curse | 呪い | 呪飼いの鎖 |

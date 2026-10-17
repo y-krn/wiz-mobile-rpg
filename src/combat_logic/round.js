@@ -83,7 +83,7 @@ import {
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
 import { resolvePlayerTechnique } from "./technique_resolution.js";
-import { onGuardChosen, takeNextAttackMultiplier, tickTechniqueCooldowns } from "../rules/technique_rules.js";
+import { onGuardChosen, takeNextAttackMultiplier, tickTechniqueCooldowns, tickTechniqueStances } from "../rules/technique_rules.js";
 import {
   getFollowUpChance,
   getStatusEffectChance,
@@ -2107,6 +2107,7 @@ export function runCombatRoundCalculation(
   });
   tickCharBuffs(state.party);
   tickTechniqueCooldowns(state.combatState);
+  tickTechniqueStances(state.party);
   state.party.forEach(char => {
     if (char.tempDefDown) char.tempDefDown = Math.max(0, char.tempDefDown - 1);
     if (char.magicVulnerableTurns) char.magicVulnerableTurns = Math.max(0, char.magicVulnerableTurns - 1);

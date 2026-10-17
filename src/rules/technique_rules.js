@@ -1,18 +1,39 @@
 // Weapon technique availability, cooldown and Core hooks (Build vNext, #1801).
 // Techniques are available during any active run.
-import { TECHNIQUE_BY_PROFILE, TELEGRAPH_FLAGS } from "../data/techniques.js";
+import { TECHNIQUE_BY_PROFILE, TELEGRAPH_FLAGS, VARIANT_TECHNIQUE_BY_PROFILE } from "../data/techniques.js";
 import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
 import { getCharCoreParams } from "./affix_rules.js";
 import { getCharMaxHp } from "./character_stats.js";
+import { getAffixDefinition } from "../data/affixes.js";
+import { getItemData } from "./item_rules.js";
+
+export const TECHNIQUE_SHIFT_CORE_ID = "CORE_TECH_SHIFT";
 
 export function isBuildVNextRun(stateLike) {
   return Boolean(stateLike?.currentRun);
 }
 
+// The technique a weapon item carries: its family technique, or the family
+// variant when the item holds the 変化の型 Core (#2135).
+// Takes an equipment instance or a base id; an unidentified instance reads as
+// its family technique, since its Core is not known yet.
+export function getItemTechnique(itemOrKey) {
+  const item = getItemData(itemOrKey);
+  if (item?.type !== "weapon") return null;
+  const affixes = typeof itemOrKey === "object" && itemOrKey.identified ? itemOrKey.affixes || [] : [];
+  const shifted = affixes.some(affix => {
+    const definition = getAffixDefinition(affix);
+    return definition?.enabled && definition.id === TECHNIQUE_SHIFT_CORE_ID;
+  });
+  const table = shifted ? VARIANT_TECHNIQUE_BY_PROFILE : TECHNIQUE_BY_PROFILE;
+  return table[item.behaviorProfile] || null;
+}
+
 export function getCharTechnique(char, stateLike) {
   if (!char || !isBuildVNextRun(stateLike)) return null;
   const profileId = getWeaponBehaviorProfile(char)?.id;
-  return TECHNIQUE_BY_PROFILE[profileId] || null;
+  const table = getCharCoreParams(char, TECHNIQUE_SHIFT_CORE_ID) ? VARIANT_TECHNIQUE_BY_PROFILE : TECHNIQUE_BY_PROFILE;
+  return table[profileId] || null;
 }
 
 export function getTechniqueCooldownLength(char, technique) {
@@ -46,10 +67,11 @@ export function getTechniqueStatus(stateLike, actorIdx) {
   const technique = getCharTechnique(char, stateLike);
   if (!technique) return { technique: null, available: false, remaining: 0, hpCost: null };
   const remaining = getTechniqueRemaining(stateLike.combatState, actorIdx);
-  if (remaining <= 0) return { technique, available: true, remaining: 0, hpCost: null };
+  const mpShort = (technique.mpCost || 0) > (Number(char.mp) || 0);
+  if (remaining <= 0) return { technique, available: !mpShort, remaining: 0, hpCost: null, mpShort };
   const hpCost = getTechniqueHpCost(char);
-  const available = hpCost !== null && char.hp > hpCost;
-  return { technique, available, remaining, hpCost: available ? hpCost : null };
+  const available = !mpShort && hpCost !== null && char.hp > hpCost;
+  return { technique, available, remaining, hpCost: available ? hpCost : null, mpShort };
 }
 
 // Called when the technique resolves: pays the Blood cost if it was used
@@ -59,6 +81,8 @@ export function commitTechniqueUse(stateLike, actorIdx) {
   const technique = getCharTechnique(char, stateLike);
   if (!technique) return { ok: false, hpPaid: 0 };
   const map = getCooldownMap(stateLike.combatState);
+  const mpCost = technique.mpCost || 0;
+  if (mpCost > (Number(char.mp) || 0)) return { ok: false, hpPaid: 0, mpShort: true };
   let hpPaid = 0;
   if (getTechniqueRemaining(stateLike.combatState, actorIdx) > 0) {
     const cost = getTechniqueHpCost(char);
@@ -66,8 +90,32 @@ export function commitTechniqueUse(stateLike, actorIdx) {
     char.hp -= cost;
     hpPaid = cost;
   }
+  char.mp = (Number(char.mp) || 0) - mpCost;
   map[actorIdx] = getTechniqueCooldownLength(char, technique) + 1;
-  return { ok: true, hpPaid, technique };
+  return { ok: true, hpPaid, mpPaid: mpCost, technique };
+}
+
+// A stance a technique leaves on its user (守り打ち, 捨て身): incoming damage is
+// scaled until the end of the next round. `turns` counts round ends.
+export function applyTechniqueStance(char, stance) {
+  if (!char || !stance) return;
+  char.techStance = {
+    incomingDamageMultiplier: stance.incomingDamageMultiplier,
+    turnsLeft: stance.turns
+  };
+}
+
+export function getTechniqueStanceMultiplier(char) {
+  const stance = char?.techStance;
+  return stance && stance.turnsLeft > 0 ? Number(stance.incomingDamageMultiplier) || 1 : 1;
+}
+
+export function tickTechniqueStances(party) {
+  (party || []).forEach(char => {
+    if (!char?.techStance) return;
+    char.techStance.turnsLeft -= 1;
+    if (char.techStance.turnsLeft <= 0) delete char.techStance;
+  });
 }
 
 export function tickTechniqueCooldowns(combatState) {
@@ -130,5 +178,6 @@ export function clearTechniqueCombatFlags(party) {
     delete char.techChainReady;
     delete char.riposteReady;
     delete char.focusSpellMultiplier;
+    delete char.techStance;
   });
 }

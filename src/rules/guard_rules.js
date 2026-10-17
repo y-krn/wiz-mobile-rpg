@@ -32,8 +32,13 @@ export function resolveGuardMitigation(
   damage,
   { isDefending = false, attackType, spell = false, dragon = false, baseMultiplier = null, telemetry = null } = {}
 ) {
-  const numericDamage = Number(damage);
-  if (!Number.isFinite(numericDamage)) return 1;
+  const rawDamage = Number(damage);
+  if (!Number.isFinite(rawDamage)) return 1;
+  // A technique stance (守り打ち, 捨て身; #2135) scales every incoming hit
+  // until it runs out, whether or not the character also guards.
+  const stance = char?.techStance;
+  const stanceMultiplier = stance && stance.turnsLeft > 0 ? Number(stance.incomingDamageMultiplier) || 1 : 1;
+  const numericDamage = stanceMultiplier === 1 ? rawDamage : Math.max(1, Math.round(rawDamage * stanceMultiplier));
   if (!isDefending) return Math.max(1, numericDamage);
 
   const profile = getGuardProfile(char);

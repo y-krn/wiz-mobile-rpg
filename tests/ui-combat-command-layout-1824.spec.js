@@ -182,3 +182,38 @@ test('Unavailable combat commands stay visible, disabled, and explain why @e2e @
   expect(Number(await technique.evaluate(el => getComputedStyle(el).opacity))).toBeLessThan(1);
   expect(Number(await cancel.evaluate(el => getComputedStyle(el).opacity))).toBeLessThan(1);
 });
+
+// #2135: a weapon with 変化の型 shows its variant technique, and an MP-paid
+// variant explains the missing MP in the same reason slot.
+test('Variant technique shows its name and MP shortage on the technique button @e2e', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedCombat(page);
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const char = state.party[0];
+    char.equipment.shield = null;
+    char.equipment.weapon = {
+      kind: 'equipment', instanceId: 'eq_shift_staff', baseId: 'SAGE_STAFF', rarity: 'magic', level: 1,
+      identified: true, halfIdentified: true, knowledgeStage: 'full', observationCount: 0, trialCount: 0,
+      tags: [], hintTags: [], curseEffectId: null, cursePower: 1, curseSuspected: false,
+      unidentifiedName: 'SAGE_STAFF', affixes: [{ id: 'CORE_TECH_SHIFT', kind: 'core', type: 'CORE_TECH_SHIFT', value: 1 }],
+    };
+    char.mp = 0;
+    updateUI();
+  });
+  const technique = page.locator('#btn-combat-technique');
+  await expect(technique).toHaveText('魔力撃');
+  await expect(technique).toHaveAttribute('data-reason', 'MP3不足');
+  await expect(technique).toHaveClass(/is-unavailable/);
+
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    state.party[0].mp = 5;
+    updateUI();
+  });
+  await expect(technique).toHaveAttribute('data-reason', 'MP3');
+  await expect(technique).not.toHaveClass(/is-unavailable/);
+  expect(await technique.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+});
