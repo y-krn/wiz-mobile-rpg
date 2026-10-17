@@ -49,7 +49,15 @@ export const AFFIX_BALANCE = {
     physicalAccuracy: 2,
     escapeChance: 2,
     highHpTargetDamage: 3,
-    bossDamage: 3
+    bossDamage: 3,
+    techPower: 3,
+    guardStrike: 3,
+    telegraphHunter: 2,
+    statusHunter: 3,
+    packBreaker: 2,
+    killTempo: 3,
+    techMp: 2,
+    guardCounter: 2
   },
   // Shared spell power uses rarity for value. Floor only controls whether a
   // generator pool can offer the affix; it never scales the rolled value.
@@ -97,7 +105,16 @@ export const AFFIX_BALANCE = {
     physicalAccuracy: { magic: 5, rare: 8, epic: 10 },
     escapeChance: { magic: 10, rare: 15, epic: 20 },
     highHpTargetDamage: { magic: 10, rare: 12, epic: 15 },
-    bossDamage: { magic: 10, rare: 12, epic: 15 }
+    bossDamage: { magic: 10, rare: 12, epic: 15 },
+    // Verb Supports (#2137): bounded reinforcements of a combat verb.
+    techPower: { magic: 10, rare: 15, epic: 20 },
+    guardStrike: { magic: 20, rare: 30, epic: 40 },
+    telegraphHunter: { magic: 15, rare: 20, epic: 25 },
+    statusHunter: { magic: 10, rare: 15, epic: 20 },
+    packBreaker: { magic: 10, rare: 15, epic: 20 },
+    killTempo: { magic: 1, rare: 1, epic: 1 },
+    techMp: { magic: 1, rare: 1, epic: 1 },
+    guardCounter: { magic: 15, rare: 20, epic: 25 }
   },
   // #1078: Core is a meaningful discovery, not the default affix on ordinary
   // equipment.  A generated item still has at most one Core; the floor and
@@ -174,7 +191,9 @@ const SUPPORT_BUILD_ROLES = Object.freeze({
   lowHpDamage: "reinforce", firstStrikeFollowUp: "reinforce", physicalAccuracy: "reinforce",
   highHpTargetDamage: "pivot", bossDamage: "pivot",
   hitFlinch: "pivot", victoryMaterial: "pivot", identifyDiscount: "pivot", materialFind: "pivot",
-  contractReward: "pivot"
+  contractReward: "pivot",
+  techPower: "reinforce", guardStrike: "convert", telegraphHunter: "pivot", statusHunter: "pivot",
+  packBreaker: "pivot", killTempo: "reinforce", techMp: "convert", guardCounter: "convert"
 });
 
 function support(id, jpName, desc, category, options = {}) {
@@ -249,6 +268,24 @@ export const SUPPORT_AFFIXES = [
   support("victoryMaterial", "拾得", "勝利時に低確率で素材を得る。", "trigger", { unit: "%" }),
   support("stairsHeal", "踏破の息吹", "階段発見時にHPを回復する。", "trigger"),
   support("firstStrikeFollowUp", "先手連撃", "先制成功時、追撃率が増加する。", "trigger", { unit: "%" }),
+
+  // Verb Supports (#2137): each reinforces a combat verb (technique, Guard,
+  // telegraph, status, kill) rather than a flat stat, so a find tells the
+  // player how to fight, not only how hard.
+  support("techPower", "技冴え", "技の与ダメージが増加する。", "basic", { unit: "%" }),
+  support("guardStrike", "構え打ち", "防御した後、次の攻撃か技の与ダメージが増加する。", "conditional", { unit: "%" }),
+  support("telegraphHunter", "見切り眼", "予兆中の敵への与ダメージが増加する。", "conditional", { unit: "%" }),
+  support("statusHunter", "追い討ち", "状態異常・出血・怯み中の敵への与ダメージが増加する。", "conditional", { unit: "%" }),
+  support("packBreaker", "群れ崩し", "生きている敵が3体以上のとき、与ダメージが増加する。", "conditional", {
+    unit: "%",
+    params: { minEnemies: 3 }
+  }),
+  support("killTempo", "止め", "敵を倒すと、技の再使用待ちが短くなる（1ターンに1回）。", "trigger", { unit: "ターン" }),
+  support("techMp", "呼吸", "技を使うとMPが回復する。", "trigger", { unit: "MP" }),
+  support("guardCounter", "受け流し", "防御中に攻撃を受けると、一定確率で威力50%の反撃を行う。", "trigger", {
+    unit: "%",
+    params: { counterPower: 0.5 }
+  }),
 
   support("identifyDiscount", "鑑定眼", "鑑定費用を軽減する。", "economy", { unit: "%" }),
   support("materialFind", "素材探し", "素材発見率が10%増加する。", "economy", { unit: "%" }),

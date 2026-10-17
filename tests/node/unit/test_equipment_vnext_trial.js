@@ -23,7 +23,7 @@ function lcg(seed) {
   };
 }
 
-assert.equal(Object.keys(VNEXT_SUPPORT_AUDIT).length, 47);
+assert.equal(Object.keys(VNEXT_SUPPORT_AUDIT).length, 55);
 assert.equal(Object.keys(VNEXT_CORE_AUDIT).length, 13);
 assert.equal(VNEXT_SUPPORT_AUDIT.escapeChance.disposition, "retire");
 assert.equal(VNEXT_SUPPORT_AUDIT.rearEvasion.disposition, "retire");

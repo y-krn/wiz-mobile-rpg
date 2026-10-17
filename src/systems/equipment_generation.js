@@ -33,6 +33,9 @@ const BUILD_VNEXT_ECONOMY_SUPPORTS = new Set([
   "identifyDiscount", "materialFind", "contractReward", "victoryMaterial"
 ]);
 const BUILD_VNEXT_ECONOMY_WEIGHT = 0.25;
+// Verb Supports (#2137) are weighted so that about a third of supports on a
+// find reinforce a combat verb instead of a flat stat.
+const VERB_SUPPORT_WEIGHT = 2;
 
 // A Core that random generation can hand out: enabled, kept by the trial,
 // and not waiting for a Workshop unlock. With no unlock list (no party
@@ -388,6 +391,9 @@ export function generateRandomEquipment(runFloor, options) {
     addAffix("frontGuard", () => getSupportValueByRarity("frontGuard", rarity), 2);
     addAffix("rearEvasion", () => getSupportValueByRarity("rearEvasion", rarity), 2);
     addAffix("firstStrikeDefense", () => getSupportValueByRarity("firstStrikeDefense", rarity), 1);
+    // Verb Supports (#2137): Guard is the armor and shield verb.
+    addAffix("guardStrike", () => getSupportValueByRarity("guardStrike", rarity), VERB_SUPPORT_WEIGHT);
+    addAffix("guardCounter", () => getSupportValueByRarity("guardCounter", rarity), VERB_SUPPORT_WEIGHT);
   }
   if (baseItem.type === "weapon") {
     addAffix("fullHpDamage", () => getSupportValueByRarity("fullHpDamage", rarity), 2);
@@ -411,6 +417,9 @@ export function generateRandomEquipment(runFloor, options) {
     // #793: the single Phase 1 bleeding producer remains weapon-only and
     // follows the existing poison trigger pool without repurposing poisonAtk.
     addAffix("bleedingAtk", () => getSupportValueByRarity("bleedingAtk", rarity), 1);
+    // Verb Supports (#2137): the weapon owns the technique and the kill.
+    ["techPower", "guardStrike", "telegraphHunter", "statusHunter", "packBreaker", "killTempo", "techMp"]
+      .forEach(type => addAffix(type, () => getSupportValueByRarity(type, rarity), VERB_SUPPORT_WEIGHT));
   }
   addAffix("statusResistance", () => getSupportValueByRarity("statusResistance", rarity), 2);
   addAffix("victoryMaterial", () => 5, 1);
@@ -580,7 +589,11 @@ export function generateRandomAccessory(runFloor, options) {
     { type: "stairsHeal", getVal: () => getSupportValueByRarity("stairsHeal", rarity), weight: 1 },
     { type: "identifyDiscount", getVal: () => 10, weight: 2 },
     { type: "materialFind", getVal: () => 10, weight: 2 },
-    { type: "contractReward", getVal: () => 10, weight: 2 }
+    { type: "contractReward", getVal: () => 10, weight: 2 },
+    // Verb Supports (#2137).
+    ...["techPower", "telegraphHunter", "statusHunter", "packBreaker", "killTempo", "techMp"].map(type => ({
+      type, getVal: () => getSupportValueByRarity(type, rarity), weight: VERB_SUPPORT_WEIGHT
+    }))
   ].filter(aff => aff.weight > 0 && isVNextTrialSupport(aff.type, { slot: "accessory", baseId }))
     .map(withSupportDefinition)
     .filter(Boolean);

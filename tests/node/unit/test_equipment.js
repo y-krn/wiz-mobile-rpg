@@ -553,7 +553,14 @@ import { createStartingKitCharacter } from "../../../src/state.js";
       hitFlinch: 15,
       identifyDiscount: 10,
       materialFind: 10,
-      contractReward: 10
+      contractReward: 10,
+      // Verb Supports (#2137), epic table values.
+      techPower: 20,
+      telegraphHunter: 25,
+      statusHunter: 20,
+      packBreaker: 20,
+      killTempo: 1,
+      techMp: 1
     };
 
     ["magic", "rare", "epic"].forEach((rarity, rarityIndex) => {

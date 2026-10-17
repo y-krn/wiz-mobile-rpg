@@ -324,6 +324,14 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "poisonWard") prefix = "毒避けの";
       else if (primaryAff.type === "poisonAtk") prefix = "毒刃の";
       else if (primaryAff.type === "firstStrike") prefix = "先制の";
+      else if (primaryAff.type === "techPower") prefix = "冴えた";
+      else if (primaryAff.type === "guardStrike") prefix = "構え打ちの";
+      else if (primaryAff.type === "telegraphHunter") prefix = "見切りの";
+      else if (primaryAff.type === "statusHunter") prefix = "追い討ちの";
+      else if (primaryAff.type === "packBreaker") prefix = "群れ崩しの";
+      else if (primaryAff.type === "killTempo") prefix = "止めの";
+      else if (primaryAff.type === "techMp") prefix = "呼吸の";
+      else if (primaryAff.type === "guardCounter") prefix = "受け流しの";
     }
     
     let name = prefix ? `${prefix}${base.name}` : base.name;

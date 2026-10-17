@@ -33,12 +33,13 @@ function mimicOutcome(result) {
 // Run indexes are scenario fixtures: floor layouts (#1962), gimmicks (#1963),
 // the unified rules, exploration recovery (#2028) and #1803's recovery and
 // needle each moved which run meets which chest (57 -> 14, 28 -> 2, 2 -> 31
-// by hand). Each scenario now takes the first run index that shows it.
+// by hand). Each scenario now takes the first run index that shows it. Leaving
+// every mimic is rare (about 1 run in 75), so its window is wider (#2137).
 const { seed: victoryIndex, result: victory } = await findSeed("mimic fought and beaten", seedWindow(14, 40), run,
   result => mimicOutcome(result).victories > 0);
 assert.deepEqual(mimicOutcome(run(victoryIndex)), mimicOutcome(victory), "mimic fights are deterministic");
 
-const { result: cautious } = await findSeed("low-HP player leaves every mimic", seedWindow(31, 60), run, result => {
+const { result: cautious } = await findSeed("low-HP player leaves every mimic", seedWindow(31, 120), run, result => {
   const mimic = mimicOutcome(result);
   return mimic.encounters > 0 && mimic.left === mimic.encounters;
 });
