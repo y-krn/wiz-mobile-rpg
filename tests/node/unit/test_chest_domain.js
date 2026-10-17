@@ -227,6 +227,16 @@ for (const [trap, roll, expected] of [
   assert.equal(draws, 1, "the sign consumes exactly one draw");
 }
 
+// Where chests never hold a trap (B1F), the sign never misreads (#2130).
+for (const roll of [0, 0.7, 0.99]) {
+  const safeSign = resolveChestTrapSign({ trap: "none", character: plainReader, rng: () => roll, trapPossible: false });
+  assert.deepEqual(
+    { sign: safeSign.sign, accurate: safeSign.accurate, accuracy: safeSign.accuracy },
+    { sign: CHEST_TRAP_SIGNS.NONE, accurate: true, accuracy: 1 },
+    `trapless floor sign with ${roll}`
+  );
+}
+
 // A mimic always reads as danger, even on a roll that would misread.
 for (const roll of [0, 0.7, 0.99]) {
   const mimicSign = resolveChestTrapSign({ trap: "mimic", character: plainReader, rng: () => roll });
