@@ -28,8 +28,7 @@ import { updateUI } from "./ui.js";
 import { createBagCapacitySummary } from "./ui/bag_summary.js";
 import { setDockActionRole } from "./ui/common_shell.js";
 import { showLootToast } from "./ui/loot_toast.js";
-import { isBuildVNextRun } from "./rules/technique_rules.js";
-import { TECHNIQUE_BY_PROFILE } from "./data/techniques.js";
+import { getItemTechnique, isBuildVNextRun } from "./rules/technique_rules.js";
 
 export const PENDING_REWARD_MENU = "pending_rewards";
 const BAG_LIMIT = 20;
@@ -430,7 +429,7 @@ function renderPendingRewardMenu() {
     };
     if (inChoice || isBuildVNextRun(state)) {
       // One line each: the weapon's technique, then the item.
-      const technique = item?.type === "weapon" ? TECHNIQUE_BY_PROFILE[item.behaviorProfile] : null;
+      const technique = getItemTechnique(entry.item);
       [
         [technique ? `技「${technique.name}」: ${technique.desc}` : "", "pending-reward-desc pending-reward-technique"],
         [item?.desc || "", "pending-reward-desc"]

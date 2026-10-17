@@ -992,10 +992,14 @@ function updateTechniqueButton() {
   const name = status.technique.name;
   btn.textContent = name;
   // Cooldown / Blood cost sits on the small second line, like disabled reasons.
-  setCombatCommandReason(btn, status.remaining <= 0
-    ? ""
-    : status.hpCost !== null ? `HP${status.hpCost}消費` : `あと${status.remaining}ターン`);
+  const mpCost = status.technique.mpCost || 0;
+  const reason = status.mpShort
+    ? `MP${mpCost}不足`
+    : status.remaining <= 0
+      ? (mpCost > 0 ? `MP${mpCost}` : "")
+      : status.hpCost !== null ? `HP${status.hpCost}消費` : `あと${status.remaining}ターン`;
+  setCombatCommandReason(btn, reason);
   btn.classList.toggle("is-unavailable", !status.available);
-  btn.setAttribute("aria-label", `${name}。${status.technique.desc}${status.available ? "" : `（あと${status.remaining}ターン）`}`);
+  btn.setAttribute("aria-label", `${name}。${status.technique.desc}${status.available ? "" : `（${status.mpShort ? `MP${mpCost}不足` : `あと${status.remaining}ターン`}）`}`);
   btn.title = status.technique.desc;
 }

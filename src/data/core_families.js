@@ -16,12 +16,17 @@ export const CORE_FAMILIES = Object.freeze([
   Object.freeze({
     id: "technique",
     name: "技",
-    coreIds: Object.freeze(["CORE_TECH_CHAIN", "CORE_TECH_HONE"]),
+    coreIds: Object.freeze(["CORE_TECH_CHAIN", "CORE_TECH_HONE", "CORE_TECH_SHIFT"]),
     seedOptions: Object.freeze([
       Object.freeze({ baseId: "DAGGER", coreId: "CORE_TECH_HONE" }),
       Object.freeze({ baseId: "SHORT_SWORD", coreId: "CORE_TECH_CHAIN" }),
       Object.freeze({ baseId: "MACE", coreId: "CORE_TECH_CHAIN" }),
-      Object.freeze({ baseId: "CLAYMORE", coreId: "CORE_TECH_HONE" })
+      Object.freeze({ baseId: "CLAYMORE", coreId: "CORE_TECH_HONE" }),
+      Object.freeze({ baseId: "DAGGER", coreId: "CORE_TECH_SHIFT" }),
+      Object.freeze({ baseId: "SHORT_SWORD", coreId: "CORE_TECH_SHIFT" }),
+      Object.freeze({ baseId: "MACE", coreId: "CORE_TECH_SHIFT" }),
+      Object.freeze({ baseId: "CLAYMORE", coreId: "CORE_TECH_SHIFT" }),
+      Object.freeze({ baseId: "SAGE_STAFF", coreId: "CORE_TECH_SHIFT" })
     ])
   }),
   Object.freeze({

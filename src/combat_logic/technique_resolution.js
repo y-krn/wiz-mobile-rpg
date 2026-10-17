@@ -24,6 +24,7 @@ import { hasTrait, processMonsterDefeat } from "./monster_traits.js";
 import { recordCharDeath, queueCharDeathLog } from "../state.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 import {
+  applyTechniqueStance,
   clearTelegraph,
   commitTechniqueUse,
   getCharTechnique,
@@ -116,6 +117,12 @@ export function resolvePlayerTechnique(char, act, state, monsters, logQueue, { r
     logQueue.push({ msg: `[味方] ${char.name}の${technique.name}はまだ使えない。` });
     return { executed: false };
   }
+  if (use.mpPaid > 0) {
+    logQueue.push({
+      msg: `[味方] ${char.name}は魔力を刃に込めた。（MP-${use.mpPaid}）`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
+    });
+  }
   if (use.hpPaid > 0) {
     logQueue.push({
       msg: `[味方] ${char.name}は血を代償に${technique.name}を繰り出す！（HP-${use.hpPaid}）`,
@@ -132,6 +139,20 @@ export function resolvePlayerTechnique(char, act, state, monsters, logQueue, { r
       msg: `[味方] ${char.name}は${technique.name}で魔力を練り上げた。（MP+${char.mp - before}、次の呪文が強まる）`,
       presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD,
       sound: "heal"
+    });
+    onTechniqueResolved(char);
+    return { executed: true };
+  }
+
+  if (technique.target === "all") {
+    // 薙ぎ払い (#2135): one swing reaches every enemy in melee reach.
+    const multiplier = technique.damageMultiplier * getTechniqueDamageMultiplier(char)
+      * takeNextAttackMultiplier(char, { technique: true });
+    const targets = monsters.filter(monster => monster.hp > 0 && canMeleeTargetEnemy(monsters, monster));
+    targets.forEach(target => {
+      if (char.hp <= 0) return;
+      strike(char, target, technique, { state, rng, multiplier, logQueue, monsters });
+      finishKill(char, target, { state, logQueue, monsters });
     });
     onTechniqueResolved(char);
     return { executed: true };
@@ -171,6 +192,27 @@ export function resolvePlayerTechnique(char, act, state, monsters, logQueue, { r
     logQueue.push({
       msg: `[味方] ${target.name}の守りが砕けた！（防御-${technique.defDown}）`,
       presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+    });
+  }
+  if (technique.flinchesTarget && target.hp > 0) {
+    if (target.isBoss || target.isMidboss) {
+      logQueue.push({ msg: `[味方] ${target.name}は${technique.name}に動じない。` });
+    } else {
+      target.flinched = true;
+      logQueue.push({
+        msg: `[味方] ${target.name}の影が縫い止められた！（次の行動を失う）`,
+        presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+      });
+    }
+  }
+  if (technique.stance && char.hp > 0) {
+    applyTechniqueStance(char, technique.stance);
+    const guarded = technique.stance.incomingDamageMultiplier < 1;
+    logQueue.push({
+      msg: guarded
+        ? `[味方] ${char.name}は打ち込みながら身を固めた。（次のターンの終わりまで被ダメージ減）`
+        : `[味方] ${char.name}は守りを捨てた！（次のターンの終わりまで被ダメージ増）`,
+      presentationKind: guarded ? COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD : COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
     });
   }
   finishKill(char, target, { state, logQueue, monsters });

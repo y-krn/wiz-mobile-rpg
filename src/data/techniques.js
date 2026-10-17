@@ -69,6 +69,78 @@ export const TECHNIQUE_BY_PROFILE = Object.freeze(
   Object.fromEntries(Object.values(TECHNIQUES).map(technique => [technique.profileId, technique]))
 );
 
+// Variant techniques (#2135). A weapon carrying the 変化の型 Core
+// (CORE_TECH_SHIFT) swaps its family technique for the variant below. Each
+// variant fills a role no base technique has, so a find changes how the
+// weapon is played rather than how hard it hits.
+export const VARIANT_TECHNIQUES = Object.freeze({
+  shadowPin: Object.freeze({
+    id: "shadowPin",
+    profileId: "light",
+    role: "control",
+    name: "影縫い",
+    desc: "0.6倍の一撃。通常の敵は次の行動を1回失う（守護者・強敵には効かない）。",
+    cooldown: 3,
+    target: "enemy",
+    hits: 1,
+    damageMultiplier: 0.6,
+    hitChanceBonus: 0.15,
+    flinchesTarget: true
+  }),
+  sweep: Object.freeze({
+    id: "sweep",
+    profileId: "blade",
+    role: "area",
+    name: "薙ぎ払い",
+    desc: "届く敵すべてに0.6倍の斬撃。群れに強い。",
+    cooldown: 3,
+    target: "all",
+    hits: 1,
+    damageMultiplier: 0.6
+  }),
+  guardedBlow: Object.freeze({
+    id: "guardedBlow",
+    profileId: "impact",
+    role: "defense",
+    name: "守り打ち",
+    desc: "0.9倍の一撃。次のターンの終わりまで、受けるダメージが0.6倍になる。",
+    cooldown: 3,
+    target: "enemy",
+    hits: 1,
+    damageMultiplier: 0.9,
+    stance: Object.freeze({ incomingDamageMultiplier: 0.6, turns: 2 })
+  }),
+  recklessBlow: Object.freeze({
+    id: "recklessBlow",
+    profileId: "heavy",
+    role: "risk",
+    name: "捨て身",
+    desc: "2倍の一撃。次のターンの終わりまで、受けるダメージが1.5倍になる。",
+    cooldown: 2,
+    target: "enemy",
+    hits: 1,
+    damageMultiplier: 2,
+    stance: Object.freeze({ incomingDamageMultiplier: 1.5, turns: 2 })
+  }),
+  manaStrike: Object.freeze({
+    id: "manaStrike",
+    profileId: "medium",
+    role: "spellblade",
+    name: "魔力撃",
+    desc: "MP3を払い、防御を無視する1.5倍の一撃。",
+    cooldown: 2,
+    target: "enemy",
+    hits: 1,
+    damageMultiplier: 1.5,
+    ignoreDefense: true,
+    mpCost: 3
+  })
+});
+
+export const VARIANT_TECHNIQUE_BY_PROFILE = Object.freeze(
+  Object.fromEntries(Object.values(VARIANT_TECHNIQUES).map(technique => [technique.profileId, technique]))
+);
+
 // Monster flags that mean "a telegraphed action resolves next turn".
 export const TELEGRAPH_FLAGS = Object.freeze([
   "lahalitoQueued",

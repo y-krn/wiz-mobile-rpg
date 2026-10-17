@@ -467,6 +467,20 @@ export const BUILD_VNEXT_CORE_AFFIXES = [
     trialOnly: true
   },
   {
+    id: "CORE_TECH_SHIFT",
+    kind: "core",
+    jpName: "変化の型",
+    desc: "この武器の技が、役割の違う別の技に変わる。",
+    slot: "weapon",
+    cost: 10,
+    params: { variant: true },
+    buildRole: "pivot",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
+  },
+  {
     id: "CORE_GUARD_RIPOSTE",
     kind: "core",
     jpName: "返しの構え",
