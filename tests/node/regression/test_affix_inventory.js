@@ -23,7 +23,8 @@ const expectedIds = [
   ...SUPPORT_AFFIXES.filter(affix => affix.enabled)
 ].map(affix => affix.id);
 
-assert.equal(expectedIds.length, 60, "vNext enabled affix count");
+// #2137 added eight verb Supports.
+assert.equal(expectedIds.length, 68, "vNext enabled affix count");
 assert.equal(new Set(expectedIds).size, expectedIds.length, "Issue #679 IDs are unique");
 assert.deepEqual([...ISSUE679_AFFIX_FUNNEL_FIELDS], expectedFunnelFields);
 

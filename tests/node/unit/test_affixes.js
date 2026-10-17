@@ -23,14 +23,14 @@ function lcg(seed) {
   };
 }
 
-assert.strictEqual(SUPPORT_AFFIXES.length, 47, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 47, "enabled support count");
+assert.strictEqual(SUPPORT_AFFIXES.length, 55, "support registry count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 55, "enabled support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
     SUPPORT_AFFIXES.filter(affix => affix.category === category).length
   ])),
-  { basic: 23, conditional: 13, trigger: 8, economy: 3 }
+  { basic: 24, conditional: 17, trigger: 11, economy: 3 }
 );
 SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.kind, "support");

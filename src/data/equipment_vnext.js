@@ -69,7 +69,9 @@ export const VNEXT_SUPPORT_IDS = Object.freeze([
   "longFightDamage", "frontlineGuard", "fullHpDamage", "openingAttack",
   "firstStrikeDefense", "lowHpDamage", "highHpTargetDamage", "killHeal", "followUpMp",
   "hitFlinch", "poisonAtk", "bleedingAtk", "stairsHeal", "firstStrikeFollowUp",
-  "identifyDiscount", "materialFind", "contractReward"
+  "identifyDiscount", "materialFind", "contractReward",
+  "techPower", "guardStrike", "telegraphHunter", "statusHunter", "packBreaker",
+  "killTempo", "techMp", "guardCounter"
 ]);
 
 export const VNEXT_SUPPORTS = Object.freeze(Object.fromEntries(
@@ -137,7 +139,15 @@ export const VNEXT_SUPPORT_AUDIT = Object.freeze({
   firstStrikeFollowUp: { productionId: "firstStrikeFollowUp", disposition: "keep", reasonCode: "opening_action_synergy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
   identifyDiscount: { productionId: "identifyDiscount", disposition: "keep", reasonCode: "equipment_identification_economy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/systems/identification.ts"] },
   materialFind: { productionId: "materialFind", disposition: "keep", reasonCode: "material_discovery_economy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/rewards.js"] },
-  contractReward: { productionId: "contractReward", disposition: "keep", reasonCode: "feat_reward_economy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/result.js", "src/systems/feats.js"] }
+  contractReward: { productionId: "contractReward", disposition: "keep", reasonCode: "feat_reward_economy", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/result.js", "src/systems/feats.js"] },
+  techPower: { productionId: "techPower", disposition: "keep", reasonCode: "technique_damage_verb", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/technique_rules.js"] },
+  guardStrike: { productionId: "guardStrike", disposition: "keep", reasonCode: "guard_then_strike_verb", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/technique_rules.js", "src/combat_logic/round.js"] },
+  telegraphHunter: { productionId: "telegraphHunter", disposition: "keep", reasonCode: "telegraph_target_verb", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  statusHunter: { productionId: "statusHunter", disposition: "keep", reasonCode: "status_target_verb", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  packBreaker: { productionId: "packBreaker", disposition: "keep", reasonCode: "crowd_condition_verb", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/rules/affix_rules.js"] },
+  killTempo: { productionId: "killTempo", disposition: "keep", reasonCode: "kill_technique_tempo_verb", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js"] },
+  techMp: { productionId: "techMp", disposition: "keep", reasonCode: "technique_mp_recovery_verb", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/technique_resolution.js"] },
+  guardCounter: { productionId: "guardCounter", disposition: "keep", reasonCode: "guard_counter_verb", currentStatus: "active", productionSupply: true, productionConsumer: true, consumerEvidence: ["src/combat_logic/damage.js", "src/combat_logic/round.js"] }
 });
 
 export const VNEXT_CORE_IDS = Object.freeze([

@@ -148,9 +148,9 @@ grade and the affix budget; it neither decides which Supports exist nor
 silently turns the same Support into a larger number. Support creates an opportunity cost in a slot,
 rarity, bag decision, or competing resource.
 
-- basic: `atk`, `def`, `hp`, `mp`, `antiUndead`, `antiDragon`, `antiDemon`, `poisonWard`, `spellGuard`, `trapBonus`, `trapGuard`, `treasureSense`, `arcaneSense`, `hearRange`, `traceRead`, `followUp`, `spellPower`, `arcane`, `devotion`, `guardian`, `firstStrike`, `physicalAccuracy`, `escapeChance`
-- conditional: `deepAssault`, `frontGuard`, `rearEvasion`, `fullHpDamage`, `firstTurnAttack`, `antiBeast`, `antiSpirit`, `firstStrikeDefense`, `statusResistance`, `spellAccuracy`, `lowHpDamage`, `highHpTargetDamage`, `bossDamage`
-- trigger: `killHeal`, `followUpMp`, `hitFlinch`, `poisonAtk`, `bleedingAtk`, `victoryMaterial`, `stairsHeal`, `firstStrikeFollowUp`
+- basic: `atk`, `def`, `hp`, `mp`, `antiUndead`, `antiDragon`, `antiDemon`, `poisonWard`, `spellGuard`, `trapBonus`, `trapGuard`, `treasureSense`, `arcaneSense`, `hearRange`, `traceRead`, `followUp`, `spellPower`, `arcane`, `devotion`, `guardian`, `firstStrike`, `physicalAccuracy`, `escapeChance`, `techPower`
+- conditional: `deepAssault`, `frontGuard`, `rearEvasion`, `fullHpDamage`, `firstTurnAttack`, `antiBeast`, `antiSpirit`, `firstStrikeDefense`, `statusResistance`, `spellAccuracy`, `lowHpDamage`, `highHpTargetDamage`, `bossDamage`, `guardStrike`, `telegraphHunter`, `statusHunter`, `packBreaker`
+- trigger: `killHeal`, `followUpMp`, `hitFlinch`, `poisonAtk`, `bleedingAtk`, `victoryMaterial`, `stairsHeal`, `firstStrikeFollowUp`, `killTempo`, `techMp`, `guardCounter`
 - economy: `identifyDiscount`, `materialFind`, `contractReward` (raises the one-time material reward of feats settled at the end of the run)
 
 The categories describe ownership, not a promise that every Support is useful
@@ -171,6 +171,17 @@ semantic boundaries are durable:
 - `treasureSense`, `hearRange`, `traceRead`, and `arcaneSense` provide facts or
   signs. Information does not grant permission to perform an action and does
   not change reward candidate lists.
+- Verb Supports (#2137) reinforce a combat verb rather than a flat stat:
+  `techPower` (technique damage), `guardStrike` (Guard primes the next attack
+  or technique), `telegraphHunter` (damage against a telegraphing enemy),
+  `statusHunter` (damage against a target the party set up with a status,
+  bleeding, or a flinch), `packBreaker` (damage while three or more enemies
+  live), `killTempo` (a kill shortens the technique cooldown, once per
+  round), `techMp` (a technique restores MP), and `guardCounter` (a chance to
+  counter while guarding, the Guard form of the audited 反撃の棘 role). They
+  stay bounded reinforcements: a cost that changes how the run is played
+  belongs to a Core. They are weighted so that roughly a third of the
+  Supports on finds are verb Supports.
 - Numeric target, boss, low-HP, first-strike, and accuracy effects remain
   bounded Supports. Their value must not become an exact player-facing promise
   about a hidden supply role.

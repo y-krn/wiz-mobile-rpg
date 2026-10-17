@@ -5,7 +5,7 @@ import { getWeaponBehaviorProfile } from "../data/weapon_behavior_profiles.js";
 import { getCharCoreParams } from "./affix_rules.js";
 import { getCharMaxHp } from "./character_stats.js";
 import { getAffixDefinition } from "../data/affixes.js";
-import { getItemData } from "./item_rules.js";
+import { getCharAffixSum, getItemData } from "./item_rules.js";
 
 export const TECHNIQUE_SHIFT_CORE_ID = "CORE_TECH_SHIFT";
 
@@ -154,6 +154,10 @@ export function takeNextAttackMultiplier(char, { technique = false } = {}) {
     multiplier *= getCharCoreParams(char, "CORE_GUARD_RIPOSTE")?.nextAttackMultiplier || 1;
     char.riposteReady = false;
   }
+  if (char.guardStrikeReady) {
+    multiplier *= 1 + getCharAffixSum(char, "guardStrike") / 100;
+    char.guardStrikeReady = false;
+  }
   return multiplier;
 }
 
@@ -168,8 +172,32 @@ export function onGuardChosen(stateLike, char, actorIdx) {
   return true;
 }
 
+// 構え打ち (#2137): choosing Guard primes the next attack or technique.
+export function primeGuardStrike(char) {
+  if (getCharAffixSum(char, "guardStrike") <= 0) return false;
+  char.guardStrikeReady = true;
+  return true;
+}
+
 export function getTechniqueDamageMultiplier(char) {
-  return getCharCoreParams(char, "CORE_TECH_HONE")?.damageMultiplier || 1;
+  const hone = getCharCoreParams(char, "CORE_TECH_HONE")?.damageMultiplier || 1;
+  return hone * (1 + getCharAffixSum(char, "techPower") / 100);
+}
+
+// 止め (#2137): a kill shortens the killer's technique cooldown, at most once
+// per round.
+export function applyKillTempo(stateLike, char) {
+  const reduction = getCharAffixSum(char, "killTempo");
+  const combatState = stateLike?.combatState;
+  const actorIdx = Array.isArray(stateLike?.party) ? stateLike.party.indexOf(char) : -1;
+  if (reduction <= 0 || !combatState || actorIdx < 0) return 0;
+  const remaining = combatState.techniqueCooldowns?.[actorIdx] || 0;
+  const round = combatState.roundNumber ?? 0;
+  if (remaining <= 0 || char.killTempoRound === round) return 0;
+  const next = Math.max(0, remaining - reduction);
+  combatState.techniqueCooldowns[actorIdx] = next;
+  char.killTempoRound = round;
+  return remaining - next;
 }
 
 export function clearTechniqueCombatFlags(party) {
@@ -179,5 +207,7 @@ export function clearTechniqueCombatFlags(party) {
     delete char.riposteReady;
     delete char.focusSpellMultiplier;
     delete char.techStance;
+    delete char.guardStrikeReady;
+    delete char.killTempoRound;
   });
 }

@@ -19,6 +19,8 @@ import {
   recordExecutionerTrigger
 } from "../rules/affix_rules.js";
 import { resolvePurifyRecovery } from "../rules/purify_rules.js";
+import { applyKillTempo } from "../rules/technique_rules.js";
+import { getAffixDefinition } from "../data/affixes.js";
 import { trackDamageReceived } from "../telemetry.js";
 import {
   getGuardProfile,
@@ -164,6 +166,13 @@ export function applyKillAffixEffects(char, target, state, logQueue, options = {
     logQueue.push({ msg: `[職業特性] ${char.name}は敵撃破でMPが${recovered}回復した！` });
   }
 
+  if (char.hp > 0 && applyKillTempo(state, char) > 0) {
+    logQueue.push({
+      msg: `[味方] ${char.name}は止めの勢いで構え直した。（技の再使用待ち-1）`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+    });
+  }
+
   const purify = getCharCoreParams(char, "CORE_PURIFY_RING");
   if (purify) {
     const recovery = resolvePurifyRecovery({
@@ -218,6 +227,29 @@ export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = 
   logCoreActivation(state, logQueue, char, "CORE_THORN_SHIELD", { once: false });
   logQueue.push({
     msg: `[味方] ${char.name}の棘が${monster.name}に${damage}の反撃ダメージ！`,
+    presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
+  });
+  return damage;
+}
+
+// 受け流し (#2137): a guarding character may answer a hit with a partial
+// counterattack. It is the Guard-verb form of the passive 反撃の棘.
+export function tryGuardCounter(char, monster, actorIdx, state, logQueue, rng = Math.random) {
+  const chance = getCharAffixSum(char, "guardCounter") / 100;
+  if (chance <= 0 || char.hp <= 0 || monster.hp <= 0 || rng() >= chance) return 0;
+  const resolved = resolveWeaponAttack({
+    char,
+    weaponAtk: getCharWeaponAtk(char),
+    fixedDamageBonus: getCharTrapEaterBonus(char),
+    def: getEffectiveDef(monster),
+    physResist: monster.physResist,
+    meleeMod: getMeleeModifiers(char, actorIdx)
+  });
+  const power = getAffixDefinition("guardCounter")?.params?.counterPower ?? 0.5;
+  const damage = Math.max(1, Math.round(resolved.damage * power));
+  monster.hp = Math.max(0, monster.hp - damage);
+  logQueue.push({
+    msg: `[味方] ${char.name}は攻撃を受け流し、${monster.name}に${damage}の反撃！`,
     presentationKind: COMBAT_LOG_PRESENTATION_KINDS.DAMAGE_DEALT
   });
   return damage;
