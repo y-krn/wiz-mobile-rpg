@@ -88,6 +88,7 @@ function ensureChestTrapSign(chest) {
     character: getChestOpener(getSoloCharacter()),
     lightPower: state.lightPower,
     lightTurns: state.lightTurns,
+    trapPossible: canChestHaveTrap(getDungeonFloor(state.floor)),
     rng: state.seed
       ? createRng(`${state.seed}:chest-sign:B${state.floor}:${chest.x},${chest.y}`)
       : Math.random

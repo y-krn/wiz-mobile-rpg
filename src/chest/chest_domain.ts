@@ -127,6 +127,8 @@ export interface ChestTrapSignAccuracyResult {
 export interface ChestTrapSignInput extends ChestTrapSignAccuracyInput {
   readonly trap?: string | null;
   readonly rng?: ChestRng;
+  // False on a floor whose chests never hold a trap (#2130).
+  readonly trapPossible?: boolean;
 }
 
 export interface ChestTrapSignResult extends ChestTrapSignAccuracyResult {
@@ -278,16 +280,22 @@ export function calculateChestTrapSignAccuracy({
 // A misread shows one of the two other tiers, so a wrong sign never repeats
 // the true tier and every tier stays possible for every chest. One draw
 // decides both the misread and which wrong tier is shown.
+// Where chests never hold a trap, the sign is always a sure "none" (#2130): a
+// danger sign that never bites would teach the player to ignore it below.
 export function resolveChestTrapSign({
   trap,
   character = null,
   lightPower = "",
   lightTurns = 0,
-  rng = Math.random
+  rng = Math.random,
+  trapPossible = true
 }: ChestTrapSignInput = {}): ChestTrapSignResult {
   const { accuracy, lightBonus } = calculateChestTrapSignAccuracy({ character, lightPower, lightTurns });
   const trueSign = getChestTrapSignTier(trap);
   const roll = rng();
+  if (!trapPossible) {
+    return { sign: CHEST_TRAP_SIGNS.NONE, accurate: true, accuracy: 1, lightBonus };
+  }
   // A mimic always reads as danger, so the danger sign never hides a fight.
   if (roll < accuracy || trap === "mimic") {
     return { sign: trueSign, accurate: true, accuracy, lightBonus };

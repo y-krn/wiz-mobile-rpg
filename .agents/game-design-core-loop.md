@@ -864,7 +864,9 @@ decision.
 On arrival the chest shows a fuzzy trap sign (no sign, something is rigged, or
 danger) beside the existing loot aura and the automatic-disarm chance. The sign
 reads a tier, never a trap kind, and can be wrong; `treasureSense` and light
-sharpen it. Dangerous traps also raise the equipment upgrade chance, so a
+sharpen it. On a floor whose chests hold no trap (B1F) the sign is always a sure
+"no sign" (#2130): a danger sign that never bites there would teach the player
+to ignore it on the floors where it does. Dangerous traps also raise the equipment upgrade chance, so a
 danger sign signals both a larger risk and a better expected reward. Whether
 to open is weighed against current HP, consumables, position, and the rest of
 the run, not against a lookup table. The opportunity costs are bag space,
