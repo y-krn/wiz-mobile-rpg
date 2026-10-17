@@ -1,8 +1,9 @@
 import { getAffixDefinition } from "../data/affixes.js";
+import { TELEGRAPH_FLAGS } from "../data/techniques.js";
 import { getCharAffixSum } from "./item_rules.js";
 import { getMilestoneBossExposureMultiplier } from "./boss_rules.js";
 import { getDungeonFloor } from "./dungeons.js";
-import { applyStatusEffect, hasStatusEffectForDamage, STATUS_EFFECT_IDS } from "../combat_logic/status_effects.js";
+import { applyStatusEffect, hasStatusEffect, hasStatusEffectForDamage, STATUS_EFFECT_IDS } from "../combat_logic/status_effects.js";
 
 function getEquippedCoreEntries(char) {
   if (!char?.equipment) return [];
@@ -77,6 +78,15 @@ function getSpellIntrinsicTagBonus(spellIntrinsicTagBonus, tag) {
   return Number(spellIntrinsicTagBonus?.[tag] || 0);
 }
 
+// 追い討ち (#2137): any setup the party put on the target counts, unlike the
+// poison-only 執行人 input.
+function isSetUpTarget(target) {
+  if (!target) return false;
+  return hasStatusEffectForDamage(target)
+    || hasStatusEffect(target, STATUS_EFFECT_IDS.BLEEDING)
+    || Boolean(target.flinched);
+}
+
 export function getDamageAffixResult(
   char,
   target,
@@ -144,6 +154,16 @@ export function getDamageAffixResult(
   }
   if (target?.isBoss) {
     supportPercent += getCharAffixSum(char, "bossDamage");
+  }
+  // Verb Supports (#2137): reward reading the enemy and setting it up.
+  if (target && TELEGRAPH_FLAGS.some(flag => Boolean(target[flag]))) {
+    supportPercent += getCharAffixSum(char, "telegraphHunter");
+  }
+  if (isSetUpTarget(target)) supportPercent += getCharAffixSum(char, "statusHunter");
+  const packBreaker = getAffixDefinition("packBreaker");
+  const livingEnemies = (state?.combatState?.monsters || []).filter(monster => monster?.hp > 0).length;
+  if (livingEnemies >= (packBreaker?.params?.minEnemies ?? Infinity)) {
+    supportPercent += getCharAffixSum(char, "packBreaker");
   }
   // `floor` is the running floor number; "deep" means the third floor of the
   // dungeon or below (#2060).

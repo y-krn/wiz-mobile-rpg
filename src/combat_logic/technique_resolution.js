@@ -6,6 +6,7 @@ import {
   getCharWeaponAtk,
   getCharMaxHp,
   getCharMaxMp,
+  getCharAffixSum,
   getCharTrapEaterBonus,
   rollCharWeaponPhysicalRandom,
   combinePhysicalResistances,
@@ -121,6 +122,15 @@ export function resolvePlayerTechnique(char, act, state, monsters, logQueue, { r
     logQueue.push({
       msg: `[味方] ${char.name}は魔力を刃に込めた。（MP-${use.mpPaid}）`,
       presentationKind: COMBAT_LOG_PRESENTATION_KINDS.NEUTRAL
+    });
+  }
+  const techMp = getCharAffixSum(char, "techMp");
+  if (techMp > 0 && char.mp < getCharMaxMp(char)) {
+    const before = char.mp;
+    char.mp = Math.min(getCharMaxMp(char), char.mp + techMp);
+    logQueue.push({
+      msg: `[味方] ${char.name}は技の呼吸で魔力を整えた。（MP+${char.mp - before}）`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
     });
   }
   if (use.hpPaid > 0) {

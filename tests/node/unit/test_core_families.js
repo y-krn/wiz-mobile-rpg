@@ -199,24 +199,30 @@ check("no floor gate on kinds: every base and Support can appear on the first fl
   ["guardian", "followUp", "killHeal", "poisonAtk", "bleedingAtk", "arcane"].forEach(type => assert.ok(supports.has(type), `${type} on B1`));
 });
 
-function familyCounts(likelyCoreFamilies, seed) {
-  const rng = createRng(seed);
+// Summed over several seeds: a rare family lands ~50 times per seed, too few
+// for a 1.8x ratio to hold whenever an unrelated pool change shifts the stream.
+function familyCounts(likelyCoreFamilies, seeds) {
   const counts = {};
   const party = [{ unlockedAffixIds: [], likelyCoreFamilies }];
-  for (let index = 0; index < 6000; index += 1) {
-    const item = index % 3 === 0
-      ? generateRandomAccessory(2, { rng, party })
-      : generateRandomEquipment(2, { rng, party });
-    const family = familyOf(item);
-    if (family) counts[family] = (counts[family] || 0) + 1;
+  for (const seed of seeds) {
+    const rng = createRng(seed);
+    for (let index = 0; index < 6000; index += 1) {
+      const item = index % 3 === 0
+        ? generateRandomAccessory(2, { rng, party })
+        : generateRandomEquipment(2, { rng, party });
+      const family = familyOf(item);
+      if (family) counts[family] = (counts[family] || 0) + 1;
+    }
   }
   return counts;
 }
 
+const FAMILY_SEEDS = ["families", "families-2", "families-3"];
+
 check("the likely families come more often, and the others still come", () => {
-  const plain = familyCounts(null, "families");
-  const likely = familyCounts(["blood", "stealth", "curse"], "families");
-  const other = familyCounts(["technique", "guard", "curse"], "families");
+  const plain = familyCounts(null, FAMILY_SEEDS);
+  const likely = familyCounts(["blood", "stealth", "curse"], FAMILY_SEEDS);
+  const other = familyCounts(["technique", "guard", "curse"], FAMILY_SEEDS);
   ["blood", "stealth"].forEach(id => {
     assert.ok(likely[id] > other[id] * 1.8, `${id}: likely ${likely[id]} vs not ${other[id]}`);
     assert.ok(other[id] > 0, `${id} still appears when not likely`);

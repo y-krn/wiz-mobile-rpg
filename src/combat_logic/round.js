@@ -30,7 +30,8 @@ import {
   recordReceivedDamage,
   applyKillAffixEffects,
   tryApplyHitFlinch,
-  tryThornCounter
+  tryThornCounter,
+  tryGuardCounter
 } from "./damage.js";
 import {
   addMonsterBuff,
@@ -83,7 +84,7 @@ import {
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
 import { resolvePlayerTechnique } from "./technique_resolution.js";
-import { onGuardChosen, takeNextAttackMultiplier, tickTechniqueCooldowns, tickTechniqueStances } from "../rules/technique_rules.js";
+import { onGuardChosen, primeGuardStrike, takeNextAttackMultiplier, tickTechniqueCooldowns, tickTechniqueStances } from "../rules/technique_rules.js";
 import {
   getFollowUpChance,
   getStatusEffectChance,
@@ -1154,6 +1155,7 @@ export function runCombatRoundCalculation(
             presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
           });
         }
+        primeGuardStrike(char);
       } else if (act.type === "run") {
         actionObservation.executed = true;
         actionObservation.hpBeforeExecution = char.hp;
@@ -1950,6 +1952,7 @@ export function runCombatRoundCalculation(
           }
 
           tryThornCounter(target, mon, targetSelect.i, state, logQueue, rng);
+          if (isDefending && mon.hp > 0) tryGuardCounter(target, mon, targetSelect.i, state, logQueue, rng);
           if (mon.hp === 0) {
             clearBleed(mon, "counterattack");
             clearVulnerable(mon, "counterattack");
