@@ -380,7 +380,25 @@ function renderPendingRewardMenu() {
       : `このまま持つと ${projectedCount}/20枠。`
   }));
 
-  bundle.entries.forEach(entry => {
+  // The one-of-these items sit together in one box after the rest (#2132):
+  // picking one is a single decision, so they get one heading and one
+  // "none" instead of a take/leave pair each.
+  const choiceEntries = bundle.entries.filter(entry => isChoiceEntry(bundle, entry));
+  let choiceBox = null;
+  if (choiceEntries.length > 0) {
+    choiceBox = document.createElement("section");
+    choiceBox.className = "pending-reward-choice-group";
+    const choiceHeading = document.createElement("strong");
+    choiceHeading.className = "pending-reward-choice-heading";
+    choiceHeading.textContent = `${choiceEntries.length}つから1つ選ぶ`;
+    choiceBox.appendChild(choiceHeading);
+    const choiceHint = document.createElement("small");
+    choiceHint.className = "pending-reward-choice-hint";
+    choiceHint.textContent = "戦い方を変える品。選ばなかった品は置いていく。";
+    choiceBox.appendChild(choiceHint);
+  }
+
+  [...bundle.entries.filter(entry => !isChoiceEntry(bundle, entry)), ...choiceEntries].forEach(entry => {
     const card = document.createElement("section");
     card.className = "pending-reward-card";
     if (!card.dataset) card.dataset = {};
@@ -389,11 +407,16 @@ function renderPendingRewardMenu() {
     const heading = document.createElement("strong");
     heading.textContent = item?.name || "戦果";
     card.appendChild(heading);
-    const detail = document.createElement("small");
-    detail.textContent = entry.loadoutAction?.type === "trial"
-      ? "試す（探索時間が進む）"
-      : entry.decision === "take" ? "持つ" : entry.decision === "leave" ? "置いていく" : "未決定";
-    card.appendChild(detail);
+    const inChoice = isChoiceEntry(bundle, entry);
+    if (inChoice && entry.decision === "take") card.className += " is-chosen";
+    // A choice card says nothing until chosen; the box heading carries the rule.
+    if (!inChoice || entry.decision === "take") {
+      const detail = document.createElement("small");
+      detail.textContent = entry.loadoutAction?.type === "trial"
+        ? "試す（探索時間が進む）"
+        : entry.decision === "take" ? (inChoice ? "これを選んだ" : "持つ") : entry.decision === "leave" ? "置いていく" : "未決定";
+      card.appendChild(detail);
+    }
     const actions = document.createElement("div");
     actions.className = "pending-reward-actions";
     const actionType = entry.loadoutAction?.type || null;
@@ -405,11 +428,10 @@ function renderPendingRewardMenu() {
         other.loadoutAction = null;
       });
     };
-    if (isChoiceEntry(bundle, entry) || isBuildVNextRun(state)) {
-      // One line each: the one-of-these note, the weapon's technique, the item.
+    if (inChoice || isBuildVNextRun(state)) {
+      // One line each: the weapon's technique, then the item.
       const technique = item?.type === "weapon" ? TECHNIQUE_BY_PROFILE[item.behaviorProfile] : null;
       [
-        [isChoiceEntry(bundle, entry) ? "この中から1つだけ持てる" : "", "pending-reward-desc pending-reward-choice-note"],
         [technique ? `技「${technique.name}」: ${technique.desc}` : "", "pending-reward-desc pending-reward-technique"],
         [item?.desc || "", "pending-reward-desc"]
       ].forEach(([text, className]) => {
@@ -420,7 +442,7 @@ function renderPendingRewardMenu() {
         card.appendChild(line);
       });
     }
-    actions.appendChild(createActionButton("持つ", "btn btn-neon", () => {
+    actions.appendChild(createActionButton(inChoice ? "これを持つ" : "持つ", "btn btn-neon", () => {
       leaveOtherChoices();
       entry.decision = "take";
       entry.loadoutAction = null;
@@ -428,13 +450,15 @@ function renderPendingRewardMenu() {
       renderPendingRewardMenu();
       updateUI();
     }, "", isChoice("take")));
-    actions.appendChild(createActionButton("置いていく", "btn btn-danger", () => {
-      entry.decision = "leave";
-      entry.loadoutAction = null;
-      saveAutosave();
-      renderPendingRewardMenu();
-      updateUI();
-    }, "", isChoice("leave")));
+    if (!inChoice) {
+      actions.appendChild(createActionButton("置いていく", "btn btn-danger", () => {
+        entry.decision = "leave";
+        entry.loadoutAction = null;
+        saveAutosave();
+        renderPendingRewardMenu();
+        updateUI();
+      }, "", isChoice("leave")));
+    }
     if (isKnownLoadoutItem(entry.item) && !getRuneSpellKey(entry.item)) {
       actions.appendChild(createActionButton("装備して持つ", "btn btn-neon", () => {
         leaveOtherChoices();
@@ -466,8 +490,23 @@ function renderPendingRewardMenu() {
       }, "", isChoice("take", "socket")));
     }
     card.appendChild(actions);
-    optGrid.appendChild(card);
+    (inChoice ? choiceBox : optGrid).appendChild(card);
   });
+  if (choiceBox) {
+    const noneActions = document.createElement("div");
+    noneActions.className = "pending-reward-actions";
+    noneActions.appendChild(createActionButton("どれも持たない", "btn btn-danger", () => {
+      choiceEntries.forEach(entry => {
+        entry.decision = "leave";
+        entry.loadoutAction = null;
+      });
+      saveAutosave();
+      renderPendingRewardMenu();
+      updateUI();
+    }, "", choiceEntries.every(entry => entry.decision === "leave")));
+    choiceBox.appendChild(noneActions);
+    optGrid.appendChild(choiceBox);
+  }
 
   // Nothing to give up when the bag is empty.
   if (state.inventory.length > 0) {

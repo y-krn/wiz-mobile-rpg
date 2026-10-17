@@ -104,10 +104,22 @@ test('Loot panel gives a short prompt and splits the choice note, technique and 
 
   await expect(page.locator('#submenu-title')).toHaveText('見つけた戦果');
   await expect(page.locator('.pending-reward-intro')).toHaveText('持っていくものを決めてから先へ進む。置いていく品は持ち帰れない。');
-  const firstCard = page.locator('.pending-reward-card').first();
-  await expect(firstCard.locator('.pending-reward-choice-note')).toHaveText('この中から1つだけ持てる');
+  // The one-of-these items share one box, one heading and one "none" (#2132).
+  const choiceBox = page.locator('.pending-reward-choice-group');
+  await expect(choiceBox.locator('.pending-reward-choice-heading')).toHaveText('2つから1つ選ぶ');
+  await expect(choiceBox.locator('.pending-reward-card')).toHaveCount(2);
+  await expect(choiceBox.getByRole('button', { name: '置いていく' })).toHaveCount(0);
+  await expect(choiceBox.getByRole('button', { name: 'どれも持たない' })).toHaveAttribute('aria-pressed', 'true');
+  const firstCard = choiceBox.locator('.pending-reward-card').first();
   await expect(firstCard.locator('.pending-reward-technique')).toHaveText(/^技「.+」: /);
   await expect(firstCard.locator('.pending-reward-desc').last()).toHaveText(/（希少／系統: 鉄）$/);
+  await firstCard.getByRole('button', { name: 'これを持つ' }).click();
+  await expect(choiceBox.locator('.pending-reward-card.is-chosen')).toHaveCount(1);
+  await choiceBox.locator('.pending-reward-card').nth(1).getByRole('button', { name: 'これを持つ' }).click();
+  await expect(choiceBox.locator('.pending-reward-card.is-chosen')).toHaveCount(1);
+  await expect(choiceBox.locator('.pending-reward-card').nth(1)).toHaveClass(/is-chosen/);
+  await choiceBox.getByRole('button', { name: 'どれも持たない' }).click();
+  await expect(choiceBox.locator('.pending-reward-card.is-chosen')).toHaveCount(0);
   const text = await page.locator('#submenu-options').textContent();
   expect(text).not.toMatch(/同じ取得イベント|確定するまでバッグに入りません|戦い方の芽|\[Rare\]|<系統/);
   // Nothing to give up from an empty bag.
