@@ -11,7 +11,14 @@ import {
 } from "../data.js";
 import { recordCharDeath, queueCharDeathLog } from "../state.js";
 import { getEffectiveHealAmount } from "../rules/item_rules.js";
-import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
+import {
+  applyStatusEffect,
+  BLEEDING_DURATION_TURNS,
+  getBuffTotal,
+  hasStatusEffect,
+  STATUS_EFFECT_IDS,
+  wakeSleepingCharOnDamage
+} from "./status_effects.js";
 import {
   getCharCoreParams,
   getCoreLogText,
@@ -132,6 +139,28 @@ export function applyTargetedDamageBonus(char, target, dmg, options = {}) {
   return result.damage;
 }
 
+// 毒移し (#2138): a poisoned or bleeding kill passes that status to the first
+// living enemy that lacks it.
+const PLAGUE_STATUSES = Object.freeze([
+  Object.freeze({ id: STATUS_EFFECT_IDS.POISONED, label: "毒", options: {} }),
+  Object.freeze({ id: STATUS_EFFECT_IDS.BLEEDING, label: "出血", options: { remainingTurns: BLEEDING_DURATION_TURNS } })
+]);
+
+function spreadPlague(char, target, state, logQueue) {
+  if (!getCharCoreParams(char, "CORE_PLAGUE_SPREAD")?.spread) return;
+  const monsters = state?.combatState?.monsters || [];
+  PLAGUE_STATUSES.forEach(status => {
+    if (!hasStatusEffect(target, status.id)) return;
+    const next = monsters.find(monster => monster !== target && monster.hp > 0 && !hasStatusEffect(monster, status.id)
+      && (status.id !== STATUS_EFFECT_IDS.POISONED || !monster.status));
+    if (!next || !applyStatusEffect(next, status.id, { ...status.options, source: "CORE_PLAGUE_SPREAD" })) return;
+    logQueue.push({
+      msg: `[味方] [!] ${target.name}の${status.label}が${next.name}に移った！`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+    });
+  });
+}
+
 export function applyKillAffixEffects(char, target, state, logQueue, options = {}) {
   if (!char || !target || target.affixKillProcessed) return;
   target.affixKillProcessed = true;
@@ -172,6 +201,8 @@ export function applyKillAffixEffects(char, target, state, logQueue, options = {
       presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
     });
   }
+
+  spreadPlague(char, target, state, logQueue);
 
   const purify = getCharCoreParams(char, "CORE_PURIFY_RING");
   if (purify) {

@@ -544,6 +544,78 @@ export const BUILD_VNEXT_CORE_AFFIXES = [
     poolGroup: "combat",
     enabled: true,
     trialOnly: true
+  },
+  // Cores of #2138: each one hooks a verb the player chooses (Guard, opening
+  // first, a Technique, the kill order, a Spell), never a passive proc.
+  {
+    id: "CORE_GUARD_STORE",
+    kind: "core",
+    jpName: "溜め受け",
+    desc: "防御中に受けた物理ダメージの半分を溜め、次の攻撃か技に上乗せする。上限は最大HPの半分。",
+    slot: "shield",
+    cost: 10,
+    params: { storeShare: 0.5, maxHpCap: 0.5 },
+    buildRole: "convert",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
+  },
+  {
+    id: "CORE_AMBUSH_STRIKE",
+    kind: "core",
+    jpName: "不意打ち",
+    desc: "最初のターンに敵より先に動けたら、その攻撃と技が1.5倍になる。",
+    slot: "armor",
+    cost: 10,
+    params: { openingMultiplier: 1.5 },
+    buildRole: "pivot",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
+  },
+  {
+    id: "CORE_BLIGHT_TECH",
+    kind: "core",
+    jpName: "蝕みの型",
+    desc: "技が当たった敵を毒にする。毒・出血・怯みの敵には技が1.4倍になる。",
+    slot: "weapon",
+    cost: 10,
+    params: { setUpMultiplier: 1.4 },
+    buildRole: "pivot",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
+  },
+  {
+    id: "CORE_PLAGUE_SPREAD",
+    kind: "core",
+    jpName: "毒移し",
+    desc: "毒か出血の敵を倒すと、その状態が別の敵に移る。",
+    slot: "accessory",
+    cost: 10,
+    params: { spread: true },
+    buildRole: "pivot",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
+  },
+  {
+    id: "CORE_SPELL_TECH",
+    kind: "core",
+    jpName: "術技一体",
+    desc: "呪文を唱えると技の再使用待ちが1減り、技を使うとMPが1回復する。",
+    slot: "accessory",
+    cost: 10,
+    params: { cooldownPerSpell: 1, mpPerTechnique: 1 },
+    buildRole: "convert",
+    buildAxis: "main",
+    poolGroup: "combat",
+    enabled: true,
+    trialOnly: true
   }
 ];
 

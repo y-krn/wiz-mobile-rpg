@@ -32,10 +32,12 @@ export const CORE_FAMILIES = Object.freeze([
   Object.freeze({
     id: "guard",
     name: "構え",
-    coreIds: Object.freeze(["CORE_GUARD_RIPOSTE", "CORE_THORN_SHIELD"]),
+    coreIds: Object.freeze(["CORE_GUARD_RIPOSTE", "CORE_THORN_SHIELD", "CORE_GUARD_STORE"]),
     seedOptions: Object.freeze([
       Object.freeze({ baseId: "BUCKLER", coreId: "CORE_GUARD_RIPOSTE" }),
-      Object.freeze({ baseId: "LARGE_SHIELD", coreId: "CORE_GUARD_RIPOSTE" })
+      Object.freeze({ baseId: "LARGE_SHIELD", coreId: "CORE_GUARD_RIPOSTE" }),
+      Object.freeze({ baseId: "BUCKLER", coreId: "CORE_GUARD_STORE" }),
+      Object.freeze({ baseId: "LARGE_SHIELD", coreId: "CORE_GUARD_STORE" })
     ])
   }),
   Object.freeze({
@@ -70,10 +72,35 @@ export const CORE_FAMILIES = Object.freeze([
   Object.freeze({
     id: "stealth",
     name: "忍び",
-    coreIds: Object.freeze(["CORE_SNEAK_STEP", "CORE_SCHOLAR_EYE"]),
+    coreIds: Object.freeze(["CORE_SNEAK_STEP", "CORE_SCHOLAR_EYE", "CORE_AMBUSH_STRIKE"]),
     seedOptions: Object.freeze([
       Object.freeze({ baseId: "LEATHER_ARMOR", coreId: "CORE_SNEAK_STEP" }),
-      Object.freeze({ baseId: "ROBE", coreId: "CORE_SNEAK_STEP" })
+      Object.freeze({ baseId: "ROBE", coreId: "CORE_SNEAK_STEP" }),
+      Object.freeze({ baseId: "LEATHER_ARMOR", coreId: "CORE_AMBUSH_STRIKE" }),
+      Object.freeze({ baseId: "ROBE", coreId: "CORE_AMBUSH_STRIKE" })
+    ])
+  }),
+  Object.freeze({
+    id: "blight",
+    name: "蝕",
+    coreIds: Object.freeze(["CORE_BLIGHT_TECH", "CORE_PLAGUE_SPREAD", "CORE_EXECUTIONER"]),
+    seedOptions: Object.freeze([
+      Object.freeze({ baseId: "DAGGER", coreId: "CORE_BLIGHT_TECH" }),
+      Object.freeze({ baseId: "SHORT_SWORD", coreId: "CORE_BLIGHT_TECH" }),
+      Object.freeze({ baseId: "VNEXT_RING", coreId: "CORE_PLAGUE_SPREAD" }),
+      Object.freeze({ baseId: "VNEXT_AMULET", coreId: "CORE_PLAGUE_SPREAD" })
+    ])
+  }),
+  // 血杖 also belongs to 血: a Core may sit in two families, and the family a
+  // Core reads as on its own is the first one that lists it. 術 seeds only its
+  // own Core, so a 術 seed never reads as 血 in the first chest.
+  Object.freeze({
+    id: "arcane",
+    name: "術",
+    coreIds: Object.freeze(["CORE_SPELL_TECH", "CORE_BLOOD_WAND"]),
+    seedOptions: Object.freeze([
+      Object.freeze({ baseId: "VNEXT_RING", coreId: "CORE_SPELL_TECH" }),
+      Object.freeze({ baseId: "VNEXT_AMULET", coreId: "CORE_SPELL_TECH" })
     ])
   })
 ]);

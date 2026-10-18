@@ -25,17 +25,22 @@ import { hasTrait, processMonsterDefeat } from "./monster_traits.js";
 import { recordCharDeath, queueCharDeathLog } from "../state.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 import {
+  applyBlightPoison,
   applyTechniqueStance,
   clearTelegraph,
   commitTechniqueUse,
+  getBlightTechMultiplier,
   getCharTechnique,
+  getOpeningMultiplier,
   getTechniqueDamageMultiplier,
   isTelegraphing,
   onTechniqueResolved,
+  takeGuardStore,
   takeNextAttackMultiplier
 } from "../rules/technique_rules.js";
+import { getCharCoreParams } from "../rules/affix_rules.js";
 
-function strike(char, target, technique, { state, rng, multiplier, logQueue, monsters }) {
+function strike(char, target, technique, { state, rng, multiplier, logQueue, monsters, bonusDamage = 0 }) {
   const hitChance = Math.min(1, getPhysicalHitChance(char, target) + (technique.hitChanceBonus || 0));
   const blindMiss = char.status === "blind" && rng() < 0.5;
   if (blindMiss || (hitChance < 1 && rng() >= hitChance)) {
@@ -59,7 +64,7 @@ function strike(char, target, technique, { state, rng, multiplier, logQueue, mon
     meleeMod: multiplier,
     def,
     physResist: combinePhysicalResistances(target.physResist, physicalMitigation),
-    fixedDamageBonus: getCharTrapEaterBonus(char)
+    fixedDamageBonus: getCharTrapEaterBonus(char) + bonusDamage
   });
   let dmg = applyTargetedDamageBonus(char, target, attack.damage, {
     floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue
@@ -78,6 +83,13 @@ function strike(char, target, technique, { state, rng, multiplier, logQueue, mon
     floatColor: target.color,
     floatTarget: monsters.indexOf(target)
   });
+  if (applyBlightPoison(char, target)) {
+    logQueue.push({
+      msg: `[味方] [!] ${char.name}の蝕みの型が${target.name}を毒に侵した！`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD,
+      sound: "poison"
+    });
+  }
 
   if (hasTrait(target, "reflectPhysical") && dmg > 0) {
     // Only the damage the shell took is thrown back, not the overkill (#2063).
@@ -97,6 +109,18 @@ function strike(char, target, technique, { state, rng, multiplier, logQueue, mon
     }
   }
   return dmg;
+}
+
+// 溜め受け (#2138): the stored damage rides on the technique's first hit.
+function releaseGuardStore(char, logQueue) {
+  const stored = takeGuardStore(char);
+  if (stored > 0) {
+    logQueue.push({
+      msg: `[味方] ${char.name}は溜めた衝撃を技に乗せた！（+${stored}）`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+    });
+  }
+  return stored;
 }
 
 function finishKill(char, target, { state, logQueue, monsters }) {
@@ -133,6 +157,15 @@ export function resolvePlayerTechnique(char, act, state, monsters, logQueue, { r
       presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
     });
   }
+  const spellTech = getCharCoreParams(char, "CORE_SPELL_TECH");
+  if (spellTech && char.mp < getCharMaxMp(char)) {
+    const before = char.mp;
+    char.mp = Math.min(getCharMaxMp(char), char.mp + spellTech.mpPerTechnique);
+    logQueue.push({
+      msg: `[味方] ${char.name}は技から術へ気を巡らせた。（MP+${char.mp - before}）`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+    });
+  }
   if (use.hpPaid > 0) {
     logQueue.push({
       msg: `[味方] ${char.name}は血を代償に${technique.name}を繰り出す！（HP-${use.hpPaid}）`,
@@ -157,11 +190,16 @@ export function resolvePlayerTechnique(char, act, state, monsters, logQueue, { r
   if (technique.target === "all") {
     // 薙ぎ払い (#2135): one swing reaches every enemy in melee reach.
     const multiplier = technique.damageMultiplier * getTechniqueDamageMultiplier(char)
-      * takeNextAttackMultiplier(char, { technique: true });
+      * takeNextAttackMultiplier(char, { technique: true }) * getOpeningMultiplier(char);
+    const bonusDamage = releaseGuardStore(char, logQueue);
     const targets = monsters.filter(monster => monster.hp > 0 && canMeleeTargetEnemy(monsters, monster));
-    targets.forEach(target => {
+    targets.forEach((target, index) => {
       if (char.hp <= 0) return;
-      strike(char, target, technique, { state, rng, multiplier, logQueue, monsters });
+      strike(char, target, technique, {
+        state, rng, logQueue, monsters,
+        multiplier: multiplier * getBlightTechMultiplier(char, target),
+        bonusDamage: index === 0 ? bonusDamage : 0
+      });
       finishKill(char, target, { state, logQueue, monsters });
     });
     onTechniqueResolved(char);
@@ -175,7 +213,9 @@ export function resolvePlayerTechnique(char, act, state, monsters, logQueue, { r
   }
   const target = monsters[targetIdx];
   let multiplier = technique.damageMultiplier * getTechniqueDamageMultiplier(char)
-    * takeNextAttackMultiplier(char, { technique: true });
+    * takeNextAttackMultiplier(char, { technique: true }) * getOpeningMultiplier(char)
+    * getBlightTechMultiplier(char, target);
+  const bonusDamage = releaseGuardStore(char, logQueue);
 
   if (technique.interruptsTelegraph && isTelegraphing(target)) {
     multiplier *= (technique.telegraphDamageMultiplier || 1) / technique.damageMultiplier;
@@ -194,7 +234,7 @@ export function resolvePlayerTechnique(char, act, state, monsters, logQueue, { r
 
   for (let hit = 0; hit < (technique.hits || 1); hit++) {
     if (target.hp <= 0 || char.hp <= 0) break;
-    strike(char, target, technique, { state, rng, multiplier, logQueue, monsters });
+    strike(char, target, technique, { state, rng, multiplier, logQueue, monsters, bonusDamage: hit === 0 ? bonusDamage : 0 });
   }
 
   if (technique.defDown && target.hp > 0) {

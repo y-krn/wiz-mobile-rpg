@@ -84,7 +84,16 @@ import {
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
 import { resolvePlayerTechnique } from "./technique_resolution.js";
-import { onGuardChosen, primeGuardStrike, takeNextAttackMultiplier, tickTechniqueCooldowns, tickTechniqueStances } from "../rules/technique_rules.js";
+import {
+  getOpeningMultiplier,
+  onGuardChosen,
+  primeGuardStrike,
+  storeGuardDamage,
+  takeGuardStore,
+  takeNextAttackMultiplier,
+  tickTechniqueCooldowns,
+  tickTechniqueStances
+} from "../rules/technique_rules.js";
 import {
   getFollowUpChance,
   getStatusEffectChance,
@@ -872,10 +881,18 @@ export function runCombatRoundCalculation(
           // Attack math
           const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
           const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
-          const trapEaterBonus = getCharTrapEaterBonus(char);
+          const guardStoreBonus = takeGuardStore(char);
+          const trapEaterBonus = getCharTrapEaterBonus(char) + guardStoreBonus;
           const buffAtk = getBuffTotal(char, "atk");
           const randRoll = rollCharWeaponPhysicalRandom(char, rng);
-          const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue }) * takeNextAttackMultiplier(char);
+          const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue }) * takeNextAttackMultiplier(char)
+            * getOpeningMultiplier(char);
+          if (guardStoreBonus > 0) {
+            logQueue.push({
+              msg: `[味方] ${char.name}は溜めた衝撃を打ち込んだ！（+${guardStoreBonus}）`,
+              presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+            });
+          }
           const def = getEffectiveDef(finalTarget);
           const physicalMitigation = getBuffTotal(finalTarget, "physicalMitigation");
           const weaponAttack = resolveMeasurementWeaponAttack({
@@ -1953,6 +1970,12 @@ export function runCombatRoundCalculation(
 
           tryThornCounter(target, mon, targetSelect.i, state, logQueue, rng);
           if (isDefending && mon.hp > 0) tryGuardCounter(target, mon, targetSelect.i, state, logQueue, rng);
+          if (isDefending && storeGuardDamage(target, dmg) > 0) {
+            logQueue.push({
+              msg: `[味方] ${target.name}は衝撃を盾に溜めた。（${target.guardStore}）`,
+              presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+            });
+          }
           if (mon.hp === 0) {
             clearBleed(mon, "counterattack");
             clearVulnerable(mon, "counterattack");

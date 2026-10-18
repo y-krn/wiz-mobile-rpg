@@ -25,7 +25,9 @@ export const PROTOTYPE_COSTS = Object.freeze({
   blood: Object.freeze({ "毒腺": 2, "骨片": 2 }),
   curse: Object.freeze({ "呪布": 2, "霊粉": 2 }),
   trap: Object.freeze({ "硬い皮": 2, "毒腺": 2 }),
-  stealth: Object.freeze({ "霊粉": 2, "硬い皮": 2 })
+  stealth: Object.freeze({ "霊粉": 2, "硬い皮": 2 }),
+  blight: Object.freeze({ "毒腺": 3, "霊粉": 1 }),
+  arcane: Object.freeze({ "霊粉": 2, "骨片": 2 })
 });
 
 function shuffled(values, rng) {
