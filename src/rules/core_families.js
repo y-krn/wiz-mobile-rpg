@@ -9,7 +9,11 @@ import { CORE_FAMILIES, CORE_FAMILY_IDS, LIKELY_CORE_FAMILY_COUNT } from "../dat
 import { createRng } from "../seed_rng.js";
 
 const FAMILY_BY_ID = new Map(CORE_FAMILIES.map(family => [family.id, family]));
-const FAMILY_BY_CORE = new Map(CORE_FAMILIES.flatMap(family => family.coreIds.map(coreId => [coreId, family])));
+// A Core listed by two families reads as the first one (血杖 is 血 and 術).
+const FAMILY_BY_CORE = new Map();
+CORE_FAMILIES.forEach(family => family.coreIds.forEach(coreId => {
+  if (!FAMILY_BY_CORE.has(coreId)) FAMILY_BY_CORE.set(coreId, family);
+}));
 
 export function getCoreFamily(familyId) {
   return FAMILY_BY_ID.get(familyId) || null;

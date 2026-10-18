@@ -6,6 +6,7 @@ import { getCharCoreParams } from "./affix_rules.js";
 import { getCharMaxHp } from "./character_stats.js";
 import { getAffixDefinition } from "../data/affixes.js";
 import { getCharAffixSum, getItemData } from "./item_rules.js";
+import { applyStatusEffect, hasStatusEffect, STATUS_EFFECT_IDS } from "../combat_logic/status_effects.js";
 
 export const TECHNIQUE_SHIFT_CORE_ID = "CORE_TECH_SHIFT";
 
@@ -200,6 +201,63 @@ export function applyKillTempo(stateLike, char) {
   return remaining - next;
 }
 
+// 溜め受け (#2138): physical damage taken while guarding is stored, up to a
+// share of max HP, and released as flat damage on the next attack or
+// technique.
+export function storeGuardDamage(char, damage) {
+  const params = getCharCoreParams(char, "CORE_GUARD_STORE");
+  if (!params || !(damage > 0) || char.hp <= 0) return 0;
+  const cap = Math.floor(getCharMaxHp(char) * params.maxHpCap);
+  const before = Number(char.guardStore) || 0;
+  char.guardStore = Math.min(cap, before + Math.floor(damage * params.storeShare));
+  return char.guardStore - before;
+}
+
+export function takeGuardStore(char) {
+  const stored = Number(char?.guardStore) || 0;
+  if (stored > 0) char.guardStore = 0;
+  return stored;
+}
+
+// 不意打ち (#2138): acting before every enemy in the first round.
+export function getOpeningMultiplier(char) {
+  if (!char?.combatFirstStrikeActive) return 1;
+  return getCharCoreParams(char, "CORE_AMBUSH_STRIKE")?.openingMultiplier || 1;
+}
+
+// 蝕みの型 (#2138): a technique consumes a setup for burst damage, and its hit
+// leaves the next setup (poison).
+export function isBlightSetUp(target) {
+  return Boolean(target) && (
+    hasStatusEffect(target, STATUS_EFFECT_IDS.POISONED)
+    || hasStatusEffect(target, STATUS_EFFECT_IDS.BLEEDING)
+    || Boolean(target.flinched)
+  );
+}
+
+export function getBlightTechMultiplier(char, target) {
+  const params = getCharCoreParams(char, "CORE_BLIGHT_TECH");
+  return params && isBlightSetUp(target) ? params.setUpMultiplier : 1;
+}
+
+export function applyBlightPoison(char, target) {
+  if (!getCharCoreParams(char, "CORE_BLIGHT_TECH") || !target || target.hp <= 0) return false;
+  // Never overwrite sleep or blind: poison shares their legacy slot.
+  if (target.status) return false;
+  return applyStatusEffect(target, STATUS_EFFECT_IDS.POISONED, { source: "CORE_BLIGHT_TECH" });
+}
+
+// 術技一体 (#2138): a spell shortens the caster's technique cooldown.
+export function applySpellTechCooldown(stateLike, char, actorIdx) {
+  const params = getCharCoreParams(char, "CORE_SPELL_TECH");
+  if (!params || !isBuildVNextRun(stateLike)) return 0;
+  const remaining = getTechniqueRemaining(stateLike.combatState, actorIdx);
+  if (remaining <= 0) return 0;
+  const next = Math.max(0, remaining - params.cooldownPerSpell);
+  getCooldownMap(stateLike.combatState)[actorIdx] = next;
+  return remaining - next;
+}
+
 export function clearTechniqueCombatFlags(party) {
   (party || []).forEach(char => {
     if (!char) return;
@@ -209,5 +267,6 @@ export function clearTechniqueCombatFlags(party) {
     delete char.techStance;
     delete char.guardStrikeReady;
     delete char.killTempoRound;
+    delete char.guardStore;
   });
 }

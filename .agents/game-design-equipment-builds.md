@@ -121,6 +121,15 @@ cap.
 | 変化の型 | `CORE_TECH_SHIFT` | Swap the weapon's family technique for a variant with a different role (control, area, defense, risk, spellblade), so a find changes how the weapon is played (#2135). |
 | 返しの構え | `CORE_GUARD_RIPOSTE` | Guard resets the technique cooldown and primes the next attack or technique, turning Guard into offense. |
 | 血の型 | `CORE_BLOOD_TECH` | During the cooldown, the technique can still be used by paying a share of max HP. |
+| 溜め受け | `CORE_GUARD_STORE` | Half of the physical damage taken while guarding is stored (up to half of max HP) and added to the next attack or technique, so Guard banks damage (#2138). |
+| 不意打ち | `CORE_AMBUSH_STRIKE` | Acting before every enemy in the first round makes that attack and technique stronger, so speed and the first move become the plan (#2138). |
+| 蝕みの型 | `CORE_BLIGHT_TECH` | A technique hit poisons the enemy, and a technique against a poisoned, bleeding or flinched enemy is stronger: set up, then cash in (#2138). |
+| 毒移し | `CORE_PLAGUE_SPREAD` | Killing a poisoned or bleeding enemy passes that status to another enemy, so ailments carry through a group (#2138). |
+| 術技一体 | `CORE_SPELL_TECH` | A spell shortens the technique cooldown and a technique restores MP, so spells and techniques alternate (#2138). |
+
+These five hook the player's verbs (Guard, the first move, ailment setup,
+spell/technique alternation) rather than adding numbers. Their values are
+provisional until the balance pass (#1804).
 
 The Core registry must preserve these pool meanings. A rule-changing effect
 should not be copied as several numeric Supports merely to increase supply, and
@@ -280,11 +289,17 @@ families and their Cores are data-owned (`src/data/core_families.js`):
 | Family | Shown as | Cores |
 | --- | --- | --- |
 | technique | 技 | 連環の型, 研ぎ澄まし, 変化の型 |
-| guard | 構え | 返しの構え (反撃の棘 when it returns) |
+| guard | 構え | 返しの構え, 溜め受け (反撃の棘 when it returns) |
 | blood | 血 | 血の型, 血杖 (and 薄氷の誓約 when it returns) |
 | curse | 呪い | 呪飼いの鎖 |
 | trap | 罠 | 罠喰い, 盗掘王 |
-| stealth | 忍び | 忍び足 (and 学者の眼 when it returns) |
+| stealth | 忍び | 忍び足, 不意打ち (and 学者の眼 when it returns) |
+| blight | 蝕 | 蝕みの型, 毒移し (and 執行人 when it returns) |
+| arcane | 術 | 術技一体, 血杖 |
+
+Every family except 呪い offers at least two Cores (#2138). A Core may be
+listed in two families (血杖 is in 血 and 術); it reads as the first family
+that lists it, and either family can offer it.
 
 The player-facing words are "出やすい Core" and the family names; "系統"
 stays the equipment family with a three-piece effect.
