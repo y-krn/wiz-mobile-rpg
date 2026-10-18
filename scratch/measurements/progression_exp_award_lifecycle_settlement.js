@@ -5,6 +5,7 @@ import { getEncounterPoolForFloor, getEncounterSizeWeightsForFloor, MONSTERS } f
 import { runCombatRoundCalculation } from "../../src/combat_logic.js";
 import { createDefaultCurrentRun, createStartingKitCharacter } from "../../src/state/initial_state.js";
 import { isEncounterCompositionAllowed } from "../../src/rules/encounter_rules.js";
+import { getBandTrialForFloor } from "../../src/rules/floor_trials.js";
 import {
   allocateCandidateAward, calculateCandidateAward
 } from "./progression_exp_award_paired_inventory.js";
@@ -19,9 +20,11 @@ function identityTemplate(name) {
   return template;
 }
 
-function controlledEncounterRng(floor, targetName, targetSize = 1) {
-  const pool = getEncounterPoolForFloor(floor).map(name => MONSTERS.find(entry => entry.name === name)).filter(Boolean);
-  const weights = getEncounterSizeWeightsForFloor(floor, { runSeed: `phase4j-e6-b${floor}` });
+function controlledEncounterRng(floor, targetName, targetSize, runSeed) {
+  // Draw from the same trial-weighted pool and sizes as production (#2123).
+  const trial = getBandTrialForFloor(runSeed, floor, null);
+  const pool = getEncounterPoolForFloor(floor, { trial }).map(name => MONSTERS.find(entry => entry.name === name)).filter(Boolean);
+  const weights = getEncounterSizeWeightsForFloor(floor, { trial });
   let cumulative = 0;
   for (let index = 0; index < targetSize - 1; index++) cumulative += weights[index];
   const sizeRoll = cumulative + weights[targetSize - 1] / 2;
@@ -58,7 +61,7 @@ function generate(floor, name, { rare = false, targetSize = 1 } = {}) {
   const runSeed = `phase4j-e6-controlled-b${floor}-${name}`;
   const generated = generateEncounter(
     { floor, currentRun: { runSeed, trialBands: {} } }, false, false, false, null,
-    rare ? rareEncounterRng(floor, name) : controlledEncounterRng(floor, name, targetSize)
+    rare ? rareEncounterRng(floor, name) : controlledEncounterRng(floor, name, targetSize, runSeed)
   );
   const target = generated.monsters.find(monster => monster.name.replace(/\s[A-Z]$/, "") === name);
   if (!target || (rare && !generated.isRare) || (!rare && generated.isRare)) {

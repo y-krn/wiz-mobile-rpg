@@ -139,18 +139,19 @@ assert.deepEqual(precombatReproduction.validity.matchedArmMismatches, []);
 // matched run one more battle. #2101 lets an ordinary flee fail but escape
 // clean; with #2100 (every enemy acts) this matched run reached seven battles,
 // with #2115 (fewer, heavier fights) three, and with #2123 (plain attackers
-// on the first floors) four.
+// on the first floors) four, then three once the sunken library's first
+// floors lost the reflecting beetle.
 assert.deepEqual(precombatReproduction.rows.map(row => [row.terminationReason, row.battles, row.battleObservationCount]), [
-  ["death", 4, 4],
-  ["death", 4, 4]
+  ["death", 3, 3],
+  ["death", 3, 3]
 ]);
 assert.equal(precombatReproduction.rows[0].combatCoverage.precombatTermination, false);
 assert.notEqual(precombatReproduction.rows[0].firstCombat, null);
 assert.deepEqual(precombatReproduction.validity.coverage.map(({ arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations }) => [
   arm, runs, runsWithCombatObservations, precombatTerminations, battles, observations
 ]), [
-  ["production", 1, 1, 0, 4, 4],
-  ["phase4j-b", 1, 1, 0, 4, 4]
+  ["production", 1, 1, 0, 3, 3],
+  ["phase4j-b", 1, 1, 0, 3, 3]
 ]);
 
 const firstCombat = {
