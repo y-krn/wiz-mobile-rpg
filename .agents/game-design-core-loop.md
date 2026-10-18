@@ -220,7 +220,7 @@ The town shows it in one line on the library's card.
   with the turns spent on a floor: every twenty turns it spreads one ring
   from every flooded cell, up to twelve times. Stairs, rooms, and the
   guardian stay dry, and since water is walkable no way is ever cut off.
-- The water deepens as it stands (#2105): water that has stood through three
+- The water deepens as it stands (#2105): water that has stood through five
   rises gets one step deeper (shallow, knee-deep, deep). A step in deep water
   costs 8% of max HP as well as the turn, and since #2142 (under #2116, where
   a dungeon's rule may kill) it drowns: the step can take the last HP, and a

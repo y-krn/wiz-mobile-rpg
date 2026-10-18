@@ -11,8 +11,8 @@
 // and a step in deep water costs a share of max HP. A closed chest the water reaches sinks, and what was in it
 // is lost.
 //
-// Since #2142 deep water drowns: a step can take the last HP, and the water
-// deepens sooner, so a run that ignores the water dies in it.
+// Since #2142 deep water drowns: a step can take the last HP, so a run that
+// stays until the water is deep dies in it.
 import { DX, DY } from "../constants/directions.js";
 import { getDungeonRule } from "../rules/dungeons.js";
 import { TRAVERSAL_GIMMICKS } from "../rules/traversal_gimmicks.js";
@@ -23,7 +23,7 @@ export const WATER_MAX_DEPTH = 3;
 export const WATER_DEPTH_LABELS = Object.freeze(["", "浅い", "膝まで", "深い"]);
 export const DEEP_WATER_DAMAGE_RATE = 0.08;
 // Rises a cell must stand under water before it deepens one step.
-export const WATER_RISES_PER_DEPTH = 3;
+export const WATER_RISES_PER_DEPTH = 5;
 
 export function getWaterDepth(cell) {
   if (cell?.hazard?.kind !== TRAVERSAL_GIMMICKS.FLOOD) return 0;

@@ -26,6 +26,8 @@
 //   the top. (`roundTrip` is kept in the policy for old command lines only.)
 // - turnBack: HP share under which a round-trip run with no potion and nothing
 //   left to heal with turns back (0 = never turn back on its own).
+// - water ('read' | 'ignore'): with 'read', the library's water is a reason to
+//   leave a floor and deep water is walked around; 'ignore' does neither.
 
 const S = await import('/src/state.js');
 const M = await import('/src/movement.js');
@@ -54,7 +56,7 @@ const st = () => S.state;
 const W = window;
 const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
-const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine', intents: 'read' };
+const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine', intents: 'read', water: 'read' };
 // A dungeon is five floors (#2060); a run is named by the running number of its first floor.
 const DUNGEON_ENTRY = { mine: 1, catacomb: 6, nest: 11, library: 16, forge: 21, throne: 26 };
 const entryFloorOf = dungeon => DUNGEON_ENTRY[dungeon] || Math.max(1, Math.floor(Number(dungeon)) || 1);
@@ -133,7 +135,7 @@ W.__bfs = (goal, allowTraps = false, { throughRubble = false, ignoreElites = fal
       const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= Wd || ny >= H) continue;
       const t = s.map[ny][nx].trap; if (t && t.state === 'discovered' && !allowTraps && !goal(nx, ny)) continue;
       // Deep water (#2105) costs HP per step: walk around it like a known trap.
-      if (WATER.isDeepWater?.(s.map[ny][nx]) && !allowTraps && !goal(nx, ny)) continue;
+      if (W.__policy.water === 'read' && WATER.isDeepWater?.(s.map[ny][nx]) && !allowTraps && !goal(nx, ny)) continue;
       // Rubble, a closed seal or a collapsed ledge stops the step; every required
       // cell stays reachable around them, so route past instead of digging.
       if (GIMMICKS.isTraversalObstacleBlocking(s.map[ny][nx]) && !(throughRubble && isRubble(s.map[ny][nx]))) continue;
@@ -697,9 +699,11 @@ const stopExploring = (policy, p) => {
   // Two escapes from a roaming elite on one floor: it is hunting, so leave.
   if ((W.__eliteFlees[st().floor] || 0) >= 2) return true;
   // The library's water (#2105) is on screen: once it has risen far enough to
-  // start deepening, a player moves on rather than wade through it.
-  const water = WATER.getWaterStatus?.(st());
-  if (water && water.level >= WATER_LEAVE_LEVEL) return true;
+  // start deepening, a player moves on rather than wade through it. Deep water
+  // drowns since #2142, so the first deep cell the HUD counts is a reason too.
+  // 'ignore' keeps exploring as if the water were not there.
+  const water = W.__policy.water === 'read' ? WATER.getWaterStatus?.(st()) : null;
+  if (water && (water.level >= WATER_LEAVE_LEVEL || water.deepCells > 0)) return true;
   // Hurt: stay only while walking gives HP back (descending does not heal).
   if (p.hp < DATA.getCharMaxHp(p) * policy.explore) return !worthWalking(policy, p);
   // Healthy: keep exploring, except on a cleared milestone floor.
