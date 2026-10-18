@@ -38,9 +38,11 @@ function createWaterChip() {
   chip.dataset.level = String(status.level);
   chip.dataset.stage = status.level >= status.maxLevel * 2 / 3 ? "high" : status.level >= status.maxLevel / 3 ? "mid" : "low";
   chip.setAttribute("aria-hidden", "true");
-  chip.textContent = status.full
+  chip.textContent = (status.full
     ? `水位 ${status.level}/${status.maxLevel}（満水）`
-    : `水位 ${status.level}/${status.maxLevel}・あと${status.turnsToRise}手番で上昇`;
+    : `水位 ${status.level}/${status.maxLevel}・あと${status.turnsToRise}手番で上昇`) +
+    // Deep water drowns (#2142), so the HUD says when the floor has some.
+    (status.deepCells > 0 ? `・深み${status.deepCells}` : "");
   return chip;
 }
 

@@ -104,7 +104,7 @@ const DUNGEON_SETTINGS = Object.freeze({
     // floor, so time is the resource (systems/rising_water.js).
     rule: Object.freeze({
       id: "water",
-      line: "水位：長く留まるほど水が上がって深くなる。深みはHPを奪い、宝箱は沈む。",
+      line: "水位：長く留まるほど水が上がって深くなる。深みでは溺れ、宝箱は沈む。",
       riseEvery: 20,
       maxRises: 12
     })

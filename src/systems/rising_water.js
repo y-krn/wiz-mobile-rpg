@@ -10,6 +10,9 @@
 // `WATER_RISES_PER_DEPTH` rises gets one step deeper (shallow, knee, deep),
 // and a step in deep water costs a share of max HP. A closed chest the water reaches sinks, and what was in it
 // is lost.
+//
+// Since #2142 deep water drowns: a step can take the last HP, and the water
+// deepens sooner, so a run that ignores the water dies in it.
 import { DX, DY } from "../constants/directions.js";
 import { getDungeonRule } from "../rules/dungeons.js";
 import { TRAVERSAL_GIMMICKS } from "../rules/traversal_gimmicks.js";
@@ -18,9 +21,9 @@ const OPPOSITE = [2, 3, 0, 1];
 
 export const WATER_MAX_DEPTH = 3;
 export const WATER_DEPTH_LABELS = Object.freeze(["", "浅い", "膝まで", "深い"]);
-export const DEEP_WATER_DAMAGE_RATE = 0.015;
+export const DEEP_WATER_DAMAGE_RATE = 0.08;
 // Rises a cell must stand under water before it deepens one step.
-export const WATER_RISES_PER_DEPTH = 5;
+export const WATER_RISES_PER_DEPTH = 3;
 
 export function getWaterDepth(cell) {
   if (cell?.hazard?.kind !== TRAVERSAL_GIMMICKS.FLOOD) return 0;
@@ -32,13 +35,15 @@ export function isDeepWater(cell) {
   return getWaterDepth(cell) >= WATER_MAX_DEPTH;
 }
 
-/**
- * HP a step in deep water takes. It half-drowns but never kills: it stops at
- * 1 HP, so the cost is a weakened way on, not a death on the stairs' doorstep.
- */
-export function getDeepWaterDamage(maxHp, hp = Infinity) {
-  const damage = Math.max(1, Math.ceil((Number(maxHp) || 1) * DEEP_WATER_DAMAGE_RATE));
-  return Math.max(0, Math.min(damage, (Number(hp) || 0) - 1));
+/** HP a step in deep water takes. It can take the last one (#2142). */
+export function getDeepWaterDamage(maxHp) {
+  return Math.max(1, Math.ceil((Number(maxHp) || 1) * DEEP_WATER_DAMAGE_RATE));
+}
+
+/** How many cells of the grid are deep water. */
+export function countDeepWater(grid) {
+  if (!Array.isArray(grid)) return 0;
+  return grid.reduce((sum, row) => sum + row.filter(isDeepWater).length, 0);
 }
 
 export function getDungeonWaterRule(floor) {
@@ -131,6 +136,7 @@ export function getWaterStatus(stateLike) {
     level,
     maxLevel: rule.maxRises,
     turnsToRise: full ? null : rule.riseEvery - (steps % rule.riseEvery),
-    full
+    full,
+    deepCells: countDeepWater(stateLike.map)
   };
 }
