@@ -47,7 +47,7 @@ const DUNGEON_RULES = await import('/src/rules/dungeons.js');
 const EXPLORE = await import('/src/menu/explore_actions.js');
 const DARK = await import('/src/systems/darkness.js');
 const WATER = await import('/src/systems/rising_water.js');
-const WATER_LEAVE_LEVEL = 8;
+const WATER_LEAVE_LEVEL = 6;
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 // Real (unscaled) sleep when the runner accelerates timers.
