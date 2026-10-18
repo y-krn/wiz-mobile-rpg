@@ -31,7 +31,7 @@ import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.j
 import { getFeatAnnouncementLines, getNearestFeats } from "./systems/feats.js";
 import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
-import { addNoise, applyNoiseToEncounterChance } from "./systems/dungeon_noise.js";
+import { addNoise, applyNoiseToEncounterChance, isNoiseHunting, takeNoiseStageMessage, tickNoiseStage } from "./systems/dungeon_noise.js";
 import { countDeepWater, getDeepWaterDamage, getDungeonWaterRule, getWaterStatus, isDeepWater, riseWater } from "./systems/rising_water.js";
 import { isPursuitDue, shakeOffPursuit, takePursuitMonsters, tickPursuit } from "./systems/pursuit.js";
 import { applyDarknessToEncounterChance, getDarknessDetectionFactor, isDark } from "./systems/darkness.js";
@@ -55,7 +55,7 @@ import { getWaitingKeeperFacility } from "./systems/facility_rooms.js";
 import { observeCarriedEquipment } from "./systems/identification.js";
 import { normalizeRunFirstKillsBefore, normalizeRunKeyItemsBefore } from "./state/run_discovery_state.js";
 import { createRunRoundTrip } from "./state/run_round_trip.js";
-import { isRoundTripRun } from "./rules/round_trip.js";
+import { findHunterStep, isRoundTripRun } from "./rules/round_trip.js";
 import { getDungeonFloor, getOrdinaryHeft, isDungeonBottomFloor, isDungeonEntryFloor } from "./rules/dungeons.js";
 import { arriveOnFloor, getHunterName, isHunted, tickHunter, wakeDungeon } from "./systems/round_trip.js";
 import { takeCoreFamiliesForRun } from "./systems/core_families.js";
@@ -1289,6 +1289,8 @@ export function moveRoamingMonsters(playerMoved = true) {
       monster.detected = false;
       return;
     }
+    // The mine's top noise stage walks it straight at the party instead.
+    if (isNoiseHunting(state)) return;
 
     const wasDetected = Boolean(monster.detected);
     const intent = getPerceptionIntent({
@@ -1323,6 +1325,29 @@ export function moveRoamingMonsters(playerMoved = true) {
   });
 }
 
+// The mine's noise stage (#2144): tell the player when it rose or fell, and at
+// the top stage walk the floor's strong enemy one step straight at the party
+// on every action. Returns whether one moved.
+function advanceNoiseStage() {
+  const rose = takeNoiseStageMessage(state);
+  if (rose) addLog(rose);
+  const hunting = isNoiseHunting(state);
+  const fell = tickNoiseStage(state);
+  if (fell) addLog(fell);
+  if (!hunting || !state.map) return false;
+  let moved = false;
+  (state.roamingMonsters || []).forEach(monster => {
+    if (monster.floor !== state.floor || monster.hunter || monster.fleeGraceTicks > 0) return;
+    monster.detected = true;
+    const next = findHunterStep(state.map, monster, { x: state.x, y: state.y }, isTraversalObstacleBlocking);
+    if (!next.step) return;
+    monster.x = next.step.x;
+    monster.y = next.step.y;
+    moved = true;
+  });
+  return moved;
+}
+
 export function advanceRoamingTurn(playerMoved) {
   state.noiseEvents = (state.noiseEvents || [])
     .map(event => ({ ...event, ttl: event.ttl - 1 }))
@@ -1334,7 +1359,8 @@ export function advanceRoamingTurn(playerMoved) {
   // Its footsteps carry once it is near, louder when it is right behind (#2069).
   if (hunted.moved && hunted.level > 0) playSound(hunted.level >= 2 ? "hunter_close" : "hunter_near");
   if (hunted.contact) return checkRoamingMonsterEncounter();
-  if (state.roamingMovementStepCount % 2 !== 0) return false;
+  const chased = advanceNoiseStage();
+  if (state.roamingMovementStepCount % 2 !== 0) return chased ? checkRoamingMonsterEncounter() : false;
   moveRoamingMonsters(playerMoved);
   return checkRoamingMonsterEncounter();
 }

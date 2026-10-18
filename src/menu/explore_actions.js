@@ -471,7 +471,8 @@ export function renderItemDirectionSelect(optGrid) {
         x += DX[dir];
         y += DY[dir];
       }
-      createNoiseEvent(x, y);
+      // A decoy never raises the mine's noise stage (#2144).
+      createNoiseEvent(x, y, 4, { source: "decoy" });
       const effect = applyExplorationItem(state, "NOISE_BALL");
       const lootId = findRunObjectLootEntry(state, "NOISE_BALL")?.id;
       if (lootId) trackLootLifecycle("tried", {

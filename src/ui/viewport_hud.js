@@ -5,6 +5,7 @@ import { getScreenViewState } from "../state/view_state.js";
 import { getEnemyHpState } from "../rules/enemy_hp_state.js";
 import { getHuntStatus } from "../systems/round_trip.js";
 import { getWaterStatus } from "../systems/rising_water.js";
+import { getNoiseStatus } from "../systems/dungeon_noise.js";
 
 // Round-trip prototype (#2066, #2069): the hunter comes from behind, where the
 // view never shows it, so its distance stays on screen for the whole way back.
@@ -43,6 +44,20 @@ function createWaterChip() {
     : `水位 ${status.level}/${status.maxLevel}・あと${status.turnsToRise}手番で上昇`) +
     // Deep water drowns (#2142), so the HUD says when the floor has some.
     (status.deepCells > 0 ? `・深み${status.deepCells}` : "");
+  return chip;
+}
+
+// The mine's noise stage (#2144): shown once noise has started to stack.
+function createNoiseChip() {
+  const status = getNoiseStatus(state);
+  if (!status || status.stage === 0) return null;
+  const chip = document.createElement("div");
+  chip.className = "hud-noise";
+  chip.dataset.stage = String(status.stage);
+  chip.setAttribute("aria-hidden", "true");
+  chip.textContent = status.huntTurns > 0
+    ? `騒音 ${status.stage}/${status.maxStage}・強敵が向かってくる（あと${status.huntTurns}手番）`
+    : `騒音 ${status.stage}/${status.maxStage}`;
   return chip;
 }
 
@@ -92,6 +107,8 @@ export function updateViewportHUD() {
   hud.appendChild(direction);
   const waterChip = createWaterChip();
   if (waterChip) hud.appendChild(waterChip);
+  const noiseChip = createNoiseChip();
+  if (noiseChip) hud.appendChild(noiseChip);
   const huntChip = createHuntChip();
   if (huntChip) hud.appendChild(huntChip);
 }

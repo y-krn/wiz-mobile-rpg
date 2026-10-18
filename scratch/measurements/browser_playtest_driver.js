@@ -28,6 +28,9 @@
 //   left to heal with turns back (0 = never turn back on its own).
 // - water ('read' | 'ignore'): with 'read', the library's water is a reason to
 //   leave a floor and deep water is walked around; 'ignore' does neither.
+// - noise ('read' | 'ignore'): with 'read', the mine's noise stage (#2144) is
+//   let die down before digging, and a strong enemy sent by it is a reason to
+//   leave the floor; 'ignore' does neither.
 
 const S = await import('/src/state.js');
 const M = await import('/src/movement.js');
@@ -47,6 +50,7 @@ const DUNGEON_RULES = await import('/src/rules/dungeons.js');
 const EXPLORE = await import('/src/menu/explore_actions.js');
 const DARK = await import('/src/systems/darkness.js');
 const WATER = await import('/src/systems/rising_water.js');
+const NOISE = await import('/src/systems/dungeon_noise.js');
 const WATER_LEAVE_LEVEL = 6;
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
@@ -56,7 +60,7 @@ const st = () => S.state;
 const W = window;
 const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
-const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine', intents: 'read', water: 'read' };
+const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine', intents: 'read', water: 'read', noise: 'read' };
 // A dungeon is five floors (#2060); a run is named by the running number of its first floor.
 const DUNGEON_ENTRY = { mine: 1, catacomb: 6, nest: 11, library: 16, forge: 21, throne: 26 };
 const entryFloorOf = dungeon => DUNGEON_ENTRY[dungeon] || Math.max(1, Math.floor(Number(dungeon)) || 1);
@@ -217,6 +221,12 @@ W.__walk = async (goalName = 'frontier', maxSteps = 200, stopWhen = null, { thro
       && GIMMICKS.isHeatActive(vent, M.getCurrentFloorExplorationSteps() + 1); w++) {
       EXPLORE.handleExploreAction('search'); while (s.transitioning) await sl(20); await sl(10);
       if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' while waiting for a vent';
+    }
+    // Digging on top of lingering noise raises the mine's stage: wait it out.
+    for (let w = 0; W.__policy.noise === 'read' && plainHere && GIMMICKS.isTraversalObstacleBlocking(s.map[ny][nx])
+      && (NOISE.getNoiseStatus?.(s)?.stage || 0) > 0 && w < 12; w++) {
+      EXPLORE.handleExploreAction('search'); while (s.transitioning) await sl(20); await sl(10);
+      if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' while waiting for quiet';
     }
     const bx = s.x, by = s.y; M.handleMove('forward'); while (s.transitioning) await sl(20); await sl(20); steps++;
     if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' after ' + steps;
@@ -704,6 +714,8 @@ const stopExploring = (policy, p) => {
   // 'ignore' keeps exploring as if the water were not there.
   const water = W.__policy.water === 'read' ? WATER.getWaterStatus?.(st()) : null;
   if (water && (water.level >= WATER_LEAVE_LEVEL || water.deepCells > 0)) return true;
+  // A strong enemy sent by the mine's noise (#2144) is coming straight here.
+  if (W.__policy.noise === 'read' && NOISE.isNoiseHunting?.(st())) return true;
   // Hurt: stay only while walking gives HP back (descending does not heal).
   if (p.hp < DATA.getCharMaxHp(p) * policy.explore) return !worthWalking(policy, p);
   // Healthy: keep exploring, except on a cleared milestone floor.

@@ -4,7 +4,10 @@
 import { strict as assert } from "node:assert";
 import { DUNGEONS } from "../../../src/data/dungeons.js";
 import { getDungeonEntryFloor, getDungeonNoiseRule, getDungeonRule } from "../../../src/rules/dungeons.js";
-import { addNoise, applyNoiseToEncounterChance, hasLoudNoise, noteFightNoise } from "../../../src/systems/dungeon_noise.js";
+import {
+  NOISE_HUNT_TURNS, NOISE_STAGE_MAX, addNoise, applyNoiseToEncounterChance, getNoiseStatus, hasLoudNoise, isNoiseHunting, noteFightNoise,
+  takeNoiseStageMessage, tickNoiseStage
+} from "../../../src/systems/dungeon_noise.js";
 import { calculateEncounterChance } from "../../../src/movement.js";
 
 const mine = DUNGEONS.find(dungeon => dungeon.id === "collapsed_mine");
@@ -63,4 +66,44 @@ assert.equal(getDungeonNoiseRule(catacombFloor), null);
   assert.equal(noteFightNoise(fight(10, catacombFloor)), false);
 }
 
-console.log("[PASS] the mine's noise lingers, brings ordinary monsters, and a long fight makes noise");
+// Noise stacks (#2144): a loud noise made while another still hangs raises the
+// stage; at the top the strong enemy hunts for NOISE_HUNT_TURNS, and once the
+// floor is quiet the stage falls back to nothing.
+{
+  const state = { floor: mineFloor, currentRun: {} };
+  const tick = () => {
+    state.noiseEvents = state.noiseEvents.map(event => ({ ...event, ttl: event.ttl - 1 })).filter(event => event.ttl > 0);
+    return tickNoiseStage(state);
+  };
+  assert.deepEqual(getNoiseStatus(state), { stage: 0, maxStage: NOISE_STAGE_MAX, huntTurns: 0 });
+  addNoise(state, 1, 1, 4, { source: "dig" });
+  assert.equal(getNoiseStatus(state).stage, 1);
+  assert.equal(takeNoiseStageMessage(state), null, "stage 1 needs no line of its own");
+  // The noise of a fight breaking out and a thrown decoy never stack.
+  addNoise(state, 1, 1, 4, { source: "encounter" });
+  addNoise(state, 1, 1, 4, { source: "decoy" });
+  assert.equal(getNoiseStatus(state).stage, 1);
+  addNoise(state, 1, 1, 4, { source: "fight" });
+  assert.equal(getNoiseStatus(state).stage, 2);
+  assert.match(takeNoiseStageMessage(state), /騒音2\/3/);
+  assert.equal(takeNoiseStageMessage(state), null, "each stage is told once");
+  // Quiet again: back to nothing.
+  for (let turn = 0; turn < rule.noiseTurns - 1; turn++) assert.equal(tick(), null);
+  assert.match(tick(), /静まった/);
+  assert.equal(getNoiseStatus(state).stage, 0);
+  // Three in a row reach the top: the hunt runs on after the noise is gone.
+  ["dig", "fight", "alarm"].forEach(source => addNoise(state, 1, 1, 4, { source }));
+  assert.equal(getNoiseStatus(state).stage, NOISE_STAGE_MAX);
+  assert.equal(isNoiseHunting(state), true);
+  assert.match(takeNoiseStageMessage(state), /まっすぐこちらへ/);
+  for (let turn = 0; turn < NOISE_HUNT_TURNS - 1; turn++) assert.equal(tick(), null);
+  assert.equal(getNoiseStatus(state).huntTurns, 1);
+  assert.match(tick(), /追うのをやめた/);
+  assert.equal(isNoiseHunting(state), false);
+  // Another floor keeps its own stage; elsewhere there is none.
+  state.floor = mineFloor + 1;
+  assert.equal(getNoiseStatus(state).stage, 0);
+  assert.equal(getNoiseStatus({ floor: catacombFloor, currentRun: {} }), null);
+}
+
+console.log("[PASS] the mine's noise lingers, brings ordinary monsters, a long fight makes noise, and stacked noise sends the strong enemy");

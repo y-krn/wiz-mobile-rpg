@@ -541,7 +541,8 @@
 
 /* Round-trip prototype (#2069): how far behind the hunter is. */
 #viewport-hud:has(> .hud-hunter),
-#viewport-hud:has(> .hud-water) {
+#viewport-hud:has(> .hud-water),
+#viewport-hud:has(> .hud-noise) {
   border-radius: 14px;
 }
 .hud-water {
@@ -552,6 +553,13 @@
   color: #3d9be9;
 }
 .hud-water[data-stage="high"] {
+  color: var(--neon-red);
+}
+.hud-noise {
+  font-weight: bold;
+  color: var(--neon-amber);
+}
+.hud-noise[data-stage="3"] {
   color: var(--neon-red);
 }
 .hud-hunter {
