@@ -1,11 +1,13 @@
 import { test, expect } from './fixtures/browser-health.js';
+import { CORE_FAMILIES } from '../src/data/core_families.js';
 
 // Likely Core families (#2061): each open dungeon shows its three likely Core
 // families where it is chosen, a run takes them with it, a run that reached
 // the third floor redraws them, and a treasure carried out again fixes one
 // family of one open dungeon before the next departure.
 
-const FAMILY_NAMES = ['技', '構え', '血', '呪い', '罠', '忍び'];
+// Read from the data so a new family (#2138) cannot make the draw flaky.
+const FAMILY_NAMES = CORE_FAMILIES.map(family => family.name);
 
 async function openPreparation(page) {
   await page.setViewportSize({ width: 390, height: 844 });

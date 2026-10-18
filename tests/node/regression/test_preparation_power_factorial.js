@@ -14,8 +14,8 @@ import { resolveMeasurementOptions } from "../../../scratch/measurements/run_bal
 assert.equal(DEFAULT_SEED, 1277);
 assert.equal(resolveMeasurementOptions({ measurement: "preparation-power-factorial", purpose: "test" }).seed, 1277);
 
-// The seed is a fixture: one where some run reaches the B6 cutoff (moved by #2124, #2126).
-const result = await runMeasurement({ runs: 1, seed: 10 });
+// The seed is a fixture: one where some run reaches the B6 cutoff (moved by #2124, #2126, #2123).
+const result = await runMeasurement({ runs: 1, seed: 2 });
 const byId = Object.fromEntries(result.conditions.map(condition => [condition.id, condition]));
 
 assert.deepEqual(Object.keys(byId), CONDITION_IDS);
