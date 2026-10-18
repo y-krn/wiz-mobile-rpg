@@ -292,6 +292,23 @@ the technique be used early for an HP payment. These are one-shot, encounter-
 local modifiers applied at the melee-modifier stage; they never become a
 hidden second damage formula. Normal-profile combat has no technique action.
 
+Verb-hooked Cores (#2138) follow the same stage:
+
+- 溜め受け stores half of the physical damage taken while guarding, capped at
+  half of max HP, and adds it once as flat damage (the same slot as 罠喰い's
+  bonus) to the next universal attack or the first hit of the next technique;
+  the store is cleared at the end of combat;
+- 不意打ち multiplies the universal attack and the technique while the
+  character holds first strike in round 1;
+- 蝕みの型 multiplies a technique against a poisoned, bleeding or flinched
+  target and poisons the target after each technique hit; it never overwrites
+  sleep or blind, which share poison's status slot;
+- 毒移し moves poison or bleeding from a killed enemy to the first living enemy
+  without it;
+- 術技一体 lowers the technique cooldown by one on each spell and restores 1 MP
+  on each technique. A technique cooldown starts at zero each combat, so no
+  Core reads "usable while cooling down" in round 1.
+
 ### Variant techniques (#2135)
 
 A weapon carrying the 変化の型 Core (`CORE_TECH_SHIFT`) swaps its family

@@ -51,7 +51,7 @@ function check(label, test) {
   }
 }
 
-const NEW_SAVE_FAMILIES = ["technique", "guard", "blood", "curse", "stealth"];
+const NEW_SAVE_FAMILIES = ["technique", "guard", "blood", "curse", "stealth", "blight", "arcane"];
 const ALL_UNLOCKED = { ranks: { pool_blood_wand: 1, pool_trap_eater: 1, pool_tomb_raider: 1 }, lateralUnlocks: [] };
 const coreOf = item => item?.affixes?.find(affix => affix.kind === "core")?.id || null;
 const familyOf = item => getCoreFamilyForCore(coreOf(item))?.id || null;
@@ -65,11 +65,14 @@ function newState(seed = "S-1") {
   };
 }
 
-check("every Core that can appear belongs to exactly one family", () => {
+check("every Core that can appear belongs to a family and reads as the first", () => {
   assert.equal(new Set(CORE_FAMILY_IDS).size, CORE_FAMILY_IDS.length);
   const all = [...CORE_AFFIXES, ...BUILD_VNEXT_CORE_AFFIXES].map(affix => affix.id);
   const listed = CORE_FAMILIES.flatMap(family => family.coreIds);
-  assert.equal(new Set(listed).size, listed.length, "a Core is in one family only");
+  // 血杖 is shared by 血 and 術 (#2138); no other Core is listed twice.
+  const shared = listed.filter((id, index) => listed.indexOf(id) !== index);
+  assert.deepEqual(shared, ["CORE_BLOOD_WAND"]);
+  assert.equal(getCoreFamilyForCore("CORE_BLOOD_WAND").id, "blood");
   listed.forEach(id => assert.ok(all.includes(id), `${id} is a Core`));
   getGeneratableCoreIds(null).forEach(id => assert.ok(getCoreFamilyForCore(id), `${id} has a family`));
 });
@@ -252,7 +255,7 @@ check("the first chest offers two likely families and one from outside them", ()
     families.filter(id => !likely.includes(id)).forEach(id => outsiders.add(id));
     assert.ok(!families.includes("trap"), "a Core still locked by the Workshop is not offered");
   }
-  assert.deepEqual([...outsiders].sort(), ["curse", "stealth"]);
+  assert.deepEqual([...outsiders].sort(), ["arcane", "blight", "curse", "stealth"]);
   // A run saved before #2061 keeps the old weapon / defense / accessory offer.
   const legacy = generateBuildSeedOffer({ floor: 1, party: [{}] }, createRng("legacy"));
   assert.deepEqual(legacy.map(item => coreOf(item) !== null), [true, true, true]);

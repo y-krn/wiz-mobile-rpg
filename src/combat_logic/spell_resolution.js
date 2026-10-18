@@ -11,6 +11,7 @@ import {
 import { consumeVulnerableDamage } from "./vulnerable.js";
 import { getSpellPayment, paySpellCost } from "../rules/affix_rules.js";
 import { getActiveSpellKeys } from "../rules/magic_rules.js";
+import { applySpellTechCooldown } from "../rules/technique_rules.js";
 import { COMBAT_LOG_PRESENTATION_KINDS } from "../combat_log_semantics.js";
 
 /**
@@ -84,6 +85,13 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
   paySpellCost(char, spell.cost);
   if (payment.resource === "hp") {
     logCoreActivation(state, logQueue, char, "CORE_BLOOD_WAND", { once: false });
+  }
+  const techCooldownCut = applySpellTechCooldown(state, char, act.actorIdx);
+  if (techCooldownCut > 0) {
+    logQueue.push({
+      msg: `[味方] ${char.name}は術の流れで技を構え直した。（技の再使用待ち-${techCooldownCut}）`,
+      presentationKind: COMBAT_LOG_PRESENTATION_KINDS.STATUS_GOOD
+    });
   }
   char.combatFloor = state.floor;
 
