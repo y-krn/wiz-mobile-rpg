@@ -1,6 +1,9 @@
 const biome = (definition) => Object.freeze({
   ...definition,
   enemyPool: Object.freeze(definition.enemyPool),
+  enemyTiers: Object.freeze(Object.fromEntries(
+    Object.entries(definition.enemyTiers).map(([tier, names]) => [tier, Object.freeze(names)])
+  )),
   gimmicks: Object.freeze(definition.gimmicks),
   terrain: Object.freeze({
     ...definition.terrain,
@@ -53,6 +56,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "デーモンガード", eliteName: "フラック",
     enemyPool: ["かみつき蟲", "コボルトの斥候", "マッドスライム", "フラッシュバット", "分裂スライム", "錆びた盾兵", "ゴブリンの呪術師", "群れネズミ", "火薬コウモリ", "まどろみ胞子", "泥の呪い子"],
+    enemyTiers: { early: ["かみつき蟲", "コボルトの斥候", "マッドスライム", "群れネズミ"], role: ["錆びた盾兵", "フラッシュバット", "まどろみ胞子", "泥の呪い子"], late: ["分裂スライム", "火薬コウモリ", "ゴブリンの呪術師"] },
     gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 0, trapBonus: 0, traversal: "rubble", specialRoom: "mine_vein" },
     theme: {
       entryText: { first: "崩れた岩肌の奥から、乾いた反響音が返ってくる。", revisit: "崩れた坑道へ戻った。遠くの物音が坑道を伝う。" },
@@ -84,6 +88,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "ストーンガード", eliteName: "墓守の巨躯",
     enemyPool: ["リビングアーマー", "ゾンビ", "ジャイアントスパイダー", "針甲虫", "呪いの小鏡", "鉄皮のゴブリン", "祈祷ゴブリン", "マナドレイン", "スケルトンアーチャー", "煙幕盗賊", "腐毒の蛆", "催眠コウモリ"],
+    enemyTiers: { early: ["リビングアーマー", "スケルトンアーチャー", "針甲虫"], role: ["鉄皮のゴブリン", "祈祷ゴブリン", "ゾンビ", "ジャイアントスパイダー", "腐毒の蛆", "煙幕盗賊"], late: ["催眠コウモリ", "マナドレイン", "呪いの小鏡"] },
     gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 0, trapBonus: 1, traversal: "seal", specialRoom: "altar" },
     theme: {
       entryText: { first: "並ぶ棺の間を、死者の吐息のような冷気が抜ける。", revisit: "忘れられた地下墓地へ戻った。礼拝堂跡だけが静かだ。" },
@@ -115,6 +120,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "ポイズンジャイアント", eliteName: "這い寄る影",
     enemyPool: ["スピリット", "はぐれ魔術師", "呪文喰い", "オークの戦士", "カースドハンド", "アイアンゴーレム", "霧の亡霊", "骨の鼓手", "弱体の魔女", "魔封じの目玉", "解呪の司祭"],
+    enemyTiers: { early: ["スピリット", "オークの戦士", "霧の亡霊", "呪文喰い"], role: ["骨の鼓手", "解呪の司祭", "カースドハンド", "弱体の魔女"], late: ["はぐれ魔術師", "アイアンゴーレム", "魔封じの目玉"] },
     gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 1, trapBonus: 1, traversal: "crumble", specialRoom: "brood_chamber" },
     theme: {
       entryText: { first: "底知れぬ裂け目を、無数の糸と獣の息遣いが覆う。", revisit: "大裂溝の巣窟へ戻った。足元の震えが巣へ伝わる。" },
@@ -145,7 +151,8 @@ export const BIOMES = Object.freeze([
       environment: { overlay: "rgba(7, 62, 68, 0.11)", animated: false }
     },
     bossName: "マスターデーモン", eliteName: "禁書の番人",
-    enemyPool: ["ストーンガード", "マスターメイジ", "バンシー", "ブラッドバット群", "石像兵", "魔鏡の司祭", "鋼殻ビートル", "弱体の魔女", "沈黙の修道士", "召喚する悪魔", "魔防崩しの蛇"],
+    enemyPool: ["ストーンガード", "マスターメイジ", "バンシー", "ブラッドバット群", "石像兵", "魔鏡の司祭", "鋼殻ビートル", "スケルトンアーチャー", "弱体の魔女", "沈黙の修道士", "召喚する悪魔", "魔防崩しの蛇"],
+    enemyTiers: { early: ["ブラッドバット群", "スケルトンアーチャー"], role: ["ストーンガード", "石像兵", "魔防崩しの蛇", "弱体の魔女", "バンシー"], late: ["鋼殻ビートル", "マスターメイジ", "魔鏡の司祭", "沈黙の修道士", "召喚する悪魔"] },
     gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 1, trapBonus: 2, traversal: "flood", specialRoom: "reading_room" },
     theme: {
       entryText: { first: "水に沈む書架の文字が、侵入者の魔力に反応して淡く光る。", revisit: "水没した魔導書庫へ戻った。濡れた頁がひとりでにめくれる。" },
@@ -177,6 +184,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "レッドドラゴン", eliteName: "灼熱の徘徊者",
     enemyPool: ["ドラゴンワーム", "ワイバーン", "黒曜の魔導士", "結界の守護者", "盾持ちデーモン", "灰燼の術士", "ストーンガード", "鋼殻ビートル", "双頭の番犬"],
+    enemyTiers: { early: ["ドラゴンワーム", "ワイバーン", "鋼殻ビートル"], role: ["結界の守護者", "盾持ちデーモン", "ストーンガード"], late: ["黒曜の魔導士", "灰燼の術士", "双頭の番犬"] },
     gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 2, trapBonus: 2, traversal: "heat", specialRoom: "forge" },
     theme: {
       entryText: { first: "赤熱した鍛造炉が脈打ち、竜火が石床の溝を走る。", revisit: "竜火の鍛造殿へ戻った。金床の残響が低く続く。" },
@@ -208,6 +216,7 @@ export const BIOMES = Object.freeze([
     },
     bossName: "いにしえの竜", eliteName: "深淵の徘徊者",
     enemyPool: ["マスターデーモン", "プリーストデーモン", "命喰いの影", "深淵の分裂体", "破滅の導師", "盾持ちデーモン", "結界の守護者", "反逆の鎧", "竜血の再生者"],
+    enemyTiers: { early: ["反逆の鎧", "竜血の再生者", "破滅の導師"], role: ["プリーストデーモン", "盾持ちデーモン", "結界の守護者", "命喰いの影"], late: ["マスターデーモン", "深淵の分裂体"] },
     gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 2, trapBonus: 3, traversal: "spinner", specialRoom: "mirror_hall" },
     theme: {
       entryText: { first: "光の届かない玉座で、深淵の脈動が床を震わせる。", revisit: "深淵の玉座へ戻った。見えない視線が一歩ごとに追う。" },

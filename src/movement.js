@@ -1,4 +1,5 @@
 import { state, saveAutosave, scheduleAutosave, addLog, addEventLog, clearEventObservations, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited, addInventoryItem, getStartingKitItems, INVENTORY_CAPACITY } from "./state.js";
+import { getNewRosterNotice } from "./data/encounters.js";
 import { applyExplorationRecovery, getExplorationRecoveryOutlook } from "./systems/exploration_recovery.js";
 import { trackEliteDecision, trackFloorExploration, trackRunStart, trackStairsDiscovery, trackTrapResolution } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharMaxMp, getCharAffixSum, getEffectiveHealAmount } from "./data.js";
@@ -616,6 +617,8 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     } else {
       addLog(`${theme.name}：${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
     }
+    const rosterNotice = firstVisit ? getNewRosterNotice(nextFloor) : null;
+    if (rosterNotice) addLog(`【気配】${rosterNotice}`);
     const waitingKeeper = getWaitingKeeperFacility(state.maps[nextFloor - 1]);
     if (waitingKeeper) addLog(`【気配】${waitingKeeper.site.omen}`);
 

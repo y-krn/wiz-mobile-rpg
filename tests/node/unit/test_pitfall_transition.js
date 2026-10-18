@@ -37,6 +37,7 @@ global.localStorage = {
 const { state, createStartingKitCharacter } = await import('../../../src/state.js');
 const { descendToFloor, executeEnterDungeon, handleMove } = await import('../../../src/movement.js');
 const { handleTrapAction } = await import('../../../src/systems/traps.js');
+const { getNewRosterNotice } = await import('../../../src/data/encounters.js');
 
 const originalSetTimeout = global.setTimeout;
 global.setTimeout = callback => {
@@ -119,6 +120,17 @@ try {
   assert.deepEqual(state.currentRun.floorSteps, { '1': 4 });
   assert.equal(Object.hasOwn(state.currentRun, 'floorsVisited'), false,
     'stairs descent does not recreate the retired visited-floor snapshot');
+
+  // New enemies begin on the third and fourth floors (#2123): the first
+  // arrival there says so; a floor without new enemies stays quiet.
+  const hasNotice = floor => state.logs.some(line => String(line?.msg ?? line).includes(getNewRosterNotice(floor)));
+  assert.equal(hasNotice(3) || hasNotice(4), false, 'B2 brings no new-enemy notice');
+  descendToFloor(3);
+  assert.equal(state.floor, 3);
+  assert.ok(hasNotice(3), 'first arrival on B3 tells of new enemies');
+  descendToFloor(4);
+  assert.equal(state.floor, 4);
+  assert.ok(hasNotice(4), 'first arrival on B4 tells of troublesome enemies');
 } finally {
   global.setTimeout = originalSetTimeout;
 }

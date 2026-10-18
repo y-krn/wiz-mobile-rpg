@@ -681,6 +681,13 @@ differences negligible.
 - Each dungeon is one biome. Its enemy themes, hazards, landmarks, and
   atmosphere answer “where am I?” while the floor within it and the way back
   supply the pressure axis.
+- A biome's enemies come in by floor (#2123), so the five floors read as a
+  progression rather than one pool. Plain attackers fill the first two floors;
+  enemies with a group role or an ailment join from the third; the biome's
+  own troublemakers join from the fourth. Plain attackers thin out deep down
+  but never vanish. The first arrival on the third and fourth floors logs
+  that new enemies are near. The tiers and their weights are in
+  `src/data/biomes.js` and `src/data/encounters.js` (see the combat model).
 - Each biome owns one layout archetype, so the floor silhouette and route graph
   answer “where am I?” before color does: winding mine tunnels, a symmetric
   catacomb lattice, a chasm crossed only by bridges, flooded library stacks,

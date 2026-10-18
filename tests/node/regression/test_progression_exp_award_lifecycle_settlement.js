@@ -10,7 +10,8 @@ const { runLifecycleSettlementFixtures } = await import(
 const report = runLifecycleSettlementFixtures();
 assert.equal(report.evidence, "controlled-production-context-N=1");
 assert.equal(report.naturalRunEvidence, false);
-assert.deepEqual(report.bandFloors, [1, 20], "fixture set covers B1 and B20");
+// The split slime appears from B4 since floor rosters (#2123).
+assert.deepEqual(report.bandFloors, [4, 20], "fixture set covers B4 and B20");
 assert.deepEqual(report.multiBudgetAccounting, { budgets: [8, 28], settled: 8 },
   "an actual fled initial index forfeits only its own allocation");
 assert.deepEqual(report.coverageGaps, [

@@ -157,6 +157,21 @@ assert.equal(isIntentEncounter({ isRoamingFlack: true }), false);
   assert.notEqual(after[0].intent?.kind, "call", "it calls only once");
 }
 
+// A lookout that answered a call does not call again, so two lookouts cannot
+// keep replacing each other forever (#2123).
+{
+  const first = monster("斥候", { traits: ["evasive"], hp: 30, maxHp: 30 });
+  const fallen = monster("斥候", { traits: ["evasive"], hp: 0, maxHp: 30 });
+  const state = createState([first, fallen]);
+  planEncounterIntents(state, never);
+  const result = runCombatRoundCalculation(state, { actions: [{ type: "defend", actorIdx: 0 }] }, { rng: () => 0.5 });
+  const after = result.state.combatState.monsters;
+  assert.equal(after.length, 3);
+  after[0].hp = 0;
+  planEncounterIntents(result.state, never);
+  assert.notEqual(after[2].intent?.kind, "call", "a newcomer does not call in turn");
+}
+
 // What is shown is what happens: a silencer that showed an attack does not silence,
 // even when the old roll would have fired.
 {

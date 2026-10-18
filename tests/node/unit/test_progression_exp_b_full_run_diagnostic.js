@@ -138,7 +138,9 @@ assert.deepEqual(precombatReproduction.validity.matchedArmMismatches, []);
 // #2060 scales enemies by the floor inside the dungeon, which gave this
 // matched run one more battle. #2101 lets an ordinary flee fail but escape
 // clean; with #2100 (every enemy acts) this matched run reached seven battles,
-// and with #2115 (fewer, heavier fights) three.
+// with #2115 (fewer, heavier fights) three, and with #2123 (plain attackers
+// on the first floors) four, then three once the sunken library's first
+// floors lost the reflecting beetle.
 assert.deepEqual(precombatReproduction.rows.map(row => [row.terminationReason, row.battles, row.battleObservationCount]), [
   ["death", 3, 3],
   ["death", 3, 3]
