@@ -28,6 +28,10 @@
 //   left to heal with turns back (0 = never turn back on its own).
 // - water ('read' | 'ignore'): with 'read', the library's water is a reason to
 //   leave a floor and deep water is walked around; 'ignore' does neither.
+// - noise ('read' | 'ignore'): with 'read', the mine's noise stage (#2144) is
+//   let die down before digging, a fight one stage below the top is fled
+//   before it runs long, and a strong enemy sent by it is a reason to leave
+//   the floor; 'ignore' does none of these.
 
 const S = await import('/src/state.js');
 const M = await import('/src/movement.js');
@@ -47,6 +51,7 @@ const DUNGEON_RULES = await import('/src/rules/dungeons.js');
 const EXPLORE = await import('/src/menu/explore_actions.js');
 const DARK = await import('/src/systems/darkness.js');
 const WATER = await import('/src/systems/rising_water.js');
+const NOISE = await import('/src/systems/dungeon_noise.js');
 const WATER_LEAVE_LEVEL = 6;
 
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
@@ -56,7 +61,7 @@ const st = () => S.state;
 const W = window;
 const txt = l => typeof l === 'string' ? l : (l.text || l.message || '');
 const P = () => st().party[0];
-const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine', intents: 'read', water: 'read' };
+const POLICY_DEFAULTS = { explore: 0.6, maxFloor: null, recovery: 'on', rooms: 'use', cores: 'on', roundTrip: 'on', turnBack: 0.3, dungeon: 'mine', intents: 'read', water: 'read', noise: 'read' };
 // A dungeon is five floors (#2060); a run is named by the running number of its first floor.
 const DUNGEON_ENTRY = { mine: 1, catacomb: 6, nest: 11, library: 16, forge: 21, throne: 26 };
 const entryFloorOf = dungeon => DUNGEON_ENTRY[dungeon] || Math.max(1, Math.floor(Number(dungeon)) || 1);
@@ -218,6 +223,12 @@ W.__walk = async (goalName = 'frontier', maxSteps = 200, stopWhen = null, { thro
       EXPLORE.handleExploreAction('search'); while (s.transitioning) await sl(20); await sl(10);
       if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' while waiting for a vent';
     }
+    // Digging on top of lingering noise raises the mine's stage: wait it out.
+    for (let w = 0; W.__policy.noise === 'read' && plainHere && GIMMICKS.isTraversalObstacleBlocking(s.map[ny][nx])
+      && (NOISE.getNoiseStatus?.(s)?.stage || 0) > 0 && w < 12; w++) {
+      EXPLORE.handleExploreAction('search'); while (s.transitioning) await sl(20); await sl(10);
+      if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' while waiting for quiet';
+    }
     const bx = s.x, by = s.y; M.handleMove('forward'); while (s.transitioning) await sl(20); await sl(20); steps++;
     if (s.gameState !== 'explore') return 'STOP gs=' + s.gameState + ' after ' + steps;
     if (s.x === bx && s.y === by) {
@@ -352,6 +363,9 @@ W.__fight = async () => {
       // A forced elite fight is fought out: fleeing would not open the way.
       if (enemyHp > 12 && !s.combatState.isRoamingFlack) { await W.__act('逃走'); note += ' [flee]'; continue; }
     }
+    // One more loud noise would send the mine's strong enemy (#2144): leave a fight before it runs long.
+    if (W.__policy.noise === 'read' && r >= 3 && enemyHp > 12 && !s.combatState.isRoamingFlack
+      && (NOISE.getNoiseStatus?.(s)?.stage || 0) >= NOISE.NOISE_STAGE_MAX - 1) { await W.__act('逃走'); note += ' [flee-noise]'; continue; }
     if (shouldBraceForIntent(alive)) { W.__intentBraces = (W.__intentBraces || 0) + 1; await W.__act('防御'); continue; }
     await attackTarget(alive);
   }
@@ -655,6 +669,9 @@ const countSteps = () => {
   W.__stepsBy[key] = (W.__stepsBy[key] || 0) + Math.max(0, steps - W.__lastSteps); W.__lastSteps = steps;
   const hunter = (st().roamingMonsters || []).find(m => m.hunter && m.floor === st().floor);
   if (hunter) { const d = Math.abs(hunter.x - st().x) + Math.abs(hunter.y - st().y); const f = st().floor; W.__hunterMin[f] = Math.min(W.__hunterMin[f] ?? 99, d); }
+  // The mine's noise stage (#2144): the highest it reached, and turns spent hunted.
+  const noise = NOISE.getNoiseStatus?.(st());
+  if (noise) { W.__noiseMaxStage = Math.max(W.__noiseMaxStage || 0, noise.stage); if (noise.huntTurns > 0) W.__huntedSteps = (W.__huntedSteps || 0) + 1; }
 };
 const turnBackNow = why => {
   if (W.__turnBack || !roundTrip()) return false;
@@ -704,6 +721,8 @@ const stopExploring = (policy, p) => {
   // 'ignore' keeps exploring as if the water were not there.
   const water = W.__policy.water === 'read' ? WATER.getWaterStatus?.(st()) : null;
   if (water && (water.level >= WATER_LEAVE_LEVEL || water.deepCells > 0)) return true;
+  // A strong enemy sent by the mine's noise (#2144) is coming straight here.
+  if (W.__policy.noise === 'read' && NOISE.isNoiseHunting?.(st())) return true;
   // Hurt: stay only while walking gives HP back (descending does not heal).
   if (p.hp < DATA.getCharMaxHp(p) * policy.explore) return !worthWalking(policy, p);
   // Healthy: keep exploring, except on a cleared milestone floor.
@@ -899,7 +918,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false, dungeo
   finally { Date.now = realNow; }
   W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   resetPolicyState();
-  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0; W.__darkToggles = 0; W.__rests = 0; W.__intentBraces = 0;
+  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0; W.__noiseMaxStage = 0; W.__huntedSteps = 0; W.__darkToggles = 0; W.__rests = 0; W.__intentBraces = 0;
   W.__dungeonRule = DUNGEON_RULES.getDungeonRule(st().floor)?.line || '';
   trackHpLedger();
   const run = st().currentRun;
@@ -985,7 +1004,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     returned: s.gameState === 'result' && (P()?.hp ?? 0) > 0,
     companions: companionNames() || null,
     roomActions: W.__roomActions, purchases: W.__purchases,
-    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, darkToggles: W.__darkToggles || 0, rests: W.__rests || 0, intentBraces: W.__intentBraces || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
+    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, noiseMaxStage: W.__noiseMaxStage || 0, huntedSteps: W.__huntedSteps || 0, darkToggles: W.__darkToggles || 0, rests: W.__rests || 0, intentBraces: W.__intentBraces || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
     eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, reflectAvoids: W.__reflectAvoids || 0, riposteGuards: W.__riposteGuards || 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,

@@ -126,7 +126,7 @@ for the first time.
 
 | # | Dungeon | Opens with | Rule, in one line |
 | --- | --- | --- | --- |
-| 1 | Collapsed mine | open from the start | **Noise.** Digging and drawn-out fights make noise, and noise brings monsters: go quietly or finish fast. |
+| 1 | Collapsed mine | open from the start | **Noise.** Digging and drawn-out fights make noise, noise brings monsters, and stacked noise sends the strong enemy straight at the run: go quietly or finish fast. |
 | 2 | Forgotten catacomb | the mine's treasure | **Curses.** Finds are cursed more often and a cursed piece is stronger for it, while chances to cleanse are few: cleanse it or wear the curse. |
 | 3 | Rift nest | the catacomb's treasure | **Collapse.** A ledge falls once crossed, so the way back is not the way down: choose which crossings to spend. |
 | 4 | Sunken library | the nest's treasure | **Rising water.** The longer the run stays on a floor, the more of it lies under water, the deeper it gets (deep water costs HP), and the more chests sink: time is the resource. |
@@ -159,6 +159,18 @@ The town shows it in one line on the mine's card.
   of four, so it outlasts the quiet steps after a fight.
 - A fight that ran four rounds or more is itself loud. The noise of a fight
   breaking out still only draws the strong enemy.
+- Noise stacks (#2144, under #2116, where a dungeon's rule may kill). Every
+  loud noise raises the floor's noise stage by one, up to three; a thrown
+  decoy and the noise of a fight breaking out never do. Every eight turns
+  without loud noise on the floor lower it by one. (Falling straight back to
+  nothing once the noise died away was tried first: the bot never reached
+  the third stage, so the rule never bit.) At the third stage the floor's
+  roaming strong enemy walks the shortest way straight at the party, one step
+  on every action, for twenty turns (noise made meanwhile starts the count
+  again), and then the stage drops to two, so the next noise sends it again;
+  a flee still shakes it off for a while. The log tells each stage from the
+  second and each step down to the first, and the screen keeps the stage and the turns
+  left.
 
 So the choice is the one the rule names: go quietly (walk round the rubble,
 leave the vein, light or silence incense, the sneak Core) or finish fast (a

@@ -36,11 +36,13 @@ global.localStorage = {
 };
 
 const { state, createStartingKitCharacter } = await import('../../../src/state.js');
-const { executeEnterDungeon, getCurrentFloorExplorationSteps, handleMove } = await import('../../../src/movement.js');
+const { advanceRoamingTurn, executeEnterDungeon, getCurrentFloorExplorationSteps, handleMove } = await import('../../../src/movement.js');
 const { ensureRunFloor } = await import('../../../src/state/run_floor_state.js');
 const { RUBBLE_CLEAR_TURNS, getHeatDamage, isHeatActive } = await import('../../../src/rules/traversal_gimmicks.js');
 const { getCharMaxHp } = await import('../../../src/data.js');
 const { WATER_RISES_PER_DEPTH, getDeepWaterDamage } = await import('../../../src/systems/rising_water.js');
+const { NOISE_STAGE_MAX, addNoise } = await import('../../../src/systems/dungeon_noise.js');
+const { findHunterStep } = await import('../../../src/rules/round_trip.js');
 
 // #1963: live exploration resolves biome traversal gimmicks in place.
 global.setTimeout = callback => {
@@ -239,6 +241,39 @@ function enterFloor(floor) {
   assert.equal(hero.status, 'dead', 'deep water drowns');
   assert.match(logText(), /深みに足を取られ/);
   assert.notEqual(state.gameState, 'explore', 'a drowned party ends the run');
+}
+
+// Stacked noise in the mine (#2144): the strong enemy walks straight at the
+// party one step on every action, and a flee still shakes it off.
+{
+  const map = enterFloor(2);
+  quiet();
+  state.party[0].status = 'normal';
+  state.party[0].hp = getCharMaxHp(state.party[0]);
+  const start = findCell(map, cell => cell.type === 'empty' && cell.walls.some(wall => !wall) && !cell.event && !cell.hazard && !cell.trap);
+  state.x = start.x;
+  state.y = start.y;
+  const far = { x: 0, y: 0, d: -1 };
+  map.forEach((row, y) => row.forEach((cell, x) => {
+    const d = findHunterStep(map, { x, y }, { x: state.x, y: state.y }).distance;
+    if (cell.type === 'empty' && Number.isFinite(d) && d > far.d) Object.assign(far, { x, y, d });
+  }));
+  assert.ok(far.d > 4, 'B2 has room to be chased across');
+  const elite = { id: 'e', floor: 2, x: far.x, y: far.y, homeX: far.x, homeY: far.y, kind: 'elite', perception: 'sound' };
+  state.roamingMonsters = [elite];
+  for (let i = 0; i < NOISE_STAGE_MAX; i++) addNoise(state, state.x, state.y, 4, { source: 'dig' });
+  const distance = () => findHunterStep(map, elite, { x: state.x, y: state.y }).distance;
+  for (let turn = 1; turn <= 3; turn++) {
+    advanceRoamingTurn(false);
+    assert.equal(distance(), far.d - turn, 'one step closer on every action');
+  }
+  assert.match(logText(), /まっすぐこちらへ/);
+  elite.fleeGraceTicks = 2;
+  const held = distance();
+  advanceRoamingTurn(false);
+  assert.equal(distance(), held, 'after a flee it holds still');
+  state.roamingMonsters = [];
+  state.currentRun.noiseAlarm = null;
 }
 
 console.log('[PASS] Issue #1963 traversal gimmicks resolve through live exploration.');

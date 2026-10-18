@@ -21,11 +21,15 @@ import { showSoloHudHit } from "../ui/solo_hud.js";
 import { showVictoryToast } from "../ui/victory_toast.js";
 import { recordRoundEnemyAction, resetRoundEnemyActions } from "./round_enemy_actions.js";
 import { formatFloorCode, isDungeonBottomFloor } from "../rules/dungeons.js";
-import { noteFightNoise } from "../systems/dungeon_noise.js";
+import { noteFightNoise, takeNoiseStageMessage } from "../systems/dungeon_noise.js";
 
 // The mine's rule (#2063): a fight that ran long is heard down the tunnels.
 function noteLongFight() {
-  if (noteFightNoise(state)) addLog("長引いた戦いの音が坑道に響いた…");
+  if (noteFightNoise(state)) {
+    addLog("長引いた戦いの音が坑道に響いた…");
+    const stage = takeNoiseStageMessage(state);
+    if (stage) addLog(stage);
+  }
 }
 
 function cleanupCombatState() {

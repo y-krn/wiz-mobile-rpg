@@ -44,10 +44,10 @@ const DUNGEON_SETTINGS = Object.freeze({
     strength: BASELINE,
     // The mine's rule (#2063): digging and drawn-out fights make noise, noise
     // lingers, and while it does ordinary monsters come as well as the strong
-    // enemy.
+    // enemy. Since #2144 noise stacks (systems/dungeon_noise.js).
     rule: Object.freeze({
       id: "noise",
-      line: "音：掘る音と長引く戦いの音が、魔物を呼ぶ。静かに進むか、早く片づけるか。",
+      line: "音：掘る音と長引く戦いの音が、魔物を呼ぶ。音が重なれば強敵がまっすぐ来る。",
       noiseTurns: 8,
       noiseEncounterChance: 0.12,
       longFightRounds: 4
