@@ -231,6 +231,9 @@ function callAlly(combatState, caller) {
   ally.buffs = [];
   ally.hp = ally.maxHp;
   ally.exp = 0;
+  // An answered call does not call again, so two lookouts cannot keep
+  // replacing each other forever (#2123).
+  ally.calledForHelp = true;
   return ally;
 }
 

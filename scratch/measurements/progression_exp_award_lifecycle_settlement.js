@@ -205,7 +205,7 @@ export function runLifecycleSettlementFixtures() {
   // The Rare pool holds メタルパピー only where the floors run deep; the
   // weak combatant fights bare-handed so it can flee (see createState).
   const flee = fixture({ floor: 30, name: "メタルパピー", kind: "flee", rare: true });
-  const split = fixture({ floor: 1, name: "分裂スライム", kind: "split" });
+  const split = fixture({ floor: 4, name: "分裂スライム", kind: "split" });
   const summon = fixture({ floor: 20, name: "召喚する悪魔", kind: "summon", targetSize: 2 });
   const multiBudgetAccounting = (() => {
     const monsters = [{ name: "A", exp: 0, fled: false }, { name: "B", exp: 0, fled: true }];
@@ -215,7 +215,7 @@ export function runLifecycleSettlementFixtures() {
   return {
     evidence: "controlled-production-context-N=1",
     naturalRunEvidence: false,
-    bandFloors: [...new Set([flee.floor, split.floor, summon.floor].filter(floor => [1, 20].includes(floor)))].sort((a, b) => a - b),
+    bandFloors: [...new Set([flee.floor, split.floor, summon.floor].filter(floor => [4, 20].includes(floor)))].sort((a, b) => a - b),
     multiBudgetAccounting,
     fixtures: [flee, split, summon],
     coverageGaps: ["natural-encounter-distribution", "full-run-candidate-integration", "non-victory-settlement"]

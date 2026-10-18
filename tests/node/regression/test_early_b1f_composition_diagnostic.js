@@ -32,9 +32,9 @@ const meetsOpeningPair = report => report !== null && Object.entries(report.case
 const { seed, result: report } = await findSeed("early B1F opening pair", seedWindow(1192, 30), runScenario, meetsOpeningPair);
 
 assert.equal(report.configuration.startingKit, "vanguard");
-assert.equal(report.legalPairSurface.length, 43);
+assert.equal(report.legalPairSurface.length, 10);
 assert.ok(report.legalPairSurface.every(pair => pair.names.length === 2));
-assert.equal(report.fixedCombat.cases.length, 43 * 4 * 2);
+assert.equal(report.fixedCombat.cases.length, 10 * 4 * 2);
 assert.deepEqual(
   Object.keys(report.cases).sort(),
   [
@@ -65,8 +65,8 @@ assert.ok(report.candidateProfile.replacementPairs.every(pair =>
 ));
 assert.ok(report.candidateProfile.targetMass > 0);
 assert.ok(report.candidateProfile.replacementMass > 0);
-assert.equal(report.fixedCombat.riskDistribution["100:fight"].compositionCount, 43);
-assert.equal(report.fixedCombat.riskDistribution["100:fight"].risk.count, 43);
+assert.equal(report.fixedCombat.riskDistribution["100:fight"].compositionCount, 10);
+assert.equal(report.fixedCombat.riskDistribution["100:fight"].risk.count, 10);
 for (const [caseId, result] of Object.entries(report.cases)) {
   assert.equal(
     result.configuration.earlyCompositionPolicy,

@@ -3,7 +3,6 @@ import { ENEMY_ROLES, MONSTERS } from "./monsters.js";
 import {
   getBandTrialForFloor,
   getFloorRole,
-  getTrialAffinityMatches,
   getTrialAffinityWeight,
   getTrialEncounterSizeWeights
 } from "../rules/floor_trials.js";
@@ -38,34 +37,46 @@ export const ENCOUNTER_POOLS = Object.freeze(Object.fromEntries(
   BIOMES.map((biome, index) => [index + 1, biome.enemyPool])
 ));
 
-// The biome remains the source of enemy identity. Local floor weights reveal
-// that theme gradually, while only status threats that are too punishing for
-// the opening floor are hard-gated until local floor 2.
-const STATUS_THREAT_WEIGHTS_BY_LOCAL_FLOOR = Object.freeze({
-  1: 0,
-  2: 1,
-  3: 1,
-  4: 1,
-  5: 1
+// Floor rosters (#2123). Each biome sorts its enemies into three tiers, and
+// the local floor decides how often each tier appears: plain attackers on the
+// first floors, enemies with a role (guard, heal, rally, status) from the third,
+// the biome's own troublemakers from the fourth. Plain attackers thin out deep
+// down but never vanish, so they still turn up beside the new faces.
+export const ENEMY_TIER_WEIGHTS_BY_LOCAL_FLOOR = Object.freeze({
+  early: Object.freeze([1, 1, 0.6, 0.15, 0.1]),
+  role: Object.freeze([0, 0, 1, 1, 0.8]),
+  late: Object.freeze([0, 0, 0, 1, 1])
 });
-const EARLY_STATUS_THREAT_UNLOCK_LOCAL_FLOOR = 2;
+// Local floors where a new tier first appears, and what the player is told.
+const NEW_ROSTER_NOTICES = Object.freeze({
+  3: "この階には、別の気配がある。群れを率いる敵が混ざっているようだ。",
+  4: "この階には、さらに厄介な気配がある。"
+});
 const MONSTER_BY_NAME = new Map(MONSTERS.map(monster => [monster.name, monster]));
+// Selection slots per unit of weight, so a thinned tier keeps a slot.
+const WEIGHT_SLOTS = 10;
 
 function getLocalFloor(floor) {
   return ((Math.max(1, Math.floor(Number(floor) || 1)) - 1) % 5) + 1;
 }
 
+export function getEnemyTier(name, floor) {
+  const tiers = getBiomeForFloor(floor).enemyTiers;
+  return Object.keys(tiers).find(tier => tiers[tier].includes(name)) || null;
+}
+
 export function getEncounterWeightForFloor(name, floor, { trial = null } = {}) {
-  const localFloor = getLocalFloor(floor);
   const monster = MONSTER_BY_NAME.get(name);
   if (!monster) return 1;
-  const isStatusThreat = monster.isBlinding || monster.isSleepInflicting;
-  if (isStatusThreat) {
-    if (localFloor < EARLY_STATUS_THREAT_UNLOCK_LOCAL_FLOOR) return 0;
-    const baseWeight = STATUS_THREAT_WEIGHTS_BY_LOCAL_FLOOR[localFloor];
-    return trial ? baseWeight * getTrialAffinityWeight(monster, trial, getFloorRole(floor)) : baseWeight;
-  }
-  return trial ? getTrialAffinityWeight(monster, trial, getFloorRole(floor)) : 1;
+  const tier = getEnemyTier(name, floor);
+  const baseWeight = tier ? ENEMY_TIER_WEIGHTS_BY_LOCAL_FLOOR[tier][getLocalFloor(floor) - 1] : 1;
+  if (baseWeight <= 0) return 0;
+  return trial ? baseWeight * getTrialAffinityWeight(monster, trial, getFloorRole(floor)) : baseWeight;
+}
+
+/** The line shown on first reaching a floor where new enemies begin to appear. */
+export function getNewRosterNotice(floor) {
+  return NEW_ROSTER_NOTICES[getLocalFloor(floor)] || null;
 }
 
 function getWeightedEncounterPoolForFloor(floor, options = {}) {
@@ -73,27 +84,12 @@ function getWeightedEncounterPoolForFloor(floor, options = {}) {
   const trial = options.trial || (options.runSeed
     ? getBandTrialForFloor(options.runSeed, floor, options.storedTrial)
     : null);
-  if (!trial) {
-    return pool.flatMap(name => Array.from(
-      { length: Math.max(0, getEncounterWeightForFloor(name, floor, { trial })) },
-      () => name
-    ));
-  }
-
-  const fallbackName = pool.find((name, index) => {
-    const monster = MONSTER_BY_NAME.get(name);
-    const matches = getTrialAffinityMatches(monster, trial);
-    return index > 0 && getEncounterWeightForFloor(name, floor, { trial }) > 0 &&
-      !matches.mainMatch && !matches.subMatch;
-  }) || pool.find(name => getEncounterWeightForFloor(name, floor, { trial }) > 0);
+  // An enemy whose tier has not started on this floor never appears; a trial
+  // only reweights the enemies that can.
   return pool.flatMap(name => {
     const weight = getEncounterWeightForFloor(name, floor, { trial });
-    if (weight <= 0) {
-      // Preserve the deterministic selection slots while reallocating a hard-
-      // gated enemy's slot to an eligible enemy. The gated name never returns.
-      return fallbackName ? [fallbackName] : [];
-    }
-    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => name);
+    if (weight <= 0) return [];
+    return Array.from({ length: Math.max(1, Math.round(weight * WEIGHT_SLOTS)) }, () => name);
   });
 }
 

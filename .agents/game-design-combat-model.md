@@ -238,7 +238,8 @@ Groups act by roles that follow fixed rules, so a group can be read:
 - **Lookout.** A quick monster calls for help once an ally has fallen. If it
   is not stopped that round, one more of the fallen ally's kind joins this
   fight at full strength, as the group was when it was met. The lookout stays,
-  calls only once, and the newcomer gives no experience.
+  calls only once, and the newcomer gives no experience and does not call in
+  turn, so two lookouts cannot keep replacing each other.
 
 Beyond the roles, each kind of monster fights its own way. A monster without
 an active trait or spell has a **signature move** in its data, shown on its
@@ -267,6 +268,28 @@ encounters come less often, and each fight pays proportionally more EXP and
 materials. The heft is the same on every floor, so a monster met again deeper
 is the same monster; a step in strength between floors reads as the monster
 itself changing. Exact values stay in `ORDINARY_HEFT` (`src/rules/dungeons.js`).
+
+### Floor rosters (#2123)
+
+Each biome sorts its enemies into three tiers, and the floor inside the
+dungeon decides how often each tier is met:
+
+- **Early:** plain attackers with no group role, no ailment and no
+  self-destruct. A quick lookout counts as early, since its call only repeats
+  what is already on the field. They fill the first two floors, are still
+  common on the third, and are rare but possible on the fourth and fifth.
+- **Role:** guards, healers, leaders and ailment users. They join from the
+  third floor.
+- **Late:** the biome's troublemakers (splitters, self-destructers, summoners,
+  spell sealers and the like). They join from the fourth floor.
+
+So the first floors teach the biome's plain fight, the third adds groups that
+must be read, and the fourth adds what the biome is known for. The first
+arrival on the third and fourth floors logs that new enemies are near. A
+floor trial reweights only the enemies its floor already allows; it never
+brings a tier in early. Every floor can still build a legal group of every
+size. Tier lists stay in `src/data/biomes.js`; the weights by floor stay in
+`ENEMY_TIER_WEIGHTS_BY_LOCAL_FLOOR` (`src/data/encounters.js`).
 
 ## Weapon techniques (Build vNext trial)
 
