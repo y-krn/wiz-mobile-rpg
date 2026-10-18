@@ -7,7 +7,7 @@ import { DUNGEONS } from "../../../src/data/dungeons.js";
 import { getDungeonEntryFloor, getDungeonRule } from "../../../src/rules/dungeons.js";
 import { generateRunFloor } from "../../../src/run_map_generator.js";
 import {
-  DEEP_WATER_DAMAGE_RATE, WATER_MAX_DEPTH, WATER_RISES_PER_DEPTH, getDeepWaterDamage, getDungeonWaterRule, getWaterDepth,
+  DEEP_WATER_DAMAGE_RATE, WATER_MAX_DEPTH, WATER_RISES_PER_DEPTH, countDeepWater, getDeepWaterDamage, getDungeonWaterRule, getWaterDepth,
   getWaterStatus, isDeepWater, riseWater, spreadWaterOnce
 } from "../../../src/systems/rising_water.js";
 
@@ -84,18 +84,21 @@ for (const seed of ["A", "B", "C"]) {
   assert.equal(isDeepWater(grid[0][1]), false);
   assert.equal(getDeepWaterDamage(100), Math.ceil(100 * DEEP_WATER_DAMAGE_RATE));
   assert.equal(getDeepWaterDamage(1), 1);
-  // It never kills: a step stops at 1 HP.
-  assert.equal(getDeepWaterDamage(100, 2), 1);
-  assert.equal(getDeepWaterDamage(100, 1), 0);
+  // Since #2142 it drowns: a step is not stopped at 1 HP, and a run that
+  // ignores the water can die crossing a dozen deep cells.
+  assert.ok(DEEP_WATER_DAMAGE_RATE * 12 >= 0.9);
+  assert.equal(countDeepWater(grid), 1);
 }
 
-// The HUD reads the level and the turns until the next rise.
+// The HUD reads the level, the turns until the next rise, and the deep cells.
 {
   const floor = entry + 1;
   const state = { floor, currentRun: { floorSteps: { [floor]: rule.riseEvery * 3 + 5 }, waterLevels: { [floor]: 3 } } };
-  assert.deepEqual(getWaterStatus(state), { level: 3, maxLevel: rule.maxRises, turnsToRise: rule.riseEvery - 5, full: false });
+  assert.deepEqual(getWaterStatus(state), { level: 3, maxLevel: rule.maxRises, turnsToRise: rule.riseEvery - 5, full: false, deepCells: 0 });
   state.currentRun.waterLevels[floor] = rule.maxRises;
   assert.equal(getWaterStatus(state).full, true);
+  state.map = [[{ type: "empty", hazard: { kind: "flood", age: WATER_RISES_PER_DEPTH * 2 } }]];
+  assert.equal(getWaterStatus(state).deepCells, 1);
   assert.equal(getWaterStatus({ floor: 1, currentRun: {} }), null);
 }
 

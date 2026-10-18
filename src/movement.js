@@ -32,7 +32,7 @@ import { getFeatAnnouncementLines, getNearestFeats } from "./systems/feats.js";
 import { applyPhase4cV1PlayerBaseline } from "./rules/phase4c_v1_trial.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { addNoise, applyNoiseToEncounterChance } from "./systems/dungeon_noise.js";
-import { getDeepWaterDamage, getWaterStatus, isDeepWater, riseWater } from "./systems/rising_water.js";
+import { countDeepWater, getDeepWaterDamage, getDungeonWaterRule, getWaterStatus, isDeepWater, riseWater } from "./systems/rising_water.js";
 import { isPursuitDue, shakeOffPursuit, takePursuitMonsters, tickPursuit } from "./systems/pursuit.js";
 import { applyDarknessToEncounterChance, getDarknessDetectionFactor, isDark } from "./systems/darkness.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
@@ -106,10 +106,13 @@ export function recordExplorationSteps(count = 1) {
   if (refreshHeatHazards(state.map, state.currentRun.floorSteps[key])) markMapChanged();
   // The library's rule (#2063): the water rises with the turns spent here.
   const sunk = [];
+  const deepBefore = getDungeonWaterRule(state.floor) ? countDeepWater(state.map) : 0;
   if (riseWater(state, state.map, state.floor, sunk) > 0) {
     markMapChanged();
     const level = getWaterStatus(state);
     addLog(`水位が上がった（${level.level}/${level.maxLevel}）。水が広がり、深みが増していく……`);
+    // Deep water drowns (#2142): its first appearance on a floor is told.
+    if (deepBefore === 0 && level.deepCells > 0) addLog("足の届かない深みができた。深みを渡れば溺れるおそれがある。");
     if (sunk.length > 0) addLog(`宝箱が${sunk.length}つ水に沈んだ。中身はもう駄目だろう。`);
   }
   // Carrying gives the first observation early; later signs require a
@@ -335,16 +338,23 @@ function applyTraversalHazards() {
   markMapChanged();
   if (hazard.kind === TRAVERSAL_GIMMICKS.FLOOD) {
     if (isDeepWater(cell)) {
-      // Deep water (#2105) chills and half-drowns the adventurer.
+      // Deep water (#2105) chills the adventurer, and since #2142 it drowns.
       playSound("hit");
       state.party.forEach(c => {
         if (c.status === "dead" || c.hp <= 0) return;
-        const damage = getDeepWaterDamage(getCharMaxHp(c), c.hp);
-        c.hp -= damage;
-        addLog(damage > 0
-          ? `深みに足を取られ、水を飲んだ！${c.name}は${damage}のダメージを受けた（+1手番）。`
-          : `深みに足を取られ、溺れかけた。${c.name}はかろうじて息をつないだ（+1手番）。`);
+        const damage = getDeepWaterDamage(getCharMaxHp(c));
+        c.hp = Math.max(0, c.hp - damage);
+        addLog(`深みに足を取られ、水を飲んだ！${c.name}は${damage}のダメージを受けた（+1手番）。`);
+        if (c.hp === 0) {
+          c.status = "dead";
+          const deathLog = recordCharDeath(state, c, "深い水", { type: "trap", source: "深い水" });
+          if (deathLog) addLog(formatCharDeathLog(deathLog));
+        }
       });
+      if (state.party.every(c => c.status === "dead")) {
+        triggerGameOver();
+        return true;
+      }
     } else {
       addLog("水に足を取られ、進むのに余計な時間がかかった（+1手番）。");
     }

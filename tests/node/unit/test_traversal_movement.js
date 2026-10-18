@@ -40,6 +40,7 @@ const { executeEnterDungeon, getCurrentFloorExplorationSteps, handleMove } = awa
 const { ensureRunFloor } = await import('../../../src/state/run_floor_state.js');
 const { RUBBLE_CLEAR_TURNS, getHeatDamage, isHeatActive } = await import('../../../src/rules/traversal_gimmicks.js');
 const { getCharMaxHp } = await import('../../../src/data.js');
+const { WATER_RISES_PER_DEPTH, getDeepWaterDamage } = await import('../../../src/systems/rising_water.js');
 
 // #1963: live exploration resolves biome traversal gimmicks in place.
 global.setTimeout = callback => {
@@ -221,6 +222,23 @@ function enterFloor(floor) {
   assert.notEqual(state.dir, facing, 'the spinner turned the player');
   assert.equal(spinner.cell.hazard.discovered, true);
   assert.match(logText(), /足元の床が回転した/);
+}
+
+// Deep water drowns (#2142): a step can take the last HP and end the run.
+{
+  const map = enterFloor(16);
+  quiet();
+  const water = findCell(map, cell => cell.hazard?.kind === 'flood');
+  water.cell.hazard.age = WATER_RISES_PER_DEPTH * 2;
+  faceCell(water);
+  const hero = state.party[0];
+  hero.status = 'normal';
+  hero.hp = getDeepWaterDamage(getCharMaxHp(hero));
+  handleMove('forward');
+  assert.equal(hero.hp, 0);
+  assert.equal(hero.status, 'dead', 'deep water drowns');
+  assert.match(logText(), /深みに足を取られ/);
+  assert.notEqual(state.gameState, 'explore', 'a drowned party ends the run');
 }
 
 console.log('[PASS] Issue #1963 traversal gimmicks resolve through live exploration.');
