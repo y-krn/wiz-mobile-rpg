@@ -29,8 +29,9 @@
 // - water ('read' | 'ignore'): with 'read', the library's water is a reason to
 //   leave a floor and deep water is walked around; 'ignore' does neither.
 // - noise ('read' | 'ignore'): with 'read', the mine's noise stage (#2144) is
-//   let die down before digging, and a strong enemy sent by it is a reason to
-//   leave the floor; 'ignore' does neither.
+//   let die down before digging, a fight one stage below the top is fled
+//   before it runs long, and a strong enemy sent by it is a reason to leave
+//   the floor; 'ignore' does none of these.
 
 const S = await import('/src/state.js');
 const M = await import('/src/movement.js');
@@ -362,6 +363,9 @@ W.__fight = async () => {
       // A forced elite fight is fought out: fleeing would not open the way.
       if (enemyHp > 12 && !s.combatState.isRoamingFlack) { await W.__act('逃走'); note += ' [flee]'; continue; }
     }
+    // One more loud noise would send the mine's strong enemy (#2144): leave a fight before it runs long.
+    if (W.__policy.noise === 'read' && r >= 3 && enemyHp > 12 && !s.combatState.isRoamingFlack
+      && (NOISE.getNoiseStatus?.(s)?.stage || 0) >= NOISE.NOISE_STAGE_MAX - 1) { await W.__act('逃走'); note += ' [flee-noise]'; continue; }
     if (shouldBraceForIntent(alive)) { W.__intentBraces = (W.__intentBraces || 0) + 1; await W.__act('防御'); continue; }
     await attackTarget(alive);
   }
@@ -665,6 +669,9 @@ const countSteps = () => {
   W.__stepsBy[key] = (W.__stepsBy[key] || 0) + Math.max(0, steps - W.__lastSteps); W.__lastSteps = steps;
   const hunter = (st().roamingMonsters || []).find(m => m.hunter && m.floor === st().floor);
   if (hunter) { const d = Math.abs(hunter.x - st().x) + Math.abs(hunter.y - st().y); const f = st().floor; W.__hunterMin[f] = Math.min(W.__hunterMin[f] ?? 99, d); }
+  // The mine's noise stage (#2144): the highest it reached, and turns spent hunted.
+  const noise = NOISE.getNoiseStatus?.(st());
+  if (noise) { W.__noiseMaxStage = Math.max(W.__noiseMaxStage || 0, noise.stage); if (noise.huntTurns > 0) W.__huntedSteps = (W.__huntedSteps || 0) + 1; }
 };
 const turnBackNow = why => {
   if (W.__turnBack || !roundTrip()) return false;
@@ -911,7 +918,7 @@ W.__startRun = async ({ kit = 'vanguard', seed = null, roundTrip = false, dungeo
   finally { Date.now = realNow; }
   W.__journal = []; W.__lootLog = []; W.__equipLog = []; W.__runeCount = 0; W.__lastEquipment = null; W.__techUses = 0; W.__seedChoice = null; W.__guardianFloor = null; W.__healDetours = {}; seenLoot.clear();
   resetPolicyState();
-  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0; W.__darkToggles = 0; W.__rests = 0; W.__intentBraces = 0;
+  W.__turnBack = false; W.__hunterMin = {}; W.__stepsBy = {}; W.__lastSteps = 0; W.__returnFlees = 0; W.__turnBackAt = null; W.__noiseFights = 0; W.__noiseMaxStage = 0; W.__huntedSteps = 0; W.__darkToggles = 0; W.__rests = 0; W.__intentBraces = 0;
   W.__dungeonRule = DUNGEON_RULES.getDungeonRule(st().floor)?.line || '';
   trackHpLedger();
   const run = st().currentRun;
@@ -997,7 +1004,7 @@ W.__playRun = async ({ kit = 'vanguard', seed = null, equip = 'greedy', ...polic
     returned: s.gameState === 'result' && (P()?.hp ?? 0) > 0,
     companions: companionNames() || null,
     roomActions: W.__roomActions, purchases: W.__purchases,
-    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, darkToggles: W.__darkToggles || 0, rests: W.__rests || 0, intentBraces: W.__intentBraces || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
+    roundTrip: roundTrip() ? { ...roundTrip() } : null, turnBackAt: W.__turnBackAt, stepsBy: { ...W.__stepsBy }, noiseFights: W.__noiseFights || 0, noiseMaxStage: W.__noiseMaxStage || 0, huntedSteps: W.__huntedSteps || 0, darkToggles: W.__darkToggles || 0, rests: W.__rests || 0, intentBraces: W.__intentBraces || 0, hpLedger: W.__hpLedger, maxHp: P() ? DATA.getCharMaxHp(P()) : null, hunterMin: { ...W.__hunterMin }, returnFlees: W.__returnFlees || 0, returnReason: s.currentRun?.returnReason || null,
     eliteFlees: { ...W.__eliteFlees }, eliteFightsForced: Object.keys(W.__fightElite || {}).map(Number), bloodUses: W.__bloodUses || 0, reflectAvoids: W.__reflectAvoids || 0, riposteGuards: W.__riposteGuards || 0,
     cause: s.gameState === 'result' ? d?.cause : null,
     finalEquipment: W.__lastEquipment || null,

@@ -3,10 +3,10 @@
 // extreme: there noise lingers longer and brings ordinary monsters too, and a
 // drawn-out fight makes noise of its own.
 //
-// Since #2144 the mine's noise stacks: a loud noise made while another still
-// hangs on the floor raises the noise stage, and at the top stage the floor's
-// roaming strong enemy walks straight at the party for a while. The stage
-// falls back to nothing once the floor is quiet again.
+// Since #2144 the mine's noise stacks: every loud noise raises the noise
+// stage by one, and at the top stage the floor's roaming strong enemy walks
+// straight at the party for a while. The stage falls by one for every
+// noiseTurns the floor stays quiet.
 import { getDungeonNoiseRule } from "../rules/dungeons.js";
 
 const DEFAULT_NOISE_TURNS = 4;
@@ -44,9 +44,9 @@ export function addNoise(stateLike, x, y, ttl = DEFAULT_NOISE_TURNS, { source = 
 
 function raiseNoiseStage(stateLike) {
   const floor = stateLike.floor;
-  const lingering = (stateLike.noiseEvents || []).some(event => event.floor === floor && stacks(event));
-  const alarm = getAlarm(stateLike) || { floor, stage: 0, announced: 0, huntTurns: 0 };
-  alarm.stage = lingering ? Math.min(NOISE_STAGE_MAX, alarm.stage + 1) : Math.max(1, alarm.stage);
+  const alarm = getAlarm(stateLike) || { floor, stage: 0, announced: 0, huntTurns: 0, quietTurns: 0 };
+  alarm.stage = Math.min(NOISE_STAGE_MAX, alarm.stage + 1);
+  alarm.quietTurns = 0;
   if (alarm.stage >= NOISE_STAGE_MAX) alarm.huntTurns = NOISE_HUNT_TURNS;
   stateLike.currentRun.noiseAlarm = alarm;
 }
@@ -74,14 +74,15 @@ export function takeNoiseStageMessage(stateLike) {
   if (alarm.stage >= NOISE_STAGE_MAX) {
     return `【騒音】坑道じゅうに音が響いた！強敵がまっすぐこちらへ向かってくる（${NOISE_HUNT_TURNS}手番）。`;
   }
-  if (alarm.stage === 2) return "【騒音】音が重なり、坑道がざわめいている（騒音2/3）。音が残るうちにもう一度立てれば、強敵が来る。";
+  if (alarm.stage === 2) return "【騒音】音が重なり、坑道がざわめいている（騒音2/3）。静まる前にもう一度立てれば、強敵が来る。";
   return null;
 }
 
 /**
- * One turn of the noise stage: the hunt counts down, and once no stacking
- * noise hangs on the floor the stage falls back to nothing. Returns a log
- * line when something the player should hear changed.
+ * One turn of the noise stage. A hunt counts down and ends by dropping the
+ * stage below the top; otherwise every noiseTurns without loud noise on the
+ * floor lowers the stage by one. Returns a log line when something the player
+ * should hear changed.
  */
 export function tickNoiseStage(stateLike) {
   const alarm = getAlarm(stateLike);
@@ -89,14 +90,20 @@ export function tickNoiseStage(stateLike) {
   if (alarm.huntTurns > 0) {
     alarm.huntTurns -= 1;
     if (alarm.huntTurns > 0) return null;
+    alarm.stage = NOISE_STAGE_MAX - 1;
+    alarm.announced = alarm.stage;
+    alarm.quietTurns = 0;
+    return "坑道の音が少し静まり、強敵は追うのをやめた。";
   }
   const lingering = (stateLike.noiseEvents || []).some(event => event.floor === stateLike.floor && stacks(event));
-  if (lingering && alarm.stage < NOISE_STAGE_MAX) return null;
-  const was = alarm.stage;
-  alarm.stage = 0;
-  alarm.announced = 0;
-  if (was >= NOISE_STAGE_MAX) return "坑道の音が静まり、強敵は追うのをやめた。";
-  return was >= 2 ? "坑道の音が静まった。" : null;
+  alarm.quietTurns = lingering ? 0 : (alarm.quietTurns || 0) + 1;
+  if (alarm.quietTurns < getDungeonNoiseRule(stateLike.floor).noiseTurns) return null;
+  alarm.quietTurns = 0;
+  alarm.stage -= 1;
+  alarm.announced = Math.min(alarm.announced, alarm.stage);
+  // Falling from the first stage needs no line: the HUD chip just goes away.
+  if (alarm.stage === 0) return null;
+  return `坑道の音が少し静まった（騒音${alarm.stage}/${NOISE_STAGE_MAX}）。`;
 }
 
 /** Whether noise that brings monsters still hangs on `floor`. */

@@ -66,14 +66,20 @@ assert.equal(getDungeonNoiseRule(catacombFloor), null);
   assert.equal(noteFightNoise(fight(10, catacombFloor)), false);
 }
 
-// Noise stacks (#2144): a loud noise made while another still hangs raises the
-// stage; at the top the strong enemy hunts for NOISE_HUNT_TURNS, and once the
-// floor is quiet the stage falls back to nothing.
+// Noise stacks (#2144): every loud noise raises the stage by one; at the top
+// the strong enemy hunts for NOISE_HUNT_TURNS, and every rule.noiseTurns of
+// quiet lowers the stage by one.
 {
   const state = { floor: mineFloor, currentRun: {} };
   const tick = () => {
-    state.noiseEvents = state.noiseEvents.map(event => ({ ...event, ttl: event.ttl - 1 })).filter(event => event.ttl > 0);
+    state.noiseEvents = (state.noiseEvents || []).map(event => ({ ...event, ttl: event.ttl - 1 })).filter(event => event.ttl > 0);
     return tickNoiseStage(state);
+  };
+  const waitQuiet = () => {
+    while (state.noiseEvents?.length) assert.equal(tick(), null);
+    const lines = [];
+    for (let turn = 0; turn < rule.noiseTurns; turn++) lines.push(tick());
+    return lines.filter(Boolean);
   };
   assert.deepEqual(getNoiseStatus(state), { stage: 0, maxStage: NOISE_STAGE_MAX, huntTurns: 0 });
   addNoise(state, 1, 1, 4, { source: "dig" });
@@ -83,13 +89,16 @@ assert.equal(getDungeonNoiseRule(catacombFloor), null);
   addNoise(state, 1, 1, 4, { source: "encounter" });
   addNoise(state, 1, 1, 4, { source: "decoy" });
   assert.equal(getNoiseStatus(state).stage, 1);
+  // Noise made after the first one has died away still stacks.
+  while (state.noiseEvents.length) tick();
   addNoise(state, 1, 1, 4, { source: "fight" });
   assert.equal(getNoiseStatus(state).stage, 2);
   assert.match(takeNoiseStageMessage(state), /騒音2\/3/);
   assert.equal(takeNoiseStageMessage(state), null, "each stage is told once");
-  // Quiet again: back to nothing.
-  for (let turn = 0; turn < rule.noiseTurns - 1; turn++) assert.equal(tick(), null);
-  assert.match(tick(), /静まった/);
+  // Quiet lowers it one stage at a time.
+  assert.deepEqual(waitQuiet(), ["坑道の音が少し静まった（騒音1/3）。"]);
+  assert.equal(getNoiseStatus(state).stage, 1);
+  assert.deepEqual(waitQuiet(), []);
   assert.equal(getNoiseStatus(state).stage, 0);
   // Three in a row reach the top: the hunt runs on after the noise is gone.
   ["dig", "fight", "alarm"].forEach(source => addNoise(state, 1, 1, 4, { source }));
@@ -100,6 +109,9 @@ assert.equal(getDungeonNoiseRule(catacombFloor), null);
   assert.equal(getNoiseStatus(state).huntTurns, 1);
   assert.match(tick(), /追うのをやめた/);
   assert.equal(isNoiseHunting(state), false);
+  assert.equal(getNoiseStatus(state).stage, NOISE_STAGE_MAX - 1, "one more noise brings it back");
+  addNoise(state, 1, 1, 4, { source: "dig" });
+  assert.equal(isNoiseHunting(state), true);
   // Another floor keeps its own stage; elsewhere there is none.
   state.floor = mineFloor + 1;
   assert.equal(getNoiseStatus(state).stage, 0);
